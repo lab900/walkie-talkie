@@ -91,7 +91,8 @@ cmd_deploy() {
   tar -C "$(dirname "$src")" -cf - "$(basename "$src")" | tart exec -i "$VM" sudo tar -C /Applications -xf -
   g sudo chown -R admin:staff "/Applications/$(basename "$src")"
   g open "/Applications/$(basename "$src")"
-  for _ in $(seq 1 30); do
+  # A cold launch on the USB disk took 4 min 38 s to open 8917 (2026-09-26 20:18 → 20:23).
+  for _ in $(seq 1 360); do
     cmd_api test/state >/dev/null 2>&1 && { echo "✅ $APP answering in $VM"; return 0; }
     sleep 1
   done
@@ -121,10 +122,24 @@ cmd_look() { open "vnc://admin:admin@$(tart ip "$VM")"; }
 
 # `tart stop` alone is a pulled plug: SIGINT → `VZVirtualMachine.stop()`, no guest shutdown (Tart
 # 2.34 Run.swift/VM.swift, found 2026-09-26). Shut the guest down first, then reap the process.
+# **The shutdown goes over SSH** (2026-09-26, batch 6): `tart exec "$VM" sudo shutdown -h now`
+# returned and the guest went on running — the guest agent's command does not reach a shutdown.
+# The host's key is in the guest's `authorized_keys`, so `ssh -o BatchMode=yes admin@<ip>` never
+# prompts; the clone's host key changes with every `reset`, hence no known_hosts. A guest that is
+# still up 400 s later (the USB disk: 64 s to >300 s measured) is stopped with `tart stop`.
 cmd_down() {
   [ "$(state "$VM")" = "running" ] || return 0
-  g sudo shutdown -h now >/dev/null 2>&1 || true
-  for _ in $(seq 1 600); do [ "$(state "$VM")" = "running" ] || return 0; sleep 1; done   # 64 s to >300 s measured on the USB disk
+  local ip
+  ip="$(tart ip "$VM" 2>/dev/null || true)"
+  if [ -n "$ip" ]; then
+    ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o LogLevel=ERROR "admin@$ip" 'sudo -n shutdown -h now' >/dev/null 2>&1 \
+      || echo "⚠️  ssh admin@$ip shutdown failed — waiting, then tart stop" >&2
+  else
+    echo "⚠️  no IP for $VM — waiting, then tart stop" >&2
+  fi
+  for _ in $(seq 1 400); do [ "$(state "$VM")" = "running" ] || return 0; sleep 1; done
+  echo "⚠️  $VM still running after 400 s — tart stop" >&2
   tart stop "$VM" 2>/dev/null || true
 }
 

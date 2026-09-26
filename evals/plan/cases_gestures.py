@@ -40,7 +40,8 @@ from harness import (get, post, state, engine, log_mark, log_since, wait_for, ge
 
 
 # ---------------------------------------------------------------- constants
-INJECT = "WT Inject"                 # our own Loopback (never the Wispr teacher rig's device)
+from harness import LOOPBACK  # noqa: E402
+INJECT = LOOPBACK.replace("🧪 ", "")  # our own Loopback (never the Wispr teacher rig's device); "BlackHole 2ch" in the lab
 EL = ("eleven", "eleven-live")
 RETRIGGER, DWELL, BACK_SETTLE = 0.6, 2.0, 0.8
 FLAGS_WINDOW = 0.3
@@ -353,8 +354,7 @@ _B_TTY = [None]
 def witness_b_close():
     """Kill the tab's `cat` first — Terminal will not close a window with a running process."""
     if _B_TTY[0]:
-        subprocess.run(["pkill", "-t", _B_TTY[0]], capture_output=True)
-        time.sleep(0.3)
+        kill_tty(_B_TTY[0])
         _B_TTY[0] = None
     osa('tell application "Terminal" to close (every window whose name contains "wt-witness-b") saving no')
 
@@ -1305,10 +1305,14 @@ def tg41():
         time.sleep(0.3)
         play(CLIP_EN)
         time.sleep(1.0)
+        t_stop = now_iso()
         g.step("forward-right")
         landed = wait_for(lambda: "dictat" in witness_text().lower(), 120, 0.3)
         # `lastDelivery` is written after the keystrokes (batch 1): the words reach the witness first.
-        wait_for(lambda: str((st().get("lastDelivery") or {}).get("to", "")).endswith(tty or "?"), 5, 0.1)
+        # Wait for a row newer than the stop — the witness is shared across cases, and an earlier
+        # case's `/test/dictation` row (via=test) to the same tty satisfied the old wait at once.
+        wait_for(lambda: str((st().get("lastDelivery") or {}).get("at", "")) > t_stop
+                 and str((st().get("lastDelivery") or {}).get("to", "")).endswith(tty or "?"), 5, 0.1)
         s = st()
         d = s.get("lastDelivery") or {}
         banked = bool(BANKED.search(log_since(m)))

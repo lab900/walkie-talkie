@@ -319,8 +319,8 @@ def tl5_helper_hang():
         _helper_up()
 
 
-@case("TL6", expect="dead helper (SIGKILL) → /test/local-fallback {ok:false} fast + 'it died', app pid unchanged "
-                    "(probable before G4: app dies of SIGPIPE); restart brings it back")
+@case("TL6", expect="dead helper (SIGKILL) → the app survives, 'it died' at the kill, and /test/local-fallback either "
+                    "refuses fast {ok:false} or (since batches 1e/3) brings a helper up and answers; restart brings it back")
 def tl6_dead_helper_sigpipe():
     """SIGKILL the helper, ask for a decode: the app must survive and refuse fast."""
     if _helper_up() is None:
@@ -328,11 +328,13 @@ def tl6_dead_helper_sigpipe():
     pid0 = state()["pid"]
     hpid = _whisper().get("pid")
     try:
+        # Regression run 2026-09-26: the mark goes before the kill — since batch 3 the helper's
+        # `terminationHandler` says `it died` at the kill itself, not at the next request.
+        mark = log_mark()
         _, r = post("/test/whisper", {"kill": True})
         if "SIGKILL" not in (r.get("did") or []):
             return "SKIP", f"no helper to kill: {r}"
         wait_for(lambda: not _whisper().get("alive"), 3, 0.05)
-        mark = log_mark()
         ans, dt, err = _fallback(CLIP_EN, timeout=200)
         try:
             s = state()
@@ -352,6 +354,11 @@ def tl6_dead_helper_sigpipe():
             return "BUG", note + " — the app was replaced"
         if ans is not None and not ans.get("ok") and dt < 5 and not ready and t_up is not None:
             return "PASS", note
+        # Batch 1 (e) + batch 3 (3): a dead helper at fallback time is known dead at once and
+        # brought back up, and the request is answered — the survival the case is about, done better.
+        if ans is not None and ans.get("ok") and "dictat" in (ans.get("text") or "").lower() \
+                and died_line and dt < 20 and t_up is not None:
+            return "PASS", note + " — revived and answered (batch 1 e / batch 3)"
         return "FAIL", note
     finally:
         _helper_up()
@@ -658,6 +665,8 @@ def tl27_held_released_by_bind():
         released = wait_for(lambda: not state()["awaitingBind"], 3, 0.02)
         dt = round(time.time() - t0, 2)
         landed = wait_for(lambda: phrase in witness_text(), 10, 0.1)
+        # Batch 1: `lastDelivery` for a bound terminal is written after the keystrokes — wait for it.
+        wait_for(lambda: (state().get("lastDelivery") or {}).get("to") == f"terminal:{tty}", 5, 0.05)
         ld = state().get("lastDelivery") or {}
         note = (f"released {dt} s after the bind; words in the witness: {'yes' if landed else 'no'}; "
                 f"lastDelivery.to={ld.get('to')}")

@@ -118,11 +118,15 @@ def wait_idle(timeout=600):
         if not s["busy"]:
             return True
         # A prompt paused by a pointer that never moves (a huge panel unfolding under it) never
-        # resolves on its own: give up after 20 s instead of 600 (no HTTP route dismisses it).
-        if any("Paused" in str(r) for r in s.get("chip") or []):
+        # resolves on its own: after 20 s cancel it through POST /test/prompt (batch 4, G5).
+        if any("Paused" in str(r) for r in s.get("chip") or []) or (s.get("prompt") or {}).get("paused"):
             paused_since[0] = paused_since[0] or time.time()
             if time.time() - paused_since[0] > 20:
-                raise SystemExit("PAUSED")
+                code, _ = post("/test/prompt", {"do": "cancel"})
+                print(f"  (wait_idle: a paused prompt panel held 20 s — POST /test/prompt cancel → {code})")
+                paused_since[0] = None
+                if code != 200:
+                    raise SystemExit("PAUSED")
         else:
             paused_since[0] = None
         return False
@@ -171,12 +175,25 @@ def witness_text():
 def witness_clear():
     open(WITNESS["file"], "w").close()
 
+def kill_tty(tty):
+    """Every process on that tty but `login` (root's). `pkill -t ttysNNN` matches nothing on this Mac
+    (measured 2026-09-26: rc 1 with `cat` alive on the tty), so every close met Terminal's
+    "terminate?" sheet and left the window behind — ~50 orphans in one evening."""
+    out = subprocess.run(["ps", "-t", tty.replace("/dev/", ""), "-o", "pid=,comm="], capture_output=True, text=True).stdout
+    for ln in out.splitlines():
+        pid, _, comm = ln.strip().partition(" ")
+        if pid.isdigit() and "login" not in comm and int(pid) != os.getpid():
+            try:
+                os.kill(int(pid), 9)
+            except (ProcessLookupError, PermissionError):
+                pass
+    time.sleep(0.3)
+
 def witness_close():
     """Kill the tab's `cat` first: a window with a running process makes Terminal ask
     "terminate?" and the close silently does nothing (18 orphan windows on 2026-09-26)."""
     if WITNESS["tty"]:
-        subprocess.run(["pkill", "-t", WITNESS["tty"]], capture_output=True)
-        time.sleep(0.3)
+        kill_tty(WITNESS["tty"])
         osa('tell application "Terminal" to close (every window whose name contains "wt-witness") saving no')
         WITNESS["tty"] = None
 
@@ -333,7 +350,8 @@ def render(results, t_start):
            "| case | verdict | s | expectation | observed |", "|---|---|---|---|---|"]
     for c, v, note, dt in results:
         note = str(note or "").replace("|", "\\|").replace("\n", "<br>")
-        out.append(f"| {c['id']} | **{v}** | {dt:.0f} | {c['expect'].replace('|', '\\|')} | {note} |")
+        expect = c["expect"].replace("|", "\\|")   # outside the f-string: the lab's /usr/bin/python3 is 3.9
+        out.append(f"| {c['id']} | **{v}** | {dt:.0f} | {expect} | {note} |")
     return "\n".join(out) + "\n"
 
 def main():

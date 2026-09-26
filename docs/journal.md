@@ -13313,3 +13313,16 @@ next to itself — installed, that is `Contents/Resources/` of the signed app (t
 (else `$TMPDIR`). `build-app.sh` replaces the bundle whole, so the stale file goes with tomorrow's
 install; check `codesign --verify --deep "/Applications/Walkie Talkie.app"` after the first
 local-model warm-up.
+
+**The harness and the lab.** `cases_gestures.py` hard-coded `INJECT = "WT Inject"`; it now derives
+from the harness's `LOOPBACK` like `cases_audio` / `cases_lifecycle` (so the lab's `BlackHole 2ch`
+works there too). `tools/vm-lab.sh down`: `tart exec "$VM" sudo shutdown -h now` returned and the
+guest kept running, so the shutdown goes over SSH (`ssh -o BatchMode=yes admin@$(tart ip)`, `sudo
+-n`; the host's key is in the guest's `authorized_keys`), then `tart stop` if it is still up after
+400 s. In the same commit, the regression runner's pending edits (checked with `git diff` first,
+kept whole at the coordinator's word): `vm-lab.sh deploy` waits 360 s for the app to answer (a
+cold launch off the USB disk took 4 min 38 s), `harness.py` renders the report without a backslash
+inside an f-string (the lab's `/usr/bin/python3` is 3.9), `kill_tty` for the witness tabs (`pkill
+-t` matched nothing — ~50 orphan Terminal windows in one evening), `wait_idle` cancels a panel
+paused by the pointer through `POST /test/prompt` after 20 s, and the case fixes of that run (TL6,
+TL27, TG41, TR14 — batch 1 (e) / batch 3 (3) revive a dead helper instead of staging the audio).

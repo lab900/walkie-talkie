@@ -612,7 +612,8 @@ def tr13():
 
 
 @case("TR14", ("audio", "gesture", "slow"),
-      expect="helper killed mid-decode → .failed with the audio, app alive, helper restarts, the next sentence delivers")
+      expect="helper killed mid-decode → the sentence is kept (.failed with the audio) or, since batch 1 e, revived and "
+             "delivered; app alive, helper restarts, the next sentence delivers")
 def tr14():
     """The local helper dies with a request in it."""
     why = pre()
@@ -625,6 +626,7 @@ def tr14():
     with rig():
         post("/test/eleven", {"fail": "401"})
         post("/test/whisper", {"stop": True})    # the request is surely in flight when the kill lands
+        t0 = now_iso()
         try:
             m, _ = dictate_loopback(CLIP_EN_LONG, seconds=10, wait_after=1.0)
             if not on_inject(m): return not_inject(m)
@@ -637,6 +639,10 @@ def tr14():
         delivered(m, 60)
         settle_out(60)
         failed = log_has(m, r"could not transcribe it either|heard no words")
+        # Batch 1 (e) / batch 3 (3): a helper found dead at fallback time is brought back and asked
+        # again — the killed sentence is delivered instead of staged. Stale case until 2026-09-26 evening.
+        revived = log_has(m, r"the local helper was dead — bringing it back up and asking again")
+        d1 = last_delivery(t0)
         rec = state()["recoverable"]
         if rec and rec.get("path") == rec0:
             rec = None
@@ -648,9 +654,11 @@ def tr14():
         settle_out(60)
         d2 = last_delivery(t1)
         h2 = helper()
-        note = (f"failed line {failed}, recoverable {bool(rec)}, app pid {pid0} → {alive_pid}, helper pid {hpid0} → {h2.get('pid')} alive {h2.get('alive')}, "
+        note = (f"failed line {failed}, recoverable {bool(rec)}, revived and asked again {revived} "
+                f"(the killed sentence via {(d1 or {}).get('via')}), app pid {pid0} → {alive_pid}, helper pid {hpid0} → {h2.get('pid')} alive {h2.get('alive')}, "
                 f"next sentence via {(d2 or {}).get('via')}")
-        ok = rec and alive_pid == pid0 and d2 and "local" in d2.get("via", "") and h2.get("pid") != hpid0
+        kept_or_saved = rec or (revived and d1 and "local" in d1.get("via", ""))
+        ok = kept_or_saved and alive_pid == pid0 and d2 and "local" in d2.get("via", "") and h2.get("pid") != hpid0
         if alive_pid == pid0 and not rec and failed:
             return "BUG", note + " — the audio was not kept (§3.8)"
         return ("PASS" if ok else "FAIL"), note
@@ -745,8 +753,7 @@ def tr24():
     finally:
         # Kill the tab's `cat` first — Terminal will not close a window with a running process.
         if ttyb:
-            _quiet(subprocess.run, ["pkill", "-t", ttyb], capture_output=True)
-            time.sleep(0.3)
+            _quiet(kill_tty, ttyb)
         _quiet(osa, 'tell application "Terminal" to close (every window whose name contains "wt-witness-b") saving no')
     inA, inB = "dictat" in a.lower(), "dictat" in b.lower()
     note = f"A ({WITNESS['tty']}) {len(a)} chars, B ({ttyb}) {len(b)} chars, delivery to {d.get('to')}"
