@@ -832,8 +832,10 @@ def b1():
         delivered(m, 60)
         settle_out(60)
     since = log_since(m)
-    warm = re.search(r"takes a warm socket \(open (\d+) s\)", since)
-    caught = re.search(r"session open, (\d+) chunk", since)
+    warm = re.search(r"takes a warm socket \(open (\d+) s\)", since)   # batch 5 only; gone since Q11
+    caught = re.search(r"session open, (?:handshake [\d.]+ s, )?(\d+) chunk", since)
+    hs = re.search(r"session open, handshake ([\d.]+) s", since)        # Q11 (batch 6)
+    up = re.search(r"upgraded ([\d.]+) s after connecting", since)
     corpus = re.search(r"corpus: (\S+) —", since)
     path = None
     if corpus:
@@ -845,6 +847,8 @@ def b1():
     old = t_first and t_first - (t_play + 0.5)
     how = (f"warm socket (open {warm.group(1)} s)" if warm else
            f"cold, caught up {caught.group(1)} chunk(s) at session open" if caught else "socket state unknown")
+    if hs:
+        how += f"; handshake {hs.group(1)} s (upgrade {up.group(1) if up else '?'} s) on its own URLSession"
     note = (f"first band word {lat and round(lat, 2)} s after the speech in the recording (onset {onset and round(onset, 2)} s "
             f"into it); {old and round(old, 2)} s by the old clock (play() + 0.5); {how}; chunks {live.get('chunksSent')}")
     if lat is None:

@@ -55,16 +55,10 @@ final class ElevenLabsSource: DictationSource {
     let live: Bool
     var streamsLive: Bool { live }
     var didHearLive: ((_ committed: String, _ partial: String, _ gentle: Bool) -> Void)?
-    /// One per sentence — its committed text belongs to that sentence.
+    /// One per sentence — its committed text belongs to that sentence. Opened
+    /// at `start()`, closed at `stop()`: no socket is kept warm between
+    /// sentences (Q11, 2026-09-26; batch 5's `spare` is gone).
     private var stream: ElevenLabsLive?
-    /// **The socket held open for the next sentence** (2026-09-26, batch 5, B1)
-    /// — see `ElevenLabsLive.keepAlive`. Opened at `prepare()` and again as
-    /// each sentence's own closes; `start()` takes it, so the handshake is
-    /// never on the way to the first caption word. Main queue.
-    private var spare: ElevenLabsLive?
-    /// The engine was put down (`release()`): nothing is kept warm until it is
-    /// picked again.
-    private var released = false
     var didOpenLive: (() -> Void)?
     /// The sentence's session is up — the band may open (TL30). Main queue.
     private(set) var liveOpen = false
@@ -194,9 +188,7 @@ final class ElevenLabsSource: DictationSource {
     /// one the menu's ⏳ and the first gesture of the day both rest on. A
     /// recogniser that will refuse should refuse before he has said anything.
     func prepare() {
-        released = false
         if reloadKey() {
-            warmUp()
             Log.info("ElevenLabs ready — \(Self.model)"
                      + (Self.language.map { ", language pinned to \($0)" } ?? ", language auto"))
         } else {
@@ -307,18 +299,7 @@ final class ElevenLabsSource: DictationSource {
         var stream: ElevenLabsLive?
         liveOpen = false
         if live, let key = apiKey {
-            // A fault from `/test/eleven` is for a socket opened now, not the
-            // warm one that opened minutes ago.
-            if ElevenLabsLive.fault != nil { spare?.stop(); spare = nil }
-            let opened: ElevenLabsLive
-            if let warm = spare {
-                opened = warm
-                spare = nil
-            } else {
-                opened = ElevenLabsLive()
-                opened.connect(key: key, language: Self.language)
-            }
-            opened.onGone = nil
+            let opened = ElevenLabsLive()
             opened.onText = { [weak self, weak opened] committed, partial, gentle in
                 guard let self, let opened, self.stream === opened, self.isRecording else { return }
                 self.didHearLive?(committed, partial, gentle)
@@ -328,7 +309,7 @@ final class ElevenLabsSource: DictationSource {
                 self.liveOpen = true
                 self.didOpenLive?()
             }
-            opened.attach()
+            opened.connect(key: key, language: Self.language)
             stream = opened
         }
         self.stream = stream
@@ -551,27 +532,6 @@ final class ElevenLabsSource: DictationSource {
         stream?.stop()
         stream = nil
         liveOpen = false
-        warmUp()
-    }
-
-    /// Opens the socket the next sentence will take, if this is the live row,
-    /// there is a key, and none is up already.
-    private func warmUp() {
-        guard live, !released, spare == nil, let key = apiKey else { return }
-        let warm = ElevenLabsLive()
-        warm.onGone = { [weak self, weak warm] in
-            guard let self, let warm, self.spare === warm else { return }
-            self.spare = nil
-        }
-        warm.connect(key: key, language: Self.language)
-        spare = warm
-    }
-
-    /// The engine was put down: the warm socket goes with it.
-    func release() {
-        released = true
-        spare?.stop()
-        spare = nil
     }
 
     private func finishWithFailure(_ wav: URL, _ duration: TimeInterval, _ why: String) {
@@ -793,10 +753,7 @@ final class ElevenLabsSource: DictationSource {
 
     /// The live socket's own state, for `GET /test/state.live` (gap G7).
     func liveDescribe() -> [String: Any]? {
-        if let stream { return stream.describe() }
-        guard var warm = spare?.describe() else { return nil }
-        warm["warm"] = true
-        return warm
+        stream?.describe()
     }
 
     /// `GET /engine`'s half of the answer, the same shape `LocalWhisperSource`

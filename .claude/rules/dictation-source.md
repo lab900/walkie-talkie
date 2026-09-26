@@ -36,13 +36,14 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   websocket (`commit_strategy=vad`) for the chip's `💬` caption only. Every stream failure is a
   log line, never a `DictationEnd`. Costs both: batch + $0.39/h. Probe measured 2026-09-25: first
   partial ~1 s after speech, then ~1/s, revising the last word's punctuation.
-  **The socket is warm before the sentence** (2026-09-26, batch 5, B1): `ElevenLabsSource` keeps one
-  `spare` open from `prepare()` and again from every sentence's close; `start()` attaches to it, so
-  no handshake stands before the first word (in-app it took 0.3–4 s). An idle session is closed by
-  the server at 15.5 s (probed; pings do not help), an empty `input_audio_chunk` every 5 s keeps it
-  (0 s of audio; billed by audio sent, per the docs — not measurable with this key). Closed after
-  `warmWindow` 15 min unused (`WT_ELEVEN_LIVE_WARM` s); `release()` closes it when the engine
-  changes. A fault from `/test/eleven` discards the warm one (faults are for a fresh socket).
+  **One socket per sentence, opened at `start()`, closed at `stop()`** (Q11, 2026-09-26 batch 6 —
+  batch 5's warm `spare`, the 5 s empty keep-alive chunks, the 15-min `WT_ELEVEN_LIVE_WARM` window,
+  the idle retry ladder and `DictationSource.release()` are gone: *"rece … waste de resurse"*). The
+  socket has **its own `URLSession`** (`LiveSocketSession`: ephemeral, `waitsForConnectivity` off,
+  own pool, invalidated at `shut()`) — hypothesis for the in-app handshake variance (0.3–4 s vs
+  0.30–0.45 s from a script): `URLSession.shared` busy with the batch/correction uploads. The log
+  measures it: `upgraded N s after connecting`, `session open, handshake N s, K chunk(s) caught up`;
+  `state.live.handshake`. Unverified until the morning's B1 runs.
   **A dropped socket is one line and one reconnect** (TL29, was ~9 `send failed`/s): stale tasks'
   failures are ignored, the audio waits (≤ 64 buffers, ~5 s — also the cap for a socket not up yet,
   TL30), a second drop stops the caption for that sentence. **The band opens on the session, not

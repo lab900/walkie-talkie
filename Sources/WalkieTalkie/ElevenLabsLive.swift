@@ -71,7 +71,8 @@ final class ElevenLabsLive {
     /// `GET /test/state.live` (gap G7).
     func describe() -> [String: Any] {
         queue.sync {
-            ["socket": socket.rawValue, "attached": attached,
+            let handshake: Any = self.handshake ?? NSNull()
+            return ["socket": socket.rawValue, "attached": attached, "handshake": handshake,
              "chunksSent": chunksSent, "pending": pending.count,
              "seconds": Double(pcm.count) / 32_000, "cutSeconds": Double(cutByte) / 32_000,
              "segments": segments.count, "correctedSegments": correctedSegments, "corrections": corrections,
@@ -128,33 +129,27 @@ final class ElevenLabsLive {
     private var segments: [String] = []
     private var partial = ""
 
-    // MARK: - The socket, warm before the sentence (2026-09-26, batch 5)
+    // MARK: - The socket, one per sentence (2026-09-26: warm in batch 5, cold again in batch 6, Q11)
 
-    /// **The socket is opened before the sentence, not at it** (the test
-    /// plan's B1: the first caption word came 5.31 s after speech started). The
-    /// handshake itself is 0.3 s from a script on this Mac, but in the app it
-    /// took 0.3–4 s (`session open, 39 chunk(s) caught up` at 13:31:30, 25 at
-    /// 13:32:27, none at all in two runs), all of it on the path to the first
-    /// word. So `ElevenLabsSource` keeps one socket open and idle, and a
-    /// sentence *attaches* to it: its first buffer goes out at once.
+    /// **Opened at the gesture, closed at the stop** (Q11, 2026-09-26, 18:55,
+    /// Victor: *"rece. E un waste de resurse pentru câștig mic"*). Batch 5 kept a
+    /// socket open between sentences (empty chunks every 5 s, a 15-minute
+    /// window, a 2/10/60 s retry ladder) to take the handshake off the path to
+    /// the first caption word; that is gone. What stays from batch 5: one
+    /// reconnect per sentence after a drop, the `pendingCap` on audio waiting
+    /// for a socket that is not up, and the band opening only on
+    /// `session_started` (`onOpen`).
     ///
-    /// **An idle session is closed by the server after 15.5 s** (probed
-    /// 2026-09-26: code 1000, no message; WebSocket pings every 4 s did not
-    /// keep it), **and an empty `input_audio_chunk` every 4 s kept one open
-    /// for over 200 s** with no error. So the warm socket sends one every
-    /// `keepAlive` seconds — no audio, and ElevenLabs bills speech to text by
-    /// *"the duration of the audio sent for transcription"* (docs, *Speech to
-    /// Text* overview, read 2026-09-26) — nothing to bill. That sentence is the
-    /// whole of what the docs say on it: the key has no `user_read` to read the
-    /// usage counter back, so it is the docs' word, not a measurement. The
-    /// cost that is certain is a held connection, so it is bounded:
-    /// `warmWindow` after the engine was picked or the last sentence ended, it
-    /// closes and the next sentence connects cold, as before.
-    static let keepAlive: TimeInterval = 5
-    static var warmWindow: TimeInterval {
-        let raw = ProcessInfo.processInfo.environment["WT_ELEVEN_LIVE_WARM"] ?? ElevenLabsSource.config["WT_ELEVEN_LIVE_WARM"]
-        return raw.flatMap(Double.init) ?? 15 * 60
-    }
+    /// **The handshake variance is looked for instead** — in the app it took
+    /// 0.3–4 s (or never), from a script on the same Mac 0.30–0.45 s every
+    /// time. Hypothesis: `URLSession.shared` was busy with the batch and
+    /// correction uploads to the same host, and the socket queued behind them.
+    /// So the socket has **its own `URLSession`** (`LiveSocketSession`: an
+    /// ephemeral configuration, `waitsForConnectivity` off, its own connection
+    /// pool, invalidated at `shut()`), and the log says where the time went:
+    /// `upgraded` (the WebSocket open, the delegate's `didOpenWithProtocol`) and
+    /// `session_started`, each in seconds since `connecting`.
+
     /// **At most this much audio waits for a socket that is not up** — the
     /// newest, ~5.5 s at 85 ms a buffer. It grew without bound while a socket
     /// never opened (TL30: 70 chunks in 6 s, and on).
@@ -162,27 +157,27 @@ final class ElevenLabsLive {
 
     private enum Socket: String { case idle = "never-opened", connecting, open, reconnecting, down, closed }
     private var socket: Socket = .idle
-    /// A sentence owns this socket: audio flows, the text reaches the band.
+    /// A sentence owns this socket from `connect()` — always, since Q11; kept
+    /// as the gate every callback checks, and for `GET /test/state.live`.
     private var attached = false
-    private var warmSince = CACurrentMediaTime()
     private var request: URLRequest?
     private var languagesLine = ""
     /// One reconnect per sentence after a drop (TL29).
     private var reconnects = 0
-    private var warmFailures = 0
     private var cappedLogged = false
     private var sentBytes = 0
-    /// Main queue: the session is open *and* a sentence owns it. The band opens
-    /// on this (TL30: it used to open at the gesture and sit empty, for a
-    /// socket that never came up or with no key at all).
+    /// When the current task was resumed, and how long `session_started` took
+    /// after it (s) — the handshake measurement (Q11). On `queue`.
+    private var connectingAt: CFTimeInterval = 0
+    private var handshake: Double?
+    private var session: LiveSocketSession?
+    /// Main queue: the session is open. The band opens on this (TL30: it used to
+    /// open at the gesture and sit empty, for a socket that never came up or
+    /// with no key at all).
     var onOpen: (() -> Void)?
-    /// Main queue: the warm socket gave up (its window ran out, or it could not
-    /// be kept up); the next sentence connects cold.
-    var onGone: (() -> Void)?
-    var isAttached: Bool { queue.sync { attached } }
 
-    /// Opens the socket. Main queue — at `prepare()` and after every sentence
-    /// (warm), or at `start()` when no warm one is up (cold).
+    /// Opens the socket for the sentence that is starting. Main queue, from
+    /// `ElevenLabsSource.start()`.
     func connect(key: String, language: String?) {
         var parts = URLComponents(string: "wss://api.elevenlabs.io/v1/speech-to-text/realtime")!
         var query = [URLQueryItem(name: "model_id", value: Self.model),
@@ -214,7 +209,8 @@ final class ElevenLabsLive {
             self.keytermCount = terms.count
             self.request = req
             self.languagesLine = line
-            self.warmSince = CACurrentMediaTime()
+            self.attached = true
+            self.lastTextAt = CACurrentMediaTime()
             self.open(reconnect: false)
             let timer = DispatchSource.makeTimerSource(queue: self.queue)
             timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
@@ -228,10 +224,12 @@ final class ElevenLabsLive {
     /// On `queue`: a new task on the stored request.
     private func open(reconnect: Bool) {
         guard let request, socket != .closed else { return }
-        let task = URLSession.shared.webSocketTask(with: request)
+        if session == nil { session = LiveSocketSession(owner: self) }
+        guard let task = session?.webSocketTask(with: request) else { return }
         self.task = task
         open = false
         socket = reconnect ? .reconnecting : .connecting
+        connectingAt = CACurrentMediaTime()
         if Self.fault == "never-open" {
             Self.fault = nil
             Log.info("🧪 live caption: never-open — the socket is not resumed")
@@ -241,46 +239,19 @@ final class ElevenLabsLive {
         receive(task)
     }
 
-    /// **A sentence takes this socket** (main queue, from `ElevenLabsSource.start`).
-    /// Audio flows from now on; if the session is already up the band opens at once.
-    func attach() {
+    /// The WebSocket upgrade completed (`LiveSocketSession`'s delegate), before
+    /// the server's `session_started` — the first half of the handshake.
+    fileprivate func upgraded(_ task: URLSessionTask) {
         queue.async {
-            guard self.socket != .closed else { return }
-            self.attached = true
-            self.lastTextAt = CACurrentMediaTime()
-            // A warm socket waiting out a reconnect pause, or given up on, is
-            // opened again now — the sentence does not wait for its backoff.
-            if self.task == nil, self.socket == .reconnecting || self.socket == .down {
-                Log.info("💬 live caption: the warm socket was down — connecting it again for this sentence")
-                self.open(reconnect: false)
-            }
-            let age = CACurrentMediaTime() - self.warmSince
-            if self.open {
-                Log.info(String(format: "💬 live caption: the sentence takes a warm socket (open %.0f s) — no handshake", age))
-                DispatchQueue.main.async { [weak self] in self?.onOpen?() }
-            } else if self.socket == .connecting || self.socket == .reconnecting {
-                Log.info(String(format: "💬 live caption: the sentence waits for a socket still connecting (%.1f s)", age))
-            }
+            guard task === self.task, self.socket != .closed else { return }
+            Log.info(String(format: "💬 live caption: upgraded %.2f s after connecting", CACurrentMediaTime() - self.connectingAt))
         }
     }
 
-    /// On `queue`, every 0.5 s: the correction catch-up while a sentence owns
-    /// the socket; the keep-alive and the warm window while none does.
+    /// On `queue`, every 0.5 s: the correction catch-up.
     private func tick() {
-        if attached { correctIfDue(); return }
-        guard socket == .open else { return }
-        if CACurrentMediaTime() - warmSince > Self.warmWindow {
-            Log.info(String(format: "💬 live caption: the warm socket was unused for %.0f min — closed; the next sentence connects cold", Self.warmWindow / 60))
-            shut()
-            DispatchQueue.main.async { [weak self] in self?.onGone?() }
-            return
-        }
-        if CACurrentMediaTime() - lastKeepAlive >= Self.keepAlive {
-            lastKeepAlive = CACurrentMediaTime()
-            sendRaw(#"{"message_type":"input_audio_chunk","audio_base_64":"","sample_rate":16000}"#, counted: false)
-        }
+        if attached { correctIfDue() }
     }
-    private var lastKeepAlive = CACurrentMediaTime()
 
     /// **On the audio thread** — `MicRecorder.onBuffer`. Copies the samples out
     /// and hops; the base64 and the send happen on `queue`.
@@ -323,6 +294,10 @@ final class ElevenLabsLive {
         pauseTimer = nil
         task?.cancel(with: .normalClosure, reason: nil)
         task = nil
+        // Its own session, let go with the socket (a URLSession holds its
+        // delegate until it is invalidated).
+        session?.invalidate()
+        session = nil
         if attached {
             // The ledger counts what was streamed, not what was recorded while
             // the socket was down.
@@ -361,25 +336,6 @@ final class ElevenLabsLive {
         open = false
         self.task = nil
         task.cancel(with: .goingAway, reason: nil)
-        if !attached {
-            // The warm socket: a few tries with a growing pause, then the next
-            // sentence connects cold.
-            warmFailures += 1
-            guard warmFailures <= 3 else {
-                socket = .down
-                Log.error("💬 live caption: \(why) — the warm socket failed \(warmFailures) times; the next sentence connects cold")
-                DispatchQueue.main.async { [weak self] in self?.onGone?() }
-                return
-            }
-            let pause = [2.0, 10.0, 60.0][warmFailures - 1]
-            socket = .reconnecting
-            Log.error("💬 live caption: \(why) — the warm socket is down; reconnecting in \(Int(pause)) s")
-            queue.asyncAfter(deadline: .now() + pause) { [weak self] in
-                guard let self, self.socket == .reconnecting, self.task == nil else { return }
-                self.open(reconnect: true)
-            }
-            return
-        }
         guard reconnects == 0 else {
             socket = .down
             pending.removeAll()
@@ -420,17 +376,15 @@ final class ElevenLabsLive {
             let wasReconnect = socket == .reconnecting
             open = true
             socket = .open
-            warmFailures = 0
-            lastKeepAlive = CACurrentMediaTime()
+            let took = CACurrentMediaTime() - connectingAt
+            if !wasReconnect { handshake = took }
             let waiting = pending
             pending.removeAll()
             waiting.forEach(send)
-            if attached {
-                Log.info("💬 live caption: session open\(wasReconnect ? " again" : ""), \(waiting.count) chunk(s) caught up")
-                DispatchQueue.main.async { [weak self] in self?.onOpen?() }
-            } else {
-                Log.info("💬 live caption: session open\(wasReconnect ? " again" : ""), warm — waiting for the next sentence")
-            }
+            // **The handshake, measured** (Q11): `connecting` → `session_started`.
+            Log.info(String(format: "💬 live caption: session open%@, handshake %.2f s, %d chunk(s) caught up",
+                            wasReconnect ? " again" : "", took, waiting.count))
+            DispatchQueue.main.async { [weak self] in self?.onOpen?() }
             // A reconnected session starts from nothing server-side: what was
             // committed before the drop stays in `segments`, the open segment
             // is lost with it.
@@ -527,5 +481,38 @@ final class ElevenLabsLive {
         d.append("fmt ".data(using: .ascii)!); u32(16); u16(1); u16(1); u32(16_000); u32(32_000); u16(2); u16(16)
         d.append("data".data(using: .ascii)!); u32(UInt32(pcm.count)); d.append(pcm)
         return d
+    }
+}
+
+/// **The live socket's own `URLSession`** (Q11, 2026-09-26): not
+/// `URLSession.shared`, whose connection pool the batch and correction uploads
+/// to the same host use — the likeliest cause of the in-app handshake taking
+/// 0.3–4 s where a script took 0.3–0.45 s. Ephemeral (no cache, no cookies),
+/// `waitsForConnectivity` off (a socket that cannot connect fails now, and the
+/// one reconnect decides), one per `ElevenLabsLive`, invalidated at its `shut()`.
+/// The delegate reports the WebSocket upgrade so the log can split the
+/// handshake into the upgrade and the server's `session_started`.
+private final class LiveSocketSession: NSObject, URLSessionWebSocketDelegate {
+    private weak var owner: ElevenLabsLive?
+    private var urlSession: URLSession!
+
+    init(owner: ElevenLabsLive) {
+        self.owner = owner
+        super.init()
+        let config = URLSessionConfiguration.ephemeral
+        config.waitsForConnectivity = false
+        config.httpMaximumConnectionsPerHost = 1
+        urlSession = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+    }
+
+    func webSocketTask(with request: URLRequest) -> URLSessionWebSocketTask {
+        urlSession.webSocketTask(with: request)
+    }
+
+    func invalidate() { urlSession.invalidateAndCancel() }
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocol: String?) {
+        owner?.upgraded(webSocketTask)
     }
 }

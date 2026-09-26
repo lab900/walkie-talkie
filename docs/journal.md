@@ -13206,3 +13206,35 @@ commit.
   see; `POST /test/key-trace {"on":true}` and one fn + F7 says which. If it is a media key, the
   branch needs the other convention (bare = media, so fn = F-key) — a keyboard setting, not a code
   choice to make blind.
+
+### 3. No warm live socket; the socket gets its own URLSession and the handshake is logged (Q11)
+
+> *"Q11: rece. E un waste de resurse pentru câștig mic."* — opened at the gesture, closed at the
+> stop; batch 5's other socket rules stay; if the in-app handshake variance is found, that is the fix.
+
+- **Gone:** `ElevenLabsSource.spare` / `warmUp()` / `released`, `ElevenLabsLive.attach()`,
+  `keepAlive` (the empty chunk every 5 s), `warmWindow` (`WT_ELEVEN_LIVE_WARM`), `warmFailures` and
+  the 2/10/60 s ladder for an idle socket, `onGone`, and `DictationSource.release()` (batch 5 added
+  it for the warm socket only). `start()` makes an `ElevenLabsLive` and `connect()`s it — the
+  sentence owns it from birth; `stop()` → `closeStream()` shuts it.
+- **Kept:** one reconnect per sentence after a drop (a second stops the caption, not the
+  recording), `pendingCap` 64 buffers for a socket not up yet, the band opening only on
+  `session_started` (`onOpen` → `didOpenLive`).
+- **The socket's own `URLSession`** (`LiveSocketSession`): ephemeral configuration,
+  `waitsForConnectivity = false`, one connection per host, its own pool, `invalidateAndCancel()` at
+  `shut()`. Its `URLSessionWebSocketDelegate` reports the upgrade.
+- **The measurement** (new log lines): `💬 live caption: upgraded N s after connecting` (TCP + TLS +
+  the WebSocket upgrade) and `session open, handshake N s, K chunk(s) caught up` (to the server's
+  `session_started`); `GET /test/state.live.handshake`. B1's note prints both.
+- **Before, from the log we already have** (1-second resolution — the log stamps whole seconds):
+  203 cold opens in `relay.log` history (`connecting` → `session open`), **median under 1 s; six at
+  ≥ 2 s** — five of them in one harness burst on 09-26 13:29–13:33 (2, 3, 4, 3, 3 s; one right after
+  a `live drop` fault), and one of 53 s at 21:45 behind an injected `transport×2 after 19000 ms`
+  batch fault. **The contention hypothesis is weaker than batch 5 thought:** at none of the five
+  burst connects was a batch upload in flight (the previous sentence's upload had answered 5–6 s
+  earlier, e.g. 13:31:20 → connect 13:31:26 → open 13:31:30); what they share is a socket of the
+  previous sentence closed 3–6 s before. Own session isolates that as well (no shared pool with a
+  closing socket), so it stays; the new lines, at 0.01 s resolution, decide it.
+- **Tomorrow:** after the install, B1 ×5 and TL29 / TL30 / LC13 (`cases_audio.py` / the LC module);
+  read the `upgraded` / `handshake` lines; if `upgraded` is quick and `session_started` slow, the
+  wait is the server's, not ours.

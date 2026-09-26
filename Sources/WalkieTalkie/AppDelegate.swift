@@ -460,7 +460,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.didEnd = nil
         source.didHearLive = nil
         source.didOpenLive = nil
-        source.release()
         source = next
         UserDefaults.standard.set(id, forKey: Self.engineKey)
         wireDictationSource()
