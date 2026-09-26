@@ -42,6 +42,7 @@ const char* kVS = "#version 330 core\n"
 const char* kFS = "#version 330 core\n"
     "uniform sampler2D src;uniform float fade;uniform vec2 radii;uniform float floorA;uniform float gain;uniform float fadeStart;"
     "uniform float hole;uniform float peak;uniform float core;uniform float tailTop;uniform float invert;uniform float zoom;uniform float fadeIn;"
+    "uniform float centreIn;uniform vec2 centreBand;"
     "in vec2 uv;out vec4 frag;\n"
     // `core` > 0: discul de dinainte isi pastreaza profilul intreg (plin pana la
     // `fadeStart` din el, apoi o cadere), dar se opreste la `tailTop` in loc de
@@ -83,6 +84,12 @@ const char* kFS = "#version 330 core\n"
     " float a=max(c.r,max(c.g,c.b));"
     " if(fade>0.5){float d=length((q-0.5)/radii);float m=mask(d)*inner(d);a*=m;c.rgb*=m;}"
     " if(invert<=0.0&&(q.x<0.0||q.x>1.0||q.y<0.0||q.y>1.0)){a=0.0;c.rgb=vec3(0.0);}"
+    // `centreIn` < 1: the middle of the picture comes in later than its rim
+    // (Victor, 2026-09-26: *"prefer ca în centru să apară fade in și nu o linie"*).
+    // Under `centreBand.x` mask radii the layer is at `centreIn`, past
+    // `centreBand.y` it is whole, one smoothstep between. At 1 this is a
+    // multiply by exactly 1.0, so a frame after the fade is the frame of before.
+    " if(centreIn<1.0){float d=length((q-0.5)/radii);float k=mix(centreIn,1.0,smoothstep(centreBand.x,centreBand.y,d));a*=k;c.rgb*=k;}"
     " a*=peak*fadeIn;c.rgb*=peak*fadeIn;"
     " frag=vec4(c.rgb,a);}\n";
 
@@ -301,10 +308,11 @@ struct pmh {
     CGLContextObj ctx = nullptr;
     GLuint tex = 0, rbo = 0, fbo = 0;        // the engine's target
     GLuint prog = 0, vao = 0;                 // the key pass
-    GLint uFade, uRadii, uFloor, uGain, uStart, uSrc, uHole, uPeak, uCore, uTail, uInvert, uZoom, uFadeIn;
+    GLint uFade, uRadii, uFloor, uGain, uStart, uSrc, uHole, uPeak, uCore, uTail, uInvert, uZoom, uFadeIn, uCentreIn, uCentreBand;
     Surface surf[2]; int cur = 0;
     projectm_handle pm = nullptr;
     float invert = 0.f, zoom = 1.f, fadeIn = 1.f;
+    float centreIn = 1.f, centreFrom = 0.3f, centreTo = 0.6f;
     bool fade = false; float rx = 0.5f, ry = 0.5f, floorA = 0.1f, gain = 1.f, fadeStart = 0.f, hole = 0.f, peak = 1.f, core = 0.f, tailTop = 0.f;
     double engineMs = 0, keyMs = 0;
     unsigned engineErrors = 0, keyErrors = 0;
@@ -458,6 +466,8 @@ pmh* pmh_create(int px, int fps, const char* const* texture_dirs, char* err, int
     h->uInvert = glGetUniformLocation(h->prog, "invert");
     h->uZoom = glGetUniformLocation(h->prog, "zoom");
     h->uFadeIn = glGetUniformLocation(h->prog, "fadeIn");
+    h->uCentreIn = glGetUniformLocation(h->prog, "centreIn");
+    h->uCentreBand = glGetUniformLocation(h->prog, "centreBand");
     h->uGain = glGetUniformLocation(h->prog, "gain");
     h->uStart = glGetUniformLocation(h->prog, "fadeStart");
 
@@ -726,6 +736,7 @@ void pmh_set_invert(pmh* h, float invert) { h->invert = invert; }
 
 void pmh_set_voice_threshold(pmh* h, float threshold) { h->voiceThreshold = threshold; }
 void pmh_set_zoom(pmh* h, float zoom, float fade_in) { h->zoom = std::max(0.01f, zoom); h->fadeIn = fade_in; }
+void pmh_set_centre(pmh* h, float amount, float from, float to) { h->centreIn = std::min(1.f, std::max(0.f, amount)); h->centreFrom = from; h->centreTo = std::max(from + 1e-3f, to); }
 
 namespace {
 float hue_channel(float hh, float off) { float k = std::fmod(off + hh * 6.f, 6.f); return 1.f - std::max(0.f, std::min({ k, 4.f - k, 1.f })); }
@@ -1092,6 +1103,8 @@ IOSurfaceRef pmh_render(pmh* h) {
     // picture itself is drawn whole into it, so it can outgrow the screen.
     glUniform1f(h->uZoom, h->mode == 0 ? h->zoom : 1.f);
     glUniform1f(h->uFadeIn, h->fadeIn);
+    glUniform1f(h->uCentreIn, h->centreIn);
+    glUniform2f(h->uCentreBand, h->centreFrom, h->centreTo);
     glUniform1f(h->uGain, h->gain);
     glUniform1f(h->uStart, h->fadeStart);
     for (const Stamp& st : stamps) {

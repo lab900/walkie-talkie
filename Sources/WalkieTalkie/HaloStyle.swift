@@ -349,6 +349,22 @@ enum HaloStyle: String, CaseIterable {
         /// in afara ecranului si aproape invizibile, iar 1,5 s ascuns mancau
         /// jumatate dintr-o transcriere Scribe. `WT_REWIND_WARMUP` il muta.
         var warmup: TimeInterval? = nil
+        /// **Cat a curs deja efectul cand apare** (2026-09-26, Victor: *"în loc să
+        /// văd linia, vreau să văd urmele lungi deja construite, ca și cum ar fi
+        /// trecut 100–200 ms"*). Un inel ridicat din nou pe acelasi motor pornea din
+        /// ultimul cadru al propozitiei de dinainte — de obicei linistea de la
+        /// capat, adica unda neteda in centru — si abia apoi curgea. Acum motorul
+        /// face atatea secunde de cadre nevazute, pe zgomotul de start al lui
+        /// `CaretHalo.seeded`, inainte de primul cadru vazut. 0 = ca inainte.
+        /// `WT_PM_PREROLL` il muta. Doar ruta nativa, doar un preset fara urma.
+        var preroll: TimeInterval = 0
+        /// **Centrul intra in fade, nu ca linie** (acelasi mesaj: *"prefer ca în
+        /// centru să apară fade in"*): in atatea secunde de la primul cadru vazut,
+        /// tot ce e sub `centreBand.lowerBound` raze de masca urca de la 0 la plin,
+        /// cu o trecere lina pana la `upperBound`; marginea e plina din primul
+        /// cadru. 0 = fara. `WT_PM_CENTRE_FADE` il muta.
+        var centreFade: TimeInterval = 0
+        var centreBand: ClosedRange<CGFloat> = 0.50...0.80
     }
     var preset: Preset? {
         switch self {
@@ -404,7 +420,9 @@ enum HaloStyle: String, CaseIterable {
                                          // so the wander is pinned out of our copy (`pinCenter`) instead.
                                          fade: true, fadeAtEdge: true, fadeFloor: 0, gain: 3.2, rot: 1.0,
                                          fadeStart: 0.55, offset: CGPoint(x: 0, y: 50), pinCenter: true,
-                                         hole: 0.22, audioGain: 0.55)
+                                         hole: 0.22, audioGain: 0.55,
+                                         // 2026-09-26: urmele deja curse la primul cadru, centrul in fade
+                                         preroll: 0.2, centreFade: 0.2, centreBand: 0.50...0.80)
         // Tunnel faded: acelasi preset, panza cat ecranul. Discul de dinainte era
         // 0,588 din latura lunga, deci marginea lui cade fix la `core` = 0,588 din
         // raza mastii: inauntru profilul vechi intreg, in afara 0,20 stingandu-se
@@ -414,7 +432,10 @@ enum HaloStyle: String, CaseIterable {
                            return Preset(number: 7, name: "Geiss - 3 layers (Tunnel Mix)", scale: 1.0,
                                          fade: true, fadeAtEdge: true, fadeFloor: 0.05, gain: 3.2, rot: 1.0,
                                          fadeStart: 0.55, pinCenter: true, pinnedHorizon: 0.5,
-                                         hole: 0.13, core: 0.588, tailTop: 0.20, audioGain: 0.55)
+                                         hole: 0.13, core: 0.588, tailTop: 0.20, audioGain: 0.55,
+                                         // acelasi preset: unda lui sta la aceeasi fractiune din panza,
+                                         // deci aceeasi banda in raze de masca
+                                         preroll: 0.2, centreFade: 0.2, centreBand: 0.50...0.80)
         // Reverse tunnel: Tunnel-ul de pe cursor, cu toate reglajele lui, intors
         // pe dos. `invert` 0,9: inelul lui Geiss (~0,24 din raza) ajunge la ~0,66,
         // unde masca abia incepe sa cada; marginea lui ajunge sub `hole`.

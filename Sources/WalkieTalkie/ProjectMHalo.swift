@@ -400,17 +400,168 @@ final class ProjectMHalo: NSView, HaloWebHost {
         // A ring raised again starts its trail clean, at the pointer — not with
         // the smear of the last sentence, nor gliding in from where it ended.
         if !fresh, trail, let r = renderer { renderQueue.async { pmh_reset_trail(r) } }
+        starts += 1
+        if !fresh, !trail, prerollSeconds > 0 || centreFadeSeconds > 0 {
+            // **Nothing of the last sentence's last frame stands on screen.** The
+            // layer still holds it — for Tunnel that is the quiet at the end of
+            // the sentence, the waveform's clean ring in the middle — and it
+            // would be shown from `orderFront` until the first new frame. The
+            // first new frame is the pre-rolled one, centre faded.
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            picture.contents = nil
+            CATransaction.commit()
+            renderQueue.async { [weak self] in
+                guard let self = self else { return }
+                self.preroll()
+                self.visibleFrame = self.totalFrames
+                self.visibleWall = CFAbsoluteTimeGetCurrent()
+                self.visibleFading = false
+                self.centreFading = true
+            }
+        } else if fresh {
+            renderQueue.async { [weak self] in self?.visibleFrame = -1; self?.centreFading = false }
+        } else {
+            renderQueue.async { [weak self] in
+                guard let self = self else { return }
+                self.centreFading = false
+                self.visibleFrame = self.totalFrames
+                self.visibleWall = CFAbsoluteTimeGetCurrent()
+                self.visibleFading = false
+            }
+        }
         startTimer()
         if !fresh { onVisible?(); return }
         picture.opacity = 0
         DispatchQueue.main.asyncAfter(deadline: .now() + (preset.warmup ?? Self.warmup)) { [weak self] in
             guard let self = self else { return }
+            self.renderQueue.async { [weak self] in
+                guard let self = self else { return }
+                self.visibleFrame = self.totalFrames
+                self.visibleWall = CFAbsoluteTimeGetCurrent()
+                self.visibleFading = true
+            }
             CATransaction.begin()
             let fade = CABasicAnimation(keyPath: "opacity"); fade.fromValue = 0; fade.toValue = 1; fade.duration = 0.25
             self.picture.add(fade, forKey: "fadeIn"); self.picture.opacity = 1
             CATransaction.commit()
             Log.info("◯ projectM \(self.preset.number): fading in after the warm-up \(CaretHalo.sinceStyleChange)")
             self.onVisible?()
+        }
+    }
+
+    // MARK: Opening on a picture already in flow (2026-09-26)
+
+    /// How many ring-ups this engine has had — the shoot's file names.
+    private var starts = 0
+    /// `totalFrames` when the picture became visible — at `start` on a reused
+    /// engine, at the end of the warm-up on a fresh one; −1 while hidden. Read
+    /// and written on the render queue only.
+    private var visibleFrame = -1
+    private var visibleWall: CFAbsoluteTime = 0
+    /// The fresh path's layer fade (0.25 s, linear) is on top of what the shoot
+    /// reads back; the shoot writes it into the file name.
+    private var visibleFading = false
+    /// Only a reused engine fades its centre in; a fresh one comes up whole
+    /// out of its warm-up under the layer's own fade, as it always did.
+    private var centreFading = false
+    /// RMS of the loudest window fed to the engine during the last ring, after
+    /// every gain — 0 until a voice arrives. Render queue only; the pre-roll
+    /// spends it and starts the count again.
+    private var voicedRms: Float = 0
+
+    static let prerollOverride = ProcessInfo.processInfo.environment["WT_PM_PREROLL"].flatMap(Double.init)
+    static let centreFadeOverride = ProcessInfo.processInfo.environment["WT_PM_CENTRE_FADE"].flatMap(Double.init)
+    private var prerollSeconds: Double { Self.prerollOverride ?? preset.preroll }
+    private var centreFadeSeconds: Double { Self.centreFadeOverride ?? preset.centreFade }
+    private var fps: Int { haloFrameCap > 0 ? haloFrameCap : 60 }
+
+    /// **The frames nobody sees, run before the first one somebody does.**
+    ///
+    /// Victor, 2026-09-26: *"Tunelul pleacă ca o linie inițială, care apoi curge
+    /// și se mărește. În loc să văd linia, vreau să văd urmele lungi deja
+    /// construite, ca și cum ar fi trecut 100–200 ms."* A ring raised again on
+    /// the same engine picked up from the frozen last frame of the sentence
+    /// before — near-empty — and the seed's noise then drew the waveform as a
+    /// thin clean circle at frame 2–3 that thickened into the tunnel over the
+    /// next ten (`WT_PM_SHOOT_FIRST` + `WT_HALO_DEMO_REPEAT`, the captures in
+    /// the journal entry of that day). So `preroll` seconds of frames are
+    /// rendered here, on the render queue, off screen, on the coloured noise
+    /// `CaretHalo.seeded` opens every ring with; the warp carries the waveform
+    /// outward once per frame, and after six of them the trails are built.
+    ///
+    /// **Cost, measured and logged**: one engine frame each — 5–15 ms for six
+    /// at 1118 px, under the 33 ms of one frame at 30 fps — spent on the render
+    /// queue before the first visible frame. The fresh path has the 1.5 s
+    /// warm-up for this already and is left alone.
+    private func preroll() {
+        guard let r = renderer, !failed, !trail else { return }
+        let n = Int((prerollSeconds * Double(fps)).rounded())
+        guard n > 0 else { return }
+        let t0 = CFAbsoluteTimeGetCurrent()
+        let per = Self.sampleRate / max(1, fps) + 16
+        // The key pass runs too (it is part of `pmh_render`); with the centre at
+        // 0, nothing it writes could show the line even if a compositor pass
+        // caught one of these surfaces.
+        let band = preset.centreBand
+        pmh_set_centre(r, centreFadeSeconds > 0 ? 0 : 1, Float(band.lowerBound), Float(band.upperBound))
+        // **Its loudness is the last voice's, not the seed's alone** (measured
+        // 2026-09-26): the engine judges a sound against what it has been
+        // hearing, so after four seconds of lifted speech the seed's level is
+        // near-silence to it — the pre-rolled frames came out black and the ring
+        // still opened on the line five frames later. At the seed's level or the
+        // loudest window of the last ring, whichever is louder, the flow is there
+        // either way (the LAST voiced window was tried first: it is usually the
+        // soft end of a sentence, and gave the same thin ring).
+        let seedGain = 0.086 * 3 * Float(preset.audioGain) * Self.audioGain
+        var noise = [Float](repeating: 0, count: per * n)
+        var phase: Float = 0
+        for i in noise.indices {
+            phase += 0.35 * (Float.random(in: -1...1) - phase)
+            noise[i] = phase
+        }
+        var sum: Float = 0
+        for v in noise { sum += v * v }
+        let rawRms = max(1e-6, (sum / Float(noise.count)).squareRoot())
+        let k = max(seedGain, voicedRms / rawRms)
+        voicedRms = 0
+        for i in noise.indices { noise[i] = min(max(noise[i] * k, -1), 1) }
+        for f in 0..<n {
+            let window = Array(noise[(f * per)..<((f + 1) * per)])
+            window.withUnsafeBufferPointer { pmh_add_pcm(r, $0.baseAddress, UInt32(per), Self.resample ? Int32(Self.sampleRate) : 44100) }
+            _ = pmh_render(r)
+        }
+        let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+        Log.info(String(format: "◯ projectM %d: pre-rolled %d frames (%.0f ms of flow, noise at rms %.3f) in %.1f ms — %@ one frame (%.1f ms)",
+                        preset.number, n, Double(n) * 1000 / Double(fps), rawRms * k, ms,
+                        ms <= 1000 / Double(fps) ? "under" : "OVER", 1000 / Double(fps)))
+    }
+
+    /// The centre's share this frame: 0 while hidden, then a smoothstep to 1
+    /// over `centreFade` seconds of frames from the first visible one. Counted
+    /// in frames, like the pre-roll, so it does not depend on the clock.
+    private func centreAmount() -> Float {
+        let secs = centreFadeSeconds
+        guard secs > 0, centreFading, visibleFrame >= 0 else { return 1 }
+        let u = min(1, max(0, Double(totalFrames + 1 - visibleFrame) / (secs * Double(fps))))
+        return Float(u * u * (3 - 2 * u))
+    }
+
+    static let shootFirst = ProcessInfo.processInfo.environment["WT_PM_SHOOT_FIRST"]
+
+    /// `WT_PM_SHOOT_FIRST=<dir/name>`: the first 12 frames after the picture
+    /// becomes visible, and the one 1 s after the first, for every ring-up —
+    /// `<name>-s<start>-f<frame>-a<layer opacity>.png`, the engine's keyed output
+    /// read back (the layer fade of a fresh engine is not in the pixels; its
+    /// value is in the name).
+    private func shootFirstFrames() {
+        guard let base = Self.shootFirst, visibleFrame >= 0 else { return }
+        let k = totalFrames - visibleFrame
+        guard (1...12).contains(k) || k == fps + 1, let img = snapshot() else { return }
+        let alpha = visibleFading ? min(1, (CFAbsoluteTimeGetCurrent() - visibleWall) / 0.25) : 1
+        let path = String(format: "%@-s%d-f%02d-a%.2f.png", base, starts, k, alpha)
+        if let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: path) as CFURL, "public.png" as CFString, 1, nil) {
+            CGImageDestinationAddImage(dest, img, nil)
+            _ = CGImageDestinationFinalize(dest)
         }
     }
 
@@ -478,8 +629,15 @@ final class ProjectMHalo: NSView, HaloWebHost {
         if Self.audioGain != 1 { for i in tail.indices { tail[i] *= Self.audioGain } }
         // Resampled to 44.1 kHz in the glue (see `resample`): the engine reads
         // its beat bands off spectrum bins and assumes that rate.
-        renderQueue.async {
+        renderQueue.async { [weak self] in
             tail.withUnsafeBufferPointer { pmh_add_pcm(r, $0.baseAddress, UInt32(tail.count), Self.resample ? Int32(Self.sampleRate) : 44100) }
+            // The level the engine last heard a voice at — the pre-roll speaks
+            // at it (see `preroll`).
+            guard let self = self, self.prerollSeconds > 0, !tail.isEmpty else { return }
+            var sum: Float = 0
+            for v in tail { sum += v * v }
+            let rms = (sum / Float(tail.count)).squareRoot()
+            if rms > 0.02 { self.voicedRms = max(self.voicedRms, rms) }
         }
     }
 
@@ -543,6 +701,7 @@ final class ProjectMHalo: NSView, HaloWebHost {
             let w = Double(screen.width * Self.renderScale), h = Double(screen.height * Self.renderScale)
             pmh_set_pointer(r, Float(w / 2 + w * 0.32 * sin(t * 1.3)), Float(h / 2 + h * 0.3 * sin(t * 2.6)))
         }
+        if !trail { let band = preset.centreBand; pmh_set_centre(r, centreAmount(), Float(band.lowerBound), Float(band.upperBound)) }
         // A CF object out of a C function comes back `Unmanaged`; handed to
         // `contents` as it is, the layer shows nothing and says nothing.
         guard let surface = pmh_render(r)?.takeUnretainedValue() else {
@@ -565,6 +724,7 @@ final class ProjectMHalo: NSView, HaloWebHost {
         }
         frames += 1
         totalFrames += 1
+        if Self.shootFirst != nil { shootFirstFrames() }
         if ProcessInfo.processInfo.environment["WT_PM_DEBUG_ALPHA"] != nil, totalFrames == 60 || totalFrames == 100 { pmh_debug_alpha(r) }
         engineMs += pmh_last_engine_ms(r); keyMs += pmh_last_key_ms(r)
         // `WT_PM_SHOOT=<dir/name>` writes the frame at every whole second from 3

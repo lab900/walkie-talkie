@@ -807,6 +807,20 @@ closes. Between the two is the whole transcription — the stretch in which he i
   **1 for Sparks alone**; `WT_MD_SCALE` overrides, `ProjectMHalo`'s `WT_PM_SCALE` twin. Keep the
   ratio an **exact integer** (1 pt = 2 device px), because a fractional one is the blur of the
   bullet above. Reach for it only for a preset Victor calls foggy — everything else wants 1:1.
+- **Tunnel opens on trails already in flow, its centre fading in** (2026-09-26, Victor: *"în loc
+  să văd linia, vreau să văd urmele lungi deja construite"*). A ring raised again on the same
+  engine (no style change between — so not after a rewind) opened on a thin continuous circle at
+  frame 2–3 that then thickened. `Preset.preroll` (0.2 s, both Tunnel styles) renders 6 frames off
+  screen before the first visible one, at the **last ring's loudest** level (the seed's level reads
+  as silence after lifted speech — black pre-roll, the line came back); `centreFade` (0.2 s) +
+  `centreBand` 0.50…0.80 fade the middle in through the key shader's `centreIn`, 1 = the old pass.
+  The fresh path (warm-up) is untouched. **To see the opening at all**: `WT_PM_SHOOT_FIRST=<dir/t>`
+  writes the first 12 visible frames + the one 1 s later per ring-up, `WT_HALO_DEMO_REPEAT=3` raises
+  the ring three times on one engine (ring 1 = fresh, 2–3 = reused); `WT_PM_PREROLL=0
+  WT_PM_CENTRE_FADE=0` is *before* on the same binary. **The PNGs are straight alpha** (CGImage
+  un-premultiplies on write) — composite rgb×α, or every near-transparent pixel reads as a
+  saturated pink field; `docs/projectm/captures/tunnel-opening-2026-09-26/sheet.py` does it.
+  → journal: *Tunnel opens on trails already in flow, the centre fading in (2026-09-26)*
 - **Review**: `WT_HALO_STYLE=<case> WT_HALO_DEMO=11 WT_HALO_DEMO_AUDIO=1` puts one effect on the
   real pointer, capturable; `WT_HALO_CYCLE=1.5` dials through all of them on the live ring. The
   log says `halo page ready: 20 effects, webgl true` and which page entry a style picked, or

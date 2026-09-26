@@ -13103,3 +13103,62 @@ order. **At most 2 sentences in flight** (recording + one transcribing, or two t
 third start is refused with a flash and a log line until one lands. 🔼← cancels the sentence
 recording now, or, with none recording, the most recent one in flight. This is fix batch 6's
 largest item; it supersedes batch 3's "a start during the settle is refused" for the 2-deep case.
+
+## Tunnel opens on trails already in flow, the centre fading in (2026-09-26, 19:40, Victor)
+
+> *"Tunelul pleacă ca o linie inițială, care apoi curge și se mărește. În loc să văd linia, vreau
+> să văd urmele lungi deja construite, ca și cum ar fi trecut 100–200 ms. Eventual fade in. Prefer
+> ca în centru să apară fade in și nu o linie care apoi lasă pixeli să curgă în toate direcțiile.
+> Scopul: într-o dictare să nu mai văd niciodată o linie continuă în centru, dar efectul să se
+> păstreze în mare parte pixel-perfect identic. Să apară deja în curgere urmele. Best effort."*
+
+**How the tunnel is made.** `HaloStyle.milkdrop7` is MilkDrop preset *Geiss - 3 layers (Tunnel
+Mix)* run natively by projectM 4 (`ProjectMHalo`, `haloEngine = native`): the preset draws the
+microphone's waveform as a closed curve round the middle and its per-frame warp zooms the whole
+feedback buffer outward, so every past waveform becomes a trail. `pmhalo.cpp`'s key pass turns
+black into alpha and applies the mask (`hole` 0.22, fade to the canvas edge). There is no seed
+*image*; the initial condition is the engine's buffer, plus `CaretHalo.seeded` — 1.25 s of
+coloured noise mixed into the feed at every ring-up.
+
+**Where the line came from — measured, not guessed.** Two ways a ring starts:
+- **Fresh engine** (first ring after a style change, and so after every rewind, which swaps the
+  panel to Reverse tunnel and back): `configure` + the 1.5 s hidden warm-up, then a 0.25 s layer
+  fade. No line in the captures — the warm-up already hides the birth.
+- **Reused engine** (a ring raised again with no style change in between — cancelled or short
+  sentences, the test suite at 19:40): the frozen buffer of the last sentence, then the seed.
+  Captured with the new `WT_PM_SHOOT_FIRST` + `WT_HALO_DEMO_REPEAT=3`, rings 2 and 3: frame 1
+  empty, **a thin continuous red circle at frame 2–3** (~0.27 mask radii), thickening into the
+  tunnel over the next ten frames. That is his *linie inițială care apoi curge și se mărește*.
+  With the reference voice the circle is his waveform's shape (a trefoil), same story.
+
+**What changed** (only the two Tunnel styles carry the knobs; nothing else is touched):
+- `Preset.preroll` = 0.2 s → on a **reused** engine, `ProjectMHalo.preroll()` renders 6 frames off
+  screen, on the render queue, before the first visible one, fed seed-coloured noise. Cost logged
+  every time: **5–15 ms** for six frames at 1118 px (the 30 fps frame is 33 ms), so the ring is
+  not delayed by a frame. The layer's stale contents are cleared at `start` so the frozen last
+  frame never shows.
+- **The pre-roll speaks at the last ring's loudest level**, not the seed's: first try at the seed's
+  level gave black pre-rolled frames after a voiced ring — the engine judges sound against what
+  it has been hearing, and after 4 s of lifted speech the seed is near-silence to it; the ring
+  then still opened on the line at frame 6. The *last* voiced window (usually the soft end of a
+  sentence) gave the same thin circle; the loudest window of the ring gives built trails.
+- `Preset.centreFade` = 0.2 s, `centreBand` 0.50…0.80 mask radii → a new `centreIn` uniform in the
+  key shader: inside 0.50 the layer is multiplied by a smoothstep 0→1 over 6 frames, one smooth
+  step out to 0.80, the rim whole from frame 1. First band (0.30…0.60) left the pre-rolled donut's
+  inner edge standing as a red ring at the band's edge; 0.50…0.80 fades the whole donut. At 1 the
+  branch is skipped — the key pass is byte-for-byte the old one. **Reused engine only**: the fresh
+  path keeps its warm-up and layer fade exactly as they were.
+- `WT_PM_PREROLL` / `WT_PM_CENTRE_FADE` override both for a run (0 = the old behaviour, which is
+  how the *before* captures were taken on the same binary).
+
+**Proof** (`docs/projectm/captures/tunnel-opening-2026-09-26/` — local, the folder is gitignored — 3 rings × first 12 visible frames +
+the frame 1 s after the first, over black, straight alpha): `before-silent.png` / `before-voice.png`
+— the thin line at frames 2–5 of rings 2–3; `after-silent.png` — a faint (7 %) ring fading in with
+its trails already spiked by frame 3, no thin line; `after-voice.png` — long trails already built,
+fading in from nothing, no line.
+**At 1 s** (mean |Δ| of rgb×α, 0–255): ring 1, whose path is untouched, 0.45 against a
+before-vs-before 0.44. On reused rings the whole state is 6 frames further along by design, so
+the raw 1 s diff is 18.8 against a run-to-run 11.4–13.4 in silence and 19–25 against 15–24 with
+the voice (the preset is chaotic, the seed random). **Phase-aligned** — after at frame 6 (6
+pre-rolled + 6) against before at frame 12 — it is **3.3 against a run-to-run 2.7–2.9**: past the
+fade, the frames are the old frames, 200 ms sooner.

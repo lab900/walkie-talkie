@@ -44,6 +44,11 @@ void pmh_set_voice_threshold(pmh* h, float threshold);
 /// overflows), and a multiplier on the whole layer's opacity.
 void pmh_set_zoom(pmh* h, float zoom, float fade_in);
 
+/// **The centre comes in after the rim** (2026-09-26): inside `from` mask radii
+/// the layer is multiplied by `amount` (0…1), past `to` it is whole, one smooth
+/// step between. `amount` 1 = off, and the key pass is then what it was.
+void pmh_set_centre(pmh* h, float amount, float from, float to);
+
 /// **The trail** (2026-09-23): the output surface becomes `w` × `h` — the screen,
 /// in pixels — and each frame carries the last one over, dimmed with a time
 /// constant of `seconds`, before the keyed square is stamped at the pointer. The

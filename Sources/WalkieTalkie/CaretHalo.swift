@@ -2815,10 +2815,26 @@ extension CaretHalo {
         // mid-frame cannot either — so the last half-second of every demo is the
         // ring going where it goes, and a capture taken then is the only proof
         // available that it does.
-        Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
-            halo.setActive(false)
-            Timer.scheduledTimer(withTimeInterval: collapse + 0.3, repeats: false) { _ in exit(0) }
+        // **`WT_HALO_DEMO_REPEAT=<n>` raises the ring n times on the same panel**
+        // (2026-09-26), `WT_HALO_DEMO_GAP` seconds apart (default 1) — the second
+        // ring onwards is what a dictation after a dictation looks like: the same
+        // engine, started again, which is where Tunnel opened on a line.
+        let rings = max(1, ProcessInfo.processInfo.environment["WT_HALO_DEMO_REPEAT"].flatMap(Int.init) ?? 1)
+        let gap = ProcessInfo.processInfo.environment["WT_HALO_DEMO_GAP"].flatMap(Double.init) ?? 1
+        func ring(_ left: Int) {
+            Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
+                halo.setActive(false)
+                guard left > 1 else {
+                    Timer.scheduledTimer(withTimeInterval: collapse + 0.3, repeats: false) { _ in exit(0) }
+                    return
+                }
+                Timer.scheduledTimer(withTimeInterval: collapse + gap, repeats: false) { _ in
+                    halo.setActive(true, atCaret: true, opening: .fromPointer)
+                    ring(left - 1)
+                }
+            }
         }
+        ring(rings)
         NSApplication.shared.run()
     }
 }
