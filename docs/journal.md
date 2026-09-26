@@ -13278,8 +13278,9 @@ behaviour is built and **off** — `HotkeyTap.wisprStandalone`, read once at lau
    (`./relay-restart.sh --build`), and check: right ⌘⇧ → Wispr pastes at the caret with Walkie bound
    (nothing in the terminal, `⌘V from Wispr Flow passed`), right ⌘⌥ → Walkie's clean caret
    sentence only (no second Wispr sentence), 🔽 on Engine = Wispr still firewalled and delivered.
-   Harness: the Wispr cases (TG7, TG12, TG33, the `/test/wispr-handsfree {hand}` ones — they expect
-   adoption and will read the new behaviour as a failure; retire or flip them).
+   Harness: TG7 (🔽/🔽→ on Engine = Wispr — relay-started, should still pass); the adopted-Wispr
+   cases (`_adopted`, TG21 and its neighbours in `cases_gestures.py`) are SKIP today and become
+   *not adopted* cases once the flag is on.
 2. *Follow-up commit:* delete the old path — the tap's `onWisprMaybeStarting(.pushToTalk)` /
    `onWisprPushToTalkReleased` branch, `heldPairIsTheEngines`, the hand-started adoption in
    `gestureSeen` / `edge`, `rescueFromRow` for unclaimed pastes, `noteHandStartedAtCaret`,
