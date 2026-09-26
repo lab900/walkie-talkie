@@ -13298,3 +13298,11 @@ left)` while `cancelledAudio` is set (five minutes, or until recovered); the Doc
 `tools/restart_gate.py` also reads `state.recoverable` itself (so tonight's installed build, which
 does not count it, is gated too); `evals/test_restart_gate.py` +1 test (17/17). The dry-run
 contract: exit 3 at `--max-wait` while audio is staged, which is what TL18 asserts.
+
+**TG40 — a refused back click with the microphone closed says the words are in flight.** 🔽 in the
+settle of a relay prompt was refused with `the relay's own engine is mid-sentence` / *finish the
+sentence you are dictating first* — nothing was being dictated. `HotkeyTap.ownMicOpen` (pushed
+beside `ownDictation`: `listening || isRecording || speculative`, no settle) picks the words in
+`refuseBackClick()`: mic open → as before; closed → `back click refused — words still in flight —
+the back click stops nothing` and the flash *Back click ignored — the words are still in flight*.
+(Q12, item 5, narrows when a back click is refused at all.) TG40's note records the new line.

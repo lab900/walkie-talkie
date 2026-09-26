@@ -5167,6 +5167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // now be listening alongside the first*, so it covers the speculative
         // ring and the settle and does not care where the words are going.
         hotkeys.ownDictation = listening || source.isRecording || speculative || settling
+        hotkeys.ownMicOpen = listening || source.isRecording || speculative
         picker.dictating = live
         // The halves as well as the verdict, so a refused ⌘⇧ can name the one
         // that was missing rather than saying an undivided no — see

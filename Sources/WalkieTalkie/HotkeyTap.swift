@@ -1111,6 +1111,29 @@ final class HotkeyTap {
         }
     }
     private var ownDictationFlag = false
+
+    /// **The relay's own microphone is open** (or about to be: the speculative
+    /// ring) — `ownDictation` without the settle. Tells a refused back click
+    /// *mid-sentence* from *words still in flight* (TG40, 2026-09-26 batch 6).
+    var ownMicOpen: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return ownMicOpenFlag }
+        set { stateLock.lock(); ownMicOpenFlag = newValue; stateLock.unlock() }
+    }
+    private var ownMicOpenFlag = false
+
+    /// The refusal of a back click while the relay's own sentence is open or in
+    /// flight, in the words that are true (TG40): with the microphone closed
+    /// nothing is being dictated — the words are on their way and a back click
+    /// cannot stop them.
+    private func refuseBackClick() {
+        if ownMicOpen {
+            Log.error("🎙️ ⬅️ back click refused — the relay's own engine is mid-sentence")
+            onEngineBusy?("Back click ignored — finish the sentence you are dictating first")
+        } else {
+            Log.error("🎙️ ⬅️ back click refused — words still in flight — the back click stops nothing")
+            onEngineBusy?("Back click ignored — the words are still in flight")
+        }
+    }
     private var ownDictationSince: CFTimeInterval = 0
 
     /// **How long the relay's own sentence has been open**, or nil when none is
@@ -3494,8 +3517,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // stop must reach whoever is listening.
                 if !wisprSentence, backUsesOwnEngine {
                     if ownDictation, !ownClean {
-                        Log.error("🎙️ ⬅️ back click refused — the relay's own engine is mid-sentence")
-                        onEngineBusy?("Back click ignored — finish the sentence you are dictating first")
+                        refuseBackClick()
                         return swallow(gesture, type, event)
                     }
                     lastBackToggleAt = f6Now
@@ -3513,8 +3535,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // must never be. Victor: *"E absurd să pornesc două motoare de
                 // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
                 if !closing, ownDictation {
-                    Log.error("🎙️ ⬅️ back click refused — the relay's own engine is mid-sentence")
-                    onEngineBusy?("Back click ignored — finish the sentence you are dictating first")
+                    refuseBackClick()
                     return swallow(gesture, type, event)
                 }
                 lastBackToggleAt = f6Now

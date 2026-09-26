@@ -1265,7 +1265,10 @@ def tg40():
         ir = L.find("back click refused — the relay's own engine is mid-sentence")
         idl = L.find("📦 delivery:")
         new_sentence = n(r"mic: recording through", L) > 1
+        # Batch 6: the refusal with the microphone closed names what is true.
+        inflight = "back click refused — words still in flight" in L
         msg = (f"refused line={ir >= 0} (before the delivery={0 <= ir < idl if idl >= 0 else ir >= 0}), "
+               f"'words still in flight' line={inflight}, "
                f"state just after: listening={s_at.get('listening')} settling={s_at.get('settling')}, "
                f"a new sentence opened={new_sentence}")
         if early:
