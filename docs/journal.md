@@ -13306,3 +13306,10 @@ beside `ownDictation`: `listening || isRecording || speculative`, no settle) pic
 `refuseBackClick()`: mic open → as before; closed → `back click refused — words still in flight —
 the back click stops nothing` and the flash *Back click ignored — the words are still in flight*.
 (Q12, item 5, narrows when a back click is refused at all.) TG40's note records the new line.
+
+**`.warmup.wav` out of the app bundle.** `helpers/whisper_helper.py` wrote its one second of silence
+next to itself — installed, that is `Contents/Resources/` of the signed app (the file is there now,
+21:45), which breaks `codesign --verify` of the installed app. It now goes to `~/.walkie-talkie/`
+(else `$TMPDIR`). `build-app.sh` replaces the bundle whole, so the stale file goes with tomorrow's
+install; check `codesign --verify --deep "/Applications/Walkie Talkie.app"` after the first
+local-model warm-up.

@@ -45,6 +45,7 @@ one for continuity.
 import contextlib
 import json
 import os
+import tempfile
 import sys
 
 MODEL = os.environ.get("RELAY_WHISPER_MODEL", "mlx-community/whisper-large-v3-turbo")
@@ -262,8 +263,23 @@ def transcribe(path):
 # Warm up on a second of silence so the weights are resident before Victor's
 # first sentence, rather than his first sentence paying for them. Same reason
 # victor-macos-addons warms up before its GUI starts.
+#
+# **Never next to this file** (2026-09-26, batch 6): installed, this script lives
+# inside the signed app bundle, and a file written there breaks
+# `codesign --verify` of the installed app. The app's data folder, else $TMPDIR.
+def _warmup_path():
+    for d in (os.path.expanduser("~/.walkie-talkie"), tempfile.gettempdir()):
+        try:
+            os.makedirs(d, exist_ok=True)
+            if os.access(d, os.W_OK):
+                return os.path.join(d, ".warmup.wav")
+        except OSError:
+            continue
+    return os.path.join(tempfile.gettempdir(), ".warmup.wav")
+
+
 try:
-    warm = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".warmup.wav")
+    warm = _warmup_path()
     if not os.path.exists(warm):
         import wave
         with wave.open(warm, "wb") as w:
