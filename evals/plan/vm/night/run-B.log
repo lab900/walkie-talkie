@@ -1,0 +1,32 @@
+start B cap=1800s Sat Sep 26 19:12:51 UTC 2026
+relay on 8917, 28 case(s), report → /Users/admin/wt-lab/night/report-vm-B.md
+  TL15: PASS (66.9s) — eleven-live: at 33 s after the stop settling=True phase=transcribing/uploading; forward-click refused, forward-right refused; late reply landed, lastD
+  TL17: PASS (47.9s) — staged 12.7 s at cancelled-19-13-59.wav; model before Recover ready=False alive=True; after: loading=False ready=True; outcome=recovered; file still p
+  TL18: BUG (10.5s) — staged 5.9 s; busy=False busyWhy=[]; dry-run exit 0 after 2.0 s (🧪 dry run: the gate is open — would quit pid 928, relaunch, and re-bind nothing); rec
+  TL21: PASS (10.1s) — mic opened=False; coalesced line=True; 'discarded — under 0.35s'=False; dwell refusal=False; after the stall listening=False isRecording=False; banner
+  TL22: PASS (40.1s) — mic opened 0.16 s after the gesture (model still loading=True, 'recording anyway' line=True, banked line=False); /test/cancel cancelled it, quiet=True
+  TR4: PASS (8.6s) — nudge posted=False; silent line=3.1 s; back line=6.0 s; new hangs files=1; sessionFlags=[]; buttons down=None
+  TR18: PASS (30.9s) — log after the gesture: names the flag (3 line(s)); listening cleared after 27 s
+  TR19: PASS (16.9s) — eleven-live: ok→ok 0.16s, ok→ok 0.23s, ok→ok 0.19s; whisper: ok→ok 0.12s, ok→ok 0.19s, ok→ok 0.22s
+  TR20: PASS (13.3s) — B=ttys002 closed while listening; to=caret; rows=[]; gone logged=True; bound after=None; awaitingBind=False; pasted into the sink=True
+  TG1: PASS (2.0s) — listening=True 268 ms after the POST, pasteMode=True, chip «Prompting → ￼... | at caret | ×1 | Replace Wispr off», trace ↓98×1, ↑98 (ours) passed×1 · 
+  TG2: PASS (4.4s) — starts=1, re-triggered at ['372', '292', '240'] ms, refused at sentence ages ['1656'] ms, stopped by +3.2 s=True · sent forward-right@0.000s forward-r
+  TG3: PASS (30.6s) — mic opened 0.24 s after the gesture (model still loading=True); cancel line=True, closed=True (F11 at +1.77 s); model up=True, anything opened after i
+  TG4: PASS (26.9s) — mic opened 0.22 s after the click (model still loading=True); clean start=True; context shot captured=False skipped=False; second click stop=True shut
+  TG6: PASS (5.1s) — +62 ms: stray Return=False, stop=True, sink Returns=0, open 1 s on=False · +565 ms: stray Return=False, stop=True, sink Returns=0, open 1 s on=False ·
+  TG7: SKIP (1.3s) — Wispr Flow is not running — its chord would reach macOS instead (T-G42)
+  TG10: PASS (5.1s) — panel up 10 ms after /test/dictation, F11 at +0.010 s; outbox +0, ✕ cancelled=True, autosend=False · sent forward-left@0.010s
+  TG11: PASS (6.9s) — panel up 11 ms after /test/dictation; outbox row never; trace: swallowed by the panel=False, passed=True; sink Returns=1; autosend=False · sent back-r
+  TG14: PASS (5.6s) — on×1, taken back×0, chip row=True · sent forward-right@0.000s forward-down@2.570s forward-down@2.874s
+  TG15: PASS (5.6s) — film started×1, stopped=None, filming=True, chip «Prompting → ￼... | bind to send | 0.0s (0￼)» · sent forward-right@0.000s back-up@2.554s back-up@2.87
+  TG16: FAIL (7.0s) — panel up 10 ms; ignored line=False; sent prompt carries kamikaze=False · sent forward-down@0.010s
+  TG17: PASS (3.2s) — spawnPending=False, pasteMode=True, log ['09-26 19:18:44 [relay] ✨ 🔼 ↑ on a caret sentence — ignored (Q7: it stays at the caret)'], new chip rows [] ·
+  TG25: PASS (11.7s) — stall line=True, 🧊 opened=True, trace ↓F10 failing open=False, sink F-keys [], the +4.5 s F10 dropped while frozen=True, the +1.0 s F10 acted after th
+  TG26: PASS (11.2s) — POST /test/firewall at +4.5 s → 200 alive=True tap=open canaryMs=8.264374999953361; 🧊 opened=True; `did NOT see` line=False; trace ↑V failing open=Fal
+  TG28: PASS (8.3s) — forward-click F7 ↓1/1sw ↑1, forward-right F10 ↓1/1sw ↑1, forward-left F11 ↓1/1sw ↑1, forward-up F8 ↓1/1sw ↑1, forward-down F9 ↓1/1sw ↑1, back-click F6
+  TG29: PASS (8.3s) — 10 steps, every one bare within 300 ms · Wispr posters skipped (Wispr Flow not running — its chord would reach macOS, T-G42) · sent back-right@0.000s 
+  TG30: PASS (1.2s) — HTTP 200 ⌃⌥⌘F9; effect line=True; tap saw the keyUp=True; relay binary /Applications/Walkie Talkie.app/Contents/MacOS/Walkie Talkie · sent forward-dow
+  TG36: PASS (4.0s) — the panel's row was not activated · bound after 🔽→ = None (witness ttys001); `🔽 → — Return` line=True · sent back-right@2.289s
+  TG41: PASS (39.1s) — mic opened 0.19 s after the gesture (model still loading=True); switch to eleven-live mid-sentence accepted=False (engine now whisper); words landed i
+rc=0 Sat Sep 26 19:20:11 UTC 2026
+PHASEDONE B

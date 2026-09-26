@@ -33,7 +33,9 @@ there. SSH (OpenSSH 9.9) and Screen Sharing (RFB 003.889) answer on the NAT addr
 an agent in admin's GUI session, so **`tart exec` runs as `admin` inside Aqua** (`launchctl
 managername` = `Aqua`): `open`, `osascript` and `screencapture` work from it.
 
-Provisioned in `wt-lab` so far (not yet in `wt-base`):
+Provisioned in `wt-lab` and **baked into `wt-base` on 2026-09-27 00:11** (clean SSH shutdown in 50 s,
+`bake` 4.5 s; `wt-lab` left stopped). The grants came along; `elevenlabs.env` did not — it was
+deleted from the guest before the shutdown, so copy it in after every `reset`/`up`:
 
 - **BlackHole 2ch 0.7.1** (`brew install --cask blackhole-2ch`, 25 min 51 s of which almost all
   disk wait). The installer says a reboot is needed; `sudo killall coreaudiod` was enough. Devices
@@ -43,9 +45,27 @@ Provisioned in `wt-lab` so far (not yet in `wt-base`):
   scipy 1.13.1, sounddevice 0.5.6, 8 min 58 s. The harness parses as Python 3.9.
 - **The harness's 440 Hz pass-thru check passes on BlackHole**: peak 0.30, 440 Hz share 0.999
   (the harness wants > 0.2). No microphone prompt for the recording side from `tart exec`.
-- `~/wt-lab/plan/` = `evals/plan/` (without `__pycache__`), `~/wt-lab/voice-corpus/` = the three
-  clips (+ `.txt`), symlinked into `~/.walkie-talkie/voice-corpus/<day>/` where the harness's
-  hard-coded `CORPUS` looks for them.
+- `~/wt-lab/voice-corpus/` = the three clips (+ `.txt`), symlinked into
+  `~/.walkie-talkie/voice-corpus/<day>/` where the harness's hard-coded `CORPUS` looks for them.
+- **`~/wt-lab/` mirrors the repo root** (night of 2026-09-26): `relay-restart.sh`,
+  `safe-restart.sh`, `tools/restart_gate.py`, `helpers/`, `evals/` (without `evals/work`,
+  `evals/plan/vm`, `__pycache__`), plus `run-phase.sh` / `run-d.sh` (below). The cases compute
+  `REPO` as three `dirname`s up from `evals/plan/cases_*.py`, so the plan must sit at
+  `~/wt-lab/evals/plan` for `TR17`/`TD10` to find `./relay-restart.sh`. The first run's
+  `~/wt-lab/plan/` (REPO = `/Users/admin`) is stale — do not run from it.
+- **The local engine**: `pip3 install --user mlx-whisper` into `/usr/bin/python3` 3.9 (mlx 0.29.3
+  cp39, mlx-whisper 0.4.3, torch 2.8.0, numba 0.60 — 5 min 10 s) and `brew install ffmpeg`
+  (`HOMEBREW_NO_AUTO_UPDATE=1`, 4 min 40 s, run in parallel with pip). No `RELAY_WHISPER_PYTHON`
+  is needed: the app's probe tries launchd's PATH first, and `/usr/bin/python3` finds the module in
+  admin's user site-packages. **MLX runs in the VZ guest** (Metal on the paravirtualized GPU):
+  `helpers/whisper_helper.py` on `.warmup.wav` downloaded `whisper-large-v3-turbo` (1.5 GB, in
+  `~/.cache/huggingface`) and answered in 4 min 35 s total, peak 2.1 GB. A cold start in the app
+  then takes 33–77 s (reading the weights off the USB disk) against ~3 s on the host; warm decodes
+  ~3 s for a 3.5 s clip.
+- **The app is the host's 20:33 build** (HEAD 2e2d8d5), copied in over SSH on 2026-09-26 21:54; the
+  first run had a 15:01 build (before most of fix batches 1–5). The grants held
+  (`accessibility trusted=true eventTap=true` at the relaunch).
+- `tmux` 3.7c (`brew install tmux`, 15 s) for `TD13`.
 - `~/bin/hands-off` — a stub (see *Running the suite*).
 - Tailscale 1.102.3 (`brew install tailscale`, `sudo tailscaled install-system-daemon`), **not
   logged in** (see *From the phone*).
@@ -96,6 +116,7 @@ Later boots, measured after the setup above:
 | 2nd, after a `tart stop` (pulled plug) | ~30 min | **never** — stale `control.sock`, see traps |
 | 3rd, after a clean shutdown, Tart defaults | 294 s | **577 s** |
 | 4th, `--root-disk-opts=caching=cached,sync=none` | 332 s | 593 s |
+| 5th (2026-09-26 21:45), 25 min after the first run's stop — host page cache still warm | ~130 s | **280 s** |
 
 **Host caching and `sync=none` bought nothing for a boot**: after a stop the host's page cache
 holds none of the guest's blocks, so the boot is the same ~10 minutes of reads off the platters.
@@ -150,6 +171,27 @@ stay) — untested, and a resume would still read 8 GiB of RAM image off the dis
   restarting now"; `sudo killall coreaudiod` loads the HAL driver.
 - **`lsof` would not see the guest's VNC server** (runs as root, on demand) — test with the RFB
   handshake from the host: `printf '' | nc -G 3 -w 3 $(tart ip wt-lab) 5900 | head -c 12`.
+- **`ssh -o BatchMode=yes admin@$(tart ip wt-lab)` fails with `Host key verification failed`**
+  when the guest's key is not in `known_hosts` (BatchMode cannot ask). Give it its own file:
+  `-o UserKnownHostsFile=<scratch>/known_hosts -o StrictHostKeyChecking=accept-new` — never
+  edit Victor's `~/.ssh/known_hosts` for a guest whose key changes with every `reset`.
+- **`tart exec` is fragile; SSH is the fallback for everything but the harness.** A `tart exec …
+  nohup … &` sometimes does not return although the child is detached (the warm-up of the helper
+  held it past a 120 s cap, the child ran on), and right after `up` it answers
+  `GRPCConnectionPoolError` for a while. Copy files, poll logs, `open` the app and shut down over
+  SSH. **The harness itself must go through `tart exec`**: it drives Terminal with `osascript`,
+  and the Automation grant belongs to `tart-guest-agent` — from SSH it would be
+  `sshd-keygen-wrapper` asking, with nobody to click.
+- **`down` must use SSH** (`ssh … 'sudo shutdown -h now'`, then wait for `tart list` to say
+  `stopped`). `vm-lab.sh down` sends the shutdown through `tart exec`; with the agent down that
+  call fails silently and the loop waits 600 s before the pulled plug.
+- **`codesign --verify --strict` fails on the installed app** (`file added: …/Resources/.warmup.wav`
+  — written into the bundle after signing), so `vm-lab.sh deploy` dies at its first check. The app
+  runs and keeps its grants all the same (the requirement is on the signature, not on the sealed
+  resources). The night deploy was by hand over SSH: `pkill -x "Walkie Talkie"`, move the old
+  bundle aside, `tar -C /Applications -cf - "Walkie Talkie.app" | ssh … 'sudo tar -C /Applications
+  -xf -'`, `chown`, `open`. (In the guest `pkill` is fine — the restart gate protects Victor's
+  dictation, and there is none there.)
 - Docker Desktop's VM (`com.apple.Virtualization.VirtualMachine`, 14 GB RSS) runs beside it on the
   host; `pgrep -f Virtualization` finds both. The lab's is the one with
   `/Volumes/Vic/tart/vms/wt-lab/disk.img` open.
@@ -187,19 +229,52 @@ Order, once:
 3. `tools/vm-lab.sh bake` — folds `wt-lab` into `wt-base` (instant clone). From then on
    `reset` + `up` gives a clean guest with the grants, BlackHole , the Python packages, Tailscale and the stub.
 
+## The first two runs (2026-09-26)
+
+- **First run, 18:18–18:42 UTC** (`evals/plan/vm/report-vm-{A,G,AU}.md`): 65 cases, 33 PASS. It
+  differed from the host for reasons of the guest, not the app: no local Whisper in the guest (TL4
+  FAIL, TL6/TL7 SKIP), the plan at `~/wt-lab/plan` so `./relay-restart.sh` did not exist relative to
+  `REPO` (TR17, TD10 ERROR), the app on the batch engine instead of `eleven-live` (LC13, B2 SKIP), an
+  older 15:01 build, and `tart exec` giving out mid-evening, so only three short batches ran.
+- **Night run, 21:45–00:11 EEST** (`evals/plan/vm/night/report-vm-night.md`): all four phases,
+  133 case runs, **100 PASS, no regression attributable to the app**. 14 verdicts moved against the
+  host's regression run: 9 because the **ElevenLabs account hit its 10 000-credit quota** (`HTTP 401
+  quota_exceeded` on every request and on the realtime socket — the host's log shows it too, since
+  20:07), 4 because the guest is slow or configured differently (a cold model load 33–77 s off the
+  HDD, a 12 s main-thread freeze at relaunch, frame pacing, autosend off in the guest / on on the
+  host), 1 for want of Wispr Flow. One real defect only the lab reaches: **TD21** — Terminal in the
+  guest reuses a closed tab's tty within 10 s and the binding silently moves to the new tab.
+
 ## Running the suite in the lab
 
 Goal (Victor, 2026-09-26 13:20): `evals/plan/harness.py` + `cases_*.py` run **inside the guest**,
 nightly, so no synthetic input ever touches his screen.
 
+What the night run of 2026-09-26 did (`evals/plan/vm/night/`, all four phases, 2 h 10 min
+including the provisioning):
+
 ```sh
 export TART_HOME=/Volumes/Vic/tart
-tools/vm-lab.sh up
-# refresh the plan (tar keeps it simple; the guest has no git checkout)
-COPYFILE_DISABLE=1 tar -C evals -cf - --exclude __pycache__ plan | tart exec -i wt-lab tar -C /Users/admin/wt-lab -xf -
-tart exec wt-lab sh -c 'cd ~/wt-lab/plan && WT_LOOPBACK="BlackHole 2ch" HANDS_OFF=1 /usr/bin/python3 harness.py --report ~/wt-lab/report.md'
-tart exec wt-lab cat /Users/admin/wt-lab/report.md > evals/plan/report-lab-$(date +%F).md
+tools/vm-lab.sh up                                   # 4 min 40 s that night (warm host cache)
+KH="-o BatchMode=yes -o UserKnownHostsFile=$SCRATCH/known_hosts -o StrictHostKeyChecking=accept-new"
+IP=$(tart ip wt-lab)
+# the repo mirror: REPO in the cases = ~/wt-lab (9.4 MB tar, 2.5 min to unpack on the USB disk)
+COPYFILE_DISABLE=1 tar -cf - --exclude __pycache__ --exclude evals/work --exclude evals/plan/vm \
+  relay-restart.sh safe-restart.sh tools/restart_gate.py helpers evals | ssh $KH admin@$IP 'tar -C ~/wt-lab -xf -'
+ssh $KH admin@$IP 'curl -s -X POST 127.0.0.1:8917/engine -d "{\"id\":\"eleven-live\"}"'
+# a phase: launched through `tart exec` (the Automation grant is tart-guest-agent's), detached with nohup
+tart exec wt-lab sh -c "nohup bash ~/wt-lab/run-phase.sh A 1200 'LC1,LC2,…' >/dev/null 2>&1 </dev/null & echo launched"
+ssh $KH admin@$IP 'tail ~/wt-lab/night/run-A.log'    # poll over SSH; PHASEDONE marks the end
+scp $KH admin@$IP:wt-lab/night/report-vm-A.md evals/plan/vm/night/
 ```
+
+`run-phase.sh NAME CAP IDS` runs one `harness.py --only IDS` with `WT_LOOPBACK="BlackHole 2ch"
+HANDS_OFF=1 WT_COLD_WHISPER=kill WT_ALLOW_SPAWN=1 WT_ALLOW_RELAUNCH=1`, SIGINTs it at `CAP` s and
+SIGKILLs it 30 s later, and writes `~/wt-lab/night/report-vm-NAME.md` + `run-NAME.log`. `run-d.sh
+CAP PER_CASE ID…` is phase D: one process per case, each after 30 s of `busy == false` (the host
+used 60 s; 30 s keeps D inside two hours). Both scripts live only in the guest (copies in
+`evals/plan/vm/night/`). Measured phase times: A 8 min (50 cases), B 7.5 min (28), C 10 min (31),
+D 96 min (23 processes, 30 s idle before each).
 
 - **The injection device is `BlackHole 2ch`**, installed in the guest with brew. The guest has no
   Loopback app, and Virtualization.framework's own `Apple Virtual Sound Device` is output-only
@@ -208,11 +283,10 @@ tart exec wt-lab cat /Users/admin/wt-lab/report.md > evals/plan/report-lab-$(dat
   `playrec(device=(idx, idx))` and `play()` expect.
 - **`WT_LOOPBACK`** (added to `harness.py`, default `"🧪 WT Inject"`) names the device the
   harness plays into and self-tests.
-- **Open: `INJECT` is hard-coded.** `cases_audio.py:13` and `cases_lifecycle.py:14` pass
-  `INJECT = "WT Inject"` to `POST /test/mic`, which in the guest matches nothing. Either derive it
-  from `harness.LOOPBACK` in those two files, or make the guest's device carry the name: an
-  Aggregate Device called `🧪 WT Inject` wrapping BlackHole 2ch (created with
-  `AudioHardwareCreateAggregateDevice` from a small Swift script — the guest has the CLT). Not done.
+- **`INJECT`**: `cases_audio.py` and `cases_lifecycle.py` derive it from `harness.LOOPBACK`
+  (`LOOPBACK.replace("🧪 ", "")`). **`cases_gestures.py:43` still hard-codes `"WT Inject"`** —
+  the night run patched only the guest's copy with the same one-liner (`sed` in
+  `~/wt-lab/evals/plan`); the repo still needs it, and a fresh `tar` of the plan undoes the patch.
 - **`hands-off` in the guest** is `~/bin/hands-off`, a no-op stub with the host's CLI: `run "<why>"
   -- cmd…` exports `HANDS_OFF=1` and execs `cmd`; `start`/`end`/anything else exit 0. There is no
   human at that screen to warn. The harness itself never calls `hands-off`; it only checks
@@ -222,10 +296,11 @@ tart exec wt-lab cat /Users/admin/wt-lab/report.md > evals/plan/report-lab-$(dat
 - `WT_WORK` defaults to `/tmp/wt-plan` — fine in the guest.
 - The harness takes `~/.walkie-talkie/wispr-loop.lock` — the guest's own, so a host run and a lab
   run do not block each other.
-- Still missing for a full run: the app deployed with the grants (above); `elevenlabs.env`; for
-  the local-Whisper cases `mlx_whisper` + `ffmpeg` + the `whisper-large-v3-turbo` weights
-  (whether MLX gets a GPU in a VZ guest is untested); `claude`/`codex` for the `cc`/`codex`
-  tagged cases (they SKIP without).
+- Still missing for a full run (after the night of 2026-09-26): `claude`/`codex` for the
+  `cc`/`codex` cases; tmux (`TD13`); Wispr Flow (`TG7`, the Wispr posters in `TG29`); a second
+  display (`LC11`, `LC18`); a way to sleep the guest (`TD23`); ElevenLabs credits (the account was
+  at its 10 000-credit quota that night — see *The first two runs*). The full list is in
+  `evals/plan/vm/night/report-vm-night.md`.
 - **Nightly**: the LaunchAgent below brings the VM up; the run itself would be a second host
   LaunchAgent (`StartCalendarInterval`) calling the four lines above. Not written yet — the disk
   speed decides whether a night is long enough.

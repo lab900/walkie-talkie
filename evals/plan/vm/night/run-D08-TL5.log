@@ -1,0 +1,5 @@
+start D08-TL5 cap=900s Sat Sep 26 19:45:44 UTC 2026
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/report-vm-D08-TL5.md
+  TL5: PASS (360.4s) — route answered after 180.01 s (False); control surface at +5 s: 0.01 s; 'timed out after' by 305 s: yes; after SIGCONT stale answer consumed: yes; nex
+rc=0 Sat Sep 26 19:51:45 UTC 2026
+PHASEDONE D08-TL5

@@ -1,0 +1,6 @@
+start D02-TR22 cap=900s Sat Sep 26 19:31:57 UTC 2026
+relay on 8917, 2 case(s), report → /Users/admin/wt-lab/night/report-vm-D02-TR22.md
+  TR22: SKIP (0.0s) — no route or fault switch fails a spawn (SpawnTerminal has no test hook) — needs a new gap
+  TR22: PASS (10.2s) — spawn rows=['spawn:/Users/admin/workspace']; first outbox row at +8.20s; bound ttys001 at +8.20s; failure/re-offer not injectable
+rc=0 Sat Sep 26 19:32:08 UTC 2026
+PHASEDONE D02-TR22

@@ -1,0 +1,5 @@
+start D15-TL9 cap=900s Sat Sep 26 20:18:52 UTC 2026
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/report-vm-D15-TL9.md
+  TL9: PASS (61.2s) — POST /engine whisper → 200, engine now eleven-live; busy while uploading True; late reply logged False; delivery False; outbox +0 (the switch was refu
+rc=0 Sat Sep 26 20:19:54 UTC 2026
+PHASEDONE D15-TL9

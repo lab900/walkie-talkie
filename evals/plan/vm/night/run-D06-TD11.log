@@ -1,0 +1,5 @@
+start D06-TD11 cap=900s Sat Sep 26 19:38:56 UTC 2026
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/report-vm-D06-TD11.md
+  TD11: PASS (43.0s) — busyWhy before=['dictating']; exit 0 after 41s; output: g` is still up with no microphone and no recogniser behind it — a stuck flag, not a sentence
+rc=0 Sat Sep 26 19:39:39 UTC 2026
+PHASEDONE D06-TD11

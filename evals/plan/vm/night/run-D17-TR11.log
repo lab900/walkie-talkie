@@ -1,0 +1,5 @@
+start D17-TR11 cap=900s Sat Sep 26 20:21:39 UTC 2026
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/report-vm-D17-TR11.md
+  TR11: PASS (67.3s) — settle timed out at None s, ↪️ at 50.1 s, end at 50.2 s, via local-fallback, to terminal:ttys001
+rc=0 Sat Sep 26 20:22:48 UTC 2026
+PHASEDONE D17-TR11

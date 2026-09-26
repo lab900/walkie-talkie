@@ -1,0 +1,9 @@
+start X1 cap=600s Sat Sep 26 21:07:15 UTC 2026
+relay on 8917, 5 case(s), report → /Users/admin/wt-lab/night/report-vm-X1.md
+  LC3: PASS (9.8s) — eraser at +5.07 s, max velocity 0.0 pt/s and centre drift 0.00 pt in [+1.5 s, eraser), velocity exactly 0 from +1.47 s
+  LC9: FAIL (13.7s) — 1 word(s) started at ≥ 0.1, e.g. [(15, 0.15)]; 6 word(s) slower than 0.65 s to 90 %: [(4, 0.78), (5, 0.72), (12, 0.65)] — corrections 0, start opacity
+  TL2: PASS (0.6s) — cleared in 27 ms; 'nothing to cancel' line: yes
+  TD13: PASS (6.6s) — client ttys003; panes ['%0', '%1']; bind with %0 active → 200 %0; bound-tty='ttys003 %0'; restore with %1 active → 200 %0
+  TG16: FAIL (7.6s) — panel up 67 ms; ignored line=False; sent prompt carries kamikaze=False · sent forward-down@0.067s
+rc=0 Sat Sep 26 21:07:54 UTC 2026
+PHASEDONE X1

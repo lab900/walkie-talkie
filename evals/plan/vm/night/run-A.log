@@ -1,0 +1,54 @@
+start A cap=1200s Sat Sep 26 19:04:23 UTC 2026
+relay on 8917, 50 case(s), report → /Users/admin/wt-lab/night/report-vm-A.md
+  LC1: PASS (2.1s) — centre off 0.00 pt, max velocity 0.0, opacity 0 → [0.36] at +0.5 s → 0.4, bandWidth 1024
+  LC2: PASS (21.1s) — 120 samples, wide from t=4.068, max centre offset 0.0 pt while narrow, dropped 38, max velocity 578
+  LC3: FAIL (9.5s) — velocity 11.0 pt/s after +1.5 s — eraser at +5.03 s, max velocity 11.0 pt/s and centre drift 0.00 pt in [+1.5 s, eraser), velocity exactly 0 from +1.6
+  LC4: PASS (4.7s) — max velocity 700 pt/s, 21 samples, dropped 7
+  LC5: PASS (5.1s) — corrections +1, ghosts [['the', 'build']], reflowing 122.4 → [0] at +1.6 s, update seen 0.02 s after the POST
+  LC6: PASS (2.8s) — corrections +2, ghosts [['500']]
+  LC7: PASS (1.8s) — dropped before 19; first sample: dropped 0, anchor 380, velocity 0, centre off 0, corrections 0
+  LC7b: PASS (2.7s) — dropped 19 → 19, corrections +0, anchor -137.3 → -137.3
+  LC8: PASS (4.2s) — 6 revisions, corrections +0, 0 sample(s) with ghosts
+  LC9: FAIL (13.3s) — 2 word(s) started at ≥ 0.1, e.g. [(13, 0.18), (14, 0.13)]; 5 word(s) slower than 0.65 s to 90 %: [(5, 0.67), (6, 0.67), (17, 0.7)] — corrections 0, st
+  LC10: PASS (3.5s) — after close: open False words 0; after reopen at 0.1 s: open True words 2 (the panel's alpha is not in describe(): a fade that ends at 0 over a reopen
+  LC11: SKIP (0.0s) — needs G7 liveCaption.frame/screen
+  LC12: SKIP (0.0s) — needs the app relaunched under RELAY_SHOOT (out of scope: no restarts from the runner)
+  LC14: PASS (1.0s) — words 0, open True
+  LC15: PASS (3.1s) — +0.6 s [0.94, 0.94, 0.94, 0.75, 0.57, 0.38] (max err 0.06), settled [0.99, 0.99, 0.99, 0.8, 0.6, 0.4]; after commit +0.8 s [1, 1, 1, 1, 0.99, 0.99], c
+  LC16: PASS (16.6s) — eraser at +5.04 s, 261 pt/s; dropped 2, visible-centre offset max 2 pt over 7 samples; fresh line: eraseFront None, centre off 0.0, velocity 0
+  LC17: PASS (7.4s) — corrections +1, front -371.56672692708344 → -84.84464192710493 (263 pt/s); the paler tint is not in describe()
+  LC18: SKIP (0.0s) — needs G8 (/test/live-caption script + trace)
+  TL2: FAIL (2.7s) — cleared in 1652 ms; 'nothing to cancel' line: yes
+  TL3: PASS (0.8s) — eleven-live→whisper: mid-sentence answer engine=eleven-live, after cancel engine=whisper; whisper loading=True ready=False
+  TL4: PASS (80.3s) — first (cold): 77.14 s ok=True via=local-fallback text='If I dictate now, how good is this dictation, I wonder.'; second (warm): 3.04 s ok=True
+  TL6: FAIL (33.2s) — route 32.99 s → {'warning': '⚠️ a test was unavailable — transcribed on this Mac', 'engine': 'whisper-local', 'via': 'local-fallback', 'seconds': 32.9
+  TL7: PASS (26.0s) — after SIGKILL (alive=False): ready=False; after one request (25.79 s, ok=True): ready=True
+  TL23: SKIP (0.0s) — needs an env change + relaunch of the app (RELAY_WHISPER_PYTHON=/nonexistent); out of scope for HTTP
+  TL27: PASS (11.2s) — released 0.76 s after the bind; words in the witness: yes; lastDelivery.to=terminal:ttys001; invariants ok
+  TL33: SKIP (0.0s) — the key hot-add runs when the menu opens (status.elevenReady); needs Codex + moving elevenlabs.env
+  TR17: PASS (39.5s) — open sentence: exit 3 after 23.3 s (⛔️ still waiting for the sentence in flight: dictating after 20 s — gave up (--max-wait 20); nothing was restarted
+  TR21: PASS (7.0s) — guarded=True; refused=True; typed into zsh=False; outbox rows +0; lastDelivery.to=terminal:ttys001
+  TR28: PASS (0.3s) — last launch line: '09-26 18:55:20 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay'; pid 928 started Sat Sep 26 18:
+  TD1: PASS (0.2s) — 409 no terminal on ttys999
+  TD2: PASS (11.9s) — to1=held to2=held held-after-two=True; hold lines=2; after bind: ALFA in witness=True, BRAVO in witness=True; replacement said in log=False
+  TD4: PASS (8.9s) — A=ttys001 B=ttys002 bind B → 200 at +1.0s; commit +3.54s vs bind done; to=terminal:ttys001; in A=True, in B=False
+  TD5: PASS (6.3s) — /bind 200; pasteMode after=True; 'caret dictation redirected' logged=False
+  TD6: PASS (5.8s) — /bind 200; spawnPending after=True; '✨ spawn dropped' logged=False
+  TD10: PASS (28.0s) — exit 3 after 22s; output: 🔍 waiting until Walkie Talkie (pid 928) is idle and quiet for 10 s…
+  TD13: SKIP (0.0s) — tmux not installed
+  TD14: PASS (0.7s) — 409 for ttys002 (no terminal on ttys002); ps: Ss+  cat
+  TD15: PASS (21.7s) — tab ttys002 bind 200; guard saw foreground=['script']; refused=True; to=None; rows=0; touch ran=False
+  TD16: PASS (21.4s) — tab ttys002 bind 200; guard saw foreground=['less']; to=None; touch ran=False
+  TD19: PASS (8.5s) — tab ttys002 bind 200; to=terminal:ttys002; third Return logged=False; newlines in file=4
+  TD20: PASS (12.2s) — sent 4826 chars via POST /test/prompt send (the panel was held); to=terminal:ttys002; arrived 4842 bytes in 5 reads (1022, 1022, 1022, 1022, 754); CR=
+  TD21: BUG (17.0s) — binding silently moved to the new tab — tty ttys001 reused by the new tab; bound after 11 s=ttys001; to=terminal:ttys001; landed in the new tab=True
+  TD29: PASS (7.0s) — unbind at +1.0s; commit +3.78s vs unbind done; to=terminal:ttys001; held=False; in A=True; in B after binding it=False
+  TD31: PASS (5.3s) — to=held awaitingBind=True rows while held=0; after bind: to=terminal:ttys001 rows=['terminal:ttys001'] outbox agrees with lastDelivery=True awaitingBi
+  TR21: PASS (23.7s) — B=ttys002; refused=True; delivered=False; to=None; rows=[]; bound after=ttys002
+  TG19: PASS (9.3s) — panel up 6 ms, rebind at +0.006 s; lastDelivery.to='terminal:ttys001' (A=ttys001, B=ttys002); B's witness got 0 chars
+  TG21: SKIP (0.0s) — T-G21: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG22: SKIP (0.0s) — T-G22: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG23: SKIP (0.0s) — T-G23: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG24: SKIP (0.0s) — T-G24: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+rc=0 Sat Sep 26 19:12:34 UTC 2026
+PHASEDONE A

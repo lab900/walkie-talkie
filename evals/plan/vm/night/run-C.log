@@ -1,0 +1,35 @@
+start C cap=2400s Sat Sep 26 19:20:32 UTC 2026
+relay on 8917, 31 case(s), report → /Users/admin/wt-lab/night/report-vm-C.md
+  TD3: SKIP (0.0s) — needs real audio: /test/dictation skips latchedAtCaret (see TD31); run with cases_audio
+  TD24: SKIP (0.0s) — needs a real spoken sentence (deliver → endSettling → send one turn later) — [AUDIO]
+  TD26: SKIP (0.0s) — needs a real sentence in the settle with no key — [AUDIO]
+  TD27: SKIP (0.0s) — needs a cancelled real recording to recover — [AUDIO]
+  TG8: PASS (19.2s) — cancel line=True, lastDelivery={'via': 'local-whisper', 'to': 'terminal:ttys001', 'at': '2026-09-26T19:20:10.312Z', 'kind': 'route'}, witness got 0 ch
+  TG9: PASS (10.8s) — cancel line=True, delivered after it=False, to='terminal:ttys001' · sent forward-up@2.303s forward-right@8.947s forward-left@9.084s
+  TG12: SKIP (0.0s) — needs sentence A's panel held while a clean sentence B settles with its queued Return; two overlapping sentences cannot be staged deterministically fr
+  TG13: PASS (21.3s) — redirect line=True, lastDelivery.to='terminal:ttys001' (bound ttys001), sink got 0 chars · sent back-click@3.286s forward-right@9.182s back-click@10.3
+  TG18: PASS (19.8s) — chip at the start «Prompting → ￼... | bind to send»; lastDelivery.to='terminal:ttys001' (bound ttys001 during the upload) · sent forward-right@3.134s 
+  TG20: PASS (20.6s) — unbound by F12=True; after it: to='terminal:ttys001', awaitingBind=False, bound=None; witness 227 chars · sent forward-right@3.588s forward-right@9.92
+  TG40: BUG (21.3s) — refused line=True (before the delivery=True), state just after: listening=False settling=True, a new sentence opened=False · sent forward-right@3.645s
+  TL10: PASS (26.0s) — phase at cancel 'uploading'; after cancel: delivery False, 'audio kept' True, recoverable True; witness 0 chars
+  TL11: PASS (26.7s) — after cancel + SIGCONT: delivery False, 'audio kept' True, recoverable True
+  TL12: FAIL (33.8s) — 401 True, ↪️ True, retries 0, via local-fallback in 8.9 s; next sentence via local-fallback; the stale-warning half needs G5 (prompt state)
+  TL13: PASS (18.6s) — retries 1, failure → fallback 0.92 s after stop, via local-fallback
+  TL14: PASS (38.4s) — failure 20.4 s after stop, retries 0, 'still uploading — 8 s in' True, via local-fallback (the fake's delay, not URLSession's own timeout — G13 for th
+  TL16: FAIL (25.6s) — no-words line False, ↪️ True, audio kept False, recoverable False, delivered True
+  TL29: FAIL (23.1s) — drop injected False, 0 'send failed' lines (~0.0/s over ~8 s), batch via local-fallback (the socket never opened, so the drop never fired)
+  TL30: PASS (20.1s) — band open 0/23 samples, max words 0, socket {'connecting'}, pending [1] → [64], batch via local-fallback
+  TL32: PASS (8.4s) — 'audio kept' 5.8 s, recoverable cancelled-19-26-07.wav exists True, delivered False
+  TR9: PASS (19.1s) — ↪️ True, abandoned False, via local-fallback, witness 227 chars
+  TR13: PASS (38.0s) — 'returned no words' True, staged cancelled-19-26-52.wav (22.843466997146606 s), Recover via test
+  TR23: PASS (27.7s) — new microphones after the stop 0, deliveries 1, recording at the end False
+  TR24: PASS (24.8s) — A (ttys001) 227 chars, B (ttys002) 0 chars, delivery to terminal:ttys001
+  TR25: SKIP (0.0s) — needs a refused CoreAudio switch (G11 failNextOpen or hardware); /test/eleven cannot inject it
+  LC13: FAIL (17.6s) — max band words while recording 0; after stop: listening false at 0.172 s, band closed at 0.172 s
+  B1: FAIL (20.6s) — could not place the speech — first band word None s after the speech in the recording (onset 1.78 s into it); None s by the old clock (play() + 0.5); 
+  B2: FAIL (37.5s) — correction started False, applied False (None s), live.corrections 0, cost 0.00742 → 0.00742, band corrections 0 words 0
+  B3: FAIL (27.8s) — no correction started within 10 s of the clip
+  B4: FAIL (32.6s) — no failed correction within 15 s
+  B5: FAIL (18.8s) — Δ $0.000183 vs expected $0.001186 (recording 7.0 s, corrections 0.0 s, keyterms 0); label $0.01 → $0.01
+rc=0 Sat Sep 26 19:30:33 UTC 2026
+PHASEDONE C

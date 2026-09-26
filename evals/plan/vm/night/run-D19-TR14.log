@@ -1,0 +1,5 @@
+start D19-TR14 cap=900s Sat Sep 26 20:25:01 UTC 2026
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/report-vm-D19-TR14.md
+  TR14: PASS (61.7s) — failed line False, recoverable False, revived and asked again True (the killed sentence via local-fallback), app pid 5095 → 5095, helper pid 8013 → 85
+rc=0 Sat Sep 26 20:26:04 UTC 2026
+PHASEDONE D19-TR14

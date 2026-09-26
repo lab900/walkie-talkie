@@ -1,0 +1,71 @@
+start D cap=7200s per=900s Sat Sep 26 19:30:48 UTC 2026
+== D01 TD25 cap=900s idle=30s Sat Sep 26 19:31:17 UTC 2026
+  TD25: PASS (10.3s) — 110 samples; first busy +0.046s ('prompt on screen',); bound ttys001 at +8.21s; idle-while-unbound samples=0
+rc=0 Sat Sep 26 19:31:28 UTC 2026
+== D02 TR22 cap=900s idle=30s Sat Sep 26 19:31:57 UTC 2026
+  TR22: PASS (10.2s) — spawn rows=['spawn:/Users/admin/workspace']; first outbox row at +8.20s; bound ttys001 at +8.20s; failure/re-offer not injectable
+rc=0 Sat Sep 26 19:32:08 UTC 2026
+== D03 TD12 cap=900s idle=30s Sat Sep 26 19:32:37 UTC 2026
+  TD12: FAIL (21.3s) — A=ttys001 B=ttys002; bound-tty before SIGTERM=['ttys001'], after the exit=['ttys002']; quit deferred=True; restore ttys002 /bind 200; bound after=None
+rc=0 Sat Sep 26 19:32:59 UTC 2026
+== D04 TL1 cap=900s idle=30s Sat Sep 26 19:33:28 UTC 2026
+  TL1: PASS (125.4s) — bound ttys001; area at t=0, flush seen at — s; at 121 s listening=True dictationStartedAt=2026-09-26T19:33:30.453Z released=no witness got 0 chars; in
+rc=0 Sat Sep 26 19:35:35 UTC 2026
+== D05 TD8 cap=900s idle=30s Sat Sep 26 19:36:04 UTC 2026
+  TD8: PASS (141.5s) — /test/area 200; flush line=none in 135 s; listening=True; dictationStartedAt 2026-09-26T19:36:05.527Z → 2026-09-26T19:36:05.527Z; screenshot rows=0 to
+rc=0 Sat Sep 26 19:38:26 UTC 2026
+== D06 TD11 cap=900s idle=30s Sat Sep 26 19:38:56 UTC 2026
+  TD11: PASS (43.0s) — busyWhy before=['dictating']; exit 0 after 41s; output: g` is still up with no microphone and no recogniser behind it — a stuck flag, not a sentence
+rc=0 Sat Sep 26 19:39:39 UTC 2026
+== D07 TL26 cap=900s idle=30s Sat Sep 26 19:40:09 UTC 2026
+  TL26: PASS (304.3s) — held (lastDelivery.to=held); released at 300.0 s; expiry line: yes; invariants ok
+rc=0 Sat Sep 26 19:45:14 UTC 2026
+== D08 TL5 cap=900s idle=30s Sat Sep 26 19:45:44 UTC 2026
+  TL5: PASS (360.4s) — route answered after 180.01 s (False); control surface at +5 s: 0.01 s; 'timed out after' by 305 s: yes; after SIGCONT stale answer consumed: yes; nex
+rc=0 Sat Sep 26 19:51:45 UTC 2026
+== D09 TL31 cap=900s idle=30s Sat Sep 26 19:52:15 UTC 2026
+  TL31: PASS (342.7s) — at 35 s: settling=True phase=transcribing/ (the settle waits); 'timed out' at 300.5 s after the stop; then phase=done settling=False busyWhy=[]; faile
+rc=0 Sat Sep 26 19:58:00 UTC 2026
+== D10 TR27 cap=900s idle=30s Sat Sep 26 19:58:31 UTC 2026
+  TR27: PASS (41.0s) — 50/50 opened, 50/50 quiet after cancel, 50 'audio kept', 0 error line(s), 0 leftover mic-*.wav, 9 back-to-back starts in the same second, pid 5095→509
+rc=0 Sat Sep 26 19:59:12 UTC 2026
+== D11 TD22-298.5 cap=900s idle=30s Sat Sep 26 19:59:42 UTC 2026
+  TD22-298.5: PASS (315.0s) — bind posted at +298.55s, done +303.60s; released=False expired=True delivered=False rows=0 awaitingBind=False
+rc=0 Sat Sep 26 20:04:59 UTC 2026
+== D12 TD22-299.5 cap=900s idle=30s Sat Sep 26 20:05:32 UTC 2026
+  TD22-299.5: PASS (312.2s) — bind posted at +299.65s, done +300.10s; released=False expired=True delivered=False rows=0 awaitingBind=False
+rc=0 Sat Sep 26 20:10:45 UTC 2026
+== D13 TD22-300.2 cap=900s idle=30s Sat Sep 26 20:11:16 UTC 2026
+  TD22-300.2: PASS (312.1s) — bind posted at +300.31s, done +300.98s; released=False expired=True delivered=False rows=0 awaitingBind=False
+rc=0 Sat Sep 26 20:16:29 UTC 2026
+== D14 TL8 cap=900s idle=30s Sat Sep 26 20:16:59 UTC 2026
+  TL8: PASS (82.1s) — settle ended 41.8 s after stop (phaseStatus 'error', busy True); abandoned line False; listening:false+isRecording:true at []; S1 lines 1 S2 lines 1, 
+rc=0 Sat Sep 26 20:18:22 UTC 2026
+== D15 TL9 cap=900s idle=30s Sat Sep 26 20:18:52 UTC 2026
+  TL9: PASS (61.2s) — POST /engine whisper → 200, engine now eleven-live; busy while uploading True; late reply logged False; delivery False; outbox +0 (the switch was refu
+rc=0 Sat Sep 26 20:19:54 UTC 2026
+== D16 TR10 cap=900s idle=30s Sat Sep 26 20:20:23 UTC 2026
+  TR10: PASS (45.2s) — delivered 34.5 s after stop via local-fallback, 'did not come up' False, helper now alive True pid 8013
+rc=0 Sat Sep 26 20:21:09 UTC 2026
+== D17 TR11 cap=900s idle=30s Sat Sep 26 20:21:39 UTC 2026
+  TR11: PASS (67.3s) — settle timed out at None s, ↪️ at 50.1 s, end at 50.2 s, via local-fallback, to terminal:ttys001
+rc=0 Sat Sep 26 20:22:48 UTC 2026
+== D18 TR12 cap=900s idle=30s Sat Sep 26 20:23:18 UTC 2026
+  TR12: PASS (73.0s) — 401: 0 retries, via local-fallback; 422: 0 retries, via local-fallback; 500x2: 1 retry, via local-fallback; 429x2: 1 retry, via local-fallback
+rc=0 Sat Sep 26 20:24:31 UTC 2026
+== D19 TR14 cap=900s idle=30s Sat Sep 26 20:25:01 UTC 2026
+  TR14: PASS (61.7s) — failed line False, recoverable False, revived and asked again True (the killed sentence via local-fallback), app pid 5095 → 5095, helper pid 8013 → 85
+rc=0 Sat Sep 26 20:26:04 UTC 2026
+== D20 TR15 cap=900s idle=30s Sat Sep 26 20:26:33 UTC 2026
+  TR15: PASS (412.4s) — 20/20 sentences delivered their own words, 'gave no answer' ×0, misses []
+rc=0 Sat Sep 26 20:33:27 UTC 2026
+== D21 TD9 cap=900s idle=30s Sat Sep 26 20:33:57 UTC 2026
+  TD9: PASS (600.1s) — listening dropped at +600s; ceiling line=True
+rc=0 Sat Sep 26 20:43:58 UTC 2026
+== D22 TL24 cap=900s idle=30s Sat Sep 26 20:44:29 UTC 2026
+  TL24: PASS (600.3s) — listening fell at 600.24 s; ceiling line: yes
+rc=0 Sat Sep 26 20:54:29 UTC 2026
+== D23 TL25 cap=900s idle=30s Sat Sep 26 20:54:59 UTC 2026
+  TL25: PASS (697.2s) — ceiling at 600.3 s after the chord, delivered 92 s later via local-fallback; ElevenLabs upload failed/absent; fallback True
+rc=0 Sat Sep 26 21:06:37 UTC 2026
+PHASEDONE D Sat Sep 26 21:06:37 UTC 2026
