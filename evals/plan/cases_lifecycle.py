@@ -393,7 +393,8 @@ def tl7_dead_helper_still_ready():
 @case("TL15", tags=("gesture",),
       expect="a slow upload (45 s) keeps the settle up past the old 30 s ceiling — it waits while the recogniser "
              "works (2026-09-26, item 5) — and both start gestures refuse while the words are in flight, saying so; "
-             "the late reply lands in the latched terminal. Before: the settle gave up at 32 s, forward-click refused, "
+             "the late reply lands in the latched terminal (since Q12, batch 6: both gestures START the next "
+             "sentence, queued; the late reply still lands). Before: the settle gave up at 32 s, forward-click refused, "
              "forward-right started a sentence the late reply then landed in")
 def tl15_inconsistent_start_gates():
     """Delay the final upload 45 s (fault switch); at 33 s after the stop try both start gestures."""
@@ -435,6 +436,11 @@ def tl15_inconsistent_start_gates():
                 f"{s33['phaseStatus']}; forward-click {'refused' if click_refused else ('STARTED' if click_started else 'no-op')}, "
                 f"forward-right {'STARTED' if right_started else ('refused' if right_refused else 'no-op')}; late reply "
                 f"{'landed' if late else 'not seen'}, lastDelivery.to={(s.get('lastDelivery') or {}).get('to')} (bound {tty})")
+        if s.get("sentenceQueue"):
+            # Q12 (batch 6): a start while the words are in flight is queued — both gestures open the
+            # next sentence (each cancelled here), and the late reply still lands in the latched terminal.
+            ok = waiting and click_started and right_started and landed
+            return ("PASS" if ok else "FAIL"), "queue on · " + note + _inv_note()
         if waiting and click_refused and not click_started and right_refused and not right_started and landed:
             return "PASS", note + _inv_note()
         if click_refused and right_started:

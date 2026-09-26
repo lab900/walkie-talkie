@@ -2054,6 +2054,15 @@ final class StatusItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// `POST /test/autosend` (G6): the same toggle as the row, optionally not
+    /// written to the defaults.
+    func setAutosend(_ on: Bool, persist: Bool) {
+        autosendOn = on
+        if persist { UserDefaults.standard.set(on, forKey: Self.autosendKey) }
+        applyAutosendIcon()
+        onToggleAutosend?(on)
+    }
+
     @objc private func autosendClicked() {
         autosendOn.toggle()
         UserDefaults.standard.set(autosendOn, forKey: Self.autosendKey)

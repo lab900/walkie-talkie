@@ -407,6 +407,8 @@ final class ElementPicker {
     /// `POST /test/prompt {"do":"send"|"cancel"|"edit","text"?}` — see
     /// `AppDelegate`'s `picker.onTestPrompt`.
     var onTestPrompt: ((String, String?) -> [String: Any])?
+    /// `POST /test/autosend {"on": bool}` — see `AppDelegate`'s `picker.onTestAutosend` (G6).
+    var onTestAutosend: ((Bool) -> [String: Any])?
 
     /// `POST /test/ax-insert` `{"on": true}` — deliver printable keystrokes
     /// through `AXSelectedText` on its own queue rather than re-posting them.
@@ -1054,6 +1056,12 @@ final class ElementPicker {
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
             let on = body?["on"] as? Bool ?? true
             respond(conn, 200, ["ok": true].merging(onTestAXInsert?(on) ?? [:]) { _, new in new })
+
+        // Autosend for this run — see `onTestAutosend` (G6).
+        case ("POST", "/test/autosend"):
+            let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
+            guard let on = body?["on"] as? Bool else { return respond(conn, 400, ["ok": false, "error": "{\"on\": bool}"]) }
+            respond(conn, 200, ["ok": true].merging(onTestAutosend?(on) ?? [:]) { _, new in new })
 
         // The held prompt panel — see `onTestPrompt`.
         case ("POST", "/test/prompt"):

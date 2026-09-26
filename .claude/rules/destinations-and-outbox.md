@@ -43,6 +43,31 @@ Rules for where a dictation goes and when it is written: the held prompt, the ou
 - **`syncLocalCapture`'s cost is outside this app.** With **Mouse Gestures: Wheel** the wheel is the relay's for as long as the relay runs — middle-click stops opening links in Chrome and closing tabs in VS Code (*"folosesc middle click sa inchid de ex taburi chrome/vsc"*). In the default mode it costs nothing. The line to put back to `isBound` is one, named in `syncLocalCapture`'s own comment. The unbound double-click branch at the bottom of `HotkeyTap`'s middle-button chain is unreachable now and is left standing for the flip back. → journal: *The one gate whose price is outside this app*
 - **Pause never comes back, and `holdsForBind` must never become a menu tick** — a tick for it would be pause under another name. *"nu mai vreau să am conceptul de pauză"* (2026-09-01). Disconnect is the "hand the mouse back" gesture: reachable from the right-held chord and the menu, and it says *which* terminal it let go of. A click on the chip at rest does nothing. → journal: *Pause still does not come back*, *Pause is gone*
 
+## Sentences queue: max 2 in flight, delivered in order (Q12, 2026-09-26 batch 6)
+
+- **A start while the last sentence's words are in flight is queued, not refused** — `startBlocker`
+  asks `queueRefusal()`: refused only with **two already in flight** (flash *⏳ Two sentences in
+  flight — wait for one to land*, log `start refused — two sentences are already in flight`), an
+  engine that is not `queuesSentences` (only ElevenLabs is: local and Wispr keep batch 3's refusal),
+  a spawn or a film in flight, or within **0.8 s of the stop** (the same click twice).
+  `WT_SENTENCE_QUEUE=0` (env / `elevenlabs.env`) puts the old rule back.
+- **The mechanism is a swap, not a rewrite.** Every per-sentence field stays where `deliver` / `send`
+  read it; `parkLiveSentence()` moves them into the in-flight `Sentence` (`Envelope`:
+  `takeEnvelope` / `putEnvelope`, the shutter's under `stateLock`), the new sentence starts fresh,
+  and the parked one's answer runs with its envelope swapped back in (`run`, `answeringInBackground`
+  — the microphone, the chip's live rows, the halo, the film, `settleGiveUp` and `orphanFlush` stay
+  the live sentence's). A new per-sentence field **must be added to `Envelope`**, or the second
+  sentence inherits it.
+- **Answers find their sentence by take** (`DictationSource.take` / `answeringTake`, set around each
+  `didTranscribe` / `didEnd`); the fallback's by `contextSentence`. **Order:** an answer waits
+  (`Sentence.waiting`) behind an older sentence in flight and behind a held prompt panel —
+  `drainSentences()` at every answer and at `releaseHeld`. A cancel never waits.
+- **🔼← = the live sentence**: recording, else the newest in flight — `source.cancelTake(live.take)`,
+  not the source's newest upload. When the live one ends, the parked one becomes live again
+  (`unparkIfIdle`: its fields, its `Transcribing…` row, its give-up).
+- `GET /test/state.sentences` (`{id, state, target, startedAt, take, waiting}`, oldest first),
+  `state.sentenceQueue`; cases `evals/plan/cases_queue.py` Q1–Q6. → journal: *batch 6, item 5*
+
 ## The envelope: tokens where he made them, a legend under the words (2026-09-19)
 
 Victor's own template, and the shape that ships. Full reasoning: journal, *The envelope becomes

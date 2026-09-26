@@ -1121,6 +1121,16 @@ final class HotkeyTap {
     }
     private var ownMicOpenFlag = false
 
+    /// **A new sentence may start over the one in flight** (Q12, 2026-09-26
+    /// batch 6): pushed from `AppDelegate.queueRefusal() == nil`. With the
+    /// microphone closed the back click then starts the next plain sentence
+    /// instead of being refused.
+    var sentenceQueueAccepts: Bool {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return sentenceQueueAcceptsFlag }
+        set { stateLock.lock(); sentenceQueueAcceptsFlag = newValue; stateLock.unlock() }
+    }
+    private var sentenceQueueAcceptsFlag = false
+
     /// The refusal of a back click while the relay's own sentence is open or in
     /// flight, in the words that are true (TG40): with the microphone closed
     /// nothing is being dictated — the words are on their way and a back click
@@ -1129,7 +1139,7 @@ final class HotkeyTap {
         if ownMicOpen {
             Log.error("🎙️ ⬅️ back click refused — the relay's own engine is mid-sentence")
             onEngineBusy?("Back click ignored — finish the sentence you are dictating first")
-        } else {
+        } else if ownDictation {
             Log.error("🎙️ ⬅️ back click refused — words still in flight — the back click stops nothing")
             onEngineBusy?("Back click ignored — the words are still in flight")
         }
@@ -3516,7 +3526,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // already open is still stopped with Wispr's chord below — a
                 // stop must reach whoever is listening.
                 if !wisprSentence, backUsesOwnEngine {
-                    if ownDictation, !ownClean {
+                    if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
                         refuseBackClick()
                         return swallow(gesture, type, event)
                     }

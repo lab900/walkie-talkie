@@ -361,7 +361,7 @@ def main():
     sys.modules["harness"] = sys.modules[__name__]
     here = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, here)
-    for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio"):
+    for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue"):
         try:
             importlib.import_module(mod)
         except ModuleNotFoundError as e:

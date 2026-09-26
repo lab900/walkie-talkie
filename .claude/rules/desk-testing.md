@@ -35,11 +35,12 @@ timings in `docs/loopback.md`; it takes `~/.walkie-talkie/wispr-loop.lock` — n
 | `POST /test/wispr-state/simulate {"steps"}` | `WisprState` unit test with a fake clock |
 | `POST /test/mic {"id"}` | pick the microphone (`auto｜xlr｜mac｜rx｜bose`); answers `chosen`/`resolved`/`available`/`mark` |
 | `POST /test/mic {"device": "<name substring>"｜null}` | **process-local input override** (2026-09-26, G1): the recorder opens that CoreAudio device (e.g. `"TO Wispr"`, a Loopback), not written to `mic/choice`, gone at relaunch; `/engine.mic.override` shows it. Play a corpus WAV into the Loopback with `sounddevice` (48 kHz, 2 ch) — no speaker |
-| `POST /test/eleven {"fail": "429｜429x2｜500｜401｜422｜timeout｜transport｜unreadable｜empty", "delayMs"?, "once"? (true), "scope"? ("final"｜"correction"｜"any"), "lang": {"code","p"}?, "live": "drop｜never-open｜error:<type>"?}` · `{"clear": true}` | **the ElevenLabs fault switch** (G3): the fake answers the next upload of that scope (`final` = the delivery, `correction` = the caption's rolling batch); `xN` spends N attempts (`429x2` = the call and its retry); `live` hits the socket once; `/engine.elevenlabs.fault` and `state.elevenFault` show what is armed |
+| `POST /test/eleven {"fail": "429｜429x2｜500｜401｜422｜timeout｜transport｜unreadable｜empty｜delay", "delayMs"?, "once"? (true), "scope"? ("final"｜"correction"｜"any"), "lang": {"code","p"}?, "live": "drop｜never-open｜error:<type>"?}` · `{"clear": true}` | **the ElevenLabs fault switch** (G3): the fake answers the next upload of that scope (`final` = the delivery, `correction` = the caption's rolling batch); `xN` spends N attempts (`429x2` = the call and its retry); `live` hits the socket once; `/engine.elevenlabs.fault` and `state.elevenFault` show what is armed |
 | `POST /test/whisper {"kill"｜"stop"｜"cont"｜"restart": true}` | **the local helper on demand** (G4): SIGKILL/SIGSTOP/SIGCONT to `whisper_helper.py`, or stop + bring up; answers `describe()` (`ready`, `alive`, `pid`). A dead helper now fails the next request instead of killing the app (SIGPIPE ignored; `ready` cleared on EOF/EPIPE) |
 | `POST /test/input {"name"}` | point the **system** default input at a device (for `tools/wispr-test.sh`) |
 | `POST /test/paste-hint` | show the `📋 Re-paste ⌘⇧P` row once |
 | `POST /test/cancel` · `/test/recover` | the ✕'s cancel · recover the cancelled dictation |
+| `POST /test/autosend {"on": bool}` | **Autosend for this run** (2026-09-26 batch 6, G6): the menu row's toggle, **not** written to the defaults — a relaunch restores his setting; `state.autosend` |
 | `POST /test/prompt {"do": "send"｜"cancel"｜"edit", "text"?}` | **the held prompt panel** (2026-09-26, G5): ⏎ · the ✕'s cancel · `edit` with `text` replaces the words and restarts the clock (an edit that ended), without it opens the field; 409 `no prompt on the panel` otherwise. Answers `prompt` |
 | `POST /test/gesture {"name"}` | post Options+'s ⌃⌥⌘F-key chord for a gesture: `forward-`/`back-` + `click｜right｜left｜up｜down`; the F7 bind sub-case (held left button) is not fakeable |
 | `POST /test/sink {"on"｜"key"｜"restore"}` · `GET /test/sink` · `/test/sink/clear` | `WisprSink`, the instrumented key window: what landed, by which route |
@@ -58,7 +59,9 @@ are held — read this, never infer) · `keyTrace` · `keyRedirect` · `lastRing
 duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, `seconds`, `cutSeconds`, `segments`,
 `correctedSegments`, `corrections`, `correcting`, `committedChars`, `partialChars`, `keyterms`) · `elevenFault` ·
 `elevenCost {total, label, lines}` · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
-since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen`.
+since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
+`sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11). **`{"fail": "delay", "delayMs": n}`** is the real
+upload made n ms late (Q12's order cases); `delayx2` delays the next two.
 
 - **`delivery`** (outbox line and `lastDelivery`): `{via: wispr-cmdv｜wispr-history｜wispr-notes｜
   pasteboard｜local-whisper｜test, kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜

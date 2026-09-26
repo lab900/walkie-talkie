@@ -13286,6 +13286,87 @@ behaviour is built and **off** — `HotkeyTap.wisprStandalone`, read once at lau
    `gestureSeen` / `edge`, `rescueFromRow` for unclaimed pastes, `noteHandStartedAtCaret`,
    `wisprMicSentence` — and the flag with them.
 
+### 5. Sentences queue: a new one may start while the last transcribes; max 2; delivered in order (Q12)
+
+> *"Da. Max 2 in flight. În ordine."* — each sentence owns its envelope from its stop to its
+> delivery; deliveries strictly in spoken order; with Autosend off the panels one at a time, in
+> order; a third start refused with a flash and a log line; 🔼← cancels the recording sentence, or,
+> with none recording, the most recent in flight. Supersedes batch 3's *a start in the settle is
+> refused* for the 2-deep case.
+
+**The design.** Why batch 3 refused: every path that builds and routes a sentence — `deliver`,
+`send`, the settle, the fallback, the cancel — reads ~55 `AppDelegate` fields (the latch, the kind
+flags, `pendingShots` and the shutter's other fields under `stateLock`, the marker cues, the
+selections, `dictationStartedAt`, `pendingVia`…), and a late reply read the *new* sentence's. The
+options were (a) turn every one of those into a property of a `Sentence` object and thread it
+through ~2000 lines, or (b) keep the fields and **move them**: a `Sentence` carries an `Envelope`
+(a struct of exactly those fields) while it is not the one in the fields. (b) is the smallest blast
+radius — no reader changes — and it is what was built:
+
+- **`Sentence`** `{id, take, startedAt, state (recording · transcribing · landed · delivering · done),
+  target, env, waiting, finished}`; `liveSentence` (its fields are in `AppDelegate`) and
+  `parkedSentence` (the older one, fields in `env`). Made at `dictationBegan`, target set at the
+  close (`caret` / `terminal:<label>` / `new session` / `held for a bind`), finished in
+  `dictationEndedForGood`.
+- **Park**: `startDictation`, when the live sentence is in flight and `queueRefusal()` is nil, calls
+  `parkLiveSentence()` *before* the new sentence's flags are set — `takeEnvelope()` moves the fields
+  out and leaves them as a fresh sentence finds them; its `settleGiveUp` and `orphanFlush` are put
+  down (they act on whatever fields are in).
+- **Answers find their sentence by take.** `ElevenLabsSource` numbers each recording (`take`,
+  unique across both ElevenLabs rows), keeps its uploads by take (`uploads[take]`, was one `upload`),
+  and labels every `didTranscribe` / `didEnd` with `answeringTake`; its `phase` is not overwritten
+  by an older take's answer while a newer take records or uploads (`settlePhase`). The local
+  fallback's answer carries `contextSentence`. `runAnswer(for:)`:
+  - the **parked** sentence's answer runs at once (it is the older) inside `run`: the live
+    envelope out, the parked one in, `answeringInBackground = true`, the body (`deliver`,
+    `dictationEnded`), then back. With the flag up, what belongs to the live sentence's microphone
+    and chip is left alone: `listening`, `speculative`, `ownCleanSentence`, `setTranscribing`,
+    `setSpawnDestination`, `clearSelection`, `publishPicks` / `publishShotCount`, the film, the
+    engine mark, `settleGiveUp`, `orphanFlush`; `send` takes `pendingPromptWarning` before its
+    main-queue hop (by the hop the fields are the live one's again);
+  - the **live** sentence's answer **waits** (`waiting`, state `landed`, its settle held up by
+    `armSettleGiveUp`) while an older sentence is in flight or **a prompt panel is held**, and is run
+    by `drainSentences()` — after every answer and at `releaseHeld`. So the order is kept whichever
+    upload lands first, and panels come one at a time in order (with Autosend on too: its one-second
+    receipt is a held panel);
+  - a **cancel** (`.cancelled`) never waits.
+- **Unpark**: when the live sentence ends and the parked one has not, `unparkIfIdle()` puts its
+  fields back, its `Transcribing…` row and give-up, so everything single-sentence (the cancel, the
+  settle, the restart gate) applies to it again.
+- **Admission** (`queueRefusal`): only an engine that `queuesSentences` (ElevenLabs and ElevenLabs +
+  Live — the local model's helper and Wispr take one sentence at a time and keep batch 3's refusal);
+  no microphone open; fewer than 2 in flight and none parked; not a spawn or a film in flight (their
+  folder menu, pick and film are the window's, not the envelope's); not within **0.8 s** of the
+  stop (`queueStartAfterStop` — a second click of the same stop, which is how the settle guard of
+  2026-09-13 was paid for). The side-button start paths (`onPasteToggle`, `onCleanToggle`,
+  `onCleanHold`) ask the same question, and the tap's back-click refusal now needs the microphone
+  open or the queue full (`HotkeyTap.sentenceQueueAccepts`) — so TG40's 🔽 in the settle **starts**
+  the next plain sentence (the case expects that with `state.sentenceQueue`).
+- **Cancel = the live sentence** (recording, else the newest in flight): `cancelDictationInFlight`
+  now calls `source.cancelTake(live.take)` — the source's newest upload is not always the live
+  sentence's (the live one may have landed and be waiting while the older one uploads).
+- **Safety**: a `Sentence` is *in flight* only on evidence (`liveInFlight`: settling, falling back,
+  the recogniser still answering, answers waiting), never on its flag alone, so a sentence whose end
+  was never reported cannot hold the next one up; a parked sentence whose take the source no longer
+  holds is let go after 15 s (`dropDeadParked`). The restart gate counts *an earlier sentence in
+  flight*. `WT_SENTENCE_QUEUE=0` (environment or `elevenlabs.env`) puts the old rule back.
+- **Known edges, accepted:** a shutter pressed during the few milliseconds of a parked sentence's
+  answer (main thread, swapped envelope) files into the parked envelope and is lost with it; the chip
+  shows only the live sentence (a parked one has no row of its own); a parked caret sentence pastes
+  at whatever holds the caret when its words land — the caret has no latch, as before.
+- **Test surface:** `GET /test/state.sentences` (`[{id, state, target, startedAt, take, waiting}]`),
+  `state.sentenceQueue`; `POST /test/eleven {"fail": "delay", "delayMs": n}` (the real call, n ms
+  late; `delayx2` for two) and **`POST /test/autosend {"on"}`** (G6; this run only, not written to
+  the defaults). `evals/plan/cases_queue.py`: **Q1** start in the settle opens the microphone, two
+  listed, both delivered A-first · **Q2** the third start refused · **Q3** the second lands first
+  and waits, outbox A then B · **Q4** 🔼← while B records cancels B, A delivered · **Q5** 🔼← with
+  none recording cancels B (the newest), A delivered · **Q6** Autosend off: A's panel first, B waits
+  for it, then B's. Registered in `harness.py`. **Not run** (the night batch).
+- **Tomorrow:** after the install, `HANDS_OFF=1 python3 evals/plan/harness.py --only 'Q[1-6],TG40'`
+  under the hands-off locks, then the regression suite (the start-in-settle cases TL8, TL15 and TR18
+  were written against batch 3's refusal; with the queue a start in the settle is queued, so read
+  their verdicts against Q12 before calling one a regression).
+
 ### 6. Leftovers of the regression run
 
 **TL18 — staged Recover audio holds a restart, not a quit.** The regression run: a cancelled 5.8 s

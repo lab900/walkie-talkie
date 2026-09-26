@@ -1242,7 +1242,8 @@ def tg36():
 
 @case("TG40", tags=("gesture", "audio"),
       expect="🔽 in the settle of a relay prompt says the words are in flight (or nothing). Predicted defect: "
-             "the misleading `Back click ignored — finish the sentence you are dictating first` banner")
+             "the misleading `Back click ignored — finish the sentence you are dictating first` banner. "
+             "Since Q12 (batch 6, `state.sentenceQueue`): it starts the next plain sentence, no refusal")
 def tg40():
     """F6 in the settle → the misleading banner."""
     with G("TG40") as g:
@@ -1273,6 +1274,10 @@ def tg40():
                f"a new sentence opened={new_sentence}")
         if early:
             return g.done("FAIL", "delivered before the back click — inconclusive · " + msg)
+        if st().get("sentenceQueue"):
+            # Q12: a start in the settle is queued — the back click opens the next plain sentence.
+            post("/test/cancel")
+            return g.done("PASS" if new_sentence and ir < 0 and not inflight else "FAIL", "queue on · " + msg)
         if ir >= 0 and (idl < 0 or ir < idl):
             return g.done("BUG", msg)
         if ir < 0 and not new_sentence:

@@ -172,6 +172,23 @@ protocol DictationSource: AnyObject {
     var didOpenLive: (() -> Void)? { get set }
     var liveOpen: Bool { get }
 
+    // **Takes — for the sentence queue** (Q12, 2026-09-26 batch 6). A source
+    // that `queuesSentences` accepts a `start()` while an earlier take's words
+    // are still on their way, and labels each answer with its take
+    // (`answeringTake`, set only around a `didTranscribe` / `didEnd` call) so
+    // the relay can give it to the sentence it belongs to. The others answer
+    // for the one sentence there is (`answeringTake` nil) and keep the old rule:
+    // no start while the words are in flight.
+    var queuesSentences: Bool { get }
+    var take: Int { get }
+    var answeringTake: Int? { get }
+    /// Takes stopped whose answer has not come yet.
+    var answersPending: Int { get }
+    func isPending(take: Int) -> Bool
+    /// Cancel that take only — the relay's cancel means the newest sentence in
+    /// flight, which is not always the source's newest upload.
+    func cancelTake(_ take: Int)
+
 }
 
 /// **One token of a transcript, with the moment it was said** (2026-09-19).
@@ -384,4 +401,10 @@ extension DictationSource {
         set {}
     }
     var liveOpen: Bool { false }
+    var queuesSentences: Bool { false }
+    var take: Int { 0 }
+    var answeringTake: Int? { nil }
+    var answersPending: Int { 0 }
+    func isPending(take: Int) -> Bool { false }
+    func cancelTake(_ take: Int) { cancel() }
 }

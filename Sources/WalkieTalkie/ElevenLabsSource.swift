@@ -301,6 +301,11 @@ final class ElevenLabsSource: DictationSource {
         let wav = Outbox.shotsDir.appendingPathComponent("mic-\(Int(Date().timeIntervalSince1970)).wav")
         markersInAudio = false
         isRecording = true
+        // Unique across both ElevenLabs rows, so an engine switch between two
+        // sentences in flight cannot hand one's answer to the other.
+        Self.takeSerial += 1
+        take = Self.takeSerial
+        let t = take
         phase = .listening
         Log.info("🎙️ recording started for ElevenLabs — \(wav.lastPathComponent)")
         var stream: ElevenLabsLive?
@@ -336,10 +341,10 @@ final class ElevenLabsSource: DictationSource {
             self.meter.onBuffer = nil
             stream?.stop()
             DispatchQueue.main.async {
-                guard self.isRecording else { return }
+                guard self.isRecording, self.take == t else { return }
                 self.isRecording = false
-                self.phase = .done("error")
-                self.didEnd?(.failed(why: why, audio: nil, duration: 0))
+                self.settlePhase(.done("error"))
+                self.answer(t) { self.didEnd?(.failed(why: why, audio: nil, duration: 0)) }
             }
         }
         didBegin?()
@@ -375,7 +380,43 @@ final class ElevenLabsSource: DictationSource {
             lock.withLock { task = t; return !_cancelled }
         }
     }
-    private var upload: Upload?
+    /// **Every upload in flight, by take** (Q12, 2026-09-26 batch 6): a new
+    /// sentence may start while the last one uploads, so there can be two.
+    /// `cancel()` with the microphone shut disowns the newest — the sentence
+    /// most recently in flight, which is the one the relay's cancel means.
+    private var uploads: [Int: Upload] = [:]
+
+    // MARK: - Takes (Q12)
+
+    /// The take of the latest `start()` — one per recording.
+    private(set) var take = 0
+    private static var takeSerial = 0
+    /// The take whose answer `didTranscribe` / `didEnd` are carrying right now
+    /// (set around each call on the main queue), so the relay can hand it to
+    /// the sentence it belongs to. Nil outside those calls.
+    private(set) var answeringTake: Int?
+    /// Takes stopped and not answered yet.
+    private var unanswered: Set<Int> = []
+    var answersPending: Int { unanswered.count }
+    func isPending(take t: Int) -> Bool { unanswered.contains(t) || uploads[t] != nil }
+    let queuesSentences = true
+
+    /// Runs one take's `didTranscribe` / `didEnd`, labelled with the take.
+    private func answer(_ t: Int, _ body: () -> Void) {
+        let outer = answeringTake
+        answeringTake = t
+        body()
+        answeringTake = outer
+        unanswered.remove(t)
+    }
+
+    /// `phase` after one take's answer: another take still recording or
+    /// uploading keeps its own phase (Q12).
+    private func settlePhase(_ p: DictationPhase) {
+        if isRecording { return }
+        if !uploads.isEmpty { phase = .transcribing("uploading"); return }
+        phase = p
+    }
 
     /// **Q8's floor** (2026-09-26): an empty Scribe answer goes to the local
     /// model only when the meter counted at least this much voiced audio in the
@@ -391,6 +432,10 @@ final class ElevenLabsSource: DictationSource {
         // because that is the wait the relay shows (2026-09-23).
         DecodeRate.activeEngine = DecodeRate.elevenLabs
         stoppedAt = Date()
+        let t = take
+        let stopped = stoppedAt
+        let markers = markersInAudio
+        unanswered.insert(t)
         closeStream()
         didStopListening?()
         // **Closed on the same queue it was opened on** — `MicRecorder.stop()`
@@ -405,103 +450,127 @@ final class ElevenLabsSource: DictationSource {
             let voiced = self.meter.voicedSeconds
             self.meter.onBuffer = nil
             self.opening = nil
-            DispatchQueue.main.async { self.finishRecording(closed, voiced: voiced) }
+            DispatchQueue.main.async {
+                self.finishRecording(closed, voiced: voiced, take: t, stoppedAt: stopped, markers: markers)
+            }
         }
     }
 
     /// The tail of `stop()`, on the main queue, exactly as it always ran.
-    private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?, voiced: TimeInterval) {
+    private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?, voiced: TimeInterval,
+                                 take t: Int, stoppedAt: Date?, markers: Bool) {
         guard let (wav, duration) = closed else {
             Log.info("recording discarded — under \(MicRecorder.minimumDuration)s")
-            phase = .done("empty")
-            didEnd?(.silent(""))
+            settlePhase(.done("empty"))
+            answer(t) { didEnd?(.silent("")) }
             return
         }
         guard let key = apiKey else {
             // Only reachable if the key was taken away mid-sentence — and the
             // audio still stays, for `finishWithFailure`'s reason.
-            finishWithFailure(wav, duration, "the ElevenLabs key went away mid-sentence")
+            answer(t) { finishWithFailure(wav, duration, "the ElevenLabs key went away mid-sentence") }
             return
         }
         Log.info(String(format: "🎙️ recording stopped — %.1fs, uploading to ElevenLabs", duration))
 
         let startedAt = Date()
         let upload = Upload(wav: wav, duration: duration)
-        self.upload = upload
+        uploads[t] = upload
         Self.transcribe(wav: wav, key: key, upload: upload) { [weak self] outcome in
             DispatchQueue.main.async {
                 guard let self else { return }
-                if self.upload === upload { self.upload = nil }
+                if self.uploads[t] === upload { self.uploads[t] = nil }
                 guard !upload.isCancelled else {
+                    self.unanswered.remove(t)
                     Log.info("🗑️ ElevenLabs answered a cancelled upload — dropped")
                     return
                 }
-                let elapsed = Date().timeIntervalSince(startedAt)
-                switch outcome {
-                case .failure(let why):
-                    self.finishWithFailure(wav, duration, why)
-                case .success(let r) where r.text.isEmpty:
-                    // **An empty answer is a failure with the audio in hand, not
-                    // silence** (2026-09-26, the test plan's §3.8: TL16, TR13). It
-                    // used to delete the WAV and say *No words detected* — 60 s
-                    // of real speech went that way on 09-19 and again on 09-20.
-                    // `.failed` carries the WAV, staged for *Recover* — and
-                    // `heardNothing` keeps the local model out of it (see there).
-                    // Only a take under `MicRecorder.minimumDuration` is dropped
-                    // (`.silent("")`).
-                    //
-                    // **Q8 (2026-09-26, 18:40, Victor — "mijloc"): the local model
-                    // stands in only when the take had real speech** — at least
-                    // `fallbackVoicedFloor` voiced seconds by the meter. On
-                    // speech, Scribe's empty answer is the failure the fallback
-                    // exists for; on a near-silent take the local model invents
-                    // a sentence (`www.clu.com.br`) and it would be typed.
-                    self.phase = .done("empty")
-                    if voiced >= Self.fallbackVoicedFloor {
-                        let why = String(format: "ElevenLabs returned no words for %.1f s of voiced speech", voiced)
-                        Log.error("\(why) — asking the local model")
-                        self.didEnd?(.failed(why: why, audio: wav, duration: duration))
-                    } else {
-                        Log.error(String(format: "ElevenLabs returned no words (%.1f s voiced, under %.0f s) — the audio is kept for Recover",
-                                         voiced, Self.fallbackVoicedFloor))
-                        self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
-                    }
-                case .success(let r):
-                    Log.info(String(format: "elevenlabs: %@ (%.2f) — %d chars in %.2fs (%.2f× audio)",
-                                    r.language ?? "?", r.languageProbability, r.text.count,
-                                    elapsed, elapsed / max(duration, 0.01)))
-                    // **Scribe learns its own round trip** (2026-09-23) — it never
-                    // did: `DecodeRate` had been timing every Scribe sentence
-                    // against the local model's curve since the day it became the
-                    // engine. From the close, not from the upload: the stop's
-                    // audio-queue hop is part of the wait he watches.
-                    DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(self.stoppedAt ?? startedAt),
-                                      engine: DecodeRate.elevenLabs, chars: r.text.count)
-                    self.didTranscribe?(DictationResult(
-                        text: r.text, language: r.language, audio: wav, duration: duration,
-                        engine: "elevenlabs", warning: Self.warning(for: r), delivery: .route,
-                        via: "elevenlabs-scribe", markersInAudio: self.markersInAudio,
-                        engineLabel: self.displayModelName, words: r.words))
-                    self.phase = .done("formatted")
-                    self.didEnd?(.delivered)
-                }
+                self.answer(t) { self.uploaded(outcome, wav: wav, duration: duration, voiced: voiced,
+                                               startedAt: startedAt, stoppedAt: stoppedAt, markers: markers) }
             }
         }
+    }
+
+    /// One take's upload answered — on main, inside `answer(take)`.
+    private func uploaded(_ outcome: Outcome, wav: URL, duration: TimeInterval, voiced: TimeInterval,
+                          startedAt: Date, stoppedAt: Date?, markers: Bool) {
+        let elapsed = Date().timeIntervalSince(startedAt)
+        switch outcome {
+        case .failure(let why):
+            self.finishWithFailure(wav, duration, why)
+        case .success(let r) where r.text.isEmpty:
+            // **An empty answer is a failure with the audio in hand, not
+            // silence** (2026-09-26, the test plan's §3.8: TL16, TR13). It
+            // used to delete the WAV and say *No words detected* — 60 s
+            // of real speech went that way on 09-19 and again on 09-20.
+            // `.failed` carries the WAV, staged for *Recover* — and
+            // `heardNothing` keeps the local model out of it (see there).
+            // Only a take under `MicRecorder.minimumDuration` is dropped
+            // (`.silent("")`).
+            //
+            // **Q8 (2026-09-26, 18:40, Victor — "mijloc"): the local model
+            // stands in only when the take had real speech** — at least
+            // `fallbackVoicedFloor` voiced seconds by the meter. On
+            // speech, Scribe's empty answer is the failure the fallback
+            // exists for; on a near-silent take the local model invents
+            // a sentence (`www.clu.com.br`) and it would be typed.
+            self.settlePhase(.done("empty"))
+            if voiced >= Self.fallbackVoicedFloor {
+                let why = String(format: "ElevenLabs returned no words for %.1f s of voiced speech", voiced)
+                Log.error("\(why) — asking the local model")
+                self.didEnd?(.failed(why: why, audio: wav, duration: duration))
+            } else {
+                Log.error(String(format: "ElevenLabs returned no words (%.1f s voiced, under %.0f s) — the audio is kept for Recover",
+                                 voiced, Self.fallbackVoicedFloor))
+                self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
+            }
+        case .success(let r):
+            Log.info(String(format: "elevenlabs: %@ (%.2f) — %d chars in %.2fs (%.2f× audio)",
+                            r.language ?? "?", r.languageProbability, r.text.count,
+                            elapsed, elapsed / max(duration, 0.01)))
+            // **Scribe learns its own round trip** (2026-09-23) — it never
+            // did: `DecodeRate` had been timing every Scribe sentence
+            // against the local model's curve since the day it became the
+            // engine. From the close, not from the upload: the stop's
+            // audio-queue hop is part of the wait he watches.
+            DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(stoppedAt ?? startedAt),
+                              engine: DecodeRate.elevenLabs, chars: r.text.count)
+            self.didTranscribe?(DictationResult(
+                text: r.text, language: r.language, audio: wav, duration: duration,
+                engine: "elevenlabs", warning: Self.warning(for: r), delivery: .route,
+                via: "elevenlabs-scribe", markersInAudio: markers,
+                engineLabel: self.displayModelName, words: r.words))
+            self.settlePhase(.done("formatted"))
+            self.didEnd?(.delivered)
+        }
+    }
+
+    /// **Cancel one take** (Q12): the recording if it is this one, else its
+    /// upload if still in flight; an answer already given is the relay's to
+    /// drop (`transcriptDisowned`).
+    func cancelTake(_ t: Int) {
+        if isRecording, t == take { return cancel() }
+        guard let up = uploads[t] else { return }
+        uploads[t] = nil
+        up.cancel()
+        settlePhase(.done("dismissed"))
+        answer(t) { didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
     }
 
     func cancel() {
         // **The microphone is shut and the words are on their way** — the upload
         // is this sentence now, and a cancel disowns it (`Upload`).
-        if !isRecording, let up = upload {
-            upload = nil
+        if !isRecording, let t = uploads.keys.max(), let up = uploads[t] {
+            uploads[t] = nil
             up.cancel()
-            phase = .done("dismissed")
-            didEnd?(.cancelled(audio: up.wav, duration: up.duration))
+            settlePhase(.done("dismissed"))
+            answer(t) { didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
             return
         }
         guard isRecording else { return }
         isRecording = false
-        phase = .done("dismissed")
+        let t = take
+        settlePhase(.done("dismissed"))
         closeStream()
         didStopListening?()
         // On `audioQueue` for `stop()`'s reason: the close is a device
@@ -513,7 +582,7 @@ final class ElevenLabsSource: DictationSource {
             self.meter.onBuffer = nil
             self.opening = nil
             DispatchQueue.main.async {
-                self.didEnd?(.cancelled(audio: taken?.url, duration: taken?.duration ?? 0))
+                self.answer(t) { self.didEnd?(.cancelled(audio: taken?.url, duration: taken?.duration ?? 0)) }
             }
         }
     }
@@ -543,7 +612,7 @@ final class ElevenLabsSource: DictationSource {
 
     private func finishWithFailure(_ wav: URL, _ duration: TimeInterval, _ why: String) {
         Log.error("ElevenLabs: \(why)")
-        phase = .done("error")
+        settlePhase(.done("error"))
         didEnd?(.failed(why: "ElevenLabs: \(why)", audio: wav, duration: duration))
     }
 
@@ -601,7 +670,7 @@ final class ElevenLabsSource: DictationSource {
     /// `lang` rewrites the answer's language fields on an otherwise real call.
     struct Fault {
         var code: Int?          // HTTP status to fake
-        var kind: String        // timeout | transport | unreadable | empty | http | lang
+        var kind: String        // timeout | transport | unreadable | empty | http | lang | delay (Q12: a real call, late)
         var remaining: Int
         var delayMs: Int
         var once: Bool
@@ -738,6 +807,14 @@ final class ElevenLabsSource: DictationSource {
 
         if let f = takeFault(purpose: purpose) {
             Log.info("🧪 ElevenLabs attempt \(attempt + 1): injected \(f.describe())")
+            // **`delay`: the real call, late** (Q12's order case — the first
+            // sentence's words land after the second's).
+            if f.kind == "delay" {
+                DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(f.delayMs)) {
+                    transcribe(wav: wav, key: key, attempt: attempt, purpose: purpose, upload: upload, done)
+                }
+                return
+            }
             let url = req.url!
             DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(f.delayMs)) {
                 switch f.kind {

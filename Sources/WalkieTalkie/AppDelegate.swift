@@ -566,6 +566,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The last `.failed` end, for `GET /test/state.lastFailure` (gap G7).
     private var lastFailure: (why: String, engine: String, at: Date)?
 
+    // **The sentence queue** (Q12, 2026-09-26 batch 6) — see `Sentence`.
+    /// The sentence whose envelope is in the fields: recording, or the newest in flight.
+    fileprivate var liveSentence: Sentence?
+    /// The older sentence still in flight, its envelope parked in it.
+    fileprivate var parkedSentence: Sentence?
+    fileprivate var sentenceSerial = 0
+    fileprivate var parkedAt: Date?
+    /// A parked sentence's answer is running with its envelope swapped in: the
+    /// microphone, the chip's live rows and the halo are the live sentence's and
+    /// are left alone (`runParked`).
+    fileprivate var answeringInBackground = false
+    static let maxSentencesInFlight = 2
+    /// A start this soon after the stop is the stop's click again, not a new sentence.
+    static let queueStartAfterStop: CFAbsoluteTime = 0.8
+    static let parkedGiveUp: TimeInterval = 15
+    /// **On by default; `WT_SENTENCE_QUEUE=0`** (environment, then `elevenlabs.env`)
+    /// puts back the old rule — no start while the words are in flight. Read once.
+    static let sentenceQueueOn: Bool = {
+        let v = ProcessInfo.processInfo.environment["WT_SENTENCE_QUEUE"] ?? ElevenLabsSource.fileValue("WT_SENTENCE_QUEUE")
+        return v != "0"
+    }()
+
     /// **The gesture that opens a microphone has been seen and the microphone
     /// has not.** Only a source whose recorder lives in another process has a
     /// gap here worth drawing — see `DictationSource.didMaybeBegin`.
@@ -1484,6 +1506,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // takes from ⏎ / ⎋ / a click on its words. It exists because a panel
         // that paused under the harness's pointer could only be let go by hand
         // (TD20, TL25). Cancel takes the ✕'s path, so it is Q6's cancel exactly.
+        // `POST /test/autosend {"on": bool}` (test-plan gap G6, batch 6): the
+        // menu's Autosend for this run — not written to the defaults, so a
+        // harness that dies mid-case cannot leave his setting changed.
+        picker.onTestAutosend = { [weak self] on in
+            DispatchQueue.main.sync {
+                guard let self else { return }
+                self.status.setAutosend(on, persist: false)
+            }
+            Log.info("🧪 POST /test/autosend — \(on ? "on" : "off") (this run only)")
+            return ["autosend": on]
+        }
         picker.onTestPrompt = { [weak self] verb, text in
             var answer: [String: Any] = ["ok": false, "error": "gone"]
             DispatchQueue.main.sync {
@@ -2114,8 +2147,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 if self.listening || self.source.isRecording { self.endDictation() }
-                else if self.settling || self.source.phase.isWaitingForWords {
-                    Log.info("🔼 forward click while the words are still in flight — nothing to start, nothing to stop")
+                else if self.settling || self.source.phase.isWaitingForWords, let why = self.queueRefusal() {
+                    Log.info("🔼 forward click while the words are still in flight — nothing to start, nothing to stop (\(why))")
+                    if why.hasPrefix("two sentences") {
+                        self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
+                    }
                 }
                 else { self.startDictation(paste: true) }
             }
@@ -2590,8 +2626,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 if self.listening || self.source.isRecording {
                     if self.cleanSentence { self.endDictation() }
-                } else if self.settling || self.source.phase.isWaitingForWords {
-                    Log.info("⬅️ back click while the words are still in flight — nothing to start, nothing to stop")
+                } else if self.settling || self.source.phase.isWaitingForWords, let why = self.queueRefusal() {
+                    Log.info("⬅️ back click while the words are still in flight — nothing to start, nothing to stop (\(why))")
+                    if why.hasPrefix("two sentences") {
+                        self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
+                    }
                 } else {
                     Log.info("🧼 a plain dictation (back click) on \(self.source.name) — clean words at the caret, nothing added")
                     self.startDictation(paste: true, clean: true)
@@ -2609,7 +2648,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 switch edge {
                 case .press:
                     guard !self.listening, !self.source.isRecording, !self.speculative,
-                          !self.settling, !self.source.phase.isWaitingForWords else {
+                          (!self.settling && !self.source.phase.isWaitingForWords) || self.queueRefusal() == nil else {
                         Log.info("🧼 right ⌘⌥ while another sentence is open or in flight — left alone")
                         return
                     }
@@ -2751,8 +2790,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         source.didMaybeBegin = { [weak self] why in self?.wisprMicSentence = false; self?.dictationMaybeBeginning(why) }
         source.didBegin = { [weak self] in self?.wisprMicSentence = false; self?.dictationBegan() }
         source.didStopListening = { [weak self] in self?.dictationStoppedListening() }
-        source.didTranscribe = { [weak self] result in self?.deliver(result) }
-        source.didEnd = { [weak self] end in self?.dictationEnded(end) }
+        // **Each answer goes to the sentence it belongs to, in the order spoken**
+        // (Q12) — the take the source labels it with, else the live sentence.
+        source.didTranscribe = { [weak self] result in
+            guard let self else { return }
+            self.runAnswer(for: self.sentence(forTake: self.source.answeringTake)) { self.deliver(result) }
+        }
+        source.didEnd = { [weak self] end in
+            guard let self else { return }
+            var cancel = false
+            if case .cancelled = end { cancel = true }
+            self.runAnswer(for: self.sentence(forTake: self.source.answeringTake), immediate: cancel) {
+                self.dictationEnded(end)
+            }
+        }
         source.didHearLive = { [weak self] committed, partial, gentle in
             self?.overlay.setLiveCaption(committed, partial: partial, gentle: gentle)
         }
@@ -2894,6 +2945,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// means.
     private func dictationBegan() {
         guard !listening else { return }
+        // **The sentence this microphone is** (Q12). A live one still here was
+        // not parked by `startDictation`, so nothing is waiting for it.
+        if let stale = liveSentence, !stale.finished {
+            Log.info("🧾 sentence #\(stale.id) had no answer left to wait for — closed")
+            stale.finished = true
+        }
+        sentenceSerial += 1
+        liveSentence = Sentence(id: sentenceSerial, take: source.queuesSentences ? source.take : nil)
+        liveSentence?.target = "recording"
         cleanRedirected = false
         // A 🔼 ↓ belongs to the sentence it was made in; one whose sentence
         // came back empty must not ride along on the next.
@@ -3064,6 +3124,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Terminals* pick whose bind has not landed: the pick is the recipient.
         latch = Latch(target: latchedAtCaret || spawnPending || spawnPickInFlight != nil
                               ? nil : terminal.target)
+        if let live = liveSentence {
+            live.state = "transcribing"
+            live.target = latchedAtCaret ? "caret"
+                : (spawnPending || spawnPickInFlight != nil) ? "new session"
+                : latch?.target.map { "terminal:\($0.label)" } ?? "held for a bind"
+        }
         settleTake = latchedAtCaret ? lastTake() : []
         // **And where he was looking when he stopped talking** — the screen a
         // spawned window opens on (`SpawnTerminal.board(preferring:)`). Latched
@@ -3114,7 +3180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the close, taken (and cleared) by `deliver`, which hands it to `send`; a
     /// sentence that never had a close on this side (`POST /test/dictation`, a
     /// Wispr row) has none, and is addressed to the binding as it is at `send`.
-    private struct Latch { let target: TerminalBinding.Target? }
+    fileprivate struct Latch { let target: TerminalBinding.Target? }
     private var latch: Latch?
 
     /// The pointer at the close, in Cocoa screen coordinates — which display a
@@ -3404,8 +3470,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             recordDelivery(via: result.via, kind: result.delivery, to: "caret")
             pendingVia = nil
             pendingDeliveryKind = nil
-            overlay.setSpawnDestination(nil)
-            overlay.clearSelection()
+            if !answeringInBackground {
+                overlay.setSpawnDestination(nil)
+                overlay.clearSelection()
+            }
             if prompt {
                 deliverCaretPrompt(line, to: result.focusPid)
             } else {
@@ -3455,25 +3523,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fallbackAudio = (wav, duration)
         Log.error("↪️ \(why) — transcribing the \(String(format: "%.1f", duration))s recording on this Mac instead")
         DecodeRate.activeEngine = DecodeRate.whisperLocal
-        overlay.setEngineMark(Self.mark(engine: "whisper"))
-        overlay.setTranscribing(false)
-        overlay.setTranscribing(true, audio: duration)
+        // A parked sentence's fallback (Q12) leaves the live one's chip alone.
+        if !answeringInBackground {
+            overlay.setEngineMark(Self.mark(engine: "whisper"))
+            overlay.setTranscribing(false)
+            overlay.setTranscribing(true, audio: duration)
+        }
+        // **Its answer goes to the sentence that failed** (Q12), in its turn.
+        let owner = contextSentence
         transcribeLocally(wav: wav, duration: duration, standingInFor: failed) { [weak self] result in
             guard let self else { return }
-            guard token == self.fallbackToken else {
-                Log.info("🗑️ the local model answered a fallback that was cancelled — dropped")
+            if let owner, owner.finished {
+                Log.info("🗑️ the local model answered for sentence #\(owner.id), which is over — dropped")
                 return
             }
-            self.fallbackAudio = nil
-            self.fallingBack = false
-            self.overlay.setEngineMark(Self.mark(engine: self.engineId))
-            guard let result else {
-                self.dictationEndedForGood(.failed(why: "\(why); the local model could not transcribe it either",
-                                                   audio: wav, duration: duration))
-                return
+            self.runAnswer(for: owner) { [weak self] in
+                guard let self else { return }
+                guard token == self.fallbackToken else {
+                    Log.info("🗑️ the local model answered a fallback that was cancelled — dropped")
+                    return
+                }
+                self.fallbackAudio = nil
+                self.fallingBack = false
+                if !self.answeringInBackground { self.overlay.setEngineMark(Self.mark(engine: self.engineId)) }
+                guard let result else {
+                    self.dictationEndedForGood(.failed(why: "\(why); the local model could not transcribe it either",
+                                                       audio: wav, duration: duration))
+                    return
+                }
+                self.deliver(result)
+                self.dictationEndedForGood(.delivered)
             }
-            self.deliver(result)
-            self.dictationEndedForGood(.delivered)
         }
         return true
     }
@@ -3537,10 +3617,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func dictationEndedForGood(_ end: DictationEnd) {
+        // **The sentence is over** (Q12) — whichever one's fields are in.
+        if let s = contextSentence { s.finished = true; s.state = "done" }
+        // A parked sentence's end (Q12): its fields only — the microphone, the
+        // chip and the gestures are the live sentence's.
+        let bg = answeringInBackground
         // **A guess that was never confirmed ends here too.** The source drops a
         // speculative ring 1.5 s after a chord no microphone followed, and the
         // flag it raised lives on this side of the protocol.
-        speculative = false
+        if !bg { speculative = false }
         // A sentence that never reached `deliver` must not hand its kind to the
         // next one (`caretPrompt` / `cleanSentence`, 2026-09-23).
         if case .delivered = end {} else {
@@ -3548,7 +3633,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cleanSentence = false
             submitAfterClean = false
         }
-        hotkeys.ownCleanSentence = false
+        if !bg { hotkeys.ownCleanSentence = false }
         switch end {
         case .delivered:
             break
@@ -3557,7 +3642,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // No words, so no `deliver` to consume a caret sentence's flag.
             pasteMode = false
             if !why.isEmpty { overlay.flash(why, duration: 8) }
-            overlay.setTranscribing(false)
+            if !bg { overlay.setTranscribing(false) }
             clearSpawn()
             abandonDictation("the source returned nothing")
         case .cancelled(let audio, let duration):
@@ -3574,12 +3659,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // sentence he has already said.
             endSettling(reason: why)
             overlay.flash("⚠️ \(why) — recover it from the menu", duration: 12)
-            overlay.setTranscribing(false)
+            if !bg { overlay.setTranscribing(false) }
             if let audio { keepCancelled(wav: audio, duration: duration) }
             clearSpawn()
             abandonDictation("the recogniser could not be reached")
             clearCancelledDictationState()
         }
+        guard !bg else { return }
         if listening {
             listening = false
             overlay.setListening(false)
@@ -3646,7 +3732,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Log.info(String(format: "the settle waits: the local model is standing in — %.0f s in", waited))
                 return self.armSettleGiveUp()
             }
-            if self.source.phase.isWaitingForWords {
+            if let live = self.liveSentence, !live.waiting.isEmpty {
+                Log.info(String(format: "the settle waits: sentence #%d's words wait for the one before — %.0f s in", live.id, waited))
+                return self.armSettleGiveUp()
+            }
+            if self.source.phase.isWaitingForWords || self.source.answersPending > 0 {
                 Log.info(String(format: "the settle waits: %@ is still %@ — %.0f s in",
                                 self.source.name,
                                 self.source.phase.status.isEmpty ? "working" : self.source.phase.status,
@@ -3667,12 +3757,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settling = false
         settlingAtCaret = false
         settleTake = []
-        settleGiveUp?.cancel()
-        settleGiveUp = nil
+        // The give-up on the clock is the live sentence's (Q12): a parked one's
+        // was put down when it was parked.
+        if !answeringInBackground {
+            settleGiveUp?.cancel()
+            settleGiveUp = nil
+        }
         // The promise is kept (or given up on), so the row goes with it —
         // `setTranscribing` is idempotent and this is the one place the wait
-        // ends, whichever way it ended.
-        overlay.setTranscribing(false)
+        // ends, whichever way it ended. Not a parked sentence's (Q12): the row
+        // on screen is the live one's.
+        if !answeringInBackground { overlay.setTranscribing(false) }
         if !quiet {
             RingDown.noteSettled(reason)
             // **No longer `⚡ ring down`** (2026-09-13): the ring came down at the
@@ -3825,6 +3920,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let why = startBlocker() {
             guard clearStuckListening(by: "a start gesture"), startBlocker() == nil else {
                 Log.info("🚫 start refused — \(why)")
+                // **A third sentence is refused out loud** (Q12).
+                if why.hasPrefix("two sentences") {
+                    overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
+                }
                 return
             }
         }
@@ -3849,6 +3948,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             overlay.flash("⚠️ Wispr Flow is listening — one engine at a time", duration: 5)
             return
         }
+        // **The sentence in flight steps aside** (Q12): its fields are parked in
+        // it before this one's flags are set — see `Sentence`.
+        let parkedHere: Bool
+        if Self.sentenceQueueOn, source.queuesSentences, let live = liveSentence, !live.finished {
+            if liveInFlight { parkLiveSentence(); parkedHere = parkedSentence === live }
+            else { live.finished = true; parkedHere = false }
+        } else { parkedHere = false }
         // Set before the gate below and before anything reads `hasDestination`:
         // it *is* the answer for a spawn.
         spawnPending = spawn
@@ -3888,6 +3994,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeys.ownCleanSentence = false
             overlay.flash("⚠️ \(why)", duration: 6)
             Log.error("\(source.name) did not start: \(why)")
+            if parkedHere { liveSentence = nil; unparkIfIdle() }
             return
         }
         // **And now nothing happens until the microphone is open.** For the local
@@ -3937,6 +4044,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if speculative {
             return String(format: "`speculative` (%.1f s old — waiting for a microphone)", now - speculativeSince)
         }
+        // **Q12 (2026-09-26 batch 6): a start while the words are in flight is
+        // queued, not refused** — unless two sentences are already in flight, the
+        // engine takes one at a time, or the one in flight cannot be parked
+        // (`queueRefusal`). Batch 3's refusal below stands for those.
+        let inFlight = settling || source.phase.isWaitingForWords || source.answersPending > 0
+            || parkedSentence != nil || !(liveSentence?.waiting.isEmpty ?? true)
+        if inFlight, Self.sentenceQueueOn, source.queuesSentences {
+            guard let why = queueRefusal() else { return nil }
+            if why.hasPrefix("two sentences") { return "two sentences are already in flight (Q12: max 2)" }
+            return String(format: "the words are still in flight (%.1f s since the microphone closed) — %@",
+                          now - settlingFrom, why)
+        }
         if settling {
             return String(format: "`settling` (%.1f s since the microphone closed — the words are still in flight)",
                           now - settlingFrom)
@@ -3946,6 +4065,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return "the last sentence's words are still in flight (\(source.name): \(status))"
         }
         return nil
+    }
+
+    /// The live sentence is still on its way (Q12): the evidence, not the flag
+    /// — a `Sentence` whose end was never reported must not hold anything up.
+    fileprivate var liveInFlight: Bool {
+        guard let live = liveSentence, !live.finished else { return false }
+        return settling || fallingBack || source.phase.isWaitingForWords
+            || source.answersPending > 0 || !live.waiting.isEmpty
     }
 
     private var stuckCheck: DispatchWorkItem?
@@ -4296,7 +4423,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let kept = fallbackAudio { keepCancelled(wav: kept.wav, duration: kept.duration) }
             fallbackAudio = nil
         }
-        source.cancel()
+        // **The live sentence's own take** (Q12): the source's newest upload
+        // may belong to it or, while it waits its turn, to the one before.
+        if Self.sentenceQueueOn, source.queuesSentences, let t = liveSentence?.take { source.cancelTake(t) }
+        else { source.cancel() }
         if sourceWasIdle {
             if !inFlight { Log.info("🗑️ …and the recogniser had nothing to cancel — putting the ring down here") }
             // `quiet`, because `endSettling`'s ordinary line is `✍️ the words
@@ -4412,10 +4542,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **A recording still running is thrown away with the sentence** — it was
         // made *of* something he cancelled, and the frames are a hundred
         // megabytes of a moment he asked to forget.
-        film?.discard()
-        film = nil
-        overlay.setFilming(false)
-        overlay.clearFilmsCarried()
+        // A parked sentence (Q12) never has a film running — `queueRefusal`
+        // does not park one — and the one on screen is the live sentence's.
+        if !answeringInBackground {
+            film?.discard()
+            film = nil
+            overlay.setFilming(false)
+            overlay.clearFilmsCarried()
+        }
         for stale in pendingFilms { try? FileManager.default.removeItem(at: stale.dir) }
         pendingFilms = []
 
@@ -4447,6 +4581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         contextAtWheelRelease = false
         stateLock.unlock()
 
+        guard !answeringInBackground else { return }
         publishShotCount()
         publishPicks()
         // **And the highlight comes off the chip with it.** `pendingSelection` is
@@ -4862,7 +4997,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// automatic context screen is dropped, since without a transcript there is
     /// nothing for it to be context *for*.
     private func flushOrphaned() {
-        DispatchQueue.main.async { self.kamikaze = false }
+        // On main at once when it can be: a hop would land after a parked
+        // sentence's fields (Q12) have been put away, on the live one's flag.
+        if Thread.isMainThread { kamikaze = false } else { DispatchQueue.main.async { self.kamikaze = false } }
         stateLock.lock()
         let shots = pendingShots
         pendingShots = []
@@ -4995,7 +5132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stateLock.unlock()
         guard carrying else { return }
         Log.info("dictation abandoned (\(reason)) — dropping what it had gathered")
-        DispatchQueue.main.async { [weak self] in self?.orphanFlush?.cancel() }
+        if !answeringInBackground { DispatchQueue.main.async { [weak self] in self?.orphanFlush?.cancel() } }
         flushOrphaned()
     }
 
@@ -5168,6 +5305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // ring and the settle and does not care where the words are going.
         hotkeys.ownDictation = listening || source.isRecording || speculative || settling
         hotkeys.ownMicOpen = listening || source.isRecording || speculative
+        hotkeys.sentenceQueueAccepts = Self.sentenceQueueOn && queueRefusal() == nil
         picker.dictating = live
         // The halves as well as the verdict, so a refused ⌘⇧ can name the one
         // that was missing rather than saying an undivided no — see
@@ -5946,6 +6084,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Gap G7 (2026-09-26): what the plan's assertions could not read.
         out["fallingBack"] = fallingBack
         out["autosend"] = autosend
+        // Q12 (batch 6): the sentences in flight, oldest first — {id, state, target, startedAt, take, waiting}.
+        out["sentences"] = describeSentences()
+        out["sentenceQueue"] = Self.sentenceQueueOn
         out["lastFailure"] = lastFailure.map { ["why": $0.why, "engine": $0.engine, "at": Outbox.iso($0.at)] } ?? NSNull()
         out["recoverable"] = cancelledAudio.map { ["path": $0.url.path, "duration": $0.duration,
                                                    "expiresAt": Outbox.iso($0.at.addingTimeInterval(300))] } ?? NSNull()
@@ -6356,6 +6497,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // It is normally long gone — three seconds against a sentence — but a
         // dictation cancelled inside those three seconds must not leave a menu
         // on screen offering a folder to a session nobody is going to open.
+        guard !answeringInBackground else { return }
         SpawnFolderMenu.hide()
         overlay.setSpawnDestination(nil)
     }
@@ -8398,6 +8540,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if source.isRecording { why.append("microphone open") }
         if wisprHearing || wisprSource.capturing { why.append("Wispr sentence") }
         if settling || source.phase.isWaitingForWords { why.append("transcribing") }
+        // Q12: an earlier sentence still in flight behind the live one.
+        if parkedSentence.map({ !$0.finished }) == true || (!settling && source.answersPending > 0) {
+            why.append("an earlier sentence in flight")
+        }
         if overlay?.isHoldingPrompt ?? false { why.append("prompt on screen") }
         if !awaitingBind.isEmpty { why.append("held for a bind") }
         if deliveriesInFlight > 0 || caretHalo.delivering { why.append("delivering") }
@@ -8673,9 +8819,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         stateLock.unlock()
 
-        if kind == "dictation" { publishPicks() }
+        // A parked sentence's delivery (Q12) leaves the live one's chip rows alone.
+        let bg = answeringInBackground
+        if kind == "dictation", !bg { publishPicks() }
+        // Taken now, not in the hop below: by then a parked sentence's fields
+        // (Q12) are the live one's again.
+        let warningNow = pendingPromptWarning
 
-        if kind == "dictation" {
+        if kind == "dictation", !bg {
             DispatchQueue.main.async { [weak self] in self?.orphanFlush?.cancel() }
         }
 
@@ -8702,12 +8853,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.overlay.clearSelection()
+            if !bg { self.overlay.clearSelection() }
 
             // Nothing to read is nothing to cancel: a bare screenshot goes
             // straight out, and so does the goodbye.
             guard let shown = shown else {
-                self.pendingPromptWarning = nil
+                if !bg { self.pendingPromptWarning = nil }
                 self.commit(message)
                 if kind == "dictation" {
                     // `offsets`, not `attached`: same total the recording row was
@@ -8717,8 +8868,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            let warning = self.pendingPromptWarning
-            self.pendingPromptWarning = nil
+            let warning = warningNow
+            if !bg { self.pendingPromptWarning = nil }
             let words = shown.split(whereSeparator: { $0.isWhitespace }).count
             // **Autosend is a flash, not a shorter countdown.** The hold is
             // normally scaled to how much there is to read, because the panel is
@@ -9177,6 +9328,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.promptHeld = false
         guard var m = held else { return }
         held = nil
+        // **The next sentence's panel, in order** (Q12).
+        defer { DispatchQueue.main.async { [weak self] in self?.drainSentences() } }
         if let edited = edited, edited != m.text {
             Log.info("✎ transcript edited before sending — \(m.text?.count ?? 0) → \(edited.count) chars")
             m.text = edited
@@ -9288,5 +9441,347 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+    }
+}
+
+// MARK: - The sentence queue (Q12, 2026-09-26 batch 6)
+
+/// **One sentence, from its gesture to its delivery** (Q12, 2026-09-26, 19:10,
+/// Victor: *"Da. Max 2 in flight. În ordine."*).
+///
+/// The relay's per-sentence state still lives in `AppDelegate`'s fields — every
+/// path that builds, routes and delivers a sentence reads them there, and that
+/// is why a start in the settle used to be refused (a late reply took the new
+/// sentence's flags, pictures and destination: TL8, TL15). The queue keeps
+/// those paths as they are and moves the fields instead: when a new sentence
+/// starts while the last one is still in flight, the last one's fields are
+/// **parked** in its `Sentence` (`AppDelegate.Envelope`) and the fields start
+/// fresh; its answer, when it comes, runs with its own envelope swapped back in
+/// (`runParked`) — while the microphone, the chip's live rows and the halo stay
+/// the new sentence's. Deliveries go out in the order spoken: an answer for the
+/// newer sentence waits (`waiting`) while the older one is in flight, and while
+/// a prompt panel is held (one panel at a time, in order).
+final class Sentence {
+    let id: Int
+    /// The source's take (`DictationSource.take`) — how its answer finds it.
+    let take: Int?
+    let startedAt: Date
+    /// `recording` · `transcribing` · `landed` (answered, waiting its turn) · `done`.
+    var state = "recording"
+    var target = ""
+    fileprivate var env: AppDelegate.Envelope?
+    /// Answers that came before this sentence's turn, run in order when it comes.
+    var waiting: [() -> Void] = []
+    var finished = false
+    init(id: Int, take: Int?) { self.id = id; self.take = take; self.startedAt = Date() }
+
+    func describe() -> [String: Any] {
+        ["id": id, "state": finished ? "done" : state, "target": target,
+         "startedAt": Outbox.iso(startedAt), "take": take ?? NSNull(), "waiting": waiting.count]
+    }
+}
+
+extension AppDelegate {
+
+    /// **Everything that belongs to one sentence between its gesture and its
+    /// delivery** — the fields `send`, `deliver` and the settle read. Moved out
+    /// whole by `takeEnvelope()` (which leaves the fields as a fresh sentence
+    /// finds them) and back by `putEnvelope(_:)`.
+    fileprivate struct Envelope {
+        // the settle
+        var settling = false, settlingAtCaret = false
+        var settlingFrom: CFAbsoluteTime = 0, settleEstimate: TimeInterval = 0
+        var settleTake: [Int16] = []
+        var fallingBack = false, fallbackToken = 0
+        var fallbackAudio: (wav: URL, duration: TimeInterval)?
+        var transcriptDisowned = false
+        // the kind and the destination
+        var localRecordingApp: String?
+        var kamikaze = false, contextAtWheelRelease = false
+        var spawnPending = false, spawnFolder: String?
+        var pasteMode = false, caretPrompt = false, cleanSentence = false, submitAfterClean = false
+        var latchedAtCaret = false, cleanRedirected = false
+        var latch: Latch?
+        var latchedMouse: CGPoint?
+        var pendingPromptWarning: String?
+        var pendingVia: String?, pendingEngine: String?
+        var pendingDeliveryKind: DictationDelivery?
+        var pendingFilms: [ScreenFilm.Result] = []
+        // under `stateLock`: what he pointed at and when
+        var pendingSelection: String?, pendingSelectionAt: TimeInterval?
+        var pendingSelectionIn: String?, pendingSelectionMarker: Int?
+        var pendingExtraSelections: [SelectionRecord] = []
+        var pendingScreen: String?
+        var pendingShots: [String] = []
+        var shotSources: [String: String] = [:], shotMarkerNumbers: [String: Int] = [:]
+        var shotMice: [String: CGPoint] = [:], shotAreas: [String: CGRect] = [:], shotSizes: [String: CGSize] = [:]
+        var picturesTaken = 0
+        var markersSpoken: [ShotMarker.Kind: Int] = [:]
+        var markerCues: [ShotMarker.Cue] = []
+        var shotMarkersInlined: Set<Int> = [], selectionMarkersInlined: Set<Int> = []
+        var elementMarkersInlined: Set<Int> = [], frozenSelectionInlined = false
+        var pendingShotOffsets: [TimeInterval] = []
+        var pendingPicks: [ElementPick] = []
+        var dictationStartedAt: Date?
+        var dictationInFlight = false, contextShotPending = false
+    }
+
+    /// Moves the sentence's fields out and leaves them as a new sentence finds
+    /// them. Main thread; the shutter's fields under `stateLock`.
+    fileprivate func takeEnvelope() -> Envelope {
+        var e = Envelope()
+        e.settling = settling; e.settlingAtCaret = settlingAtCaret
+        e.settlingFrom = settlingFrom; e.settleEstimate = settleEstimate; e.settleTake = settleTake
+        e.fallingBack = fallingBack; e.fallbackToken = fallbackToken; e.fallbackAudio = fallbackAudio
+        e.transcriptDisowned = transcriptDisowned
+        e.localRecordingApp = localRecordingApp
+        e.kamikaze = kamikaze
+        e.spawnPending = spawnPending; e.spawnFolder = spawnFolder
+        e.pasteMode = pasteMode; e.caretPrompt = caretPrompt; e.cleanSentence = cleanSentence
+        e.submitAfterClean = submitAfterClean
+        e.latchedAtCaret = latchedAtCaret; e.cleanRedirected = cleanRedirected
+        e.latch = latch; e.latchedMouse = latchedMouse
+        e.pendingPromptWarning = pendingPromptWarning
+        e.pendingVia = pendingVia; e.pendingEngine = pendingEngine; e.pendingDeliveryKind = pendingDeliveryKind
+        e.pendingFilms = pendingFilms
+        settling = false; settlingAtCaret = false; settlingFrom = 0; settleEstimate = 0; settleTake = []
+        fallingBack = false; fallbackAudio = nil   // the token carries on: see `Envelope`
+        transcriptDisowned = false
+        localRecordingApp = nil
+        kamikaze = false
+        spawnPending = false; spawnFolder = nil
+        pasteMode = false; caretPrompt = false; cleanSentence = false; submitAfterClean = false
+        latchedAtCaret = false; cleanRedirected = false; latch = nil; latchedMouse = nil
+        pendingPromptWarning = nil; pendingVia = nil; pendingEngine = nil; pendingDeliveryKind = nil
+        pendingFilms = []
+        stateLock.lock()
+        e.contextAtWheelRelease = contextAtWheelRelease
+        e.pendingSelection = pendingSelection; e.pendingSelectionAt = pendingSelectionAt
+        e.pendingSelectionIn = pendingSelectionIn; e.pendingSelectionMarker = pendingSelectionMarker
+        e.pendingExtraSelections = pendingExtraSelections
+        e.pendingScreen = pendingScreen; e.pendingShots = pendingShots
+        e.shotSources = shotSources; e.shotMarkerNumbers = shotMarkerNumbers
+        e.shotMice = shotMice; e.shotAreas = shotAreas; e.shotSizes = shotSizes
+        e.picturesTaken = picturesTaken; e.markersSpoken = markersSpoken; e.markerCues = markerCues
+        e.shotMarkersInlined = shotMarkersInlined; e.selectionMarkersInlined = selectionMarkersInlined
+        e.elementMarkersInlined = elementMarkersInlined; e.frozenSelectionInlined = frozenSelectionInlined
+        e.pendingShotOffsets = pendingShotOffsets; e.pendingPicks = pendingPicks
+        e.dictationStartedAt = dictationStartedAt
+        e.dictationInFlight = dictationInFlight; e.contextShotPending = contextShotPending
+        contextAtWheelRelease = false
+        pendingSelection = nil; pendingSelectionAt = nil; pendingSelectionIn = nil; pendingSelectionMarker = nil
+        pendingExtraSelections = []
+        pendingScreen = nil; pendingShots = []
+        shotSources = [:]; shotMarkerNumbers = [:]; shotMice = [:]; shotAreas = [:]; shotSizes = [:]
+        picturesTaken = 0; markersSpoken = [:]; markerCues = []
+        shotMarkersInlined = []; selectionMarkersInlined = []; elementMarkersInlined = []; frozenSelectionInlined = false
+        pendingShotOffsets = []; pendingPicks = []
+        dictationStartedAt = nil; dictationInFlight = false; contextShotPending = false
+        stateLock.unlock()
+        return e
+    }
+
+    /// Puts a sentence's fields back. Main thread.
+    fileprivate func putEnvelope(_ e: Envelope) {
+        settling = e.settling; settlingAtCaret = e.settlingAtCaret
+        settlingFrom = e.settlingFrom; settleEstimate = e.settleEstimate; settleTake = e.settleTake
+        fallingBack = e.fallingBack; fallbackToken = e.fallbackToken; fallbackAudio = e.fallbackAudio
+        transcriptDisowned = e.transcriptDisowned
+        localRecordingApp = e.localRecordingApp
+        kamikaze = e.kamikaze
+        spawnPending = e.spawnPending; spawnFolder = e.spawnFolder
+        pasteMode = e.pasteMode; caretPrompt = e.caretPrompt; cleanSentence = e.cleanSentence
+        submitAfterClean = e.submitAfterClean
+        latchedAtCaret = e.latchedAtCaret; cleanRedirected = e.cleanRedirected
+        latch = e.latch; latchedMouse = e.latchedMouse
+        pendingPromptWarning = e.pendingPromptWarning
+        pendingVia = e.pendingVia; pendingEngine = e.pendingEngine; pendingDeliveryKind = e.pendingDeliveryKind
+        pendingFilms = e.pendingFilms
+        stateLock.lock()
+        contextAtWheelRelease = e.contextAtWheelRelease
+        pendingSelection = e.pendingSelection; pendingSelectionAt = e.pendingSelectionAt
+        pendingSelectionIn = e.pendingSelectionIn; pendingSelectionMarker = e.pendingSelectionMarker
+        pendingExtraSelections = e.pendingExtraSelections
+        pendingScreen = e.pendingScreen; pendingShots = e.pendingShots
+        shotSources = e.shotSources; shotMarkerNumbers = e.shotMarkerNumbers
+        shotMice = e.shotMice; shotAreas = e.shotAreas; shotSizes = e.shotSizes
+        picturesTaken = e.picturesTaken; markersSpoken = e.markersSpoken; markerCues = e.markerCues
+        shotMarkersInlined = e.shotMarkersInlined; selectionMarkersInlined = e.selectionMarkersInlined
+        elementMarkersInlined = e.elementMarkersInlined; frozenSelectionInlined = e.frozenSelectionInlined
+        pendingShotOffsets = e.pendingShotOffsets; pendingPicks = e.pendingPicks
+        dictationStartedAt = e.dictationStartedAt
+        dictationInFlight = e.dictationInFlight; contextShotPending = e.contextShotPending
+        stateLock.unlock()
+    }
+
+    // MARK: Admission
+
+    /// Sentences not yet delivered (or ended some other way).
+    var sentencesInFlight: Int {
+        [parkedSentence, liveSentence].compactMap { $0 }.filter { !$0.finished }.count
+    }
+
+    /// **May a new sentence start while the last one's words are in flight?**
+    /// Nil = yes (the caller parks the last one first); otherwise why not. Asked
+    /// only when the old rule would refuse — the settle or a recogniser still
+    /// answering — and never over an open microphone.
+    func queueRefusal() -> String? {
+        dropDeadParked()
+        guard Self.sentenceQueueOn else { return "the sentence queue is off (WT_SENTENCE_QUEUE=0)" }
+        guard source.queuesSentences else { return "\(source.name) takes one sentence at a time" }
+        guard !listening, !source.isRecording, !speculative else { return "a microphone is open" }
+        if sentencesInFlight >= Self.maxSentencesInFlight || parkedSentence != nil {
+            return "two sentences are already in flight"
+        }
+        guard let live = liveSentence, !live.finished else { return nil }
+        // What the park cannot carry: a spawn (its folder menu and pick are
+        // the window's), a film still recording, a prompt panel of its own.
+        if spawnPending || spawnPickInFlight != nil { return "the sentence in flight is opening a new session" }
+        if film != nil { return "the sentence in flight is still filming" }
+        // **A start within a beat of the stop is the same click twice**: the
+        // side buttons' re-fire window, for the one gesture that has none here.
+        let sinceStop = CFAbsoluteTimeGetCurrent() - settlingFrom
+        if settling, sinceStop < Self.queueStartAfterStop {
+            return String(format: "%.2f s after the stop — the same click, not a new sentence", sinceStop)
+        }
+        return nil
+    }
+
+    /// The last sentence steps aside for a new one: its fields go into it, the
+    /// fields start fresh. Main thread, before the new sentence's flags are set.
+    func parkLiveSentence() {
+        guard let live = liveSentence, !live.finished, parkedSentence == nil else { return }
+        settleGiveUp?.cancel()
+        settleGiveUp = nil
+        orphanFlush?.cancel()
+        orphanFlush = nil
+        live.env = takeEnvelope()
+        if live.state == "recording" { live.state = "transcribing" }
+        parkedSentence = live
+        parkedAt = Date()
+        liveSentence = nil
+        overlay.setTranscribing(false)
+        Log.info("🧾 sentence #\(live.id) (\(live.target)) goes on transcribing behind the next one — \(sentencesInFlight) in flight")
+        syncBorrowedGestures()
+    }
+
+    /// The live sentence is over: the parked one, if any, becomes live again —
+    /// its fields back, its settle on screen, its give-up re-armed.
+    func unparkIfIdle() {
+        guard liveSentence == nil || liveSentence!.finished,
+              !listening, !source.isRecording, !speculative,
+              let parked = parkedSentence, let env = parked.env else { return }
+        parkedSentence = nil
+        parked.env = nil
+        putEnvelope(env)
+        liveSentence = parked
+        Log.info("🧾 sentence #\(parked.id) is the one in flight again (\(parked.state))")
+        if settling {
+            overlay.setTranscribing(true, audio: max(0, CFAbsoluteTimeGetCurrent() - settlingFrom))
+            armSettleGiveUp()
+        }
+        armOrphanFlush()
+        syncBorrowedGestures()
+        drainSentences()
+    }
+
+    // MARK: Answers, in order
+
+    /// The sentence an answer belongs to: the source's take, else the live one.
+    fileprivate func sentence(forTake take: Int?) -> Sentence? {
+        if let take {
+            if let p = parkedSentence, p.take == take { return p }
+            if let l = liveSentence, l.take == take { return l }
+            return nil
+        }
+        return liveSentence
+    }
+
+    /// **An answer for `s`, run when it is `s`'s turn** — the heart of the
+    /// order rule. `immediate` (a cancel) never waits.
+    func runAnswer(for s: Sentence?, immediate: Bool = false, _ body: @escaping () -> Void) {
+        guard Self.sentenceQueueOn, let s, !s.finished else { return body() }
+        dropDeadParked()
+        if !immediate {
+            // Behind its own earlier answers, an older sentence still in flight,
+            // or a prompt panel on screen (one at a time, in order).
+            let older = parkedSentence.flatMap { $0 !== s && !$0.finished ? $0 : nil }
+            if !s.waiting.isEmpty || older != nil || held != nil {
+                if s.waiting.isEmpty {
+                    Log.info(older.map { "🧾 sentence #\(s.id) landed before #\($0.id) — it waits its turn" }
+                             ?? "🧾 sentence #\(s.id) waits for the prompt panel on screen")
+                }
+                s.state = "landed"
+                s.waiting.append(body)
+                if s === liveSentence { armSettleGiveUp() }
+                return
+            }
+        }
+        run(s, body)
+    }
+
+    private func run(_ s: Sentence, _ body: () -> Void) {
+        if s === parkedSentence, let env = s.env {
+            // **An older sentence's answer while a newer one owns the fields.**
+            let liveEnv = takeEnvelope()
+            putEnvelope(env)
+            let outer = answeringInBackground
+            answeringInBackground = true
+            s.state = "delivering"
+            body()
+            answeringInBackground = outer
+            s.env = takeEnvelope()
+            putEnvelope(liveEnv)
+            if s.finished {
+                s.env = nil
+                parkedSentence = nil
+                Log.info("🧾 sentence #\(s.id) is done — \(sentencesInFlight) in flight")
+            }
+            syncBorrowedGestures()
+        } else {
+            body()
+        }
+        if s.finished, s === liveSentence { liveSentence = nil }
+        DispatchQueue.main.async { [weak self] in
+            self?.unparkIfIdle()
+            self?.drainSentences()
+        }
+    }
+
+    /// Runs what waited, oldest sentence first, while it is its turn.
+    func drainSentences() {
+        guard Self.sentenceQueueOn, held == nil else { return }
+        for s in [parkedSentence, liveSentence].compactMap({ $0 }) {
+            if s !== parkedSentence, let p = parkedSentence, !p.finished { return }
+            while !s.waiting.isEmpty, !s.finished {
+                let next = s.waiting.removeFirst()
+                Log.info("🧾 sentence #\(s.id): its turn — delivering what waited")
+                run(s, next)
+                if held != nil { return }
+            }
+        }
+    }
+
+    /// A parked sentence whose take the source no longer holds will never be
+    /// answered (a lost callback): let it go rather than hold the newer one for
+    /// ever.
+    private func dropDeadParked() {
+        guard let p = parkedSentence, !p.finished, p.waiting.isEmpty, !(p.env?.fallingBack ?? false),
+              let take = p.take, !source.isPending(take: take),
+              Date().timeIntervalSince(parkedAt ?? p.startedAt) > Self.parkedGiveUp else { return }
+        Log.error("🧾 sentence #\(p.id) never answered — let go so the next one is not held behind it")
+        p.finished = true
+        parkedSentence = nil
+    }
+
+    /// The sentence whose fields are in the relay right now (the parked one
+    /// during `runParked`).
+    var contextSentence: Sentence? {
+        answeringInBackground ? parkedSentence : liveSentence
+    }
+
+    /// For `GET /test/state.sentences` — oldest first.
+    func describeSentences() -> [[String: Any]] {
+        [parkedSentence, liveSentence].compactMap { $0 }.map { $0.describe() }
     }
 }
