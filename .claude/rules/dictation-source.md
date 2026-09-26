@@ -122,6 +122,14 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   not `alive: false` (TG26). **Not fixed:** a session button stuck down keeps the gate open for as long
   as it is stuck (R24, the 7 h middle button) — the close waits for no button down, by design.
 - **An unclaimed ⌘V is rescued from the row** (`rescueFromRow`). `WT_WISPR_FIREWALL=0` for one run.
+- **Q9 standalone (2026-09-26, batch 6) — built, OFF** (`WT_WISPR_STANDALONE=1` env / `elevenlabs.env`,
+  or the `wisprStandalone` default; read once at launch; `state.wisprStandalone`). On: a Wispr sentence
+  the relay did not start is **Wispr's alone** — `gestureSeen(relay: false)` and a mic edge nobody
+  asked for return early (no ring, no capture, no delivery), his chord never closes the relay's own
+  sentence, and the tap lets Wispr's ⌘V through unless the relay owns a Wispr sentence
+  (`setWisprRelayOwned`: from the relay's gesture to its machine's idle + 10 s, ceiling 11 min) or a
+  capture is armed. Right ⌘⌥ is always `onCleanHold`. Flip it only after Wispr's `ptt` is `54+60`
+  (and `helpers/wispr_loopback.py`'s keycodes with it); then the old adoption path is deleted.
 
 ## Catching Wispr's words
 
@@ -291,6 +299,7 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
 |---|---|
 | `WT_SOURCE=whisper｜eleven｜wispr` | engine for one run (the menu writes `dictationSource`) |
 | `WT_WISPR_FIREWALL=0` | let Wispr's ⌘V through (`POST /test/firewall {"on": false}`) |
+| `WT_WISPR_STANDALONE=1` | Q9: Wispr's own sentences are left to Wispr; right ⌘⌥ is Walkie's only (default off, batch 6) |
 | `ELEVENLABS_API_KEY` · `WT_ELEVEN_MODEL=scribe_v2` · `WT_ELEVEN_LANG=ro` · `WT_ELEVEN_LIVE_LANGS=ro,en` | key; model (default `scribe_v1`); pinned language (off); the live caption's language set (default `ro,en`) |
 | `WT_WRAP_WISPR=0` · `WT_WRAP_MODE=scratchpad｜sink｜off` | wrap off / forced mode (`POST /test/wrap-mode`) |
 | `WT_SCRATCHPAD_DELIVER=note` | deliver from the note (2.8 s slower) |

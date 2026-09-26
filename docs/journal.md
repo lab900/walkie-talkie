@@ -13238,3 +13238,49 @@ commit.
 - **Tomorrow:** after the install, B1 ×5 and TL29 / TL30 / LC13 (`cases_audio.py` / the LC module);
   read the `upgraded` / `handshake` lines; if `upgraded` is quick and `session_started` slow, the
   wait is the server's, not ours.
+
+### 4. Wispr's own sentences are left to Wispr — built behind a flag that stays off tonight (Q9, Walkie's side)
+
+> *"Modifică chordul lui Wispr din setări la ⌘ (dreapta) + Shift, care să funcționeze ca un fel de
+> backup … să rămână întotdeauna neinfluențat de nimic. Walkie rămâne cu ⌘ + ⌥ dreapta ținute
+> apăsate să facă dictare la caret, live."*
+
+**Why a flag.** The teacher batch of that night (22:57–07:00) drives Wispr through today's path:
+its chord is `54+61`, and the relay adopts and firewalls the sentences it posts. Changing Walkie's
+side before Wispr's config would leave right ⌘⌥ opening two recognisers or none. So the new
+behaviour is built and **off** — `HotkeyTap.wisprStandalone`, read once at launch from
+`WT_WISPR_STANDALONE` (environment, then `elevenlabs.env`), else the `wisprStandalone` user default.
+
+**With it on:**
+- The tap's `flagsChanged` pair branch: right ⌘⌥ is always `onCleanHold` (Walkie's clean caret
+  dictation on the Engine), never `onWisprMaybeStarting(.pushToTalk)`. `wisprPTTDown` /
+  `enginePairHeld` stay — the hold still needs the press/release edges and the shortcut check.
+- `WisprFlowSource.gestureSeen(relay: false)` (his own Wispr chord seen by the tap, and the test
+  route's `{hand}`) returns before anything is armed; seen while the relay's own Wispr sentence is
+  open, it no longer closes it. `edge(on)` for a microphone nobody here asked for returns before
+  the machine is told — no ring, no capture, no row read, no delivery.
+- The firewall drops a Wispr ⌘V only while the relay owns a Wispr sentence: `setWisprRelayOwned(true)`
+  at the relay's own gesture, `false` when the machine goes back to `idle`, and a ⌘V up to 10 s after
+  that is still the relay's (Wispr pastes after its row); an 11-minute ceiling so a missed release
+  cannot eat Wispr's pastes for ever. An armed capture keeps its swallow. Otherwise the ⌘V passes
+  (one log line) and is not reported to the source, so nothing is rescued from the row twice.
+- `GET /test/state.wisprStandalone` says which path is live.
+- **Known edge:** a Wispr sentence of his own whose ⌘V lands inside the 10 s tail of a relay Wispr
+  sentence is swallowed and not delivered (its words stay in Wispr's History). Rare, and gone when
+  the old path is deleted and the tail can be tied to the relay's own row id.
+
+**The two steps:**
+1. *Tomorrow morning, after the teacher batch is off the keyboard:* quit Wispr (`kill -9`, the only
+   quit that works — `dictation-source.md`), edit `~/Library/Application Support/Wispr Flow/config.json`
+   `prefs.user.shortcuts` `"54+61": "ptt"` → `"54+60": "ptt"` (backup first, like the microphone
+   pin), update `helpers/wispr_loopback.py`'s posted keycodes to `54+60` in the same change, start
+   Wispr by path. Then `WT_WISPR_STANDALONE=1` in `~/.walkie-talkie/elevenlabs.env`, install
+   (`./relay-restart.sh --build`), and check: right ⌘⇧ → Wispr pastes at the caret with Walkie bound
+   (nothing in the terminal, `⌘V from Wispr Flow passed`), right ⌘⌥ → Walkie's clean caret
+   sentence only (no second Wispr sentence), 🔽 on Engine = Wispr still firewalled and delivered.
+   Harness: the Wispr cases (TG7, TG12, TG33, the `/test/wispr-handsfree {hand}` ones — they expect
+   adoption and will read the new behaviour as a failure; retire or flip them).
+2. *Follow-up commit:* delete the old path — the tap's `onWisprMaybeStarting(.pushToTalk)` /
+   `onWisprPushToTalkReleased` branch, `heldPairIsTheEngines`, the hand-started adoption in
+   `gestureSeen` / `edge`, `rescueFromRow` for unclaimed pastes, `noteHandStartedAtCaret`,
+   `wisprMicSentence` — and the flag with them.

@@ -630,6 +630,9 @@ final class WisprFlowSource: DictationSource {
         // **And every edge of `listening` is published** — see `hearingChanged`.
         state.onTransition = { [weak self] previous, next, _ in
             guard let self else { return }
+            // Standalone (Q9): the relay's own Wispr sentence is over — its ⌘V
+            // tail runs out in `HotkeyTap.wisprOwnedTail`.
+            if HotkeyTap.wisprStandalone, next == .idle { self.hotkeys.setWisprRelayOwned(false) }
             self.syncInputPoll()
             if previous.isListening != next.isListening {
                 self.hearingChanged?(next.isListening)
@@ -1279,10 +1282,23 @@ final class WisprFlowSource: DictationSource {
         // keyboard — which the relay used to learn only from a CoreAudio edge
         // that may be six seconds late or absent.
         if confident, isRecording || speculative {
+            // Standalone (Q9): his own chord never ends the relay's sentence —
+            // it is Wispr's second sentence, not a stop.
+            if HotkeyTap.wisprStandalone, !relay {
+                Log.info("⚡ \(why) — Wispr's own chord (standalone, Q9); the relay's sentence goes on")
+                return
+            }
             closeListening("Victor's own \(why)")
             return
         }
         guard !isRecording, !speculative else { return }
+        // **Standalone (Q9, 2026-09-26): a dictation he starts with Wispr's own
+        // chord is Wispr's alone** — not adopted, not firewalled, not delivered.
+        if HotkeyTap.wisprStandalone, !relay {
+            Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (standalone, Q9)")
+            return
+        }
+        if HotkeyTap.wisprStandalone { hotkeys.setWisprRelayOwned(true) }
         speculative = true
         // **A chord still waiting for a bare wire belongs to the sentence that
         // asked for it, and that sentence is over.** The epoch moves here and at
@@ -1587,6 +1603,12 @@ final class WisprFlowSource: DictationSource {
         // recogniser on the same voice, not a sentence of Victor's to deliver.
         if on, !speculative, !isRecording, hotkeys.heldPairIsTheEngines {
             Log.info("⚡ Wispr opened its microphone for the right ⌘⌥ the Engine has — not a sentence of its own")
+            return
+        }
+        // **Standalone (Q9): a microphone nobody here asked for is Wispr's own
+        // sentence** — no ring, no capture, no delivery; and its close is not ours.
+        if HotkeyTap.wisprStandalone, !speculative, !isRecording {
+            if on { Log.info("⚡ Wispr opened its microphone for a sentence of its own — left to Wispr (standalone, Q9)") }
             return
         }
         state.notify(on)

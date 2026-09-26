@@ -2779,7 +2779,9 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // sentence** (2026-09-25, `onCleanHold`). Decided at the press
                 // and remembered, so an Engine picked mid-hold cannot hand the
                 // release to the other owner.
-                if ptt ? backUsesOwnEngine : enginePairHeld {
+                // **Standalone (Q9): the pair is Walkie's alone**, whatever the
+                // Engine — Wispr listens on right ⌘⇧ by then.
+                if ptt ? (backUsesOwnEngine || Self.wisprStandalone) : enginePairHeld {
                     stateLock.lock()
                     enginePairHeld = ptt
                     if !ptt { enginePairReleasedAt = CFAbsoluteTimeGetCurrent() }
@@ -2917,9 +2919,15 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 let armed = injectionArmed
                 let swallows = injectionSwallows
                 let firewall = wisprFirewall
+                let relayOwned = wisprRelayOwnedLocked()
                 stateLock.unlock()
                 if armed, type == .keyDown { probeInjected(pid: pid, code: code, flags: event.flags) }
-                if code == Self.VK_V, event.flags.contains(.maskCommand), isWispr(pid) {
+                if code == Self.VK_V, event.flags.contains(.maskCommand), isWispr(pid),
+                   Self.wisprStandalone, !relayOwned, !armed {
+                    // **Standalone (Q9): Wispr's own sentence pastes where the
+                    // caret is** — not dropped, not reported, not delivered.
+                    if type == .keyDown { Log.info("🛡️ ⌘V from Wispr Flow passed — its own sentence (standalone, Q9)") }
+                } else if code == Self.VK_V, event.flags.contains(.maskCommand), isWispr(pid) {
                     if type == .keyDown {
                         let who = processName(pid)
                         DispatchQueue.global().async { [weak self] in self?.onInjectedPaste?(who) }
@@ -4262,6 +4270,50 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         stateLock.unlock()
         Log.info("probe: synthetic key \(code) flags 0x\(String(flags.rawValue, radix: 16)) "
                  + "from pid \(pid) (\(processName(pid)))")
+    }
+
+    // ── Wispr standalone (Q9, 2026-09-26) ────────────────────────────────────
+
+    /// **Wispr Flow is left alone for the sentences it starts itself** (Q9,
+    /// 2026-09-26, 19:05, Victor: Wispr's chord moves to right ⌘ + right ⇧ as
+    /// a backup *"să rămână întotdeauna neinfluențat de nimic"*; right ⌘ + right
+    /// ⌥ held is Walkie's clean caret dictation only). With it on: a Wispr
+    /// sentence the relay did not start is not adopted, its ⌘V is not dropped
+    /// and its words are not delivered by the relay; the tap's Wispr
+    /// push-to-talk branch on right ⌘⌥ is gone (the pair is always
+    /// `onCleanHold`). **Off by default** until Wispr's config is moved to
+    /// `54+60` (the night batch of 2026-09-26 relies on today's adoption path);
+    /// `WT_WISPR_STANDALONE=1` in the environment or in `elevenlabs.env`, or the
+    /// `wisprStandalone` user default. Read once at launch. The follow-up after
+    /// the switch deletes the old path.
+    static let wisprStandalone: Bool = {
+        let env = ProcessInfo.processInfo.environment["WT_WISPR_STANDALONE"]
+            ?? ElevenLabsSource.fileValue("WT_WISPR_STANDALONE")
+        if let env { return env == "1" || env.lowercased() == "true" }
+        return UserDefaults.standard.bool(forKey: "wisprStandalone")
+    }()
+
+    /// **Standalone only: a Wispr sentence the relay started is in flight**, so
+    /// the firewall applies to its ⌘V. Set by `WisprFlowSource` at the relay's
+    /// own gesture, released when its machine goes back to idle; a ⌘V up to
+    /// `wisprOwnedTail` after the release is still the relay's (Wispr pastes
+    /// after its row is formatted). Bounded by `wisprOwnedCeiling` so a missed
+    /// release cannot swallow Wispr's own pastes for ever. `stateLock`.
+    private var wisprOwnedSince: CFAbsoluteTime = 0
+    private var wisprOwnedReleasedAt: CFAbsoluteTime = 0
+    private static let wisprOwnedTail: CFAbsoluteTime = 10
+    private static let wisprOwnedCeiling: CFAbsoluteTime = 11 * 60
+    func setWisprRelayOwned(_ owned: Bool) {
+        stateLock.lock()
+        if owned { wisprOwnedSince = CFAbsoluteTimeGetCurrent(); wisprOwnedReleasedAt = 0 }
+        else if wisprOwnedSince > 0, wisprOwnedReleasedAt == 0 { wisprOwnedReleasedAt = CFAbsoluteTimeGetCurrent() }
+        stateLock.unlock()
+    }
+    /// Under `stateLock`.
+    private func wisprRelayOwnedLocked() -> Bool {
+        let now = CFAbsoluteTimeGetCurrent()
+        guard wisprOwnedSince > 0, now - wisprOwnedSince < Self.wisprOwnedCeiling else { return false }
+        return wisprOwnedReleasedAt == 0 || now - wisprOwnedReleasedAt < Self.wisprOwnedTail
     }
 
     // ── The Wispr firewall ───────────────────────────────────────────────────

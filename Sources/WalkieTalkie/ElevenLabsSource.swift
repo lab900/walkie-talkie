@@ -165,6 +165,13 @@ final class ElevenLabsSource: DictationSource {
     /// lets him paste the key in without restarting the app.
     static var config: [String: String] = [:]
 
+    /// One value of `elevenlabs.env`, read straight from the file — for a
+    /// switch read once at launch, before any `reloadKey()` has filled `config`.
+    static func fileValue(_ key: String) -> String? {
+        if config.isEmpty { loadConfig() }
+        return config[key]
+    }
+
     private static func loadConfig() {
         config = [:]
         guard let text = try? String(contentsOf: configURL, encoding: .utf8) else { return }

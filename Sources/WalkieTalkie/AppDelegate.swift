@@ -5918,6 +5918,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["latchedTargetPending"] = latchedTarget != nil
         out["historyRow"] = wisprSource.historyRow.map { NSNumber(value: $0) } ?? NSNull()
         out["firewall"] = hotkeys.wisprFirewallOn
+        out["wisprStandalone"] = HotkeyTap.wisprStandalone   // Q9, off until Wispr moves to 54+60
         out["tapAlive"] = hotkeys.lastCanary.map { $0.alive } ?? NSNull()
         out["tapFailingOpen"] = hotkeys.lastCanary.map { $0.failingOpen } ?? NSNull()
         // The held prompt panel (test-plan gap G5): {held, verb, deadline, text, …}.
