@@ -13431,3 +13431,17 @@ inside an f-string (the lab's `/usr/bin/python3` is 3.9), `kill_tty` for the wit
 -t` matched nothing — ~50 orphan Terminal windows in one evening), `wait_idle` cancels a panel
 paused by the pointer through `POST /test/prompt` after 20 s, and the case fixes of that run (TL6,
 TL27, TG41, TR14 — batch 1 (e) / batch 3 (3) revive a dead helper instead of staging the audio).
+
+## Night 26→27 Sep, 23:30: the teacher batch burned the ElevenLabs quota through the relay
+
+At the 23:21 check the relay's `lastFailure` read `HTTP 401 quota_exceeded — 2 credits remaining
+(10 required)`. Cause: the batch posts Wispr's push-to-talk chord (right ⌘ + right ⌥) for every
+clip; with the relay's Engine on `eleven-live`, the tap treats that pair as **Walkie's own clean
+dictation** (`onCleanHold`, since `c3411de`) — so every teacher clip also opened the relay's
+recorder, streamed to the live socket and uploaded to Scribe: ~100 clips in 30 minutes exhausted
+the monthly credit quota (the labels themselves were fine: Wispr's History is the teacher, 106 ✓).
+Action at 23:31: `POST /engine {"id":"wispr"}` for the night (the pair is Wispr's PTT there; no
+upload). **Morning:** the credits are gone until the plan renews or Victor tops up — dictation
+falls back to the local model meanwhile; the runbook gets the precondition *Engine = wispr while
+the batch runs*; the real fix is Q9 (Wispr's chord moves to right ⌘ + right ⇧ and the relay stops
+riding it), scheduled for tomorrow.

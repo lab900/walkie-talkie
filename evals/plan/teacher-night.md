@@ -94,6 +94,8 @@ below therefore reads Wispr's `micDevice` directly.
 
 **Preconditions, in order (stop at the first red):**
 
+0. **The relay's Engine is `wispr`** (`curl -s localhost:8917/engine` → `"engine":"wispr"`; else `POST /engine {"id":"wispr"}`): on any other engine the tap turns the batch's right ⌘⌥ chord into a relay dictation and uploads every clip to ElevenLabs (26→27 Sep: the monthly quota gone in 30 min). Until Q9 lands.
+
 1. Victor has left the Mac; the orchestrator's schedule says the test suite is not due.
 2. Wispr running (`/usr/bin/pgrep -f "^/Applications/Wispr Flow.app/Contents/MacOS/Wispr Flow"`).
 3. `python3 helpers/wispr_preflight.py --no-idle-check` → exit 0 (mic row must say
