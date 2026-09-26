@@ -1938,7 +1938,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let landed = self.caretHalo.dialStyle(by: step)
             self.overlay.flash("✨ \(landed.menuTitle) · \(self.caretHalo.destination.title)", duration: 4)
         }
-        // **F9 / F7 step the halo outside a dictation, and preview it on his
+        // **fn+F9 / fn+F7 (Q10) step the halo outside a dictation, and preview it on his
         // own voice for six seconds** (2026-09-20, late) — the same cycle as
         // the wheel, plus the preview, which the wheel does not need because
         // the ring is already up. **Preview and nothing else since

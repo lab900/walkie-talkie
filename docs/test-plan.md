@@ -101,7 +101,7 @@ Two invariants every test asserts, whatever else it checks:
 | input | gate | handler | notes |
 |---|---|---|---|
 | ⏎ / ⎋ bare | `promptHeld` | send / cancel the held panel | ~~⏎ does not check the stamp; autorepeat after the first ⏎ passes through~~ — batch 4: stamped keys pass, the answering key's repeats are eaten |
-| **bare F7 / F9** | always | halo style ±1 | swallowed system-wide, undocumented |
+| **fn + F7 / F9** (bare since Q10: passes) | always | halo style ±1 | bare F7/F9 were swallowed system-wide until batch 6 (Q10) |
 | ⌘⌃B | H2920 | bind toggle (global queue) | no mutual exclusion; two quick presses race |
 | ⌘⌃D | H2941 | `toggleDictation` | no dwell/re-fire guard (F10 has one) |
 | ⌘⇧P | H2960 | paste last | ⇧ released first → ⌘P repeats leak (Print) |

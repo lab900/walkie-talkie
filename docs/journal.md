@@ -13187,3 +13187,22 @@ commit.
   (the old *staged, Recover returns it* path still passes); `TL16` (3 s of silence) is unchanged —
   3 s of room tone measures well under 2 s voiced.
 - **Tomorrow:** TL16 and TR13 (`cases_audio.py`, real audio through 🧪 WT Inject).
+
+### 2. The halo steps on fn + F7 / fn + F9; bare F7 / F9 are IntelliJ's again (Q10)
+
+> *"Q10 fn+f7/f9"* — the tap swallows F7/F9 for `onHaloStep` only when the fn modifier is down;
+> bare F7/F9 pass through to the front app.
+
+- **The event's own fn flag cannot say it**: macOS stamps `.maskSecondaryFn` on every function and
+  arrow key — the one hardware F-key in `relay.log`'s key trace, an F1, reads `flags 0x800100`. So
+  the tap tracks the fn key itself: `fnKeyHeld` follows `flagsChanged` on keycode 63
+  (`VK_FUNCTION`), and any hardware key-down without the fn flag clears it (a missed release
+  cannot leave bare F7 swallowed). The branch is `(F7 || F9) && fnKeyHeld && !⌘⌃⌥⇧`, through
+  `swallow("fn+F7/F9 halo step")`, so the key trace still names it.
+- `evals/test_gesture_spec.py` has a row for it and a mutation (the fn condition removed → caught;
+  13/13). `mouse-gestures.md` and the test plan's alphabet row updated.
+- **Unmeasured, for the morning:** on an Apple keyboard with *Use F1, F2… as standard function
+  keys* on, fn + F7 may reach the system as a media key (`NX_SYSDEFINED`), which this tap does not
+  see; `POST /test/key-trace {"on":true}` and one fn + F7 says which. If it is a media key, the
+  branch needs the other convention (bare = media, so fn = F-key) — a keyboard setting, not a code
+  choice to make blind.

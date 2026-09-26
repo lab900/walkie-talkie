@@ -298,6 +298,19 @@ def spec(src: dict):
             ],
         },
         {
+            # Q10 (2026-09-26): IntelliJ's Step Into / Resume are bare F7 / F9.
+            "row": ("⌨️ fn+F7/F9", "keyboard, not a button"),
+            "does": "halo style −1/+1 only with the fn key down; bare F7/F9 pass to the front app",
+            "checks": [
+                ("the halo-step branch requires the tracked fn key", "HotkeyTap `onHaloStep` branch",
+                 lambda: has(_strip_comments(src["HotkeyTap.swift"]),
+                             r"if \(keyCode == VK_F7 \|\| keyCode == VK_F9\) && fnKeyHeld &&[^\n]*\{.*?onHaloStep\?\(step\)")),
+                ("fnKeyHeld follows the fn key's own flagsChanged (keycode 63)", "HotkeyTap `.flagsChanged`",
+                 lambda: has(_strip_comments(src["HotkeyTap.swift"]),
+                             r"== VK_FUNCTION \{\s*fnKeyHeld = event\.flags\.contains\(\.maskSecondaryFn\)")),
+            ],
+        },
+        {
             "row": ("🔽 back", "drag right, no plain dictation"),
             "does": "Return, and nothing else",
             "checks": [
@@ -373,6 +386,8 @@ MUTATIONS = [
      "            if hotkeys.heldPairIsTheEngines {\n                Log.info(\"🛡️", "            if false {\n                Log.info(\"🛡️"),
     ("plain dictation gets the kamikaze word", "AppDelegate.swift",
      "if clean { kamikaze = false }", ""),
+    ("bare F7/F9 swallowed for the halo again (Q10)", "HotkeyTap.swift",
+     "(keyCode == VK_F7 || keyCode == VK_F9) && fnKeyHeld && ", "(keyCode == VK_F7 || keyCode == VK_F9) && "),
 ]
 
 

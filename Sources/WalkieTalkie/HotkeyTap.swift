@@ -1794,12 +1794,24 @@ final class HotkeyTap {
     /// One notch: `+1` for up (the next halo), `−1` for down (the previous).
     /// Delivered on the main queue.
     var onHaloDial: ((Int) -> Void)?
-    /// **Bare F7 / F9 step the halo** (Victor, 2026-09-20 late: *"F7 și F9 să
-    /// schimbe efectul curent"*): F9 forward, F7 back, outside a dictation
-    /// too. No modifier — the ⌃⌥⌘F7/F9 chords are Options+'s gestures and
-    /// stay theirs. On a Mac keyboard these need *Use F1, F2… as standard
-    /// function keys*, or the keys arrive as media keys and never reach this.
+    /// **fn + F7 / fn + F9 step the halo** (Victor, 2026-09-20 late: *"F7 și F9 să
+    /// schimbe efectul curent"*; **fn only since Q10, 2026-09-26**: *"fn+f7/f9"*
+    /// — bare F7/F9 pass through, IntelliJ's Step Into / Resume are back).
+    /// F9 forward, F7 back, outside a dictation too. No ⌃⌥⌘ — those chords are
+    /// Options+'s gestures and stay theirs.
+    ///
+    /// **The F-key's own `.maskSecondaryFn` says nothing**: macOS stamps it on
+    /// every function and arrow key (relay.log, a hardware F1: `flags
+    /// 0x800100`), so "fn down" is the fn key's own `flagsChanged` (keycode 63),
+    /// tracked in `fnKeyHeld`. On an Apple keyboard with *Use F1, F2… as
+    /// standard function keys* on, fn + F7 may arrive as a media key instead —
+    /// unmeasured; the key trace on fn + F7 says which.
     var onHaloStep: ((Int) -> Void)?
+    /// The fn key (keycode 63) is down — from its own `flagsChanged`; cleared
+    /// also by any hardware key-down without the fn flag, so a missed release
+    /// cannot leave bare F7/F9 swallowed. Tap thread only.
+    private var fnKeyHeld = false
+    private let VK_FUNCTION: CGKeyCode = 0x3F
 
     /// This press has been turned, so it is a dial and not a drag: the crop
     /// refuses to arm for the rest of it, whatever the hand does. Reset by
@@ -2104,7 +2116,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     /// it is decided on the event alone: no flag, no `stateLock`, nothing the
     /// frozen main thread could be holding. The gesture is **not acted on
     /// later**: a flick made during a freeze has no sentence to belong to by
-    /// the time the thread comes back. ⌘⇧P and bare F7/F9 are chords other
+    /// the time the thread comes back. ⌘⇧P and F7/F9 (bare or fn) are chords other
     /// apps ship, so they go through.
     private func isOwnChordWhileFrozen(_ type: CGEventType, _ event: CGEvent) -> Bool {
         guard type == .keyDown else { return false }
@@ -2753,6 +2765,9 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // push-to-talk is two modifiers and nothing else, so it never produces a
         // key down at all. See `onWisprMaybeStarting`.
         if type == .flagsChanged {
+            if CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode)) == VK_FUNCTION {
+                fnKeyHeld = event.flags.contains(.maskSecondaryFn)
+            }
             let raw = event.flags.rawValue
             // Device-dependent bits, because the pair is specifically the **right**
             // ⌘ and the **right** ⌥: `.maskCommand` alone would fire on every ⌘ in
@@ -3097,11 +3112,14 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // otherwise bind and immediately stop the session it just started — the
         // one input mistake this gesture cannot afford. The event is eaten either
         // way, so nothing downstream sees the repeat.
-        if (keyCode == VK_F7 || keyCode == VK_F9) && !cmd && !ctrl && !opt && !flags.contains(.maskShift) {
-            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow("bare F7/F9 halo step (autorepeat)", type, event) }
+        // **fn + F7 / F9 steps the halo; bare F7 / F9 pass** (Q10, 2026-09-26) — see
+        // `onHaloStep` for why the fn key is tracked rather than read off the event.
+        if !flags.contains(.maskSecondaryFn), event.getIntegerValueField(.eventSourceUnixProcessID) == 0 { fnKeyHeld = false }
+        if (keyCode == VK_F7 || keyCode == VK_F9) && fnKeyHeld && !cmd && !ctrl && !opt && !flags.contains(.maskShift) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow("fn+F7/F9 halo step (autorepeat)", type, event) }
             let step = keyCode == VK_F9 ? 1 : -1
             DispatchQueue.main.async { [weak self] in self?.onHaloStep?(step) }
-            return swallow("bare F7/F9 halo step", type, event)
+            return swallow("fn+F7/F9 halo step", type, event)
         }
 
         if keyCode == VK_B && cmd && ctrl && !opt {
