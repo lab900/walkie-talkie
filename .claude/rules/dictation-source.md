@@ -259,6 +259,10 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
   and a local answer with no words both; `.silent("")` is only a take under 0.35 s. **No local
   fallback for `heardNothing`**: Whisper on 3 s of silence answered `www.clu.com.br` and it was
   delivered (TL16, first try). → journal: *Fixes to the test plan's findings, batch 1*
+- **Except with real speech (Q8, 2026-09-26 batch 6):** a Scribe `""` on a take with **≥ 2 s voiced**
+  (`MicRecorder.voicedSeconds`, read at the close in `ElevenLabsSource.stop`,
+  `fallbackVoicedFloor`) is an ordinary `.failed` → the local model stands in. Under 2 s stays
+  `heardNothing` (WAV kept, banner, nothing delivered).
 - **Unmeasured:** `languageFloor = 0.5`, `scribe_v1` vs `v2`. `tools/eleven-test.sh [wav | --corpus n]`.
 
 ## Markers: where a picture was taken

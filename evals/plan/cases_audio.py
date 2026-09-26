@@ -340,7 +340,8 @@ def tl14():
 
 @case("TL16", ("audio", "gesture"),
       expect="3 s of silence → 'returned no words', the WAV kept for Recover, nothing delivered (fixed 2026-09-26, "
-             "§3.8: an empty answer is `.failed(heardNothing)` with the audio, no local fallback; the BUG branch is the old loss)")
+             "§3.8: an empty answer is `.failed(heardNothing)` with the audio, no local fallback — Q8: under 2 s voiced; "
+             "the BUG branch is the old loss)")
 def tl16():
     """An empty transcript: the audio used to be deleted with no fallback."""
     why = pre()
@@ -576,19 +577,25 @@ def tr12():
 
 
 @case("TR13", ("audio", "gesture"),
-      expect="empty Scribe answer on 20 s of speech → WAV staged, Recover returns it (fails today: 'returned no words', audio deleted)")
+      expect="empty Scribe answer on 20 s of speech → (Q8, batch 6) ≥ 2 s voiced, so the local model stands in and "
+             "delivers it; before batch 6: WAV staged, Recover returns it")
 def tr13():
     """An empty answer must not cost the recording."""
     why = pre()
     if why: return "SKIP", why
     with rig():
         rec0 = (state().get("recoverable") or {}).get("path")   # an earlier case's cancel stays 5 min
+        t00 = now_iso()
         post("/test/eleven", {"fail": "empty"})
         m, _ = dictate_loopback(CLIP_EN_LONG, seconds=20, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         delivered(m, 120)
         settle_out(60)
         empty = log_has(m, r"returned no words")
+        # Q8 (2026-09-26, batch 6): with ≥ 2 s voiced the empty answer goes to the local model.
+        d0 = last_delivery(t00)
+        if empty and d0 and "local" in d0.get("via", "") and log_has(m, r"of voiced speech — asking the local model"):
+            return "PASS", f"'returned no words' on speech → local fallback delivered via {d0.get('via')} (Q8)"
         rec = state()["recoverable"]
         if rec and rec.get("path") == rec0:
             rec = None

@@ -389,6 +389,11 @@ final class ElevenLabsSource: DictationSource {
     }
     private var upload: Upload?
 
+    /// **Q8's floor** (2026-09-26): an empty Scribe answer goes to the local
+    /// model only when the meter counted at least this much voiced audio in the
+    /// take (`MicRecorder.voicedSeconds`); below it the WAV waits for Recover.
+    static let fallbackVoicedFloor: TimeInterval = 2.0
+
     func stop() {
         guard isRecording else { return }
         isRecording = false
@@ -406,14 +411,18 @@ final class ElevenLabsSource: DictationSource {
         audioQueue.async { [weak self] in
             guard let self = self else { return }
             let closed = self.meter.stop()
+            // Read here, on the queue that closed the take and before any next
+            // `start()` can zero it (Q12: a sentence may start while this one
+            // uploads) — Q8's floor is judged on this take's own speech.
+            let voiced = self.meter.voicedSeconds
             self.meter.onBuffer = nil
             self.opening = nil
-            DispatchQueue.main.async { self.finishRecording(closed) }
+            DispatchQueue.main.async { self.finishRecording(closed, voiced: voiced) }
         }
     }
 
     /// The tail of `stop()`, on the main queue, exactly as it always ran.
-    private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?) {
+    private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?, voiced: TimeInterval) {
         guard let (wav, duration) = closed else {
             Log.info("recording discarded — under \(MicRecorder.minimumDuration)s")
             phase = .done("empty")
@@ -452,9 +461,23 @@ final class ElevenLabsSource: DictationSource {
                     // `heardNothing` keeps the local model out of it (see there).
                     // Only a take under `MicRecorder.minimumDuration` is dropped
                     // (`.silent("")`).
-                    Log.error("ElevenLabs returned no words — the audio is kept for Recover")
+                    //
+                    // **Q8 (2026-09-26, 18:40, Victor — "mijloc"): the local model
+                    // stands in only when the take had real speech** — at least
+                    // `fallbackVoicedFloor` voiced seconds by the meter. On
+                    // speech, Scribe's empty answer is the failure the fallback
+                    // exists for; on a near-silent take the local model invents
+                    // a sentence (`www.clu.com.br`) and it would be typed.
                     self.phase = .done("empty")
-                    self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
+                    if voiced >= Self.fallbackVoicedFloor {
+                        let why = String(format: "ElevenLabs returned no words for %.1f s of voiced speech", voiced)
+                        Log.error("\(why) — asking the local model")
+                        self.didEnd?(.failed(why: why, audio: wav, duration: duration))
+                    } else {
+                        Log.error(String(format: "ElevenLabs returned no words (%.1f s voiced, under %.0f s) — the audio is kept for Recover",
+                                         voiced, Self.fallbackVoicedFloor))
+                        self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
+                    }
                 case .success(let r):
                     Log.info(String(format: "elevenlabs: %@ (%.2f) — %d chars in %.2fs (%.2f× audio)",
                                     r.language ?? "?", r.languageProbability, r.text.count,

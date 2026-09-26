@@ -13162,3 +13162,28 @@ the raw 1 s diff is 18.8 against a run-to-run 11.4–13.4 in silence and 19–25
 the voice (the preset is chaotic, the seed random). **Phase-aligned** — after at frame 6 (6
 pre-rolled + 6) against before at frame 12 — it is **3.3 against a run-to-run 2.7–2.9**: past the
 fade, the frames are the old frames, 200 ms sooner.
+
+## Fixes to the test plan's findings, batch 6 (2026-09-26, night)
+
+Victor's five evening decisions (Q8, Q10, Q11, Q9, Q12 above) and four leftovers of the regression
+run (`evals/plan/report-regression-2026-09-26.md`). **Written, built and unit-tested that night, not
+installed**: the Wispr teacher batch used the relay and the keyboard 22:57–07:00, so the install
+(`./relay-restart.sh --build`) and every harness case wait for the morning. Each item is its own
+commit.
+
+### 1. An empty Scribe answer on real speech goes to the local model (Q8)
+
+> *"Q8 mijloc"* — the local model stands in **only if the meter counted at least 2 s of voiced
+> audio** (`MicRecorder.voicedSeconds`); below that, batch 1's `heardNothing` stays.
+
+- `ElevenLabsSource.stop()` reads `meter.voicedSeconds` on the audio queue, right after
+  `meter.stop()` — the take's own figure, before a next `start()` can zero it (Q12 lets a sentence
+  start while this one uploads) — and hands it to `finishRecording`.
+- Empty answer, `voiced ≥ fallbackVoicedFloor` (2.0 s): `.failed(why: "ElevenLabs returned no words
+  for N s of voiced speech")`, an ordinary failure with the WAV, so `AppDelegate.dictationEnded`
+  hands it to `fallBackToLocal`. Under 2 s: `.failed(heardNothing)` exactly as before — WAV staged,
+  banner, nothing delivered. Both paths log the voiced figure.
+- `TR13` (20 s of speech + `/test/eleven {"fail":"empty"}`) now expects the local fallback's delivery
+  (the old *staged, Recover returns it* path still passes); `TL16` (3 s of silence) is unchanged —
+  3 s of room tone measures well under 2 s voiced.
+- **Tomorrow:** TL16 and TR13 (`cases_audio.py`, real audio through 🧪 WT Inject).

@@ -3429,6 +3429,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // end of the sentence** (2026-09-25) — the local model gets the WAV.
         // Not for `heardNothing`: the recogniser answered, and the local model on
         // a take with no speech invents one (2026-09-26) — that WAV goes to Recover.
+        // Q8 (batch 6): ElevenLabs sends an empty answer on a take with ≥ 2 s
+        // voiced as an ordinary failure instead, so it does fall back here.
         if case .failed(let why, let audio?, let duration) = end, why != DictationEnd.heardNothing,
            fallBackToLocal(why: why, wav: audio, duration: duration) { return }
         dictationEndedForGood(end)
