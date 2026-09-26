@@ -8378,6 +8378,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// parked for a bind, and the words still on their way into a terminal or the
     /// caret. The ten quiet seconds after a delivery are the script's, not this.
     var restartBlockers: [String] {
+        var why = quitBlockers
+        // **Audio staged for Recover** (TL18, 2026-09-26 batch 6): a restart wipes
+        // `cancelled/` at launch, and the file is the only copy of that sentence.
+        // A restart (the gate, the Dock tile) waits out its five minutes or the
+        // Recover; a quit he asks for (`applicationShouldTerminate`) does not.
+        if let kept = cancelledAudio {
+            let left = max(0, Self.cancelledGrace - Date().timeIntervalSince(kept.at))
+            why.append(String(format: "audio staged for Recover (%.0f s left)", left))
+        }
+        return why
+    }
+
+    /// `restartBlockers` without the Recover staging: what a quit waits for.
+    var quitBlockers: [String] {
         var why: [String] = []
         if listening || speculative { why.append("dictating") }
         if source.isRecording { why.append("microphone open") }
@@ -8405,7 +8419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// refuses and retries rather than answering `.terminateLater`.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if quitApproved || QuitGate.disabled { return .terminateNow }
-        let why = restartBlockers
+        let why = quitBlockers
         guard !why.isEmpty else { return .terminateNow }
         if quitDeferredSince == nil {
             quitDeferredSince = Date()
@@ -8418,7 +8432,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func quitWhenIdle() {
         QuitGate.touchMarker()
-        let why = restartBlockers
+        let why = quitBlockers
         let waited = Date().timeIntervalSince(quitDeferredSince ?? Date())
         guard why.isEmpty || waited >= QuitGate.ceiling else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.quitWhenIdle() }

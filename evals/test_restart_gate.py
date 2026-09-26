@@ -43,6 +43,21 @@ class GateTest(unittest.TestCase):
             self.assertFalse(v.ready)
         self.assertIn("microphone open", v.waiting_for)
 
+    def test_audio_staged_for_recover_keeps_it_closed(self):
+        # TL18 (batch 6): a restart wipes cancelled/ — from the app's busyWhy, and from
+        # `recoverable` alone for a build that does not count it yet.
+        staged = {"path": "/x/cancelled-12-00-00.wav", "duration": 5.8}
+        for s in (busy("audio staged for Recover (280 s left)"), idle(recoverable=staged)):
+            g = Gate()
+            v = g.observe(T0, s)
+            self.assertFalse(v.ready)
+            self.assertIn("Recover", v.waiting_for)
+        # …and once it is gone, the ten quiet seconds start from the last poll that saw it.
+        g = Gate()
+        g.observe(T0, idle(recoverable=staged))
+        self.assertFalse(g.observe(T0 + 5, idle(recoverable=None)).ready)
+        self.assertTrue(g.observe(T0 + 10, idle(recoverable=None)).ready)
+
     def test_waits_ten_seconds_after_a_fresh_delivery(self):
         g = Gate()
         delivered = T0 - 3

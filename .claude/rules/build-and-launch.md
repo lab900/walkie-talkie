@@ -238,6 +238,12 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   superseding *six seconds after the row stops saying `listening`*). `GET /test/state.busy` is
   `AppDelegate.restartBlockers`; the ten seconds are Victor's, for re-routing a prompt he sent to
   the wrong place. `tools/restart_gate.py`, tested by `evals/test_restart_gate.py`.
+- **Audio staged for Recover blocks a restart, not a quit** (TL18, 2026-09-26 batch 6): a launch
+  wipes `cancelled/`, so `restartBlockers` carries `audio staged for Recover (N s left)` for the five
+  minutes (`cancelledGrace`) or until it is recovered — the gate, the Dock tile. `quitBlockers` (the
+  same list without it) is what `applicationShouldTerminate` waits for. `restart_gate.py` also reads
+  `state.recoverable` directly, so a build from before the fix is gated too; `--dry-run` exits 3 at
+  `--max-wait` while it is staged.
 - **A quit mid-sentence is refused and retried, never `.terminateLater`** (`QuitGate`): SIGTERM is
   routed through `applicationShouldTerminate`; `SingleInstance.enforce()` waits while the older
   instance keeps `.quit-deferred` fresh. `RELAY_SHOOT` / `WT_QUIT_NOW=1` quit at once.

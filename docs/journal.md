@@ -13285,3 +13285,16 @@ behaviour is built and **off** — `HotkeyTap.wisprStandalone`, read once at lau
    `onWisprPushToTalkReleased` branch, `heldPairIsTheEngines`, the hand-started adoption in
    `gestureSeen` / `edge`, `rescueFromRow` for unclaimed pastes, `noteHandStartedAtCaret`,
    `wisprMicSentence` — and the flag with them.
+
+### 6. Leftovers of the regression run
+
+**TL18 — staged Recover audio holds a restart, not a quit.** The regression run: a cancelled 5.8 s
+recording staged (`recoverable` set) with `busy=false busyWhy=[]`, and `relay-restart.sh --dry-run`
+opened the gate — a restart would have wiped `cancelled/` (`Outbox` clears it at launch), the only
+copy of the sentence. Now `restartBlockers` = `quitBlockers` + `audio staged for Recover (N s
+left)` while `cancelledAudio` is set (five minutes, or until recovered); the Dock tile and
+`GET /test/state.busy` read `restartBlockers`, `applicationShouldTerminate` / `quitWhenIdle` read
+`quitBlockers` — a quit he asks for does not wait five minutes for a file he may not want.
+`tools/restart_gate.py` also reads `state.recoverable` itself (so tonight's installed build, which
+does not count it, is gated too); `evals/test_restart_gate.py` +1 test (17/17). The dry-run
+contract: exit 3 at `--max-wait` while audio is staged, which is what TL18 asserts.

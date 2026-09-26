@@ -12,8 +12,12 @@ So the gate opens only when both hold:
 1. **Nothing is in flight** — `GET /test/state.busy` (the app's own
    `restartBlockers`: any engine's microphone, the recogniser answering, a Wispr
    sentence behind the firewall, the prompt on screen, a sentence held for a
-   bind, the words still being typed). An older build without `busy` is read
-   from the flags it does have.
+   bind, the words still being typed) — **and audio staged for Recover**
+   (`state.recoverable`, TL18, 2026-09-26 batch 6): a restart wipes
+   `cancelled/`, so the gate waits out its five minutes (or the Recover). Read
+   from `recoverable` whatever the build says in `busyWhy`, so an app installed
+   before the fix is gated too. An older build without `busy` is read from the
+   flags it does have.
 2. **Ten quiet seconds** since the last activity — the last poll that saw it
    busy, the last delivery (`lastDelivery.at`), the last dictation start and the
    outbox's mtime. Anything new restarts the countdown.
@@ -56,7 +60,10 @@ def parse_iso(value) -> float | None:
 def busy_reasons(state: dict) -> list[str]:
     """What is in flight, in the app's own words when it has them."""
     if "busy" in state:
-        return list(state.get("busyWhy") or (["busy"] if state["busy"] else []))
+        why = list(state.get("busyWhy") or (["busy"] if state["busy"] else []))
+        if state.get("recoverable") and not any("Recover" in w for w in why):
+            why.append("audio staged for Recover")
+        return why
     # A build older than 2026-09-23: the same predicate, from the flags it has.
     why = []
     if state.get("listening") or state.get("speculative"):
@@ -73,6 +80,8 @@ def busy_reasons(state: dict) -> list[str]:
         why.append("delivering")
     if state.get("filming"):
         why.append("filming")
+    if state.get("recoverable"):
+        why.append("audio staged for Recover")
     return why
 
 
