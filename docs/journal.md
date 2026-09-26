@@ -13358,6 +13358,26 @@ radius — no reader changes — and it is what was built:
   answer (main thread, swapped envelope) files into the parked envelope and is lost with it; the chip
   shows only the live sentence (a parked one has no row of its own); a parked caret sentence pastes
   at whatever holds the caret when its words land — the caret has no latch, as before.
+- **An independent read-only review of the diff the same night** (a second agent, nothing run)
+  found, and the follow-up commit fixed: a parked sentence's `send` took the live one's running
+  **film** (`takeFilms`); the Active-Terminals **pick** clause in `commit` held an older sentence
+  with a latched terminal (now only `m.target == nil`); the caret-prompt and *target gone* hops
+  **ended the next sentence's settle** after the swap-back (`pasteText(settles: false)` — `deliver`
+  had already ended the owner's); `syncBorrowedGestures` ran on the parked fields (now skipped,
+  `run` re-syncs); the back click's `sentenceQueueAccepts` was never re-pushed after the 0.8 s
+  window (a sync at +0.85 s); a **panel about to appear** (`send`'s hop) was not seen by the order
+  rule (`panelsComing`); `.silent` / `.failed` with no audio / `.cancelled` no longer wait their
+  turn (nothing to deliver); `dropDeadParked` drains; the Engine's take is given only to the
+  Engine's own recording; ElevenLabs takes a take out of `unanswered` *before* its answer runs, so
+  `phase` settles on the last answer (it would otherwise have stayed `transcribing` for ever — a
+  single-sentence regression); the held-panel wait applies only to engines that queue (the local
+  model keeps today's behaviour). A cancel of a live sentence whose answer is waiting runs that
+  answer out of turn, disowned (words dropped, WAV kept), and hands the next 🔼← to the older one.
+- **Left, known:** a background writer (the context shot's completion, the shutter, the selection
+  watcher, a pick) finishing *during* the milliseconds of a parked sentence's run writes into the
+  parked envelope — a frame of the new sentence can ride the old one; `holdForBind`'s
+  `setSpawnDestination(nil)` from the send hop can clear the live sentence's destination row. Both
+  need a sentence id on every async write; not done tonight.
 - **Test surface:** `GET /test/state.sentences` (`[{id, state, target, startedAt, take, waiting}]`),
   `state.sentenceQueue`; `POST /test/eleven {"fail": "delay", "delayMs": n}` (the real call, n ms
   late; `delayx2` for two) and **`POST /test/autosend {"on"}`** (G6; this run only, not written to

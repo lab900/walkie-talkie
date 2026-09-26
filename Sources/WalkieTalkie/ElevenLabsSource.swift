@@ -405,16 +405,17 @@ final class ElevenLabsSource: DictationSource {
     private func answer(_ t: Int, _ body: () -> Void) {
         let outer = answeringTake
         answeringTake = t
+        unanswered.remove(t)
         body()
         answeringTake = outer
-        unanswered.remove(t)
     }
 
     /// `phase` after one take's answer: another take still recording or
     /// uploading keeps its own phase (Q12).
     private func settlePhase(_ p: DictationPhase) {
         if isRecording { return }
-        if !uploads.isEmpty { phase = .transcribing("uploading"); return }
+        // `answer` has already taken the take being answered out of `unanswered`.
+        if !uploads.isEmpty || !unanswered.isEmpty { phase = .transcribing("uploading"); return }
         phase = p
     }
 
@@ -461,8 +462,7 @@ final class ElevenLabsSource: DictationSource {
                                  take t: Int, stoppedAt: Date?, markers: Bool) {
         guard let (wav, duration) = closed else {
             Log.info("recording discarded — under \(MicRecorder.minimumDuration)s")
-            settlePhase(.done("empty"))
-            answer(t) { didEnd?(.silent("")) }
+            answer(t) { settlePhase(.done("empty")); didEnd?(.silent("")) }
             return
         }
         guard let key = apiKey else {
@@ -553,8 +553,7 @@ final class ElevenLabsSource: DictationSource {
         guard let up = uploads[t] else { return }
         uploads[t] = nil
         up.cancel()
-        settlePhase(.done("dismissed"))
-        answer(t) { didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
+        answer(t) { settlePhase(.done("dismissed")); didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
     }
 
     func cancel() {
@@ -563,8 +562,7 @@ final class ElevenLabsSource: DictationSource {
         if !isRecording, let t = uploads.keys.max(), let up = uploads[t] {
             uploads[t] = nil
             up.cancel()
-            settlePhase(.done("dismissed"))
-            answer(t) { didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
+            answer(t) { settlePhase(.done("dismissed")); didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
             return
         }
         guard isRecording else { return }

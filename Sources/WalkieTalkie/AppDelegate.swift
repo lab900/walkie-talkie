@@ -577,6 +577,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// microphone, the chip's live rows and the halo are the live sentence's and
     /// are left alone (`runParked`).
     fileprivate var answeringInBackground = false
+    /// Prompt panels `send` has decided to show and not yet shown (its main-queue hop).
+    fileprivate var panelsComing = 0
     static let maxSentencesInFlight = 2
     /// A start this soon after the stop is the stop's click again, not a new sentence.
     static let queueStartAfterStop: CFAbsoluteTime = 0.8
@@ -2798,8 +2800,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         source.didEnd = { [weak self] end in
             guard let self else { return }
+            // A cancel, a take too short to keep, a microphone that never opened:
+            // nothing to deliver, nothing to order (Q12).
             var cancel = false
-            if case .cancelled = end { cancel = true }
+            switch end {
+            case .cancelled, .silent: cancel = true
+            case .failed(_, let audio, _) where audio == nil: cancel = true
+            default: break
+            }
             self.runAnswer(for: self.sentence(forTake: self.source.answeringTake), immediate: cancel) {
                 self.dictationEnded(end)
             }
@@ -2952,7 +2960,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stale.finished = true
         }
         sentenceSerial += 1
-        liveSentence = Sentence(id: sentenceSerial, take: source.queuesSentences ? source.take : nil)
+        // The take only for the Engine's own recording — a Wispr sentence begun by
+        // hand beside it must not answer to the Engine's last take.
+        liveSentence = Sentence(id: sentenceSerial,
+                                take: source.queuesSentences && source.isRecording ? source.take : nil)
         liveSentence?.target = "recording"
         cleanRedirected = false
         // A 🔼 ↓ belongs to the sentence it was made in; one whose sentence
@@ -3701,6 +3712,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stateLock.unlock()
         settleEstimate = DecodeRate.seconds(for: max(0, spokenFor))
         syncBorrowedGestures()
+        // The tap's back click reads `sentenceQueueAccepts`, which the same-click
+        // window keeps false for 0.8 s after the stop (Q12): pushed again after it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.queueStartAfterStop + 0.05) { [weak self] in
+            self?.syncBorrowedGestures()
+        }
 
         armSettleGiveUp()
     }
@@ -4448,6 +4464,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // after `🗑️ Cancelled`. A cancel takes everything with it.
             clearCancelledDictationState()
         }
+        // **A sentence that had landed and was waiting its turn** (Q12): its
+        // answer is run now, out of turn — disowned above, so `deliver` drops
+        // the words and keeps the WAV for Recover — and it ends, so the one
+        // before it is the live sentence again (and the next 🔼← reaches it).
+        if Self.sentenceQueueOn, transcriptDisowned, let live = liveSentence, !live.waiting.isEmpty {
+            let late = live.waiting
+            live.waiting = []
+            late.forEach { $0() }
+            if !live.finished { live.finished = true; live.state = "done" }
+            liveSentence = nil
+            DispatchQueue.main.async { [weak self] in self?.unparkIfIdle() }
+        }
         if !quiet { overlay.flash("🗑️ Cancelled", duration: 1.5) }
         return true
     }
@@ -5027,7 +5055,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         contextShotPending = false
         stateLock.unlock()
 
-        DispatchQueue.main.async { [weak self] in self?.overlay.clearSelection() }
+        if !answeringInBackground { DispatchQueue.main.async { [weak self] in self?.overlay.clearSelection() } }
         guard !shots.isEmpty else { return }
         Log.info("no transcript within \(Int(orphanTimeout))s — releasing \(shots.count) shot(s) on their own")
         send(kind: "screenshot", paths: shots)
@@ -5112,7 +5140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Main thread — `film` and `pendingFilm` are main's, and this is called from
     /// the same place the rest of the pending state is drained.
     private func takeFilms() -> [ScreenFilm.Result] {
-        if let running = film {
+        // A parked sentence's delivery (Q12) never takes the film the live one
+        // is recording — `queueRefusal` never parks one that is filming.
+        if !answeringInBackground, let running = film {
             film = nil
             overlay.setFilming(false)
             Log.info("🎬 the sentence ended while recording — stopping and attaching it")
@@ -5120,7 +5150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // The sentence is on its way out, so what it was carrying stops being
         // news — the row goes with the rest of the pending state.
-        overlay.clearFilmsCarried()
+        if !answeringInBackground { overlay.clearFilmsCarried() }
         defer { pendingFilms = [] }
         return pendingFilms
     }
@@ -5276,6 +5306,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func syncBorrowedGestures() {
+        // A parked sentence's answer (Q12) runs on its fields; `run` syncs after the swap-back.
+        guard !answeringInBackground else { return }
         let live = hasDestination && listening
         // **Replace Wispr borrows them too, since 2026-09-08.** It did not until
         // then, and the argument was that both buttons are taken in order to
@@ -6563,7 +6595,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // spoke → `targetGone` and a `delivered` row for a dead tty.
                     if m.kind == "dictation" {
                         self.recordDelivery(via: m.via, kind: m.deliveryKind, to: "caret")
-                        self.pasteText(line)
+                        // The sentence's settle ended at `deliver`; one standing now is the next's (Q12).
+                        self.pasteText(line, settles: false)
                     }
                 default:
                     break
@@ -6930,13 +6963,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let submitted = tty.map { TerminalBinding.submitPrompt(line, toTTY: $0) } ?? false
             DispatchQueue.main.async {
                 guard let self else { return }
+                // `deliver` ended this sentence's settle before the hop; a
+                // settle standing now is the next sentence's (Q12) — not ours to end.
                 guard submitted, let tty else {
-                    self.pasteText(line, to: pid)
+                    self.pasteText(line, to: pid, settles: false)
                     return
                 }
                 Log.info("⏎ caret prompt typed into Claude Code on \(tty) and submitted — \(line.count) chars")
                 self.lastDictation = line
-                self.endSettling(reason: "submitted into Claude Code at the caret")
             }
         }
     }
@@ -8851,8 +8885,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                        extraSelections: extraSelections,
                                        picks: picks, since: since)
 
+        // A panel is coming in the hop below: counted now, so an answer run in
+        // the same turn waits for it (Q12 — one panel at a time, in order).
+        if shown != nil { panelsComing += 1 }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            if shown != nil { self.panelsComing -= 1 }
             if !bg { self.overlay.clearSelection() }
 
             // Nothing to read is nothing to cancel: a bare screenshot goes
@@ -9062,7 +9100,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // (Q2, TD29): the words go to it while it lives, else to the caret. Nil
         // is *the next bind* — now, if one has landed since the close (TG18),
         // else held for it (Q1).
-        if m.kind == "dictation", !m.spawn, (m.target == nil && !isBound) || spawnPickInFlight != nil {
+        // The pick clause only for a sentence with no latched terminal: a queued
+        // older sentence (Q12) keeps the terminal it latched at its close.
+        if m.kind == "dictation", !m.spawn, m.target == nil && (!isBound || spawnPickInFlight != nil) {
             // **Recorded even though nothing is written** — that is the point of
             // the record. A held sentence lives in memory and nowhere else
             // (*When the outbox is written*), so `held` is the one destination
@@ -9285,7 +9325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///   (`DictationResult.focusPid`), when something else may have taken the key
     ///   focus in the meantime. Nil is *whatever has the caret*, which is what
     ///   every caller but one means.
-    private func pasteText(_ text: String, after delay: TimeInterval = 0, to pid: pid_t? = nil) {
+    private func pasteText(_ text: String, after delay: TimeInterval = 0, to pid: pid_t? = nil, settles: Bool = true) {
         // So ⌘⇧P can say it again — a Replace Wispr dictation is a dictation that
         // went out, and it is exactly the kind he wants twice: the same sentence
         // into a second field.
@@ -9304,11 +9344,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if delay == 0 {
             press()
-            endSettling(reason: "pasted at the caret")
+            if settles { endSettling(reason: "pasted at the caret") }
         } else {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 press()
-                self?.endSettling(reason: "pasted at the caret")
+                if settles { self?.endSettling(reason: "pasted at the caret") }
             }
         }
     }
@@ -9706,7 +9746,8 @@ extension AppDelegate {
             // Behind its own earlier answers, an older sentence still in flight,
             // or a prompt panel on screen (one at a time, in order).
             let older = parkedSentence.flatMap { $0 !== s && !$0.finished ? $0 : nil }
-            if !s.waiting.isEmpty || older != nil || held != nil {
+            let panel = source.queuesSentences && (held != nil || panelsComing > 0)
+            if !s.waiting.isEmpty || older != nil || panel {
                 if s.waiting.isEmpty {
                     Log.info(older.map { "🧾 sentence #\(s.id) landed before #\($0.id) — it waits its turn" }
                              ?? "🧾 sentence #\(s.id) waits for the prompt panel on screen")
@@ -9751,13 +9792,20 @@ extension AppDelegate {
     /// Runs what waited, oldest sentence first, while it is its turn.
     func drainSentences() {
         guard Self.sentenceQueueOn, held == nil else { return }
+        guard panelsComing == 0 else {
+            DispatchQueue.main.async { [weak self] in self?.drainSentences() }
+            return
+        }
         for s in [parkedSentence, liveSentence].compactMap({ $0 }) {
             if s !== parkedSentence, let p = parkedSentence, !p.finished { return }
             while !s.waiting.isEmpty, !s.finished {
                 let next = s.waiting.removeFirst()
                 Log.info("🧾 sentence #\(s.id): its turn — delivering what waited")
                 run(s, next)
-                if held != nil { return }
+                if held != nil || panelsComing > 0 {
+                    DispatchQueue.main.async { [weak self] in self?.drainSentences() }
+                    return
+                }
             }
         }
     }
@@ -9772,6 +9820,7 @@ extension AppDelegate {
         Log.error("🧾 sentence #\(p.id) never answered — let go so the next one is not held behind it")
         p.finished = true
         parkedSentence = nil
+        DispatchQueue.main.async { [weak self] in self?.drainSentences() }
     }
 
     /// The sentence whose fields are in the relay right now (the parked one
