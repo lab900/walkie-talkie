@@ -1,0 +1,74 @@
+app up after 19s Sat Sep 26 18:21:51 UTC 2026
+relay on 8917, 57 case(s), report → report-vm-A.md
+  LC1: PASS (1.9s) — centre off 0.00 pt, max velocity 0.0, opacity 0 → [0.36] at +0.5 s → 0.4, bandWidth 1024
+  LC2: ERROR (10.1s) — KeyError: 'liveCaption'
+  LC3: PASS (9.6s) — eraser at +5.09 s, max velocity 0.0 pt/s and centre drift 0.00 pt in [+1.5 s, eraser), velocity exactly 0 from +1.42 s
+  LC4: PASS (4.7s) — max velocity 700 pt/s, 30 samples, dropped 7
+  LC5: PASS (5.1s) — corrections +1, ghosts [['the', 'build']], reflowing 129.8 → [0] at +1.6 s, update seen 0.01 s after the POST
+  LC6: PASS (2.8s) — corrections +2, ghosts [['500']]
+  LC7: PASS (1.5s) — dropped before 19; first sample: dropped 0, anchor 380, velocity 0, centre off 0, corrections 0
+  LC7b: PASS (2.6s) — dropped 19 → 19, corrections +0, anchor -137.3 → -137.3
+  LC8: PASS (4.0s) — 6 revisions, corrections +0, 0 sample(s) with ghosts
+  LC9: PASS (11.9s) — corrections 0, start opacity max 0, slowest to 90 % 0.59 s over 30/30 words
+  LC10: PASS (3.0s) — after close: open False words 0; after reopen at 0.1 s: open True words 2 (the panel's alpha is not in describe(): a fade that ends at 0 over a reopen
+  LC11: SKIP (0.0s) — needs G7 liveCaption.frame/screen
+  LC12: SKIP (0.0s) — needs the app relaunched under RELAY_SHOOT (out of scope: no restarts from the runner)
+  LC14: PASS (0.8s) — words 0, open True
+  LC15: PASS (3.0s) — +0.6 s [0.95, 0.95, 0.95, 0.76, 0.57, 0.38] (max err 0.05), settled [1, 1, 1, 0.8, 0.6, 0.4]; after commit +0.8 s [1, 1, 1, 1, 0.99, 0.99], correction
+  LC16: PASS (16.0s) — eraser at +5.03 s, 258 pt/s; dropped 2, visible-centre offset max 3 pt over 12 samples; fresh line: eraseFront None, centre off 0.0, velocity 0
+  LC17: PASS (7.2s) — corrections +1, front -389.1320994270841 → -90.53037609374132 (262 pt/s); the paler tint is not in describe()
+  LC18: SKIP (0.0s) — needs G8 (/test/live-caption script + trace)
+  TL2: FAIL (2.0s) — cleared in 1436 ms; 'nothing to cancel' line: yes
+  TL3: PASS (1.3s) — eleven→whisper: mid-sentence answer engine=eleven, after cancel engine=whisper; whisper loading=True ready=False
+  TL4: FAIL (180.8s) — first (cold): 90.36 s ok=False via=None text=None; second (warm): 90.33 s ok=False
+  TL6: SKIP (120.3s) — the helper would not come up in 120 s
+  TL7: SKIP (120.6s) — the helper would not come up in 120 s
+  TL23: SKIP (0.0s) — needs an env change + relaunch of the app (RELAY_WHISPER_PYTHON=/nonexistent); out of scope for HTTP
+  TL27: PASS (10.5s) — released 0.47 s after the bind; words in the witness: yes; lastDelivery.to=terminal:ttys001; invariants ok
+  TL33: SKIP (0.0s) — the key hot-add runs when the menu opens (status.elevenReady); needs Codex + moving elevenlabs.env
+  TR17: ERROR (0.6s) — FileNotFoundError: [Errno 2] No such file or directory: './relay-restart.sh'
+  TR21: PASS (6.8s) — guarded=True; refused=True; typed into zsh=False; outbox rows +0; lastDelivery.to=terminal:ttys001
+  TR22: SKIP (0.0s) — no route or fault switch fails a spawn (SpawnTerminal has no test hook) — needs a new gap
+  TR28: PASS (0.3s) — last launch line: '09-26 18:21:49 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay'; pid 439 started Sat Sep 26 18:
+  TD1: PASS (0.1s) — 409 no terminal on ttys999
+  TD2: PASS (11.9s) — to1=held to2=held held-after-two=True; hold lines=2; after bind: ALFA in witness=True, BRAVO in witness=True; replacement said in log=False
+  TD4: PASS (8.2s) — A=ttys001 B=ttys002 bind B → 200 at +1.0s; commit +3.17s vs bind done; to=terminal:ttys001; in A=True, in B=False
+  TD5: PASS (5.9s) — /bind 200; pasteMode after=True; 'caret dictation redirected' logged=False
+  TD6: PASS (6.7s) — /bind 200; spawnPending after=True; '✨ spawn dropped' logged=False
+  TD10: ERROR (7.4s) — FileNotFoundError: [Errno 2] No such file or directory: './relay-restart.sh'
+  TD13: SKIP (0.0s) — tmux not installed
+  TD14: PASS (1.4s) — 409 for ttys002 (no terminal on ttys002); ps: Ss+  cat
+  TD15: PASS (21.2s) — tab ttys002 bind 200; guard saw foreground=['script']; refused=True; to=None; rows=0; touch ran=False
+  TD16: PASS (23.0s) — tab ttys002 bind 200; guard saw foreground=['less']; to=None; touch ran=False
+  TD17: SKIP (0.0s) — needs a live Claude Code (haiku) session with a pending permission dialog ([CC])
+  TD18: SKIP (0.0s) — needs a live Claude Code session to show 'press Enter to send' ([CC])
+  TD19: PASS (8.5s) — tab ttys002 bind 200; to=terminal:ttys002; third Return logged=False; newlines in file=4
+  TD20: PASS (12.3s) — sent 4826 chars via POST /test/prompt send (the panel was held); to=terminal:ttys002; arrived 4842 bytes in 6 reads (1022, 1022, 1022, 1022, 753, 1); 
+  TD21: BUG (16.6s) — binding silently moved to the new tab — tty ttys001 reused by the new tab; bound after 11 s=ttys001; to=terminal:ttys001; landed in the new tab=True
+  TD23: SKIP (0.0s) — needs a real sleep (pmset) — [SLEEP]
+  TD28: SKIP (0.0s) — needs a GUI pick in the spawn menu — [CODEX]
+  TD29: PASS (6.1s) — unbind at +1.0s; commit +3.45s vs unbind done; to=terminal:ttys001; held=False; in A=True; in B after binding it=False
+  TD30: SKIP (0.0s) — needs a real ⌘⇧P during the hold — [CODEX/keys]
+  TD31: PASS (5.2s) — to=held awaitingBind=True rows while held=0; after bind: to=terminal:ttys001 rows=['terminal:ttys001'] outbox agrees with lastDelivery=True awaitingBi
+  TR21: PASS (23.9s) — B=ttys002; refused=True; delivered=False; to=None; rows=[]; bound after=ttys002
+  TR22: PASS (10.3s) — spawn rows=['spawn:/Users/admin/workspace']; first outbox row at +8.31s; bound ttys002 at +8.31s; failure/re-offer not injectable
+  TG19: PASS (8.7s) — panel up 13 ms, rebind at +0.013 s; lastDelivery.to='terminal:ttys001' (A=ttys001, B=ttys002); B's witness got 0 chars
+  TG21: SKIP (0.0s) — T-G21: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG22: SKIP (0.0s) — T-G22: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG23: SKIP (0.0s) — T-G23: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+  TG24: SKIP (0.0s) — T-G24: adopted hand-started Wispr sentences (`/test/wispr-handsfree {hand: true}`) are out of scope for this suite (Wispr Flow is out of scope of the 
+rc=0 report-vm-A.md Sat Sep 26 18:34:55 UTC 2026
+relay on 8917, 5 case(s), report → report-vm-G.md
+  TL22: FAIL (125.2s) — mic opened 1.28 s after the gesture (model still loading=True, 'recording anyway' line=True, banked line=False); /test/cancel cancelled it, quiet=True
+  TR4: FAIL (8.6s) — nudge posted=False; silent line=3.0 s; back line=6.2 s; new hangs files=0; sessionFlags=[]; buttons down=None
+  TG1: PASS (1.8s) — listening=True 162 ms after the POST, pasteMode=True, chip «Prompting → ￼... | at caret | ×1», trace ↓98×1, ↑98 (ours) passed×1 · sent forward-click@0
+  TG2: PASS (4.5s) — starts=1, re-triggered at ['350', '252', '375'] ms, refused at sentence ages ['1643'] ms, stopped by +3.2 s=True · sent forward-right@0.000s forward-r
+  TG3: PASS (94.8s) — mic opened 0.14 s after the gesture (model still loading=True); cancel line=True, closed=True (F11 at +1.51 s); model up=False, anything opened after 
+rc=0 report-vm-G.md Sat Sep 26 18:38:51 UTC 2026
+relay on 8917, 3 case(s), report → report-vm-AU.md
+  TL12: FAIL (215.3s) — 401 True, ↪️ True, retries 0, via None in 90.6 s; next sentence via None; the stale-warning half needs G5 (prompt state)
+  LC13: SKIP (2.0s) — engine is eleven, the case needs eleven-live
+  B2: SKIP (2.0s) — engine is eleven, the case needs eleven-live
+/Users/admin/wt-lab/run-vm.sh: line 11:  2177 Terminated: 15          ( sleep "$cap"; kill -INT $p 2> /dev/null )
+rc=0 report-vm-AU.md Sat Sep 26 18:42:31 UTC 2026
+ALLDONE

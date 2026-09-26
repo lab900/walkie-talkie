@@ -1,0 +1,897 @@
+09-26 17:21:49 [relay] registered as a login item
+09-26 17:23:06 [relay] 🎤 mic announcer: baseline BlackHole 2ch
+09-26 17:23:06 [relay] ⚠️ could not create event tap — grant Accessibility permission to Walkie Talkie
+09-26 17:23:06 [relay] accessibility trusted=false eventTap=false bundle=ro.victorrentea.wispr-relay
+09-26 17:23:06 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 17:23:06 [relay] inspect endpoint on 127.0.0.1:8917 — ⌘-hold in Chrome to pick elements
+09-26 17:23:06 [relay] dictation source: ElevenLabs Scribe
+09-26 17:23:06 [relay] 🎵 music bridge on ws://127.0.0.1:8920 — Chrome pauses while dictating
+09-26 17:23:07 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 17:23:07 [relay] ◯ caret halo warmed at launch in 877 ms — the first dictation pays nothing
+09-26 17:23:07 [relay] ready — label /, outbox at /Users/admin/.walkie-talkie/outbox.jsonl
+09-26 17:23:07 [relay] voice corpus at /Users/admin/.walkie-talkie/voice-corpus
+09-26 17:23:07 [relay] recents: scanning transcripts in the background
+09-26 17:23:12 [relay] recents: scan finished (status 0)
+09-26 17:23:16 [relay] ⚠️ wispr scratchpad: no window titles readable — grant Screen Recording, or the wrap cannot tell whether its precondition holds
+09-26 17:32:21 [relay] session ended via app terminate
+09-26 17:32:21 [relay] whisper helper stopped
+09-26 17:32:21 [relay] → sent session_end (96 bytes)
+09-26 17:32:27 [relay] already a login item
+09-26 17:32:28 [relay] 🎤 mic announcer: baseline BlackHole 2ch
+09-26 17:32:28 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay
+09-26 17:32:28 [relay] inspect endpoint on 127.0.0.1:8917 — ⌘-hold in Chrome to pick elements
+09-26 17:32:28 [relay] 🎵 music bridge on ws://127.0.0.1:8920 — Chrome pauses while dictating
+09-26 17:32:28 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 17:32:28 [relay] dictation source: ElevenLabs Scribe
+09-26 17:32:28 [relay] ⚠️ 🧊 main thread silent for 3.5 s — the tap swallows nothing until it is back (its own gesture chords excepted); Wispr pastes and dictates on its own
+09-26 17:32:28 [relay] 🧊 sampling the stall into /Users/admin/.walkie-talkie/hangs/hang-2026-09-26-17-32-28.txt
+09-26 17:32:29 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 17:32:29 [relay] ◯ caret halo warmed at launch in 489 ms — the first dictation pays nothing
+09-26 17:32:29 [relay] ready — label /, outbox at /Users/admin/.walkie-talkie/outbox.jsonl
+09-26 17:32:29 [relay] voice corpus at /Users/admin/.walkie-talkie/voice-corpus
+09-26 17:32:29 [relay] 🧊 main thread back after 4.2 s — the tap takes events again (0 passed through, 0 gesture chord(s) dropped while it was frozen)
+09-26 17:32:30 [relay] 🛡️ canary (launch): the tap is alive — seen after 0.4 ms
+09-26 17:33:35 [relay] SIGTERM — treated as Quit
+09-26 17:33:35 [relay] session ended via app terminate
+09-26 17:33:35 [relay] whisper helper stopped
+09-26 17:33:35 [relay] → sent session_end (96 bytes)
+09-26 17:33:40 [relay] already a login item
+09-26 17:33:41 [relay] 🎤 mic announcer: baseline BlackHole 2ch
+09-26 17:33:41 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay
+09-26 17:33:41 [relay] inspect endpoint on 127.0.0.1:8917 — ⌘-hold in Chrome to pick elements
+09-26 17:33:41 [relay] 🎵 music bridge on ws://127.0.0.1:8920 — Chrome pauses while dictating
+09-26 17:33:41 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 17:33:41 [relay] dictation source: ElevenLabs Scribe
+09-26 17:33:41 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 17:33:41 [relay] ◯ caret halo warmed at launch in 115 ms — the first dictation pays nothing
+09-26 17:33:41 [relay] ready — label /, outbox at /Users/admin/.walkie-talkie/outbox.jsonl
+09-26 17:33:41 [relay] voice corpus at /Users/admin/.walkie-talkie/voice-corpus
+09-26 17:33:42 [relay] ⚠️ wispr scratchpad: no window titles readable — grant Screen Recording, or the wrap cannot tell whether its precondition holds
+09-26 17:33:43 [relay] 🛡️ canary (launch): the tap is alive — seen after 0.3 ms
+09-26 17:33:49 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 17:33:49 [relay] 🎙️ recording started for ElevenLabs — mic-1790444029.wav
+09-26 17:33:49 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 17:33:49 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 17:33:49 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 17:33:51 [relay] ◯ MilkDrop 20: fading in after the warm-up +812136831001 ms
+09-26 17:33:56 [relay] ◯ MilkDrop 20: ok · 366pt canvas, 732px +812136836395 ms
+09-26 17:35:50 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:37:50 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:39:50 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:41:50 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:43:49 [relay] ⏱️ ten minutes — the ceiling ends this dictation and delivers what it has
+09-26 17:43:49 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 17:43:49 [relay] ◯ the ring coasts while the words are transcribed — fading over ~49 s
+09-26 17:43:49 [relay] 👁 selection watcher off
+09-26 17:43:49 [relay] ▶️ dictation over — resuming them
+09-26 17:43:57 [relay] the settle waits: ElevenLabs Scribe is still uploading — 8 s in
+09-26 17:44:05 [relay] the settle waits: ElevenLabs Scribe is still uploading — 16 s in
+09-26 17:44:13 [relay] the settle waits: ElevenLabs Scribe is still uploading — 24 s in
+09-26 17:44:21 [relay] the settle waits: ElevenLabs Scribe is still uploading — 32 s in
+09-26 17:44:29 [relay] the settle waits: ElevenLabs Scribe is still uploading — 40 s in
+09-26 17:44:38 [relay] the settle waits: ElevenLabs Scribe is still uploading — 49 s in
+09-26 17:44:46 [relay] the settle waits: ElevenLabs Scribe is still uploading — 57 s in
+09-26 17:44:55 [relay] the settle waits: ElevenLabs Scribe is still uploading — 65 s in
+09-26 17:45:03 [relay] the settle waits: ElevenLabs Scribe is still uploading — 74 s in
+09-26 17:45:11 [relay] the settle waits: ElevenLabs Scribe is still uploading — 82 s in
+09-26 17:45:20 [relay] the settle waits: ElevenLabs Scribe is still uploading — 91 s in
+09-26 17:45:28 [relay] the settle waits: ElevenLabs Scribe is still uploading — 99 s in
+09-26 17:45:37 [relay] the settle waits: ElevenLabs Scribe is still uploading — 108 s in
+09-26 17:45:45 [relay] the settle waits: ElevenLabs Scribe is still uploading — 116 s in
+09-26 17:45:51 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:45:53 [relay] the settle waits: ElevenLabs Scribe is still uploading — 124 s in
+09-26 17:46:02 [relay] the settle waits: ElevenLabs Scribe is still uploading — 133 s in
+09-26 17:46:10 [relay] the settle waits: ElevenLabs Scribe is still uploading — 141 s in
+09-26 17:46:19 [relay] the settle waits: ElevenLabs Scribe is still uploading — 150 s in
+09-26 17:46:27 [relay] the settle waits: ElevenLabs Scribe is still uploading — 158 s in
+09-26 17:46:36 [relay] the settle waits: ElevenLabs Scribe is still uploading — 166 s in
+09-26 17:46:44 [relay] the settle waits: ElevenLabs Scribe is still uploading — 175 s in
+09-26 17:46:52 [relay] the settle waits: ElevenLabs Scribe is still uploading — 183 s in
+09-26 17:47:01 [relay] the settle waits: ElevenLabs Scribe is still uploading — 192 s in
+09-26 17:47:09 [relay] the settle waits: ElevenLabs Scribe is still uploading — 200 s in
+09-26 17:47:18 [relay] the settle waits: ElevenLabs Scribe is still uploading — 208 s in
+09-26 17:47:26 [relay] the settle waits: ElevenLabs Scribe is still uploading — 217 s in
+09-26 17:47:34 [relay] the settle waits: ElevenLabs Scribe is still uploading — 225 s in
+09-26 17:47:43 [relay] the settle waits: ElevenLabs Scribe is still uploading — 234 s in
+09-26 17:47:51 [relay] the settle waits: ElevenLabs Scribe is still uploading — 242 s in
+09-26 17:47:57 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:47:59 [relay] the settle waits: ElevenLabs Scribe is still uploading — 250 s in
+09-26 17:48:08 [relay] the settle waits: ElevenLabs Scribe is still uploading — 259 s in
+09-26 17:48:16 [relay] the settle waits: ElevenLabs Scribe is still uploading — 267 s in
+09-26 17:48:24 [relay] the settle waits: ElevenLabs Scribe is still uploading — 275 s in
+09-26 17:48:33 [relay] the settle waits: ElevenLabs Scribe is still uploading — 284 s in
+09-26 17:48:41 [relay] the settle waits: ElevenLabs Scribe is still uploading — 292 s in
+09-26 17:48:49 [relay] the settle waits: ElevenLabs Scribe is still uploading — 300 s in
+09-26 17:48:58 [relay] the settle waits: ElevenLabs Scribe is still uploading — 309 s in
+09-26 17:49:06 [relay] the settle waits: ElevenLabs Scribe is still uploading — 317 s in
+09-26 17:49:14 [relay] the settle waits: ElevenLabs Scribe is still uploading — 325 s in
+09-26 17:49:23 [relay] the settle waits: ElevenLabs Scribe is still uploading — 334 s in
+09-26 17:49:31 [relay] the settle waits: ElevenLabs Scribe is still uploading — 342 s in
+09-26 17:49:39 [relay] the settle waits: ElevenLabs Scribe is still uploading — 350 s in
+09-26 17:49:48 [relay] the settle waits: ElevenLabs Scribe is still uploading — 359 s in
+09-26 17:49:56 [relay] the settle waits: ElevenLabs Scribe is still uploading — 367 s in
+09-26 17:50:01 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:50:04 [relay] the settle waits: ElevenLabs Scribe is still uploading — 375 s in
+09-26 17:50:13 [relay] the settle waits: ElevenLabs Scribe is still uploading — 384 s in
+09-26 17:50:21 [relay] the settle waits: ElevenLabs Scribe is still uploading — 392 s in
+09-26 17:50:29 [relay] the settle waits: ElevenLabs Scribe is still uploading — 400 s in
+09-26 17:50:38 [relay] the settle waits: ElevenLabs Scribe is still uploading — 409 s in
+09-26 17:50:46 [relay] the settle waits: ElevenLabs Scribe is still uploading — 417 s in
+09-26 17:50:54 [relay] the settle waits: ElevenLabs Scribe is still uploading — 425 s in
+09-26 17:51:03 [relay] the settle waits: ElevenLabs Scribe is still uploading — 434 s in
+09-26 17:51:11 [relay] the settle waits: ElevenLabs Scribe is still uploading — 442 s in
+09-26 17:51:19 [relay] the settle waits: ElevenLabs Scribe is still uploading — 450 s in
+09-26 17:51:28 [relay] the settle waits: ElevenLabs Scribe is still uploading — 459 s in
+09-26 17:51:36 [relay] the settle waits: ElevenLabs Scribe is still uploading — 467 s in
+09-26 17:51:45 [relay] the settle waits: ElevenLabs Scribe is still uploading — 475 s in
+09-26 17:51:53 [relay] the settle waits: ElevenLabs Scribe is still uploading — 484 s in
+09-26 17:52:01 [relay] the settle waits: ElevenLabs Scribe is still uploading — 492 s in
+09-26 17:52:03 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:52:09 [relay] the settle waits: ElevenLabs Scribe is still uploading — 500 s in
+09-26 17:52:18 [relay] the settle waits: ElevenLabs Scribe is still uploading — 509 s in
+09-26 17:52:26 [relay] the settle waits: ElevenLabs Scribe is still uploading — 517 s in
+09-26 17:52:35 [relay] the settle waits: ElevenLabs Scribe is still uploading — 525 s in
+09-26 17:52:43 [relay] the settle waits: ElevenLabs Scribe is still uploading — 534 s in
+09-26 17:52:51 [relay] the settle waits: ElevenLabs Scribe is still uploading — 542 s in
+09-26 17:52:59 [relay] the settle waits: ElevenLabs Scribe is still uploading — 550 s in
+09-26 17:53:08 [relay] the settle waits: ElevenLabs Scribe is still uploading — 559 s in
+09-26 17:53:16 [relay] the settle waits: ElevenLabs Scribe is still uploading — 567 s in
+09-26 17:53:25 [relay] the settle waits: ElevenLabs Scribe is still uploading — 575 s in
+09-26 17:53:33 [relay] the settle waits: ElevenLabs Scribe is still uploading — 584 s in
+09-26 17:53:41 [relay] the settle waits: ElevenLabs Scribe is still uploading — 592 s in
+09-26 17:53:49 [relay] the settle waits: ElevenLabs Scribe is still uploading — 600 s in
+09-26 17:53:58 [relay] the settle waits: ElevenLabs Scribe is still uploading — 609 s in
+09-26 17:54:06 [relay] orphan timer: the sentence is still in flight — its envelope stays; re-armed
+09-26 17:54:06 [relay] the settle waits: ElevenLabs Scribe is still uploading — 617 s in
+09-26 17:54:15 [relay] the settle waits: ElevenLabs Scribe is still uploading — 625 s in
+09-26 17:54:23 [relay] the settle waits: ElevenLabs Scribe is still uploading — 634 s in
+09-26 17:54:31 [relay] the settle waits: ElevenLabs Scribe is still uploading — 642 s in
+09-26 17:54:32 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 17:54:32 [relay] 🎙️ recording stopped — 131.5s, uploading to ElevenLabs
+09-26 17:54:33 [relay] ⚠️ ElevenLabs: HTTP 400 {"detail":{"type":"validation_error","code":"invalid_audio","message":"File is corrupted. Please ensure it is playable audio.","status":"invalid_content","request_id":"db68300d3f457c642852ca881939e971","param":"audio_file"}}
+09-26 17:54:33 [relay] ⚠️ ↪️ ElevenLabs: HTTP 400 {"detail":{"type":"validation_error","code":"invalid_audio","message":"File is corrupted. Please ensure it is playable audio.","status":"invalid_content","request_id":"db68300d3f457c642852ca881939e971","param":"audio_file"}} — transcribing the 131.5s recording on this Mac instead
+09-26 17:54:35 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 17:54:39 [relay] the settle waits: the local model is standing in — 650 s in
+09-26 17:54:47 [relay] the settle waits: the local model is standing in — 658 s in
+09-26 17:54:56 [relay] the settle waits: the local model is standing in — 667 s in
+09-26 17:55:04 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 17:55:04 [relay] 🚫 start refused — `settling` (674.7 s since the microphone closed — the words are still in flight)
+09-26 17:55:04 [relay] the settle waits: the local model is standing in — 675 s in
+09-26 17:55:12 [relay] the settle waits: the local model is standing in — 683 s in
+09-26 17:55:21 [relay] the settle waits: the local model is standing in — 692 s in
+09-26 17:55:21 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 17:55:21 [relay] 🗑️ cancelled in flight (the local model is standing in) — the transcript on its way is disowned
+09-26 17:55:21 [relay] 🗑️ dictation cancelled — 131.5s of audio kept for 5 min
+09-26 17:55:21 [relay] ◯ caret halo off
+09-26 17:56:03 [relay] ⚠️ ↪️ the local model did not come up in 90 s
+09-26 17:56:03 [relay] 🗑️ the local model answered a fallback that was cancelled — dropped
+09-26 17:56:31 [relay] 📍 bound to admin (ttys000) — window at 40,340 585×371
+09-26 17:56:31 [relay] 📍 re-bound to ttys000 by request
+09-26 17:56:35 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 17:56:35 [relay] ⌨️ ttys000 foreground=-zsh — 35 chars
+09-26 17:56:35 [relay] ⚠️ ⛔️ -zsh is at the prompt — refused, nothing sent
+09-26 17:57:05 [relay] 📍 bound to admin (ttys001) — window at 69,311 585×371
+09-26 17:57:05 [relay] 📍 re-bound to ttys001 by request
+09-26 17:57:09 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 17:57:09 [relay] ⌨️ ttys001 foreground=cat — 35 chars
+09-26 17:57:09 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 17:57:09 [relay] ⌨️ delivered to the bound terminal
+09-26 17:57:09 [relay] → sent dictation (241 bytes)
+09-26 17:57:30 [relay] 📍 unbound from admin (ttys001)
+09-26 17:57:37 [relay] SIGTERM — treated as Quit
+09-26 18:03:26 [relay] already a login item
+09-26 18:05:02 [relay] 🎤 mic announcer: baseline BlackHole 2ch
+09-26 18:05:02 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay
+09-26 18:05:02 [relay] ⚠️ 🧊 main thread silent for 180.4 s — the tap swallows nothing until it is back (its own gesture chords excepted); Wispr pastes and dictates on its own
+09-26 18:05:03 [relay] inspect endpoint on 127.0.0.1:8917 — ⌘-hold in Chrome to pick elements
+09-26 18:05:03 [relay] 🎵 music bridge on ws://127.0.0.1:8920 — Chrome pauses while dictating
+09-26 18:05:04 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 18:05:04 [relay] dictation source: ElevenLabs Scribe
+09-26 18:05:05 [relay] 🧊 sampling the stall into /Users/admin/.walkie-talkie/hangs/hang-2026-09-26-18-05-04.txt
+09-26 18:06:17 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 18:06:17 [relay] ◯ caret halo warmed at launch in 73284 ms — the first dictation pays nothing
+09-26 18:06:17 [relay] ready — label /, outbox at /Users/admin/.walkie-talkie/outbox.jsonl
+09-26 18:06:17 [relay] voice corpus at /Users/admin/.walkie-talkie/voice-corpus
+09-26 18:06:19 [relay] 🧊 main thread back after 256.9 s — the tap takes events again (1 passed through, 0 gesture chord(s) dropped while it was frozen)
+09-26 18:06:19 [relay] 🛡️ canary (launch): the tap is alive and failing open — seen after 0.4 ms; the main thread is frozen, so everything but this app's own chords is handed through on purpose
+09-26 18:07:56 [relay] ⚠️ wispr scratchpad: no window titles readable — grant Screen Recording, or the wrap cannot tell whether its precondition holds
+09-26 18:14:21 [relay] ⚠️ ◯ MilkDrop: the web content process died — falling back to the film
+09-26 18:14:21 [relay] ⚠️ ◯ caret halo: milkdrop20 → lightning film, because the web content process died
+09-26 18:20:32 [relay] already a login item
+09-26 18:21:49 [relay] 🎤 mic announcer: baseline BlackHole 2ch
+09-26 18:21:49 [relay] accessibility trusted=true eventTap=true bundle=ro.victorrentea.wispr-relay
+09-26 18:21:49 [relay] inspect endpoint on 127.0.0.1:8917 — ⌘-hold in Chrome to pick elements
+09-26 18:21:49 [relay] 🎵 music bridge on ws://127.0.0.1:8920 — Chrome pauses while dictating
+09-26 18:21:49 [relay] ⚠️ 🧊 main thread silent for 177.6 s — the tap swallows nothing until it is back (its own gesture chords excepted); Wispr pastes and dictates on its own
+09-26 18:21:50 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 18:21:50 [relay] dictation source: ElevenLabs Scribe
+09-26 18:21:51 [relay] 🧊 sampling the stall into /Users/admin/.walkie-talkie/hangs/hang-2026-09-26-18-21-50.txt
+09-26 18:22:30 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 18:22:30 [relay] ◯ caret halo warmed at launch in 40208 ms — the first dictation pays nothing
+09-26 18:22:30 [relay] ready — label /, outbox at /Users/admin/.walkie-talkie/outbox.jsonl
+09-26 18:22:30 [relay] voice corpus at /Users/admin/.walkie-talkie/voice-corpus
+09-26 18:22:32 [relay] 🛡️ canary (launch): the tap is alive and failing open — seen after 0.4 ms; the main thread is frozen, so everything but this app's own chords is handed through on purpose
+09-26 18:22:35 [relay] 🧊 main thread back after 223.6 s — the tap takes events again (1 passed through, 0 gesture chord(s) dropped while it was frozen)
+09-26 18:22:52 [relay] ⚠️ wispr scratchpad: no window titles readable — grant Screen Recording, or the wrap cannot tell whether its precondition holds
+09-26 18:22:54 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:22:54 [relay] mic: test override cleared
+09-26 18:22:59 [relay] ⚠️ 🧊 main thread silent for 3.0 s — the tap swallows nothing until it is back (its own gesture chords excepted); Wispr pastes and dictates on its own
+09-26 18:22:59 [relay] 🧊 sampling the stall into /Users/admin/.walkie-talkie/hangs/hang-2026-09-26-18-22-59.txt
+09-26 18:23:21 [relay] 🧊 main thread back after 25.0 s — the tap takes events again (0 passed through, 0 gesture chord(s) dropped while it was frozen)
+09-26 18:23:31 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:31 [relay] mic: test override cleared
+09-26 18:23:35 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:35 [relay] mic: test override cleared
+09-26 18:23:41 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:41 [relay] mic: test override cleared
+09-26 18:23:43 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:43 [relay] mic: test override cleared
+09-26 18:23:45 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:45 [relay] mic: test override cleared
+09-26 18:23:47 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:47 [relay] mic: test override cleared
+09-26 18:23:51 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:23:51 [relay] mic: test override cleared
+09-26 18:24:03 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:03 [relay] mic: test override cleared
+09-26 18:24:06 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:06 [relay] mic: test override cleared
+09-26 18:24:06 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:06 [relay] mic: test override cleared
+09-26 18:24:06 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:06 [relay] mic: test override cleared
+09-26 18:24:07 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:07 [relay] mic: test override cleared
+09-26 18:24:10 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:10 [relay] mic: test override cleared
+09-26 18:24:26 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:26 [relay] mic: test override cleared
+09-26 18:24:33 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:33 [relay] mic: test override cleared
+09-26 18:24:33 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:33 [relay] mic: test override cleared
+09-26 18:24:34 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:24:34 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:24:34 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:24:34 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:24:34 [relay] 🗑️ …and the recogniser had nothing to cancel — putting the ring down here
+09-26 18:24:34 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:24:34 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:24:34 [relay] 👁 selection watcher off
+09-26 18:24:34 [relay] ▶️ dictation over — resuming them
+09-26 18:24:35 [relay] ◯ caret halo off
+09-26 18:24:35 [relay] ◯ MilkDrop 20: fading in after the warm-up +812139875878 ms
+09-26 18:24:35 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:35 [relay] mic: test override cleared
+09-26 18:24:36 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:24:36 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:24:36 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:24:36 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:24:36 [relay] 🗑️ …and the recogniser had nothing to cancel — putting the ring down here
+09-26 18:24:36 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:24:36 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:24:36 [relay] 👁 selection watcher off
+09-26 18:24:36 [relay] ▶️ dictation over — resuming them
+09-26 18:24:36 [relay] ◯ caret halo off
+09-26 18:24:36 [relay] dictation source: Whisper (local)
+09-26 18:24:36 [relay] 🎙️ dictation engine switched to Whisper (local)
+09-26 18:24:37 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:24:37 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:24:37 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 18:24:37 [relay] dictation source: ElevenLabs Scribe
+09-26 18:24:37 [relay] 🎙️ dictation engine switched to ElevenLabs Scribe
+09-26 18:24:37 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:24:37 [relay] mic: test override cleared
+09-26 18:24:39 [relay] ◯ MilkDrop 20: ok · 366pt canvas, 732px +812139879681 ms
+09-26 18:24:41 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:26:07 [relay] ⚠️ ↪️ the local model did not come up in 90 s
+09-26 18:26:07 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:27:38 [relay] ⚠️ ↪️ the local model did not come up in 90 s
+09-26 18:27:38 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:27:38 [relay] mic: test override cleared
+09-26 18:27:38 [relay] 🧪 /test/whisper: restart
+09-26 18:27:38 [relay] whisper helper stopped
+09-26 18:27:38 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:29:38 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:29:38 [relay] mic: test override cleared
+09-26 18:29:38 [relay] 🧪 /test/whisper: restart
+09-26 18:29:38 [relay] whisper helper stopped
+09-26 18:29:38 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:31:38 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:38 [relay] mic: test override cleared
+09-26 18:31:39 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:39 [relay] mic: test override cleared
+09-26 18:31:47 [relay] 📦 delivery: test → held (route)
+09-26 18:31:47 [relay] ⏳ nothing bound — holding 4 words for the next bind, 5 min
+09-26 18:31:48 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:31:48 [relay] 📍 re-bound to ttys001 by request
+09-26 18:31:48 [relay] ⏳ bound — sending the sentence that was waiting
+09-26 18:31:48 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:31:48 [relay] ⌨️ ttys001 foreground=cat — 50 chars
+09-26 18:31:49 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:31:49 [relay] ⌨️ delivered to the bound terminal
+09-26 18:31:49 [relay] → sent dictation (271 bytes)
+09-26 18:31:49 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:49 [relay] mic: test override cleared
+09-26 18:31:49 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:31:49 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:49 [relay] mic: test override cleared
+09-26 18:31:49 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:31:49 [relay] 📍 re-bound to ttys001 by request
+09-26 18:31:49 [relay] ◯ caret halo draws: milkdrop20 → milkdrop7
+09-26 18:31:49 [relay] ◯ caret halo: milkdrop7 — Tunnel, a 663pt square in the engine's web view
+09-26 18:31:49 [relay] ◯ halo panel rebuilt +7 ms
+09-26 18:31:49 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:31:49 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:31:49 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:31:49 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:31:49 [relay] 🗑️ …and the recogniser had nothing to cancel — putting the ring down here
+09-26 18:31:49 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:31:49 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:31:49 [relay] 👁 selection watcher off
+09-26 18:31:49 [relay] ▶️ dictation over — resuming them
+09-26 18:31:49 [relay] ◯ caret halo off
+09-26 18:31:50 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:50 [relay] mic: test override cleared
+09-26 18:31:50 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:31:50 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:31:52 [relay] 📍 bound to admin (ttys002) — window at 69,311 585×371
+09-26 18:31:52 [relay] 📍 re-bound to ttys002 by request
+09-26 18:31:56 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:31:56 [relay] ⌨️ ttys002 foreground=-zsh — 199 chars
+09-26 18:31:56 [relay] ⚠️ ⛔️ -zsh is at the prompt — refused, nothing sent
+09-26 18:31:56 [relay] 📍 unbound from admin (ttys002)
+09-26 18:31:56 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:56 [relay] mic: test override cleared
+09-26 18:31:56 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:56 [relay] mic: test override cleared
+09-26 18:31:57 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:57 [relay] mic: test override cleared
+09-26 18:31:57 [relay] Replace Wispr off
+09-26 18:31:57 [relay] ⚠️ bind: no Terminal.app tab or tmux client on ttys999 — not bound
+09-26 18:31:57 [relay] Replace Wispr off
+09-26 18:31:57 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:31:57 [relay] mic: test override cleared
+09-26 18:31:57 [relay] Replace Wispr off
+09-26 18:32:01 [relay] 📦 delivery: test → held (route)
+09-26 18:32:01 [relay] ⏳ nothing bound — holding 4 words for the next bind, 5 min
+09-26 18:32:05 [relay] 📦 delivery: test → held (route)
+09-26 18:32:05 [relay] ⏳ nothing bound — holding 4 words for the next bind, 5 min (2 sentences held, delivered in order)
+09-26 18:32:05 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:32:05 [relay] 📍 re-bound to ttys001 by request
+09-26 18:32:05 [relay] ⏳ bound — sending the 2 sentences that were waiting
+09-26 18:32:05 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:32:05 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:32:05 [relay] ⌨️ ttys001 foreground=cat — 57 chars
+09-26 18:32:06 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:32:06 [relay] ⌨️ delivered to the bound terminal
+09-26 18:32:06 [relay] → sent dictation (285 bytes)
+09-26 18:32:06 [relay] ⌨️ ttys001 foreground=cat — 59 chars
+09-26 18:32:07 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:32:07 [relay] ⌨️ delivered to the bound terminal
+09-26 18:32:07 [relay] → sent dictation (289 bytes)
+09-26 18:32:09 [relay] Replace Wispr off
+09-26 18:32:09 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:32:09 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:09 [relay] mic: test override cleared
+09-26 18:32:09 [relay] Replace Wispr off
+09-26 18:32:10 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:32:10 [relay] 📍 re-bound to ttys001 by request
+09-26 18:32:11 [relay] 📍 bound to Terminal (ttys002) — window at 69,311 585×371
+09-26 18:32:11 [relay] 📍 re-bound to ttys002 by request
+09-26 18:32:14 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:32:14 [relay] ⌨️ ttys001 foreground=cat — 57 chars
+09-26 18:32:15 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:32:15 [relay] ⌨️ delivered to the bound terminal
+09-26 18:32:15 [relay] → sent dictation (285 bytes)
+09-26 18:32:17 [relay] Replace Wispr off
+09-26 18:32:17 [relay] 📍 unbound from Terminal (ttys002)
+09-26 18:32:17 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:17 [relay] mic: test override cleared
+09-26 18:32:17 [relay] Replace Wispr off
+09-26 18:32:17 [relay] Replace Wispr on — the forward button dictates at the caret
+09-26 18:32:17 [relay] ◯ caret halo draws: milkdrop7 → milkdrop20
+09-26 18:32:17 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 18:32:17 [relay] ◯ halo panel rebuilt +7 ms
+09-26 18:32:17 [relay] ◯ caret halo on — the microphone is open, and these words go wherever the caret is, growing out of the pointer
+09-26 18:32:18 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:32:18 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:32:18 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:32:18 [relay] 📍 re-bound to ttys001 by request
+09-26 18:32:20 [relay] ⚠️ ◯ MilkDrop: the engine's page was not ready 2 s after the ring was asked for — falling back to the film
+09-26 18:32:20 [relay] ⚠️ ◯ caret halo: milkdrop20 → lightning film, because the engine's page was not ready 2 s after the ring was asked for
+09-26 18:32:20 [relay] ⚠️ ◯ caret halo: milkdrop20 asked for, drawing the film — the page failed this style
+09-26 18:32:21 [relay] ◯ caret halo film: 25 frames of 236px, ring r=86px → 105pt, 0.51× the band's flux, panel ×1.98
+09-26 18:32:21 [relay] ◯ halo panel rebuilt +1273 ms
+09-26 18:32:21 [relay] ◯ halo: the previous panel retired +1273 ms
+09-26 18:32:22 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:32:22 [relay] 🗑️ …and the recogniser had nothing to cancel — putting the ring down here
+09-26 18:32:22 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:32:22 [relay] ⬇︎ the heads stay up while the words travel to the caret
+09-26 18:32:22 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:32:22 [relay] 👁 selection watcher off
+09-26 18:32:22 [relay] ▶️ dictation over — resuming them
+09-26 18:32:22 [relay] ⬇︎ the heads go — the words landed
+09-26 18:32:22 [relay] ◯ caret halo off
+09-26 18:32:23 [relay] Replace Wispr off
+09-26 18:32:23 [relay] Replace Wispr off
+09-26 18:32:23 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:32:23 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:23 [relay] mic: test override cleared
+09-26 18:32:23 [relay] Replace Wispr off
+09-26 18:32:23 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:32:23 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:32:23 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:32:24 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:32:24 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:32:24 [relay] 📍 re-bound to ttys001 by request
+09-26 18:32:24 [relay] ◯ caret halo draws: milkdrop20 → milkdrop87
+09-26 18:32:24 [relay] ◯ caret halo: milkdrop87 — Sparks, a 477pt square in the engine's web view
+09-26 18:32:24 [relay] ◯ halo panel rebuilt +8 ms
+09-26 18:32:26 [relay] ⚠️ ◯ MilkDrop: the engine's page was not ready 2 s after the ring was asked for — falling back to the film
+09-26 18:32:26 [relay] ⚠️ ◯ caret halo: milkdrop87 → lightning film, because the engine's page was not ready 2 s after the ring was asked for
+09-26 18:32:26 [relay] ◯ halo: the previous panel retired +4 ms
+09-26 18:32:26 [relay] ⚠️ ◯ caret halo: milkdrop87 asked for, drawing the film — the page failed this style
+09-26 18:32:26 [relay] ◯ caret halo film: 25 frames of 236px, ring r=86px → 105pt, 0.51× the band's flux, panel ×1.98
+09-26 18:32:26 [relay] ◯ halo panel rebuilt +25 ms
+09-26 18:32:26 [relay] ◯ halo: the previous panel retired +26 ms
+09-26 18:32:29 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:32:29 [relay] 🗑️ …and the recogniser had nothing to cancel — putting the ring down here
+09-26 18:32:29 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:32:29 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:32:29 [relay] 👁 selection watcher off
+09-26 18:32:29 [relay] ▶️ dictation over — resuming them
+09-26 18:32:29 [relay] ◯ caret halo off
+09-26 18:32:29 [relay] Replace Wispr off
+09-26 18:32:29 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:32:30 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:30 [relay] mic: test override cleared
+09-26 18:32:30 [relay] Replace Wispr off
+09-26 18:32:34 [relay] 📦 delivery: test → held (route)
+09-26 18:32:34 [relay] ⏳ nothing bound — holding 9 words for the next bind, 5 min
+09-26 18:32:35 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:32:35 [relay] 📍 re-bound to ttys001 by request
+09-26 18:32:35 [relay] ⏳ bound — sending the sentence that was waiting
+09-26 18:32:35 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:32:35 [relay] ⌨️ ttys001 foreground=cat — 77 chars
+09-26 18:32:35 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:32:35 [relay] ⌨️ delivered to the bound terminal
+09-26 18:32:35 [relay] → sent dictation (325 bytes)
+09-26 18:32:37 [relay] Replace Wispr off
+09-26 18:32:37 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:32:37 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:37 [relay] mic: test override cleared
+09-26 18:32:37 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:37 [relay] mic: test override cleared
+09-26 18:32:37 [relay] Replace Wispr off
+09-26 18:32:38 [relay] ⚠️ bind: no Terminal.app tab or tmux client on ttys002 — not bound
+09-26 18:32:38 [relay] Replace Wispr off
+09-26 18:32:38 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:32:38 [relay] mic: test override cleared
+09-26 18:32:38 [relay] Replace Wispr off
+09-26 18:32:41 [relay] 📍 bound to Terminal (ttys002) — window at 69,311 585×371
+09-26 18:32:41 [relay] 📍 re-bound to ttys002 by request
+09-26 18:32:45 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:32:45 [relay] ⌨️ ttys002 foreground=script — 52 chars
+09-26 18:32:45 [relay] ⚠️ ⛔️ script is in front — refused, nothing sent
+09-26 18:32:59 [relay] 📍 unbound from Terminal (ttys002)
+09-26 18:33:00 [relay] Replace Wispr off
+09-26 18:33:00 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:00 [relay] mic: test override cleared
+09-26 18:33:00 [relay] Replace Wispr off
+09-26 18:33:02 [relay] 📍 bound to admin (ttys002) — window at 69,311 585×371
+09-26 18:33:02 [relay] 📍 re-bound to ttys002 by request
+09-26 18:33:06 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:33:07 [relay] ⌨️ ttys002 foreground=less — 65 chars
+09-26 18:33:07 [relay] ⚠️ ⛔️ less is in front — refused, nothing sent
+09-26 18:33:20 [relay] 📍 unbound from admin (ttys002)
+09-26 18:33:23 [relay] Replace Wispr off
+09-26 18:33:23 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:23 [relay] mic: test override cleared
+09-26 18:33:23 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:23 [relay] mic: test override cleared
+09-26 18:33:23 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:23 [relay] mic: test override cleared
+09-26 18:33:23 [relay] Replace Wispr off
+09-26 18:33:25 [relay] 📍 bound to admin (ttys002) — window at 69,311 585×371
+09-26 18:33:25 [relay] 📍 re-bound to ttys002 by request
+09-26 18:33:29 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:33:29 [relay] ⌨️ ttys002 foreground=cat — 58 chars
+09-26 18:33:29 [relay] 📦 delivery: test → terminal:ttys002 (route)
+09-26 18:33:29 [relay] ⌨️ delivered to the bound terminal
+09-26 18:33:29 [relay] → sent dictation (287 bytes)
+09-26 18:33:30 [relay] 📍 unbound from admin (ttys002)
+09-26 18:33:31 [relay] Replace Wispr off
+09-26 18:33:31 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:31 [relay] mic: test override cleared
+09-26 18:33:31 [relay] Replace Wispr off
+09-26 18:33:33 [relay] 📍 bound to Terminal (ttys002) — window at 69,311 585×371
+09-26 18:33:33 [relay] 📍 re-bound to ttys002 by request
+09-26 18:33:40 [relay] 🧪 POST /test/prompt — send
+09-26 18:33:40 [relay] ⌨️ 7 character(s) of terminal control stripped from the typed line (the outbox keeps them)
+09-26 18:33:40 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:33:40 [relay] ⌨️ ttys002 foreground=Python — 4840 chars
+09-26 18:33:40 [relay] 📦 delivery: test → terminal:ttys002 (route)
+09-26 18:33:40 [relay] ⌨️ delivered to the bound terminal
+09-26 18:33:40 [relay] → sent dictation (10251 bytes)
+09-26 18:33:43 [relay] 📍 unbound from Terminal (ttys002)
+09-26 18:33:44 [relay] Replace Wispr off
+09-26 18:33:44 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:33:44 [relay] mic: test override cleared
+09-26 18:33:44 [relay] Replace Wispr off
+09-26 18:33:44 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:33:44 [relay] 📍 re-bound to ttys001 by request
+09-26 18:34:00 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:34:00 [relay] ⌨️ ttys001 foreground=cat — 65 chars
+09-26 18:34:00 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:34:00 [relay] ⌨️ delivered to the bound terminal
+09-26 18:34:00 [relay] → sent dictation (301 bytes)
+09-26 18:34:00 [relay] Replace Wispr off
+09-26 18:34:00 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:34:00 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:00 [relay] mic: test override cleared
+09-26 18:34:00 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:00 [relay] mic: test override cleared
+09-26 18:34:00 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:00 [relay] mic: test override cleared
+09-26 18:34:00 [relay] Replace Wispr off
+09-26 18:34:00 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:34:00 [relay] 📍 re-bound to ttys001 by request
+09-26 18:34:02 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:34:05 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:34:05 [relay] ⌨️ ttys001 foreground=cat — 58 chars
+09-26 18:34:05 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:34:05 [relay] ⌨️ delivered to the bound terminal
+09-26 18:34:05 [relay] → sent dictation (287 bytes)
+09-26 18:34:06 [relay] Replace Wispr off
+09-26 18:34:06 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:06 [relay] mic: test override cleared
+09-26 18:34:06 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:06 [relay] mic: test override cleared
+09-26 18:34:06 [relay] Replace Wispr off
+09-26 18:34:10 [relay] 📦 delivery: test → held (route)
+09-26 18:34:10 [relay] ⏳ nothing bound — holding 4 words for the next bind, 5 min
+09-26 18:34:11 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:34:11 [relay] 📍 re-bound to ttys001 by request
+09-26 18:34:11 [relay] ⏳ bound — sending the sentence that was waiting
+09-26 18:34:11 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:34:11 [relay] ⌨️ ttys001 foreground=cat — 59 chars
+09-26 18:34:11 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:34:11 [relay] ⌨️ delivered to the bound terminal
+09-26 18:34:11 [relay] → sent dictation (289 bytes)
+09-26 18:34:12 [relay] Replace Wispr off
+09-26 18:34:12 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:34:12 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:12 [relay] mic: test override cleared
+09-26 18:34:12 [relay] Replace Wispr off
+09-26 18:34:14 [relay] 📍 bound to admin (ttys002) — window at 69,311 585×371
+09-26 18:34:14 [relay] 📍 re-bound to ttys002 by request
+09-26 18:34:18 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:34:18 [relay] ⌨️ ttys002 foreground=zsh — 55 chars
+09-26 18:34:18 [relay] ⚠️ ⛔️ zsh is at the prompt — refused, nothing sent
+09-26 18:34:35 [relay] 📍 unbound from admin (ttys002)
+09-26 18:34:35 [relay] Replace Wispr off
+09-26 18:34:35 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:35 [relay] mic: test override cleared
+09-26 18:34:36 [relay] Replace Wispr off
+09-26 18:34:42 [relay] ⌨️ paste hint — a sentence went to a new session
+09-26 18:34:42 [relay] ✨ new Claude Code in /Users/admin/workspace on ttys002 — behind, no display but the Retina one
+09-26 18:34:44 [relay] 📍 bound to admin (ttys002) — window at 69,311 585×371
+09-26 18:34:44 [relay] 📦 delivery: test → spawn:/Users/admin/workspace (route)
+09-26 18:34:44 [relay] → sent dictation (433 bytes)
+09-26 18:34:45 [relay] 📍 unbound from admin (ttys002)
+09-26 18:34:46 [relay] Replace Wispr off
+09-26 18:34:46 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:46 [relay] mic: test override cleared
+09-26 18:34:46 [relay] ⌨️trace on — every keyboard event and what became of it
+09-26 18:34:46 [relay] mic: test override → "WT Inject"
+09-26 18:34:46 [relay] ⚠️ mic: test override "wt inject" matches no input — ignored
+09-26 18:34:46 [relay] 🧪 wispr sink open at 4,61 — 40×20
+09-26 18:34:47 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:34:47 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:34:47 [relay] 🧪 wispr sink cleared
+09-26 18:34:47 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:34:47 [relay] 📍 re-bound to ttys001 by request
+09-26 18:34:48 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:34:48 [relay] 🧪 wispr sink cleared
+09-26 18:34:49 [relay] 📍 bound to Terminal (ttys002) — window at 69,311 585×371
+09-26 18:34:49 [relay] 📍 re-bound to ttys002 by request
+09-26 18:34:52 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-26 18:34:52 [relay] ⌨️ ttys001 foreground=cat — 78 chars
+09-26 18:34:53 [relay] 📦 delivery: test → terminal:ttys001 (route)
+09-26 18:34:53 [relay] ⌨️ delivered to the bound terminal
+09-26 18:34:53 [relay] → sent dictation (327 bytes)
+09-26 18:34:54 [relay] 🧪 wispr sink gave the keyboard back to UserNotificationCenter
+09-26 18:34:55 [relay] 🧪 wispr sink let the keyboard go — nobody had it before
+09-26 18:34:55 [relay] ⌨️trace off
+09-26 18:34:55 [relay] 🧪 wispr sink closed
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:55 [relay] 📍 unbound from Terminal (ttys002)
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:55 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:34:55 [relay] mic: test override cleared
+09-26 18:34:56 [relay] mic: test override → "BlackHole 2ch"
+09-26 18:34:56 [relay] dictation source: Whisper (local)
+09-26 18:34:56 [relay] 🎙️ dictation engine switched to Whisper (local)
+09-26 18:34:56 [relay] 🧪 /test/whisper: restart
+09-26 18:34:56 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:34:56 [relay] 🎙️ the local model is not up — recording anyway; the audio waits for it at the stop
+09-26 18:34:56 [relay] 🎙️ local recording started — mic-1790447696.wav
+09-26 18:34:56 [relay] ◯ caret halo draws: milkdrop87 → milkdrop20
+09-26 18:34:57 [relay] ◯ caret halo: milkdrop20 — Tendrils, a 366pt square in the engine's web view
+09-26 18:34:57 [relay] ◯ halo panel rebuilt +110 ms
+09-26 18:34:57 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:34:57 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:34:57 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:34:57 [relay] whisper helper stopped
+09-26 18:34:57 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:34:57 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:34:58 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:34:58 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:34:58 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:34:58 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:34:58 [relay] 👁 selection watcher off
+09-26 18:34:58 [relay] ▶️ dictation over — resuming them
+09-26 18:34:58 [relay] ◯ caret halo off
+09-26 18:34:58 [relay] 🗑️ dictation cancelled — 0.8s of audio kept for 5 min
+09-26 18:34:58 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 18:34:58 [relay] dictation source: ElevenLabs Scribe
+09-26 18:34:58 [relay] 🎙️ dictation engine switched to ElevenLabs Scribe
+09-26 18:34:59 [relay] ⚠️ ◯ MilkDrop: the engine's page was not ready 2 s after the ring was asked for — falling back to the film
+09-26 18:34:59 [relay] ⚠️ ◯ caret halo: milkdrop20 → lightning film, because the engine's page was not ready 2 s after the ring was asked for
+09-26 18:34:59 [relay] ⚠️ ◯ caret halo: milkdrop20 asked for, drawing the film — the page failed this style
+09-26 18:34:59 [relay] ◯ caret halo film: 25 frames of 236px, ring r=86px → 105pt, 0.51× the band's flux, panel ×1.98
+09-26 18:34:59 [relay] ◯ halo panel rebuilt +21 ms
+09-26 18:35:01 [relay] 🧪 /test/whisper: restart
+09-26 18:35:01 [relay] whisper helper stopped
+09-26 18:35:01 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:37:01 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:37:01 [relay] mic: test override cleared
+09-26 18:37:01 [relay] 🧊 /test/stall: blocking the main thread for 6.0 s
+09-26 18:37:02 [relay] 🖱️ POST /test/gesture back-down — posting ⌃⌥⌘F12
+09-26 18:37:04 [relay] ⚠️ 🧊 main thread silent for 3.0 s — the tap swallows nothing until it is back (its own gesture chords excepted); Wispr pastes and dictates on its own
+09-26 18:37:04 [relay] 🧊 sampling the stall into /Users/admin/.walkie-talkie/hangs/hang-2026-09-26-18-37-04.txt
+09-26 18:37:07 [relay] 🧊 main thread back after 6.2 s — the tap takes events again (0 passed through, 0 gesture chord(s) dropped while it was frozen)
+09-26 18:37:10 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:37:10 [relay] mic: test override cleared
+09-26 18:37:10 [relay] ⌨️trace on — every keyboard event and what became of it
+09-26 18:37:10 [relay] mic: test override → "WT Inject"
+09-26 18:37:10 [relay] ⚠️ mic: test override "wt inject" matches no input — ignored
+09-26 18:37:10 [relay] 🧪 wispr sink open at 4,61 — 40×20
+09-26 18:37:10 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:10 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:11 [relay] 🧪 wispr sink cleared
+09-26 18:37:11 [relay] 🖱️ POST /test/gesture forward-click — posting ⌃⌥⌘F7
+09-26 18:37:11 [relay] 🎙️ forward button — a dictation at the caret
+09-26 18:37:11 [relay] ⌨️trace ↓ key 98 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 ⌃⌥⌘F7
+09-26 18:37:11 [relay] 🎙️ recording started for ElevenLabs — mic-1790447831.wav
+09-26 18:37:11 [relay] ⌨️trace ↑ key 98 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:11 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:11 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:11 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:11 [relay] ◯ caret halo on — the microphone is open, and these words go wherever the caret is, growing out of the pointer
+09-26 18:37:11 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:37:11 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:37:11 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:37:11 [relay] 🗑️ dictation cancelled via POST /test/cancel
+09-26 18:37:11 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:37:11 [relay] ⬇︎ the heads stay up while the words travel to the caret
+09-26 18:37:11 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:37:11 [relay] 👁 selection watcher off
+09-26 18:37:11 [relay] ▶️ dictation over — resuming them
+09-26 18:37:11 [relay] ⬇︎ the heads go — the words landed
+09-26 18:37:11 [relay] ◯ caret halo off
+09-26 18:37:11 [relay] 🗑️ dictation cancelled — nothing had been recorded yet
+09-26 18:37:11 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:37:11 [relay] 🧪 wispr sink gave the keyboard back to UserNotificationCenter
+09-26 18:37:12 [relay] 🧪 wispr sink let the keyboard go — nobody had it before
+09-26 18:37:12 [relay] ⌨️trace off
+09-26 18:37:12 [relay] 🧪 wispr sink closed
+09-26 18:37:12 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:37:12 [relay] mic: test override cleared
+09-26 18:37:12 [relay] ⌨️trace on — every keyboard event and what became of it
+09-26 18:37:12 [relay] mic: test override → "WT Inject"
+09-26 18:37:12 [relay] ⚠️ mic: test override "wt inject" matches no input — ignored
+09-26 18:37:12 [relay] 🧪 wispr sink open at 4,61 — 40×20
+09-26 18:37:12 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:12 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:13 [relay] 🧪 wispr sink cleared
+09-26 18:37:13 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:13 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10
+09-26 18:37:13 [relay] 🎙️ recording started for ElevenLabs — mic-1790447833.wav
+09-26 18:37:13 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:37:13 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:37:13 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:37:13 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:37:13 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:13 [relay] 🎯 ➡️ F10 re-triggered 350ms after the last one — still the same motion, dropped
+09-26 18:37:13 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10 — re-fire dropped
+09-26 18:37:13 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:13 [relay] 🎯 ➡️ F10 re-triggered 252ms after the last one — still the same motion, dropped
+09-26 18:37:13 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10 — re-fire dropped
+09-26 18:37:13 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:13 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:14 [relay] 🎯 ➡️ F10 re-triggered 375ms after the last one — still the same motion, dropped
+09-26 18:37:14 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10 — re-fire dropped
+09-26 18:37:14 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:14 [relay] 🎯 ➡️ F10 670ms on, but the sentence is only 1643ms old — not stopping it
+09-26 18:37:14 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10 — the sentence is too young to stop
+09-26 18:37:14 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:14 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:15 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:15 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:37:15 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10
+09-26 18:37:15 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:15 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:37:15 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:15 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:15 [relay] 👁 selection watcher off
+09-26 18:37:15 [relay] ▶️ dictation over — resuming them
+09-26 18:37:15 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:15 [relay] 🎙️ recording stopped — 2.4s, uploading to ElevenLabs
+09-26 18:37:16 [relay] ⚠️ ElevenLabs returned no words — the audio is kept for Recover
+09-26 18:37:16 [relay] ✍️ the words landed: No words heard — 923 ms after the microphone closed
+09-26 18:37:16 [relay] ◯ caret halo off
+09-26 18:37:16 [relay] 🗑️ dictation cancelled — 2.4s of audio kept for 5 min
+09-26 18:37:16 [relay] dictation abandoned (the recogniser could not be reached) — dropping what it had gathered
+09-26 18:37:16 [relay] 🧪 wispr sink gave the keyboard back to UserNotificationCenter
+09-26 18:37:16 [relay] 🧪 wispr sink let the keyboard go — nobody had it before
+09-26 18:37:16 [relay] ⌨️trace off
+09-26 18:37:16 [relay] 🧪 wispr sink closed
+09-26 18:37:16 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:37:16 [relay] mic: test override cleared
+09-26 18:37:16 [relay] ⌨️trace on — every keyboard event and what became of it
+09-26 18:37:16 [relay] mic: test override → "WT Inject"
+09-26 18:37:16 [relay] ⚠️ mic: test override "wt inject" matches no input — ignored
+09-26 18:37:16 [relay] 🧪 wispr sink open at 4,61 — 40×20
+09-26 18:37:16 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:17 [relay] 🧪 wispr sink has the keyboard — it was UserNotificationCenter's
+09-26 18:37:17 [relay] 🧪 wispr sink cleared
+09-26 18:37:17 [relay] dictation source: Whisper (local)
+09-26 18:37:17 [relay] 🎙️ dictation engine switched to Whisper (local)
+09-26 18:37:17 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:37:17 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:37:17 [relay] ⌨️trace ↓ key 109 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10
+09-26 18:37:17 [relay] ⌨️trace ↑ key 109 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:17 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:17 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:17 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:17 [relay] 🎙️ the local model is not up — recording anyway; the audio waits for it at the stop
+09-26 18:37:17 [relay] 🎙️ local recording started — mic-1790447837.wav
+09-26 18:37:17 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:37:17 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:37:17 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:37:17 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:37:17 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:37:18 [relay] 🖱️ POST /test/gesture forward-left — posting ⌃⌥⌘F11
+09-26 18:37:18 [relay] 🗑️ dictation cancelled via ⬅️ a cancel flick (🔼 ← / 🔽 ←)
+09-26 18:37:18 [relay] ⌨️trace ↓ key 103 pid 439 (ours) flags 0x201c0000 — SWALLOWED by 🔼 ← ⌃⌥⌘F11
+09-26 18:37:18 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:37:18 [relay] ⌨️trace ↑ key 103 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:18 [relay] ⌨️trace ⇧ key 55 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:18 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:37:18 [relay] ⌨️trace ⇧ key 59 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:18 [relay] ⌨️trace ⇧ key 58 pid 439 (ours) flags 0x20000000 — passed (not a keyDown)
+09-26 18:37:18 [relay] 👁 selection watcher off
+09-26 18:37:18 [relay] ▶️ dictation over — resuming them
+09-26 18:37:18 [relay] ◯ caret halo off
+09-26 18:37:18 [relay] 🗑️ dictation cancelled — 0.7s of audio kept for 5 min
+09-26 18:38:51 [relay] ElevenLabs ready — scribe_v2, language auto
+09-26 18:38:51 [relay] dictation source: ElevenLabs Scribe
+09-26 18:38:51 [relay] 🎙️ dictation engine switched to ElevenLabs Scribe
+09-26 18:38:51 [relay] 🧪 wispr sink gave the keyboard back to UserNotificationCenter
+09-26 18:38:51 [relay] 🧪 wispr sink let the keyboard go — nobody had it before
+09-26 18:38:51 [relay] ⌨️trace off
+09-26 18:38:51 [relay] 🧪 wispr sink closed
+09-26 18:38:51 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:38:51 [relay] mic: test override cleared
+09-26 18:38:51 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:38:51 [relay] mic: test override cleared
+09-26 18:38:57 [relay] mic: test override → "BlackHole 2ch"
+09-26 18:38:58 [relay] 📍 bound to Terminal (ttys001) — window at 69,311 585×371
+09-26 18:38:58 [relay] 📍 re-bound to ttys001 by request
+09-26 18:38:58 [relay] 🧪 /test/eleven: batch HTTP 401 on final, live none
+09-26 18:38:58 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:38:59 [relay] 🎙️ recording started for ElevenLabs — mic-1790447939.wav
+09-26 18:38:59 [relay] ◯ caret halo draws: milkdrop20 → milkdrop7
+09-26 18:38:59 [relay] ◯ caret halo: milkdrop7 — Tunnel, a 663pt square in the engine's web view
+09-26 18:38:59 [relay] ◯ halo panel rebuilt +8 ms
+09-26 18:38:59 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:38:59 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:38:59 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:38:59 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:38:59 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:39:01 [relay] ◯ MilkDrop 7: fading in after the warm-up +2598 ms
+09-26 18:39:03 [relay] ◯ MilkDrop 7: ok (centre pinned) · 663pt canvas, 1326px +4494 ms
+09-26 18:39:18 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:39:18 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:39:18 [relay] ◯ the ring coasts while the words are transcribed — fading over ~2 s
+09-26 18:39:18 [relay] 👁 selection watcher off
+09-26 18:39:18 [relay] ▶️ dictation over — resuming them
+09-26 18:39:18 [relay] 🎙️ recording stopped — 19.1s, uploading to ElevenLabs
+09-26 18:39:18 [relay] 🧪 ElevenLabs attempt 1: injected HTTP 401 on final
+09-26 18:39:18 [relay] ⚠️ ElevenLabs: HTTP 401 {"detail":{"message":"injected by /test/eleven"}}
+09-26 18:39:18 [relay] ⚠️ ↪️ ElevenLabs: HTTP 401 {"detail":{"message":"injected by /test/eleven"}} — transcribing the 19.1s recording on this Mac instead
+09-26 18:39:18 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:39:26 [relay] the settle waits: the local model is standing in — 8 s in
+09-26 18:39:34 [relay] the settle waits: the local model is standing in — 16 s in
+09-26 18:39:42 [relay] the settle waits: the local model is standing in — 24 s in
+09-26 18:39:50 [relay] the settle waits: the local model is standing in — 33 s in
+09-26 18:39:59 [relay] the settle waits: the local model is standing in — 41 s in
+09-26 18:40:07 [relay] the settle waits: the local model is standing in — 50 s in
+09-26 18:40:16 [relay] the settle waits: the local model is standing in — 58 s in
+09-26 18:40:24 [relay] the settle waits: the local model is standing in — 66 s in
+09-26 18:40:32 [relay] the settle waits: the local model is standing in — 74 s in
+09-26 18:40:40 [relay] the settle waits: the local model is standing in — 83 s in
+09-26 18:40:48 [relay] ⚠️ ↪️ the local model did not come up in 90 s
+09-26 18:40:48 [relay] ✍️ the words landed: ElevenLabs: HTTP 401 {"detail":{"message":"injected by /test/eleven"}}; the local model could not transcribe it either — 90615 ms after the microphone closed
+09-26 18:40:48 [relay] ◯ caret halo off
+09-26 18:40:48 [relay] 🗑️ dictation cancelled — 19.1s of audio kept for 5 min
+09-26 18:40:48 [relay] dictation abandoned (the recogniser could not be reached) — dropping what it had gathered
+09-26 18:40:48 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:40:48 [relay] 🎙️ recording started for ElevenLabs — mic-1790448048.wav
+09-26 18:40:48 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-26 18:40:48 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-26 18:40:48 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-26 18:40:48 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-26 18:40:49 [relay] context screen captured: screenshot-0-original.jpg
+09-26 18:40:55 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-26 18:40:55 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-26 18:40:55 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-26 18:40:55 [relay] 👁 selection watcher off
+09-26 18:40:55 [relay] ▶️ dictation over — resuming them
+09-26 18:40:55 [relay] 🎙️ recording stopped — 6.3s, uploading to ElevenLabs
+09-26 18:40:55 [relay] ⚠️ ElevenLabs: HTTP 401 {"detail":{"type":"invalid_request","code":"quota_exceeded","message":"This request exceeds your quota of 10000. You have 5 credits remaining, while 7 credits are required for this request.","status":"quota_exceeded","request_id":"8dc73d4dd2f16db9c7a6c54e2ff7e971"}}
+09-26 18:40:55 [relay] ⚠️ ↪️ ElevenLabs: HTTP 401 {"detail":{"type":"invalid_request","code":"quota_exceeded","message":"This request exceeds your quota of 10000. You have 5 credits remaining, while 7 credits are required for this request.","status":"quota_exceeded","request_id":"8dc73d4dd2f16db9c7a6c54e2ff7e971"}} — transcribing the 6.3s recording on this Mac instead
+09-26 18:40:55 [relay] ⚠️ local model did not come up — no python3 here has mlx_whisper — `pip3 install mlx-whisper`, or point RELAY_WHISPER_PYTHON at the one that does
+09-26 18:41:03 [relay] the settle waits: the local model is standing in — 8 s in
+09-26 18:41:11 [relay] the settle waits: the local model is standing in — 16 s in
+09-26 18:41:20 [relay] the settle waits: the local model is standing in — 25 s in
+09-26 18:41:28 [relay] the settle waits: the local model is standing in — 33 s in
+09-26 18:41:36 [relay] the settle waits: the local model is standing in — 42 s in
+09-26 18:41:45 [relay] the settle waits: the local model is standing in — 50 s in
+09-26 18:41:53 [relay] the settle waits: the local model is standing in — 58 s in
+09-26 18:42:02 [relay] the settle waits: the local model is standing in — 67 s in
+09-26 18:42:10 [relay] the settle waits: the local model is standing in — 75 s in
+09-26 18:42:18 [relay] the settle waits: the local model is standing in — 84 s in
+09-26 18:42:26 [relay] ⚠️ ↪️ the local model did not come up in 90 s
+09-26 18:42:26 [relay] ✍️ the words landed: ElevenLabs: HTTP 401 {"detail":{"type":"invalid_request","code":"quota_exceeded","message":"This request exceeds your quota of 10000. You have 5 credits remaining, while 7 credits are required for this request.","status":"quota_exceeded","request_id":"8dc73d4dd2f16db9c7a6c54e2ff7e971"}}; the local model could not transcribe it either — 90965 ms after the microphone closed
+09-26 18:42:26 [relay] ◯ caret halo off
+09-26 18:42:26 [relay] 🗑️ dictation cancelled — 6.3s of audio kept for 5 min
+09-26 18:42:26 [relay] dictation abandoned (the recogniser could not be reached) — dropping what it had gathered
+09-26 18:42:26 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:42:26 [relay] mic: test override cleared
+09-26 18:42:26 [relay] 📍 unbound from Terminal (ttys001)
+09-26 18:42:26 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:42:26 [relay] mic: test override cleared
+09-26 18:42:28 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:42:28 [relay] mic: test override cleared
+09-26 18:42:31 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:42:31 [relay] mic: test override cleared
+09-26 18:42:31 [relay] 🧪 /test/eleven: batch none, live none
+09-26 18:42:31 [relay] mic: test override cleared
