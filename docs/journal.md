@@ -13265,6 +13265,10 @@ behaviour is built and **off** — `HotkeyTap.wisprStandalone`, read once at lau
   cannot eat Wispr's pastes for ever. An armed capture keeps its swallow. Otherwise the ⌘V passes
   (one log line) and is not reported to the source, so nothing is rescued from the row twice.
 - `GET /test/state.wisprStandalone` says which path is live.
+- **The back click on Engine = Wispr stays Walkie's**: its sentence is Wispr's hands-free chord
+  *posted by Walkie* (`noteRawChord` → `gestureSeen(walkiePosted: true)`), so the standalone guard
+  lets it through and it is owned (firewalled, delivered) like any relay sentence — only a chord
+  from his own keyboard is left to Wispr.
 - **Known edge:** a Wispr sentence of his own whose ⌘V lands inside the 10 s tail of a relay Wispr
   sentence is swallowed and not delivered (its words stay in Wispr's History). Rare, and gone when
   the old path is deleted and the tail can be tied to the relay's own row id.

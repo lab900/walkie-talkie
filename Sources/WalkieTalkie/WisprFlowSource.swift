@@ -1231,7 +1231,7 @@ final class WisprFlowSource: DictationSource {
     func noteRawChord(closing: Bool) {
         gestureSeen(closing ? "🔽 → (the stop) — Wispr's chord, posted raw"
                             : "🔽 → — Wispr's chord, posted raw",
-                    confident: true, relay: false, mode: .off)
+                    confident: true, relay: false, mode: .off, walkiePosted: true)
     }
 
     /// `POST /test/wispr {"hotkey": true}` — the speculative ring, one step
@@ -1274,7 +1274,7 @@ final class WisprFlowSource: DictationSource {
     ///   `.pushToTalk` branch passes it; every other route here is a toggle or
     ///   the relay's own, and is closed by something else.
     private func gestureSeen(_ why: String, confident: Bool, relay: Bool, mode: WrapMode? = nil,
-                             heldPair: Bool = false) {
+                             heldPair: Bool = false, walkiePosted: Bool = false) {
         // **The chord is a toggle and the second press is the stop** (2026-09-13).
         // Only for a confident gesture: `fn ⌃ Space` is unambiguous and this
         // app's own posts no longer come back through the tap, so a hands-free
@@ -1284,7 +1284,7 @@ final class WisprFlowSource: DictationSource {
         if confident, isRecording || speculative {
             // Standalone (Q9): his own chord never ends the relay's sentence —
             // it is Wispr's second sentence, not a stop.
-            if HotkeyTap.wisprStandalone, !relay {
+            if HotkeyTap.wisprStandalone, !relay, !walkiePosted {
                 Log.info("⚡ \(why) — Wispr's own chord (standalone, Q9); the relay's sentence goes on")
                 return
             }
@@ -1294,7 +1294,9 @@ final class WisprFlowSource: DictationSource {
         guard !isRecording, !speculative else { return }
         // **Standalone (Q9, 2026-09-26): a dictation he starts with Wispr's own
         // chord is Wispr's alone** — not adopted, not firewalled, not delivered.
-        if HotkeyTap.wisprStandalone, !relay {
+        // The back click's raw chord (`walkiePosted`) is Walkie's gesture, not his
+        // Wispr chord — still the relay's plain sentence.
+        if HotkeyTap.wisprStandalone, !relay, !walkiePosted {
             Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (standalone, Q9)")
             return
         }
