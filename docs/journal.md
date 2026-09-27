@@ -13561,3 +13561,29 @@ a local or fallback sentence gets no affect at all (`mlx_whisper.transcribe(word
 would give them, at a decode cost nobody has measured); Wispr gives no timings either. **Nobody has
 shown a tone tag improves a coding agent** — the spec asks for an A/B (tag on/off) on re-dictation
 and correction rates before it is trusted.
+
+## Morning of 2026-09-27: batch 6 installed, Q9 switched on, the runs
+
+Wispr's config was moved first (`"54+60": "ptt"`, microphone back to the DJI); then
+`WISPR_PTT_KEYS` defaults to `54,60` (keycode 60 was already `kCGEventFlagMaskShift` in
+`_chord_flags`), `WT_WISPR_STANDALONE=1` went into `elevenlabs.env`, and `./relay-restart.sh
+--build` installed batch 6 + voice affect (`GET /test/state.wisprStandalone` → `true`). `codesign
+--verify --deep --strict` passes on the installed app, and again after the local model warmed up
+(`.warmup.wav` now in `~/.walkie-talkie/`). ElevenLabs had no credits all morning.
+
+- **Harness** (`evals/plan/report-fix6.md`, `-fix6b.md`, `-fix6c.md`): TL18 BUG → **PASS**; Q1–Q6
+  **PASS**; TL15, TL30, TR13, TG7, TG29, LC1–LC17 PASS; TG40 FAIL → case fixed (it clicked inside
+  Q12's 0.8 s double-click guard) → PASS; **B1, LC13, TL29, TL16 FAIL on the quota**; TD21 **BUG**
+  on the host for the first time (tty reuse). Q11's measurement, from B1 and the checks below: the
+  in-app socket upgrades and opens in **0.26–0.34 s** on its own `URLSession`.
+- **`evals/test_envelope.py`** was broken by 796b85b (`bind(tty:)` 409s a tty with no tab; it bound
+  `ttys999`): it now binds a Terminal tab of its own running `cat > /dev/null` — 30 run, OK.
+  `evals/test_marker_place.py` 10/10.
+- **Q9 live check** (under the locks, chords posted through `wispr_loopback._post`, TextEdit in
+  front): **right ⌘⇧ held 2 s** → Wispr made its row (`History` 05:48:18 UTC, 1.72 s, empty — room
+  silence; its `micDevice` said *Built-in mic*, not the DJI) and `relay.log` has **nothing** for it —
+  no adoption, no firewall line; `wisprStandalone:true`. **Right ⌘⌥ held 2 s** → `🧼 right ⌘⌥ held —
+  a clean dictation on the Engine`, `mic: recording through Elgato Wave XLR`, released → `🧼 right
+  ⌘⌥ released — the clean dictation ends` (0 s voiced → Q8's *No words heard*, audio kept).
+  **🔽 🔽 on Engine = eleven-live** → `🎙️ ⬅️ back click — a clean dictation on the Engine (the
+  start)` … `(the stop)`, the upload 401 → local model, no words.
