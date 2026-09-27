@@ -13692,3 +13692,11 @@ Installed with `./relay-restart.sh --build` (09:10), ElevenLabs at 0 credits thr
 | TL13, TL14 | PASS (regression run) | PASS on `CLIP_SPEECH` (0.81 s / 20.0 s to the fallback) |
 | TL12 | PASS (regression run, with credits) | **FAIL, second half only**: the next sentence cannot be ElevenLabs with 0 credits (`CLIP_EN` 1.5 s voiced → *No words heard*); first half PASS |
 | TR13 | PASS | PASS (empty answer on 20 s of speech → local fallback) |
+
+## Q13 decided (2026-09-27, 09:20, Victor): the voiced floor is 1.5 s, and the meter keeps its tails
+
+*"Q13: mergem pe recomandarea ta."* `fallbackVoicedFloor` 2.0 → **1.5 s** on every Scribe failure
+path, and `MicRecorder`'s meter must stop dropping the partial window at the end of each buffer
+(measured: a ~10-word 3.5 s clip counted 1.1–1.9 s voiced offline, 1.5 s live, because 1365-frame
+Loopback buffers leave a remainder every call) — carry the remainder into the next buffer so the
+voiced seconds are within ~0.1 s of the truth. Next fix.
