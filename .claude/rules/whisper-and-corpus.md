@@ -361,6 +361,10 @@ never include a bare `dji mic`, which is the transmitter's name (`DJI Mic Mini-B
   an adaptive noise floor, 9 dB over it to count as speech, absolute floor 180 underneath. Constants
   come from the corpus replay `evals/voiced-seconds.py` and transfer only because the meter sees the
   same audio. → journal: *The meter*
+- **The meter also keeps the take hop by hop** (`meterHops`, 2026-09-27, for `VoiceAffect`): one
+  `MeterHop {t, rms, voiced}` per 64 ms hop, `t` from `writtenFrames` (not a hop count — the tail of
+  each buffer is not metered), own `hopLock`, ≤ 12 000 hops, reset at `start`, kept after `stop`.
+  Read at the close on the queue that closed the take, like `voicedSeconds`. → `dictation-source.md`
 - **Adaptive, because one threshold cannot serve both microphones** (DJI peaks 16552, built-in
   855). Instant attack down, 2 % release up. The absolute floor catches a recording that is
   entirely room tone. **Both reset per recording** — a carried floor is a floor for a room,

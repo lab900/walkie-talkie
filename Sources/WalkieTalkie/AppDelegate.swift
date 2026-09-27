@@ -1238,6 +1238,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         /// nothing was bound at the close (Q1), a spawn, or an *Active
         /// Terminals* pick still on its way. → `latch`, `deliverToTerminal`
         var target: TerminalBinding.Target?
+        /// **What the transcript lost** (2026-09-27, `VoiceAffect`): the `[?]`
+        /// marks are already in `text`; this carries the verdict for the one
+        /// footer line (`terminalLine`) and the outbox's `affect`. Nil when the
+        /// sentence had no word timings, or the feature is off.
+        var affect: VoiceAffect.Report? = nil
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -2303,7 +2308,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         picker.onTestDictation = { [weak self] text, words in
             guard let self = self else { return }
-            let text = self.resolvingMarkers(text, words: words.isEmpty ? nil : words)
+            // `VoiceAffect` as `deliver` runs it, for the envelope a real
+            // sentence would get (not for the legacy caret line below).
+            var said = text
+            var words = words
+            self.pendingAffect = nil
+            if !self.replaceWispr, !words.isEmpty {
+                let a = self.applyingAffect(text: said, words: words, hops: nil, language: nil)
+                said = a.text
+                words = a.words ?? words
+                self.pendingAffect = a.report
+            }
+            let text = self.resolvingMarkers(said, words: words.isEmpty ? nil : words)
             // **It goes to the caret when that is where a real one would go.**
             // The route's whole claim is that a fabricated transcript enters
             // exactly where a spoken one does, and after 2026-09-08 that stopped
@@ -3373,6 +3389,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         caretPrompt = false
         submitAfterClean = false
         cleanRedirected = false
+        // **What the transcript lost** (2026-09-27, `VoiceAffect`): `[?]` where
+        // he paused unusually long, and the verdict for the footer. Only on an
+        // envelope for an agent — a bound terminal, a spawn, the forward
+        // click's caret prompt — never on a plain sentence or a legacy caret
+        // one, which are *what he says is what gets typed*. On this sentence's
+        // own words and take (Q12). Before the markers are placed, so a `[?]`
+        // is a token `place` walks past and never lands inside a marker; after
+        // `spokenText`, so the corpus copy is his words untouched.
+        let originalWords = result.words
+        pendingAffect = nil
+        if !clean, prompt || !(latchedAtCaret || pasteMode) {
+            let a = applyingAffect(text: result.text, words: result.words,
+                                   hops: result.voiceHops, language: result.language)
+            result.text = a.text
+            result.words = a.words
+            pendingAffect = a.report
+        }
         // No marker rewrite for it either: that is what splices a highlight
         // into the middle of the words.
         result.text = clean ? spokenText : resolvingMarkers(result.text, words: result.words)
@@ -3383,7 +3416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the one with the selection markers taken out and nothing put in their
         // place — the words as he actually said them.
         let corpusText = result.markersInAudio
-            ? spokenText : resolvingMarkers(spokenText, words: result.words, inline: false)
+            ? spokenText : resolvingMarkers(spokenText, words: originalWords, inline: false)
         // 🔼 ↓ — after the corpus copy is taken, because he never said it.
         // Never on a plain sentence: it is a word for an agent.
         if clean { kamikaze = false }
@@ -6801,6 +6834,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// forward click's (the held right ⌘⌥, a hand-started Wispr sentence with
     /// nothing bound); the back click's plain one is `cleanLine`.
     private func caretLine(words: String, full: Bool = false) -> String {
+        // Consumed whichever envelope this is — only the full one renders it.
+        let affect = pendingAffect
+        pendingAffect = nil
         stateLock.lock()
         let shots = pendingShots
         // Read before they are cleared — the full envelope stamps each frame
@@ -6891,7 +6927,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             shotOffsets: fullOffsets,
                             mice: mice, areas: areas, sizes: sizes, sources: sources,
                             shotNumbers: markerNumbers,
-                            app: nil, elements: picks, startedAt: since)
+                            app: nil, elements: picks, startedAt: since, affect: affect)
             return Self.terminalLine(m)
         }
 
@@ -6988,6 +7024,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let text = m.text, !text.isEmpty { parts.append(leading(m) + text) }
         if m.kind == "dictation", let text = m.text, !text.isEmpty {
             parts.append(dictatedHint())
+            // **`[voice: hesitant]` / `[voice: tense]`, beside the hint, or
+            // nothing** (2026-09-27) — what the transcript lost, never a number.
+            if let tag = m.affect?.verdict.tag { parts.append(tag) }
         }
         parts.append(contentsOf: selectionsClause(m.selection, at: m.selectionAt,
                                                   source: m.selectionSource,
@@ -8765,13 +8804,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let via = pendingVia ?? "test"
         let engine = pendingEngine ?? ""
         let deliveryKind = pendingDeliveryKind ?? .route
+        let affect = kind == "dictation" ? pendingAffect : nil
         // **The recipient: the one latched at the close, else the binding now**
         // — see `Message.target`. A sentence with no close behind it (the test
         // route, a screenshot) is addressed here, before the panel's seconds.
         let target = latched.map { $0.target } ?? terminal.target
         if kind == "dictation" { spawnPending = false; spawnFolder = nil
                                  pendingVia = nil; pendingEngine = nil
-                                 pendingDeliveryKind = nil }
+                                 pendingDeliveryKind = nil; pendingAffect = nil }
         // **A dictation is never dropped for want of a binding any more**
         // (`holdsForBind`): it is built, shown and read exactly as a bound one
         // is, and `commit` parks it for the terminal Victor is about to point
@@ -8877,7 +8917,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                               shotNumbers: markerNumbers,
                               app: app, elements: picks, startedAt: since, spawn: spawn,
                               directory: directory, via: via, engine: engine,
-                              deliveryKind: deliveryKind, target: spawn ? nil : target)
+                              deliveryKind: deliveryKind, target: spawn ? nil : target,
+                              affect: affect)
 
         // Show what is about to go out — selection included, since that is part
         // of the prompt the agent receives, not a separate thing.
@@ -9070,6 +9111,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The engine behind this sentence, taken and cleared with `pendingVia`.
     private var pendingEngine: String?
     private var pendingDeliveryKind: DictationDelivery?
+    /// The sentence's `VoiceAffect` verdict, set in `deliver` (or the test
+    /// route) and moved onto the `Message` in `send` / `caretLine`.
+    private var pendingAffect: VoiceAffect.Report?
+
+    /// **`VoiceAffect` on one sentence**: the report, and the words and text
+    /// with a `[?]` at every marked pause. Gestures (`markerCues`) excuse the
+    /// pause they fall in. When the words do not spell the text the marks are
+    /// left out (the verdict stands) — a partial `words[]` must not replace a
+    /// transcript.
+    private func applyingAffect(text: String, words: [TimedWord]?, hops: [MeterHop]?,
+                                language: String?, voiced: TimeInterval? = nil)
+        -> (text: String, words: [TimedWord]?, report: VoiceAffect.Report?) {
+        guard VoiceAffect.isEnabled, let words, !words.isEmpty else { return (text, words, nil) }
+        stateLock.lock()
+        let gestures = markerCues.map(\.at)
+        stateLock.unlock()
+        let report = VoiceAffect.analyse(words: words, hops: hops, voicedSeconds: voiced,
+                                         language: language, gestures: gestures)
+        var line = "voice affect: \(report.marked.count) [?], verdict "
+            + (report.verdict.tag ?? "none")
+        if !report.verdict.why.isEmpty { line += " (" + report.verdict.why.joined(separator: "; ") + ")" }
+        Log.info(line + " — thresholds: \(report.thresholds.source)")
+        let marked = VoiceAffect.marked(words: words, report: report)
+        guard marked.count != words.count else { return (text, words, report) }
+        guard let out = VoiceAffect.markedText(text: text, words: words, marked: marked) else {
+            Log.error("voice affect: the words do not spell the transcript — \(report.marked.count) [?] left out")
+            return (text, words, report)
+        }
+        return (out, marked, report)
+    }
 
     private func commit(_ m: Message) {
         // The assembled line, and assembled from `m` — the same call
@@ -9184,7 +9255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         out[(pair.key as NSString).lastPathComponent] = pair.value
                     },
                     app: m.app, elements: m.elements.map { $0.json(since: m.startedAt) },
-                    line: line, delivery: delivery)
+                    line: line, delivery: delivery, affect: m.affect?.json)
     }
 
     // MARK: - Said now, bound later
@@ -9546,6 +9617,7 @@ extension AppDelegate {
         var pendingPromptWarning: String?
         var pendingVia: String?, pendingEngine: String?
         var pendingDeliveryKind: DictationDelivery?
+        var pendingAffect: VoiceAffect.Report?
         var pendingFilms: [ScreenFilm.Result] = []
         // under `stateLock`: what he pointed at and when
         var pendingSelection: String?, pendingSelectionAt: TimeInterval?
@@ -9583,6 +9655,7 @@ extension AppDelegate {
         e.latch = latch; e.latchedMouse = latchedMouse
         e.pendingPromptWarning = pendingPromptWarning
         e.pendingVia = pendingVia; e.pendingEngine = pendingEngine; e.pendingDeliveryKind = pendingDeliveryKind
+        e.pendingAffect = pendingAffect
         e.pendingFilms = pendingFilms
         settling = false; settlingAtCaret = false; settlingFrom = 0; settleEstimate = 0; settleTake = []
         fallingBack = false; fallbackAudio = nil   // the token carries on: see `Envelope`
@@ -9593,6 +9666,7 @@ extension AppDelegate {
         pasteMode = false; caretPrompt = false; cleanSentence = false; submitAfterClean = false
         latchedAtCaret = false; cleanRedirected = false; latch = nil; latchedMouse = nil
         pendingPromptWarning = nil; pendingVia = nil; pendingEngine = nil; pendingDeliveryKind = nil
+        pendingAffect = nil
         pendingFilms = []
         stateLock.lock()
         e.contextAtWheelRelease = contextAtWheelRelease
@@ -9636,6 +9710,7 @@ extension AppDelegate {
         latch = e.latch; latchedMouse = e.latchedMouse
         pendingPromptWarning = e.pendingPromptWarning
         pendingVia = e.pendingVia; pendingEngine = e.pendingEngine; pendingDeliveryKind = e.pendingDeliveryKind
+        pendingAffect = e.pendingAffect
         pendingFilms = e.pendingFilms
         stateLock.lock()
         contextAtWheelRelease = e.contextAtWheelRelease

@@ -264,6 +264,7 @@ The journal contradicts itself over time, because it was written as things chang
 - [The About page becomes a window (2026-09-22)](#the-about-page-becomes-a-window-2026-09-22)
 - [Forward is a prompt, back is plain words (2026-09-23)](#forward-is-a-prompt-back-is-plain-words-2026-09-23)
 - [Active Terminals: the spawn menu's first row (2026-09-23)](#active-terminals-the-spawn-menus-first-row-2026-09-23)
+- [Voice affect: `[?]` where he hesitated, `[voice: hesitant]` when the sentence was (2026-09-27)](#voice-affect--where-he-hesitated-voice-hesitant-when-the-sentence-was-2026-09-27)
 
 ---
 
@@ -13445,3 +13446,92 @@ upload). **Morning:** the credits are gone until the plan renews or Victor tops 
 falls back to the local model meanwhile; the runbook gets the precondition *Engine = wispr while
 the batch runs*; the real fix is Q9 (Wispr's chord moves to right ⌘ + right ⇧ and the relay stops
 riding it), scheduled for tomorrow.
+
+## Voice affect: `[?]` where he hesitated, `[voice: hesitant]` when the sentence was (2026-09-27)
+
+Spec: `~/workspace/voice-distill/docs/voice-affect.md`, *Design propus* (research of 2026-09-26,
+two independent agents, adversarially checked). Victor's rules, decided 2026-09-26 (*"de acord"*)
+and confirmed the morning of 2026-09-27:
+
+> **tag-ul spune doar ce se pierde la transcriere.** Nu statistici, nu „cu cât peste medie", nu
+> concluzii pe care LLM-ul le trage oricum din cuvinte.
+>
+> *vorbește fără pauze = știe precis ce vrea, ton asertiv* (fără tag); *pauze, „ăăă", lent,
+> „să vedem… nu știu"* = ezită și vrea să fie ghidat cu întrebări; *supărat / nervos* = se pierde
+> complet din text și vrea să ajungă la agent.
+>
+> Și, mai important decât tag-ul global: **locul ezitării marcat în transcript** — nu „ești nesigur"
+> pe toată cererea, ci o marcă discretă (`…` / `[?]`) exact unde pauza a fost neobișnuit de lungă
+> *pentru el*: „fă un endpoint pentru… [?] clienți, cred, sau poate comenzi". Agentul întreabă
+> despre *aia*, nu despre tot.
+
+So: **exactly two global tags**, `[voice: hesitant]` and `[voice: tense]`, otherwise nothing; the
+tag carries only what the transcript lost; the **place** of the hesitation matters more than the
+tag; **the behaviour policy** (hesitant → clarifying questions, propose options, no large edits on
+a hesitant ask; tense → stop, re-read the last ask, change approach, no apologies, never *"you seem
+irritated"*) **lives in CLAUDE.md, not in the tag**.
+
+**What was built** (`VoiceAffect.swift`, pure; `VoiceAffectTests`, 16 cases):
+
+- **Per sentence, on that sentence's own words and take** — the sentence queue (Q12) means two
+  may be in flight, so nothing reads the recorder at delivery. `MicRecorder` keeps a per-hop meter
+  series (`meterHops`: `MeterHop {t, rms, voiced}`, one per 64 ms hop, `t` from `writtenFrames` on
+  the WAV's ruler, own lock, ≤ 12 000 hops ≈ 12.8 min, reset at `start`); `ElevenLabsSource.stop`
+  reads it on `audioQueue` beside `voicedSeconds` and it rides `DictationResult.voiceHops`.
+- **Measured from `words[]`**: inter-word gaps (next start − previous end, content tokens only);
+  non-lexical **fillers** (`ăăă`, `mmm`, `hm`, `ăhm`, `um`, `uh`, `er(m)`, `eh`, `aa`, `ee`, `îî` —
+  close to `timing.py`'s `FILLER` so the count matches his distribution; never `deci`, `adică`,
+  `like`; single `a`/`e` are Romanian words); **restarts** (the same word again within 1.5 s —
+  `vreau vreau`, `the the` — except emphasis/answers: `foarte foarte`, `da da`, `nu nu`, `very very`);
+  **rate** (words per second of span — `timing.py`'s `rate`, so it is comparable with his median);
+  **voiced rate** (words per voiced second from the series, filed only); **level spread** (stdev
+  of the voiced hops' dB, for *tense*, filed only unless the flag is on).
+- **`[?]`**: before the word after every gap ≥ `longPause` (≥ `boundaryPause` after `.`/`?`/`!` — a
+  breath between sentences is not a hesitation inside one; `…` is not a boundary). A gap with a
+  shutter/selection press in it (± 0.3 s of a `markerCues` time) is the gesture's and is never
+  marked. Inserted as **tokens** before `ShotMarker.place`, so a mark is a word `place` walks past
+  and can never land inside a marker; the text is rebuilt from the marked tokens only when the
+  words spell the transcript (whitespace aside) — otherwise the marks are left out with a log line.
+  The corpus copy is taken from the unmarked words.
+- **`[voice: hesitant]`**, one line right after `[Dictated in RO or EN]` in `terminalLine`, only on
+  a positive verdict: ≥ `minWords` (5) and at least `requiredSignals` (1) of — ≥ 2 marked pauses
+  **and** ≥ 3 per minute of span; (fillers + restarts) ≥ 2 **and** ≥ 8 % of words; rate < 60 % of
+  his median. The minimum counts are precision guards the brief did not name: one long pause in a
+  ten-second sentence is 6/min — a `[?]`, not a verdict.
+- **Where it applies**: a bound terminal, a spawn, the forward click's caret prompt. **Not** the
+  back click's plain sentence nor a legacy caret sentence (*what he says is what gets typed*), and
+  not the corpus. `POST /test/dictation` with `words` runs it as `deliver` does.
+- **Outbox**: `affect: {pauses: [{at, s, marked, gesture?, boundary?}] (gaps ≥ 0.4 s), words, span,
+  fillers, restarts, rate, voicedRate?, energySpreadDb?, verdict, why, thresholds, language}` — for
+  later study. The caret prompt writes no outbox line, as before, so its affect is only in the log.
+- **Switches**: `WT_VOICE_AFFECT` (env → `elevenlabs.env` → `voiceAffect` default) **on** unless
+  `0`; `WT_VOICE_TENSE` (… → `voiceTense`) **off** unless `1`. `POST /test/affect` answers the
+  verdict and the marked text from fabricated timings, touching nothing.
+
+**The thresholds are placeholders.** Defaults (`VoiceAffect.Thresholds`, every one marked TODO):
+`longPause` 1.2 s, `boundaryPause` 2.0 s, 3 long pauses/min with ≥ 2, disfluency 8 % with ≥ 2,
+rate factor 0.6 × `medianRate` — **`medianRate` is nil, so the rate signal is off** until his
+median arrives (there is no honest default for *his* median). They are read per sentence from
+`~/.walkie-talkie/voice-affect.json` (follows `--home`, re-read on change), shaped after
+`affect/timing.py --report` in voice-distill: `{"thresholds": {…hand overrides by field name…},
+"ro": {"gaps": {"p97"}, "rate": {"p50"}, "longest": {…}, …, "thresholds": {…}}, "en": {…}}`,
+layered defaults → `thresholds` → `<lang>.gaps.p97` (→ `longPause`) and `<lang>.rate.p50` (→
+`medianRate`) → `<lang>.thresholds`. **`--report` does not print pooled gaps today** — only
+`longest` (the longest gap *per clip*, whose p50 would mark half his sentences); the pooled `gaps`
+are already in `runs/timing.jsonl` and need one more line in the report (and a `--json` output) on
+the voice-distill side. The language is Scribe's `language_code`, normalised (`ron` → `ro`).
+
+**What "tense" needs, and what is stubbed.** Nothing tense is inferred from words — that was his
+rule. Arousal is the robust acoustic dimension (spec, fact 2) but needs **pitch (F0 level and
+range) and energy variance against his own baseline, per language and per microphone** (spec, fact
+3: raw acoustic features are mostly speaker identity). Only the energy half exists here — the level
+spread of the voiced hops — and it tags only behind `WT_VOICE_TENSE=1`, with a placeholder
+threshold (9 dB) and no per-microphone baseline. F0 (eGeMAPS / openSMILE, or an arousal model such
+as audEERING's w2v2 dim) is not measured anywhere in the app; valence is not attempted.
+
+**Unmeasured:** whether Scribe keeps fillers in `words[]` (if it drops them, the filler signal
+never fires and pauses carry the verdict); the local model's helper returns no word timestamps, so
+a local or fallback sentence gets no affect at all (`mlx_whisper.transcribe(word_timestamps=True)`
+would give them, at a decode cost nobody has measured); Wispr gives no timings either. **Nobody has
+shown a tone tag improves a coding agent** — the spec asks for an A/B (tag on/off) on re-dictation
+and correction rates before it is trusted.

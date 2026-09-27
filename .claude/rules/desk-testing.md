@@ -32,6 +32,7 @@ timings in `docs/loopback.md`; it takes `~/.walkie-talkie/wispr-loop.lock` — n
 | `POST /test/wrap-mode {"mode"}` | `scratchpad｜sink｜off｜auto` |
 | `POST /test/scratchpad/park` · `/test/wispr-scratchpad {"down"｜"up"｜"tap"}` · `GET/POST /test/wispr-notes` | park Wispr's Scratchpad · drive its chord (120 s dead-man) · read its note |
 | `POST /test/shot-marker` | the marker unit test: `{text, available, selections}` rewrite; `{words, cues}` placement; `{play, kind}` into Loopback |
+| `POST /test/affect` | `VoiceAffect` on fabricated timings, pure: `{words:[{text,start,end,type?}], voiced?: s \| [{t,rms,voiced}], language?, gestures?, thresholds?, tense?}` → `{hesitant, tense, tag, text (with [?]), marks, affect, thresholds}` (2026-09-27) |
 | `POST /test/wispr-state/simulate {"steps"}` | `WisprState` unit test with a fake clock |
 | `POST /test/mic {"id"}` | pick the microphone (`auto｜xlr｜mac｜rx｜bose`); answers `chosen`/`resolved`/`available`/`mark` |
 | `POST /test/mic {"device": "<name substring>"｜null}` | **process-local input override** (2026-09-26, G1): the recorder opens that CoreAudio device (e.g. `"TO Wispr"`, a Loopback), not written to `mic/choice`, gone at relaunch; `/engine.mic.override` shows it. Play a corpus WAV into the Loopback with `sounddevice` (48 kHz, 2 ch) — no speaker |

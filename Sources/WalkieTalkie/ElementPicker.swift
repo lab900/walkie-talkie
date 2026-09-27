@@ -1020,6 +1020,16 @@ final class ElementPicker {
             }
             respond(conn, 200, ["ok": true].merging(result) { _, new in new })
 
+        // `VoiceAffect` on fabricated word timings — pure, touches nothing in the
+        // running relay (2026-09-27).
+        case ("POST", "/test/affect"):
+            let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
+            guard let body = body, body["words"] is [[String: Any]] else {
+                return respond(conn, 400, ["ok": false,
+                                           "error": "expected {\"words\": [{\"text\", \"start\", \"end\"}], \"voiced\"?: s | [{t, rms, voiced}], \"language\"?, \"gestures\"?, \"thresholds\"?, \"tense\"?}"])
+            }
+            respond(conn, 200, ["ok": true].merging(VoiceAffect.test(body)) { _, new in new })
+
         case ("POST", "/test/shot-marker"):
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
             guard let body = body,

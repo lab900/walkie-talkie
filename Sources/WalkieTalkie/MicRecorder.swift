@@ -20,6 +20,20 @@ import CoreAudio
 /// in, the system's own choice otherwise) and is read at its native rate;
 /// `AVAudioConverter` does the resampling on the audio thread's buffers, and
 /// downmixes the receiver's two channels to the one Whisper wants.
+/// **One 64 ms hop of the meter, kept per take** (2026-09-27, for `VoiceAffect`).
+///
+/// `t` is seconds from the top of the WAV — the ruler `TimedWord.start` is on —
+/// taken from `writtenFrames`, not from a hop count (the meter drops the tail of
+/// each buffer that does not fill a hop, so a count would drift). `rms` is the
+/// same int16 RMS the voiced bar is judged on, `voiced` is that verdict.
+struct MeterHop: Equatable {
+    let t: Float
+    let rms: Float
+    let voiced: Bool
+    /// `MicRecorder.voicedHop` frames at 16 kHz.
+    static let seconds: TimeInterval = 1024.0 / 16000.0
+}
+
 final class MicRecorder {
 
     /// **The device the last recording actually opened**, for
@@ -255,6 +269,20 @@ final class MicRecorder {
     }
     private var take: [Int16] = []
     private let takeLock = NSLock()
+
+    /// **The take's meter, hop by hop** (2026-09-27) — pauses and level for
+    /// `VoiceAffect`, per sentence. Reset at `start`, kept after `stop` like
+    /// `lastTake`, and read at the close on the queue that closed the take (the
+    /// next sentence may start while this one uploads, Q12). Its own lock, only
+    /// held for an append or a copy; bounded at `hopCap` (~12.8 min), the rest
+    /// of a longer take goes unmetered here — the file is untouched either way.
+    var meterHops: [MeterHop] {
+        hopLock.lock(); defer { hopLock.unlock() }
+        return hops
+    }
+    private var hops: [MeterHop] = []
+    private let hopLock = NSLock()
+    private static let hopCap = 12_000
     private static let takeCap = 16000 * 120
     private var recent = [Float](repeating: 0, count: MicRecorder.recentCount)
     private var recentHead = 0
@@ -453,6 +481,7 @@ final class MicRecorder {
         // it that may all have changed since.
         voiced = 0
         takeLock.lock(); take.removeAll(keepingCapacity: true); takeLock.unlock()
+        hopLock.lock(); hops.removeAll(keepingCapacity: true); hopLock.unlock()
         quiet = 0
         live = 0
         noiseFloor = -1
@@ -739,6 +768,11 @@ final class MicRecorder {
         var spoke = false
         lock.lock()
         var floor = noiseFloor
+        // Where this buffer starts in the file: `append` advanced `writtenFrames`
+        // past it (and past any splice in front of it) just before calling here.
+        let base = Double(writtenFrames) - Double(count)
+        var series: [MeterHop] = []
+        series.reserveCapacity(count / hop)
         for start in stride(from: 0, through: count - hop, by: hop) {
             var sum: Float = 0
             for i in start..<(start + hop) {
@@ -750,11 +784,15 @@ final class MicRecorder {
             else { floor += (rms - floor) * 0.02 }             // slow release
             let bar = max(Self.voicedAbsoluteFloor, floor * pow(10, Self.voicedOverFloor / 20))
             if rms > bar { seconds += Double(hop) / 16000; spoke = true }
+            series.append(MeterHop(t: Float((base + Double(start)) / 16000), rms: rms, voiced: rms > bar))
             let over = 20 * log10(rms / bar)
             loudest = max(loudest, min(1, max(0, over / Self.levelRange)))
         }
         noiseFloor = floor
         voiced += seconds
+        hopLock.lock()
+        if hops.count < Self.hopCap { hops.append(contentsOf: series.prefix(Self.hopCap - hops.count)) }
+        hopLock.unlock()
         quiet = spoke ? 0 : quiet + Double(count) / 16000
         // Up instantly, down at a fixed rate — measured against the audio's own
         // clock, not against however many buffers the device chose to send.

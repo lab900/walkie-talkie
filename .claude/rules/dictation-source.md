@@ -5,6 +5,7 @@ paths:
   - "Sources/WalkieTalkie/LocalWhisperSource.swift"
   - "Sources/WalkieTalkie/ElevenLabsSource.swift"
   - "Sources/WalkieTalkie/ShotMarker.swift"
+  - "Sources/WalkieTalkie/VoiceAffect.swift"
   - "Sources/WalkieTalkie/WisprHistory.swift"
   - "Sources/WalkieTalkie/WisprNotes.swift"
   - "Sources/WalkieTalkie/WisprSink.swift"
@@ -293,6 +294,34 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
   1.5 s ceiling; masking is not a level problem) are in the journal.
 - **No live captions:** Scribe realtime gives timings only on committed text from a smaller model.
 
+## Voice affect: what the transcript loses (2026-09-27, `VoiceAffect`)
+
+Victor's rules (spec `~/workspace/voice-distill/docs/voice-affect.md`, *Design propus*): **two
+global tags, `[voice: hesitant]` / `[voice: tense]`, otherwise nothing**; the tag says only what
+transcription lost — no numbers, nothing concluded from the words; **more important: `[?]` WHERE
+he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag. → journal:
+*Voice affect* (2026-09-27)
+
+- **Per sentence, on its own words and take** (Q12 keeps two in flight): `MicRecorder.meterHops`
+  (64 ms hops, `t` on the WAV's ruler, ≤ 12 000, own lock) is read at the close on `audioQueue`
+  and rides `DictationResult.voiceHops`. Only ElevenLabs has `words[]`; local and Wispr get nothing.
+- **`[?]` goes in as a token before `ShotMarker.place`**, before the word after a gap ≥ `longPause`
+  (≥ `boundaryPause` after `.?!`; `…` is not a boundary). A gap holding a shutter/selection press
+  (`markerCues` ± 0.3 s) is the gesture's — never marked, so a `[?]` never sits inside a marker.
+  Text rebuilt from the marked tokens only if the words spell the transcript; the corpus copy uses
+  the unmarked words.
+- **`[voice: hesitant]` is one line right after `[Dictated in RO or EN]`** (`terminalLine`), only on
+  a positive verdict; outbox `affect: {pauses, fillers, restarts, rate, verdict, why, …}`; corpus
+  nothing. Applies to a bound terminal, a spawn, the forward click's caret prompt — never the back
+  click's plain words or a legacy caret sentence.
+- **Thresholds are placeholders** (`VoiceAffect.Thresholds`, each TODO) until voice-distill's
+  `affect/timing.py --report` percentiles land in `~/.walkie-talkie/voice-affect.json` (shape in
+  `VoiceAffect.load(from:)`; `gaps.p97` → `longPause`, `rate.p50` → `medianRate`). `medianRate`
+  nil = the rate signal is off. Every signal has a minimum count (precision before recall).
+- **Tense = the energy-spread half only**, behind `WT_VOICE_TENSE=1`; pitch/arousal is not
+  measured. Never infer either tag from the words.
+- **`POST /test/affect`** — verdict + marked text from fabricated timings; `VoiceAffectTests`.
+
 ## Every switch the dictation source reads
 
 | variable | effect |
@@ -309,6 +338,7 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
 | `WT_WISPR_HISTORY_ROUTE=0` | wait `pasteGrace` for a ⌘V before the row |
 | `WT_KEY_TRACE=1` | log every key event + verdict, keycode/pid only (`POST /test/key-trace`) |
 | `WT_MARKER_TIMESTAMPS=0` · `WT_SHOT_MARKERS=1` · `WT_MARKER_DEVICE` | timestamp markers off / spoken on / device |
+| `WT_VOICE_AFFECT=0` · `WT_VOICE_TENSE=1` | `[?]` marks + `[voice: hesitant]` off (default on) / the energy half of `[voice: tense]` on (default off); env → `elevenlabs.env` → `voiceAffect` / `voiceTense` defaults |
 | `WT_WISPR_COPY_FALLBACK=1` | re-enable `copy_last_text` — see below |
 
 ## Do not

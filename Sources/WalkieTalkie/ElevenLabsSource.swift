@@ -449,17 +449,20 @@ final class ElevenLabsSource: DictationSource {
             // `start()` can zero it (Q12: a sentence may start while this one
             // uploads) — Q8's floor is judged on this take's own speech.
             let voiced = self.meter.voicedSeconds
+            // The take's meter series, for `VoiceAffect` — same queue, same
+            // reason as `voiced`.
+            let hops = self.meter.meterHops
             self.meter.onBuffer = nil
             self.opening = nil
             DispatchQueue.main.async {
-                self.finishRecording(closed, voiced: voiced, take: t, stoppedAt: stopped, markers: markers)
+                self.finishRecording(closed, voiced: voiced, hops: hops, take: t, stoppedAt: stopped, markers: markers)
             }
         }
     }
 
     /// The tail of `stop()`, on the main queue, exactly as it always ran.
     private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?, voiced: TimeInterval,
-                                 take t: Int, stoppedAt: Date?, markers: Bool) {
+                                 hops: [MeterHop] = [], take t: Int, stoppedAt: Date?, markers: Bool) {
         guard let (wav, duration) = closed else {
             Log.info("recording discarded — under \(MicRecorder.minimumDuration)s")
             answer(t) { settlePhase(.done("empty")); didEnd?(.silent("")) }
@@ -486,14 +489,15 @@ final class ElevenLabsSource: DictationSource {
                     return
                 }
                 self.answer(t) { self.uploaded(outcome, wav: wav, duration: duration, voiced: voiced,
-                                               startedAt: startedAt, stoppedAt: stoppedAt, markers: markers) }
+                                               hops: hops, startedAt: startedAt, stoppedAt: stoppedAt,
+                                               markers: markers) }
             }
         }
     }
 
     /// One take's upload answered — on main, inside `answer(take)`.
     private func uploaded(_ outcome: Outcome, wav: URL, duration: TimeInterval, voiced: TimeInterval,
-                          startedAt: Date, stoppedAt: Date?, markers: Bool) {
+                          hops: [MeterHop] = [], startedAt: Date, stoppedAt: Date?, markers: Bool) {
         let elapsed = Date().timeIntervalSince(startedAt)
         switch outcome {
         case .failure(let why):
@@ -539,7 +543,8 @@ final class ElevenLabsSource: DictationSource {
                 text: r.text, language: r.language, audio: wav, duration: duration,
                 engine: "elevenlabs", warning: Self.warning(for: r), delivery: .route,
                 via: "elevenlabs-scribe", markersInAudio: markers,
-                engineLabel: self.displayModelName, words: r.words))
+                engineLabel: self.displayModelName, words: r.words,
+                voiceHops: hops.isEmpty ? nil : hops))
             self.settlePhase(.done("formatted"))
             self.didEnd?(.delivered)
         }

@@ -348,7 +348,11 @@ enum Outbox {
                      /// were both *the words landed somewhere else*, and nothing
                      /// written down could tell one route from another
                      /// afterwards.
-                     delivery: [String: Any]? = nil) {
+                     delivery: [String: Any]? = nil,
+                     /// **What the transcript lost** (`VoiceAffect.Report.json`,
+                     /// 2026-09-27): `{pauses, fillers, restarts, rate, verdict, …}`,
+                     /// filed for later study. The corpus row gets nothing.
+                     affect: [String: Any]? = nil) {
         var obj: [String: Any] = [
             "ts": ISO8601DateFormatter().string(from: Date()),
             "kind": kind,
@@ -374,6 +378,7 @@ enum Outbox {
         if !elements.isEmpty { obj["elements"] = elements }
         if let line = line, !line.isEmpty { obj["line"] = line }
         if let delivery = delivery, !delivery.isEmpty { obj["delivery"] = delivery }
+        if let affect = affect, !affect.isEmpty { obj["affect"] = affect }
 
         queue.async {
             // JSONSerialization (never string interpolation): dictated text and

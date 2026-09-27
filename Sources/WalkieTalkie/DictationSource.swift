@@ -303,6 +303,12 @@ struct DictationResult {
     /// costs only the fallback everything had before: the frames stay listed
     /// under the sentence by their offsets. → `ShotMarker.place`
     var words: [TimedWord]? = nil
+
+    /// **This take's meter, hop by hop** (`MicRecorder.meterHops`, 2026-09-27),
+    /// read at the close on the queue that closed the take. Read by
+    /// `VoiceAffect` beside `words` — the voiced seconds for the rate and the
+    /// level spread for *tense*. Nil for a source that records nothing itself.
+    var voiceHops: [MeterHop]? = nil
 }
 
 /// **Who inserts the text.**
