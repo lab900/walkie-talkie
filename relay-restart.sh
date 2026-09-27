@@ -38,7 +38,9 @@
 #    as a fallback, and again **once the process is gone** (2026-09-26, TD12): an
 #    app being replaced leaves the binding it had *at quit* there, so a bind made
 #    while the quit was deferred is the one put back. Cleared at launch. For tmux
-#    the line is `ttysNNN %N` and the pane travels too (TD13).
+#    the line is `ttysNNN %N` and the pane travels too (TD13); a Terminal tab adds
+#    `owner=PID@START` on a second line (TD21) and a tty now hosted by another tab
+#    is not re-bound.
 # 3. **Quit gracefully: SIGTERM**, which since 2026-09-23 the app routes through
 #    `applicationShouldTerminate` — and if a sentence started in the second
 #    between the gate and the signal, the app refuses the quit and goes when the
@@ -82,6 +84,14 @@ relay_bound_pane() {
   awk '$2 ~ /^%/ {print $2} {exit}' "$RELAY_BOUND_FILE"
 }
 
+# The Terminal tab's identity (TD21, 2026-09-27): `owner=PID@START` on the second
+# line, or nothing (tmux, or a file from before). The app refuses the restore when
+# the tty is now hosted by a different tab — the bound one was closed meanwhile.
+relay_bound_owner() {
+  [ -f "$RELAY_BOUND_FILE" ] || return 0
+  awk '{for (i = 1; i <= NF; i++) if ($i ~ /^owner=/) {print $i; exit}}' "$RELAY_BOUND_FILE"
+}
+
 # Put the binding back on the app that has just come up, addressed by tty.
 #
 # **Ten seconds per attempt, not one** (2026-09-09). A bind is one to two
@@ -91,12 +101,12 @@ relay_bound_pane() {
 # Victor had made by hand, another redirecting a caret dictation. The retry is for
 # a port that is not open yet, which fails in milliseconds.
 relay_rebind() {
-  local tty="${1:-}" pane="${2:-}" port
+  local tty="${1:-}" pane="${2:-}" owner="${3:-}" port
   [ -n "$tty" ] || return 0
   for _ in $(seq 1 20); do
     for port in 8917 8918 8919; do
       if curl -fsS -m 10 -X POST "127.0.0.1:$port/bind" \
-           -d "{\"tty\":\"$tty\",\"pane\":\"$pane\"}" >/dev/null 2>&1; then
+           -d "{\"tty\":\"$tty\",\"pane\":\"$pane\",\"owner\":\"$owner\"}" >/dev/null 2>&1; then
         echo "→ re-bound to $tty${pane:+ $pane}"
         return 0
       fi
@@ -188,7 +198,7 @@ relay_restart() {
   echo "🔍 waiting until Walkie Talkie (pid $pid) is idle and quiet for ${RELAY_QUIET:-10} s…"
   relay_wait_idle || return $?
 
-  local tty pane; tty="$(relay_bound_tty)"; pane="$(relay_bound_pane)"
+  local tty pane owner; tty="$(relay_bound_tty)"; pane="$(relay_bound_pane)"; owner="$(relay_bound_owner)"
   if [ "$dry" = 1 ]; then
     echo "🧪 dry run: the gate is open — would quit pid $pid, relaunch, and re-bind ${tty:-nothing}"
     return 0
@@ -198,15 +208,15 @@ relay_restart() {
   relay_quit "$pid" || return $?
   # The binding at quit time, when the app left one (TD12) — a bind made while
   # the quit waited for a sentence wins over the one read before the SIGTERM.
-  local at_quit at_pane; at_quit="$(relay_bound_tty)"; at_pane="$(relay_bound_pane)"
+  local at_quit at_pane at_owner; at_quit="$(relay_bound_tty)"; at_pane="$(relay_bound_pane)"; at_owner="$(relay_bound_owner)"
   if [ -n "$at_quit" ]; then
     if [ "$at_quit $at_pane" != "$tty $pane" ]; then
       echo "↻ the binding changed while the quit waited — putting back $at_quit${at_pane:+ $at_pane} instead"
     fi
-    tty="$at_quit"; pane="$at_pane"
+    tty="$at_quit"; pane="$at_pane"; owner="$at_owner"
   fi
   relay_launch
-  relay_rebind "$tty" "$pane"
+  relay_rebind "$tty" "$pane" "$owner"
 }
 
 # Sourced for the functions, run for the restart.

@@ -135,7 +135,8 @@ Rules for pointing the relay at a terminal, delivering into it, and keeping that
 
 - **Three answers: `.gone` only on a definite answer, `.unknown` on silence, and `.unknown` does nothing.** *I could not ask* must never be spelled like *it is not there*. → journal: *A terminal that was closed lets go of the binding by itself (2026-09-07)*
 - **Test a Terminal tab on *any* process on its tty — deliberately weaker than the delivery guard.** `foregroundCommand` answers nil for a live tab whose processes are all backgrounded; there it costs one refused delivery, here it would cost the binding silently. tmux is asked about the pane, never the tty. An IDE target is two questions: `NSRunningApplication` on the bundle id, and `IDEBridge.alive` — only a listener that **answered** `ok: false` may unbind. → journal: *A terminal that was closed lets go of the binding by itself (2026-09-07)*
-- **Never while a sentence is in the air** (`listening || held != nil`), and let go quietly, without `report(.targetGone)`'s six-second warning. A reused tty can still point a binding at a stranger; that hole is out of this check's reach. → journal: *A terminal that was closed lets go of the binding by itself (2026-09-07)*
+- **Never while a sentence is in the air** (`listening || held != nil`), and let go quietly, without `report(.targetGone)`'s six-second warning. → journal: *A terminal that was closed lets go of the binding by itself (2026-09-07)*
+- **A tty is a number the kernel reuses; the binding is the tab** (2026-09-27, batch 7, TD21). `Target.owner` (`TTYOwner`) is the tab's `login` — the root of the tty's process tree, parent Terminal.app, living exactly as long as the tab — by pid **and** start time (`ps -o lstart` under `LC_ALL=C`: the column is localised, `Dum 27 Sep` under ro_RO), read at bind by `tabOwner(onTTY:)`. The 10 s poll answers `.replaced` when the tty has processes but another owner — unbind, log `… now belongs to another tab (login N, bound to login M)`, and flash *the bound tab was closed — unbound* (unlike a plain close, nothing on screen shows it). `deliver` checks the owner first, so a latched sentence whose tab was replaced is `.targetGone` → the caret (Q4), never the stranger. A window id or tab index would not survive a tab dragged between windows; the login does. A binding whose owner could not be read keeps the old any-process test. Before this, TD21: the new tab got `ttys000` inside the poll and the sentence landed in it. → journal: *Fixes to the test plan's findings, batch 7*
 
 ## Loopback routes and restart (`relay-restart.sh`)
 
@@ -159,6 +160,12 @@ Rules for pointing the relay at a terminal, delivering into it, and keeping that
 - **Written from `showBound` alone, one line, a file not a route** — one word, or two for tmux:
   `ttys006 %1`, the client's tty and the bound pane (`Handle.restoreKey`, 2026-09-26, TD13), so a
   restore binds that pane rather than the active one. Every reader takes `$1`. — the bar re-renders every second in every session. → journal: *The bound tty is published, so the status line can wear a microphone*
+- **A Terminal.app tab adds `owner=PID@START` on a second line** (`Target.restoreRecord`, TD21) —
+  never on the first: the status line `read -r`s the **whole first line** and compares it with its
+  own tty, so a second word there takes the microphone off the bound row. `relay-restart.sh`
+  (`relay_bound_owner`), the Dock tile's `.rebind` and `POST /bind {"owner"}` carry it; a restore
+  whose tty is now hosted by another tab is refused (409 / `bind: ttysNNN now belongs to another
+  tab … not restored`). A file without the line restores by tty as before.
 - **Removed, never emptied; cleared at launch as well as at quit** — except a quit that is a restart
   (`.replacing` fresh), which leaves the binding at quit for `relay-restart.sh` (TD12). A marker outliving the process claims a binding that went with it. → journal: *The bound tty is published, so the status line can wear a microphone*
 

@@ -168,6 +168,26 @@ final class TerminalBinding {
         /// current position of the target.
         let sourceFrame: CGRect?
         let boundAt: Date
+        /// **Which tab this is, beyond the tty number** (2026-09-27, TD21) — the
+        /// `login` process Terminal.app started for the tab, by pid and start
+        /// time. A tty is a number the kernel hands out again: a tab closed and a
+        /// new one opened within seconds gets the same `ttysNNN`, and a check
+        /// that asks only *is anyone on this tty* keeps the binding pointed at
+        /// the stranger. nil for every other kind of target, and for a tab whose
+        /// owner could not be read (the check then degrades to the old one).
+        var owner: TTYOwner? = nil
+
+        /// `bound-tty` and the Dock-restart handoff: `Handle.restoreKey`, plus
+        /// the owner **on a second line** for a Terminal.app tab. Not beside the
+        /// tty on the first line: the status line reads the whole first line
+        /// (`read -r _bt`) and compares it with its own tty, so a second word
+        /// there would take the microphone off every bound row. Every reader of
+        /// the first word (`awk '{print $1; exit}'`, `.split()[:1]`) is unchanged.
+        var restoreRecord: String? {
+            guard let key = handle.restoreKey else { return nil }
+            guard case .terminalApp = handle, let owner = owner else { return key }
+            return key + "\n" + owner.token
+        }
 
         /// Whether delivery to this target can be checked before it happens.
         /// `.keystroke` cannot — see `foregroundIsShell`.
@@ -180,6 +200,33 @@ final class TerminalBinding {
             case .ide(let h): return h.shellPID != nil
             case .terminalApp, .tmux: return true
             }
+        }
+    }
+
+    /// **The identity of the Terminal.app tab on a tty** (2026-09-27, TD21): the
+    /// root of the tty's process tree — the `login` Terminal.app starts for every
+    /// tab, which lives exactly as long as the tab — by pid **and** start time
+    /// (a pid alone is reused too). Survives the tab being dragged to another
+    /// window, which a window id or a tab index would not.
+    struct TTYOwner: Equatable {
+        let pid: Int32
+        /// Epoch seconds, from `ps -o lstart` (one-second resolution).
+        let started: Int
+
+        /// `owner=12345@1758852383` — one whitespace-free word, for `bound-tty`,
+        /// `.rebind` and `POST /bind {"owner"}`.
+        var token: String { "owner=\(pid)@\(started)" }
+
+        init(pid: Int32, started: Int) { self.pid = pid; self.started = started }
+
+        /// Parses `token`, with or without the `owner=` prefix; nil on anything else.
+        init?(token: String) {
+            var t = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.hasPrefix("owner=") { t.removeFirst("owner=".count) }
+            let parts = t.split(separator: "@")
+            guard parts.count == 2, let pid = Int32(parts[0]), let started = Int(parts[1]),
+                  pid > 0, started > 0 else { return nil }
+            self.init(pid: pid, started: started)
         }
     }
 
@@ -319,7 +366,14 @@ final class TerminalBinding {
     ///
     /// `pane`: the tmux pane a restore names (`Handle.restoreKey`, TD13) — bound
     /// when it still exists, instead of whichever pane is active now.
-    func bind(tty: String, pane: String? = nil, spawned: Bool = false) -> Target? {
+    ///
+    /// `owner`: the tab identity a restore remembers (`Target.owner`, TD21). When
+    /// given and the tty is now hosted by a different tab — the bound one was
+    /// closed during the restart and the number handed to a new tab — nothing is
+    /// bound: a restore must not point the relay at a stranger. An old
+    /// `bound-tty` without the second line passes nil and binds as before.
+    func bind(tty: String, pane: String? = nil, owner expected: TTYOwner? = nil,
+              spawned: Bool = false) -> Target? {
         let device = Self.devicePath(tty)
         let short = (device as NSString).lastPathComponent
         let tabs = Self.liveTitles()
@@ -332,6 +386,11 @@ final class TerminalBinding {
                                          fallbackName: "Terminal", bundleID: "com.apple.Terminal",
                                          pane: pane)
         else { return nil }
+        if let expected = expected, case .terminalApp = bound.handle,
+           let now = bound.owner, now != expected {
+            Log.error("bind: \(short) now belongs to another tab (login \(now.pid), was \(expected.pid)) — the bound tab was closed, not restored")
+            return nil
+        }
         adopt(bound, spawned: spawned)
         return bound
     }
@@ -406,10 +465,12 @@ final class TerminalBinding {
 
         let short = (tty as NSString).lastPathComponent
         let folder = Self.sessionLabel(onTTY: tty)
+        let owner = Self.tabOwner(onTTY: tty)
+        if owner == nil { Log.error("bind: could not read the owner of \(short) — tty reuse will not be caught for this binding") }
         return Target(handle: .terminalApp(tty: tty), label: folder ?? fallbackName,
                       address: short, appName: Self.display(fallbackName), bundleID: bundleID,
                       folder: folder, title: title,
-                      sourceFrame: frame, boundAt: Date())
+                      sourceFrame: frame, boundAt: Date(), owner: owner)
     }
 
     /// Re-read the two parts of a binding that move under it: what the terminal
@@ -491,6 +552,11 @@ final class TerminalBinding {
         case gone(String)
         /// The question could not be answered, which is not the same as *no*.
         case unknown
+        /// **The tty is alive but hosts a different tab** (2026-09-27, TD21):
+        /// the bound tab was closed and its number handed to a new one. Gone
+        /// for the binding's purposes — but said out loud, because nothing on
+        /// screen shows it: the chip's `ttysNNN` still names a live tab.
+        case replaced(String)
     }
 
     func checkAlive() -> Liveness {
@@ -504,8 +570,16 @@ final class TerminalBinding {
             // one refused delivery that says so out loud; here it would cost the
             // binding, silently, while Victor is not looking. A tab that is
             // still open has a shell in it, so this is the fact worth asking for.
-            return Self.hasProcesses(onTTY: tty)
-                ? .alive : .gone("\(target.address) is gone")
+            guard Self.hasProcesses(onTTY: tty) else { return .gone("\(target.address) is gone") }
+            // **…and the same tab still hosts it** (2026-09-27, TD21). Processes
+            // on the tty used to be the whole answer, and a tty is reused: a tab
+            // closed and another opened inside the 10 s poll put the binding on
+            // the stranger, silently. The owner is read at bind; a binding
+            // without one (unreadable then) keeps the old, weaker test.
+            guard let owner = target.owner else { return .alive }
+            guard let now = Self.tabOwner(onTTY: tty) else { return .unknown }
+            return now == owner ? .alive
+                : .replaced("\(target.address) now belongs to another tab (login \(now.pid), bound to login \(owner.pid))")
 
         case .tmux(let pane, _):
             // The pane, never the tty: the tty is the outer Terminal tab, which
@@ -542,6 +616,46 @@ final class TerminalBinding {
         let device = (tty as NSString).lastPathComponent
         return clean(run("/bin/ps", ["-t", device, "-o", "pid="])) != nil
     }
+
+    /// **The tab on a tty, as its `TTYOwner`** — the root of the tty's process
+    /// tree: the processes whose parent is not on the tty. For a Terminal.app tab
+    /// that is its `login` (parent: Terminal); preferred by name, because a
+    /// process disowned by an earlier tab on the same number can linger as a
+    /// second root. Among several `login`s (or none), the newest — the tab
+    /// showing the tty now. nil when nothing is on the tty or `ps` cannot say.
+    static func tabOwner(onTTY tty: String) -> TTYOwner? {
+        let device = (tty as NSString).lastPathComponent
+        // `LC_ALL=C`: `lstart` is spelled in the locale (`Dum 27 Sep 2026 09:06:37`
+        // under ro_RO, measured), and a GUI app's locale is whatever launchd gave it.
+        guard let out = run("/bin/ps", ["-t", device, "-o", "pid=,ppid=,lstart=,comm="],
+                            environment: ["LC_ALL": "C", "PATH": "/usr/bin:/bin"]) else { return nil }
+        struct Row { let pid: Int32; let ppid: Int32; let started: Int; let comm: String }
+        var rows: [Row] = []
+        for line in out.components(separatedBy: "\n") {
+            let f = line.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+            // pid ppid Dow Mon DD HH:MM:SS YYYY comm…
+            guard f.count >= 8, let pid = Int32(f[0]), let ppid = Int32(f[1]),
+                  let started = lstartFormatter.date(from: f[3...6].joined(separator: " "))
+            else { continue }
+            rows.append(Row(pid: pid, ppid: ppid, started: Int(started.timeIntervalSince1970),
+                            comm: f[7...].joined(separator: " ")))
+        }
+        let onTTY = Set(rows.map(\.pid))
+        let roots = rows.filter { !onTTY.contains($0.ppid) }
+        let logins = roots.filter { ($0.comm as NSString).lastPathComponent == "login" }
+        let pick = (logins.isEmpty ? roots : logins).max { ($0.started, $0.pid) < ($1.started, $1.pid) }
+        return pick.map { TTYOwner(pid: $0.pid, started: $0.started) }
+    }
+
+    /// `ps -o lstart`'s `Sep 26 01:26:23 2026` (the weekday dropped by the caller),
+    /// in the Mac's own zone — the only thing that matters is that bind and poll
+    /// parse it the same way.
+    private static let lstartFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MMM d HH:mm:ss yyyy"
+        return f
+    }()
 
     private static func isRunning(bundleID: String) -> Bool {
         guard !bundleID.isEmpty else { return true }
@@ -599,6 +713,14 @@ final class TerminalBinding {
 
         switch target.handle {
         case .terminalApp(let tty):
+            // **The tab, not the number** (TD21): a latched or bound tab that was
+            // closed and whose tty a new tab took is gone — the words go to the
+            // caret (Q4), never into the stranger.
+            if let owner = target.owner, let now = Self.tabOwner(onTTY: tty), now != owner {
+                Log.error("⌨️ \(target.address) now belongs to another tab (login \(now.pid), bound to login \(owner.pid)) — not typing into it")
+                unbind()
+                return .targetGone("the bound tab was closed (\(target.address) is another tab now)")
+            }
             let foreground = Self.foregroundCommand(onTTY: tty)
             Log.info("⌨️ \(target.address) foreground=\(foreground ?? "nothing") — \(line.count) chars")
             switch foreground {
@@ -1859,10 +1981,12 @@ final class TerminalBinding {
     /// Trimmed stdout, or nil on a non-zero exit — so every caller can treat
     /// "it failed" and "it said nothing" as the same thing, which for all of
     /// them it is.
-    private static func run(_ path: String, _ args: [String]) -> String? {
+    private static func run(_ path: String, _ args: [String],
+                            environment: [String: String]? = nil) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
+        if let environment = environment { process.environment = environment }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

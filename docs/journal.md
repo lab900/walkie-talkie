@@ -13624,3 +13624,38 @@ live check's 0 s back-click take went to the local model too.
   ~3.5 s voiced, 3.3–3.6 s logged live) replaces `CLIP_EN` in every case whose expectation is
   *the fallback delivers*: TL11, TL12 (first sentence), TL13, TL14, TR9, TR10, TR11, TR12, TR14's
   second sentence. TL16's expectation names batch 7.
+
+### 2. TD21 — a reused tty no longer moves the binding: the binding is the tab
+
+TD21 was reachable on the host for the first time this morning: the witness tab closed, Terminal
+handed `ttys000` to the next tab within the 10 s poll, `checkAlive` saw processes on the tty and
+kept the binding, and the sentence landed in the stranger's tab. The rule file had said so since
+2026-09-07 (*"A reused tty can still point a binding at a stranger; that hole is out of this
+check's reach"*).
+
+- **The identity is the tab's `login`, by pid and start time** (`TerminalBinding.TTYOwner`,
+  `tabOwner(onTTY:)`): the root of the tty's process tree (`ps -t ttysNNN -o pid=,ppid=,lstart=,comm=`,
+  the rows whose parent is not on the tty; a `login` preferred — its parent is Terminal.app and it
+  lives exactly as long as the tab; the newest when there are several). Not `id of window` / a tab
+  index: a tab dragged to another window keeps its tty and its login and changes both of those.
+  `ps` runs under `LC_ALL=C` — `lstart` is localised (`Dum 27 Sep 2026 09:06:37` under ro_RO,
+  measured) and a GUI app's locale is whatever launchd gave it.
+- Read at bind (`terminalTarget` → `Target.owner`; a failed read logs and keeps the old,
+  weaker test for that binding). **The 10 s poll** answers a new `Liveness.replaced` when the tty
+  has processes but another owner: `📍 ttys001 now belongs to another tab (login 88444, bound to
+  login 88128) — the bound tab was closed; letting the binding go`, the unbind, and the flash
+  *⚠️ the bound tab was closed — unbound* — said out loud, unlike a plain close, because the chip's
+  `ttysNNN` still names a live tab. **`deliver`** checks the owner first, so a latched sentence
+  whose tab was replaced is `.targetGone("the bound tab was closed (ttysNNN is another tab now)")`
+  → the caret (Q4), never the stranger. The poll still never runs while a sentence is in the air.
+- **Restore after relaunch keeps working, and refuses a stranger.** `bound-tty` gets the owner on a
+  **second line** (`Target.restoreRecord`: `ttys000\nowner=91816@1790489509`) — not beside the tty,
+  because `victor-statusline` `read -r`s the whole first line and compares it with its own tty; a
+  second word there would take the microphone off every bound row. `relay-restart.sh`
+  (`relay_bound_owner`), `docs/shoot-overlay-states.sh`, the Dock tile's `.rebind` and
+  `POST /bind {"owner"}` carry it; `bind(tty:pane:owner:)` refuses a tty now hosted by another tab
+  (`bind: ttysNNN now belongs to another tab … not restored`, 409). A file without the line (an
+  old one, tmux, IDE) restores by tty as before. `GET /test/state.bound.owner` shows it.
+- Checked by hand on the installed build: bind → `bound-tty` = `'ttys000\nowner=91816@1790489509'`;
+  `POST /bind` with `owner=1@1` → **409**, with its own owner → 200, with none → 200;
+  `./relay-restart.sh` → `re-bound to ttys000`, owner unchanged. `TabOwnerTests` (3) pass.

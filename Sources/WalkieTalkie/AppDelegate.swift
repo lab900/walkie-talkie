@@ -2177,8 +2177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // caret sentence off the caret (`pasteMode`) and a spawn off its new
         // window (`spawnPending`) — the two take-backs that exist for *his*
         // bind mid-sentence. A restore is nobody pointing at anything.
-        picker.onBindTTY = { [weak self] tty, pane in
-            guard let self = self, let bound = self.terminal.bind(tty: tty, pane: pane) else { return nil }
+        picker.onBindTTY = { [weak self] tty, pane, owner in
+            guard let self = self,
+                  let bound = self.terminal.bind(tty: tty, pane: pane,
+                                                 owner: owner.flatMap(TerminalBinding.TTYOwner.init(token:)))
+            else { return nil }
             Log.info("📍 re-bound to \(bound.address) by request")
             DispatchQueue.main.async { [weak self] in self?.showBound(bound, deliberate: false) }
             return Self.describe(bound)
@@ -5824,10 +5827,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let busy = listening || held != nil
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self = self else { return }
-            if !busy, case .gone(let what) = self.terminal.checkAlive() {
-                Log.info("📍 \(what) — letting the binding go")
-                self.unbindTerminal()
-                return
+            if !busy {
+                switch self.terminal.checkAlive() {
+                case .gone(let what):
+                    Log.info("📍 \(what) — letting the binding go")
+                    self.unbindTerminal()
+                    return
+                case .replaced(let what):
+                    // **TD21 (2026-09-27): the tty was handed to a new tab.** Said
+                    // out loud, unlike a plain close: the chip's `ttysNNN` still
+                    // names a live tab, so nothing on screen would show that the
+                    // binding is not his any more.
+                    Log.info("📍 \(what) — the bound tab was closed; letting the binding go")
+                    self.unbindTerminal()
+                    DispatchQueue.main.async { self.overlay.flash("⚠️ the bound tab was closed — unbound", duration: 5) }
+                    return
+                case .alive, .unknown:
+                    break
+                }
             }
             guard let updated = self.terminal.refreshBinding() else { return }
             // **Not deliberate**: this is the same binding with a fresher name
@@ -5963,8 +5980,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// fact in the file.
     private func publishBinding(_ target: TerminalBinding.Target?) {
         // `ttysNNN`, or `ttysNNN %N` for tmux — the pane a restore must bind
-        // (TD13). The first word stays the tty for every `$1` reader.
-        Outbox.publishBound(tty: target?.handle.restoreKey)
+        // (TD13). The first word stays the tty for every `$1` reader. A
+        // Terminal.app tab adds its owner on a second line (TD21, `restoreRecord`).
+        Outbox.publishBound(tty: target?.restoreRecord)
     }
 
     /// The destination app's icon, drawn down to the row height it has to sit in.
@@ -6174,6 +6192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                   "guarded": target.isGuarded]
         if let folder = target.folder { obj["folder"] = folder }
         if let title = target.title { obj["title"] = title }
+        if let owner = target.owner { obj["owner"] = owner.token }
         return obj
     }
 
@@ -8690,7 +8709,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func restartNow() {
         // Read before anything stands this instance down: `bound-tty` is cleared
         // at quit *and* at launch, so the tty has to travel out of band.
-        let tty = terminal.target?.handle.restoreKey
+        let tty = terminal.target?.restoreRecord
         Relaunch.stashBinding(tty: tty)
         Log.info(tty.map { "↻ restarting — the binding to \($0) travels with it" }
                  ?? "↻ restarting — nothing bound to put back")
@@ -8725,11 +8744,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func restoreBinding(tty: String, attempt: Int = 1) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            // `tty` is a `Handle.restoreKey`: `ttysNNN`, or `ttysNNN %N` for a
-            // tmux pane (TD13).
-            let parts = tty.split(separator: " ").map(String.init)
-            if let bound = self.terminal.bind(tty: parts.first ?? tty,
-                                              pane: parts.count > 1 ? parts[1] : nil) {
+            // `tty` is a `Target.restoreRecord`: `ttysNNN`, `ttysNNN %N` for a
+            // tmux pane (TD13), and `owner=PID@START` on a second line for a
+            // Terminal.app tab (TD21) — a file from before either is just the tty.
+            let parts = tty.split(whereSeparator: { $0 == " " || $0 == "\n" }).map(String.init)
+            let pane = parts.dropFirst().first { $0.hasPrefix("%") }
+            let owner = parts.dropFirst().first { $0.hasPrefix("owner=") }.flatMap(TerminalBinding.TTYOwner.init(token:))
+            if let bound = self.terminal.bind(tty: parts.first ?? tty, pane: pane, owner: owner) {
                 Log.info("📍 re-bound to \(bound.address) after the restart")
                 // Not deliberate — a restore is not a gesture (TD5, TD6).
                 DispatchQueue.main.async { [weak self] in self?.showBound(bound, deliberate: false) }
@@ -8769,7 +8790,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // this process is gone and cleared by the instance that comes up. It was
         // read before the SIGTERM, so a bind made while the quit was deferred
         // (a sentence finishing) was restored as the binding before it.
-        Outbox.publishBound(tty: SingleInstance.beingReplaced() ? terminal.target?.handle.restoreKey : nil)
+        Outbox.publishBound(tty: SingleInstance.beingReplaced() ? terminal.target?.restoreRecord : nil)
         guard !SingleInstance.beingReplaced() else {
             Log.info("terminating to make way for a new instance — no session_end")
             return

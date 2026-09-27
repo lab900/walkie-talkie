@@ -235,8 +235,10 @@ final class ElementPicker {
     /// restarting while a terminal is bound is fine, *"ideal ar fi să-l re-legi
     /// la același terminal automat"* — and the frontmost window at the end of a
     /// build is whatever the build was watched in, which is exactly not it.
-    /// `(tty, pane)` — the pane only for a tmux restore (`Handle.restoreKey`).
-    var onBindTTY: ((String, String?) -> [String: Any]?)?
+    /// `(tty, pane, owner)` — the pane only for a tmux restore (`Handle.restoreKey`),
+    /// the owner (`owner=PID@START`, TD21) only for a Terminal.app tab whose
+    /// `bound-tty` carried one: a tty now hosted by another tab is then refused.
+    var onBindTTY: ((String, String?, String?) -> [String: Any]?)?
     var onUnbind: (() -> Void)?
     /// The current binding, for `GET /target` — so a caller can ask without
     /// changing anything.
@@ -762,7 +764,8 @@ final class ElementPicker {
             if let body = try? JSONSerialization.jsonObject(with: request.body) as? [String: Any],
                let tty = body["tty"] as? String, !tty.isEmpty {
                 let pane = (body["pane"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                guard let described = onBindTTY?(tty, pane) else {
+                let owner = (body["owner"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                guard let described = onBindTTY?(tty, pane, owner) else {
                     return respond(conn, 409, ["ok": false, "error": "no terminal on \(tty)"])
                 }
                 return respond(conn, 200, ["ok": true].merging(described) { _, new in new })
