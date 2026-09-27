@@ -139,7 +139,7 @@ yields to `--label`).
   80 pt band across the top of the screen under the pointer (below the menu bar), white bold 38 pt
   with a black outline and shadow, like a film subtitle. Victor: *"îl scoți așadar din tooltip"*.
   **The visible text stays centred** (since 07:50): first words fade in at the middle, new words
-  are appended on the right fading in, an eraser (**5 s idle** since 14:20 — *"să nu dispară
+  are appended on the right, an eraser (**5 s idle** since 14:20 — *"să nu dispară
   atât de repede"*; 2 s before) stings the line from the left **letter by letter** (a word the
   160 pt soft edge crosses gets one opacity per glyph, via a `destinationIn` mask inside the
   word's one transparency layer — never a layer per glyph: a glyph's outline reaches ~4.5 pt
@@ -148,15 +148,26 @@ yields to `--label`).
   the centred position with no lag**: an appended word counts for the centring only as far as it
   has come in (`appear`, τ `reflow`, slower for a word so long it would ask more than 0.7 `vMax`),
   and the goal's motion frame to frame is fed forward — measured 0 pt off centre while narrow,
-  never past the margin once wide, at 0.4 s/word (it was 109 pt and 271 pt). A fresh line (first
+  never past the margin once wide, at 0.4 s/word (it was 109 pt and 271 pt). **Since 2026-09-27
+  words enter letter by letter, the eraser's mirror** (*"the entering text at right should fade in
+  character by character (the same way it fades out at the left) ⇒ with less 'shocks' to the
+  move"*): an entry front with the same 160 pt soft edge sweeps each appended word at
+  `revealSpeed` 320 pt/s (faster only to clear a backlog within `revealCatchUp` 0.8 s, ≤ 0.7
+  `vMax`), per word (`reveal`, points from its left edge, `nil` once in) so a correction that
+  lengthens the line never re-hides letters; a burst is one continuous edge. `appear` is now the
+  word's revealed ink (mean glyph opacity, C¹ in the front), so the line makes room exactly as the
+  letters arrive — no width reserved for an invisible word, no velocity step at a word's start or
+  end. A fresh line grows from the middle outward. Corrections keep their swap (not lettered).
+  `GET /test/state.liveCaption.opacity` is solidity × ink (what the eye sees); `reveal` is the
+  front per word; `glyphAlphas` covers both soft edges. A fresh line (first
   words, after a full wipe, or a revision past the dropped words) is placed centred **at rest**
-  and carries nothing of the old one. Opacity eases at `fadeIn` 0.22 s. **The band opens only when
+  and carries nothing of the old one. The provisional gradient eases at `fadeIn` 0.22 s. **The band opens only when
   the sentence's live session is up** (`DictationSource.didOpenLive`/`liveOpen`) — never for a
   sentence with no key or a socket that never opened. No ticker, no entry from the right edge. `RelayWindow`
   keeps only `setLiveCaptionOpen`/`setLiveCaption` as forwarders (so `AppDelegate` and
   `POST /test/live-caption` are unchanged) and `setListening(false)` closes the band. The ticker's
   numbers are `GET /test/state.liveCaption` (`anchor`, `velocity`, `reflowing`, `ghosts`,
-  `correcting`, `visibleWidth`, `appear`). The 2026-09-25 `💬` row (fixed 360 pt window, 7 words, 0.28 s slide) is gone with
+  `correcting`, `visibleWidth`, `appear`, `reveal`). The 2026-09-25 `💬` row (fixed 360 pt window, 7 words, 0.28 s slide) is gone with
   its `listening-live` shot. **Never put it back on the chip.**
   → journal: *The live caption is a subtitle band (2026-09-26)*
 
