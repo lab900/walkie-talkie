@@ -265,6 +265,7 @@ The journal contradicts itself over time, because it was written as things chang
 - [Forward is a prompt, back is plain words (2026-09-23)](#forward-is-a-prompt-back-is-plain-words-2026-09-23)
 - [Active Terminals: the spawn menu's first row (2026-09-23)](#active-terminals-the-spawn-menus-first-row-2026-09-23)
 - [Voice affect: `[?]` where he hesitated, `[voice: hesitant]` when the sentence was (2026-09-27)](#voice-affect--where-he-hesitated-voice-hesitant-when-the-sentence-was-2026-09-27)
+- [Fixes to the test plan's findings, batch 7 (2026-09-27)](#fixes-to-the-test-plans-findings-batch-7-2026-09-27)
 
 ---
 
@@ -13659,3 +13660,35 @@ check's reach"*).
 - Checked by hand on the installed build: bind → `bound-tty` = `'ttys000\nowner=91816@1790489509'`;
   `POST /bind` with `owner=1@1` → **409**, with its own owner → 200, with none → 200;
   `./relay-restart.sh` → `re-bound to ttys000`, owner unchanged. `TabOwnerTests` (3) pass.
+
+### 3. The halo's start burst lives in voice-halo, where the build reads it
+
+cc37d00 (2026-09-25) added the start burst — one second of synthetic level on `halo.start()`,
+cosine down from `BURST_PEAK` 0.8 over `BURST_S` 1 s, so Fairy dust & co play a little while he is
+silent with the mouse still — **directly to the vendored `assets/voice-halo/index.html`**. Every
+`build-app.sh` since re-vendors from `~/workspace/voice-halo @ bdf4ae8` and wiped it: the working
+tree kept showing the file modified and the installed page had no burst.
+
+- The pin is on voice-halo's **`walkie-pin`** branch (bdf4ae8 is not on `main`, which has moved on
+  26 commits and 625 changed lines of `index.html` the app has not taken). The committed vendored copy was
+  checked to differ from bdf4ae8 by exactly the burst (and `water.js` / `comets.js` identical),
+  then committed there as **`6697660`** (a worktree in the scratchpad, voice-halo's own checkout
+  untouched) and pushed.
+- `tools/vendor-voice-halo.sh` pins `6697660` and says where the pin lives and why a hand edit to
+  `assets/voice-halo/` does not survive. After `./relay-restart.sh --build`: `git status` clean for
+  `index.html`, `VERSION` = `6697660 6697660`, and `burstFrom = performance.now()` is in
+  `/Applications/Walkie Talkie.app/Contents/Resources/voice-halo/index.html`.
+
+### Batch 7, measured
+
+Installed with `./relay-restart.sh --build` (09:10), ElevenLabs at 0 credits throughout.
+
+| case | before (fix6, this morning) | after (`report-fix7.md`, `-fix7b.md`) |
+|---|---|---|
+| TD21 | **BUG** — `ttys000` reused, the sentence landed in the new tab | **PASS** — unbound in the poll, the sentence held |
+| TD1, TD14 | PASS | PASS |
+| TR20 | PASS (regression run) | PASS — Q4 caret path with the owner check in `deliver` |
+| TL16 | **FAIL** — the real 401 → `↪️`, delivered | **PASS** — `only 0.0 s voiced`, audio kept, nothing delivered |
+| TL13, TL14 | PASS (regression run) | PASS on `CLIP_SPEECH` (0.81 s / 20.0 s to the fallback) |
+| TL12 | PASS (regression run, with credits) | **FAIL, second half only**: the next sentence cannot be ElevenLabs with 0 credits (`CLIP_EN` 1.5 s voiced → *No words heard*); first half PASS |
+| TR13 | PASS | PASS (empty answer on 20 s of speech → local fallback) |

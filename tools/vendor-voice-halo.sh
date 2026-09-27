@@ -4,8 +4,12 @@
 # The halo runs this page whole, in a web view (HaloPage.swift); a change on
 # the page reaches the app by bumping TAG here and re-running this. The
 # vendored copy is committed, so the app builds without the sibling repo.
+# The pin lives on voice-halo's `walkie-pin` branch, not on `main` (main has moved
+# on to effects the app has not taken). A change made to the vendored copy by hand
+# is wiped by the next build — cc37d00's start burst was, until 6697660 put it on
+# `walkie-pin` (2026-09-27): commit there, push, bump TAG.
 set -euo pipefail
-TAG="${VOICE_HALO_TAG:-bdf4ae8}"
+TAG="${VOICE_HALO_TAG:-6697660}"
 SRC="${VOICE_HALO_REPO:-$HOME/workspace/voice-halo}"
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$DIR/assets/voice-halo"

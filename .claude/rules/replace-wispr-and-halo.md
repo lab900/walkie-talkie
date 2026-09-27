@@ -732,6 +732,11 @@ closes. Between the two is the whole transcription — the stretch in which he i
   packs; `butterchurn.min.js` is still dropped in by hand — without it the preset rows are greyed
   `— engine not bundled`). A change on the page reaches the app by bumping the pin and rebuilding;
   `WT_HALO_PAGE_DIR` points a run at the working checkout, `WT_MILKDROP_DIR` at another engine folder.
+- **The pin is on voice-halo's `walkie-pin` branch, not `main`** (main has moved on; `6697660`
+  since 2026-09-27). **Never edit `assets/voice-halo/` by hand** — every build re-vendors over it:
+  cc37d00's start burst (1 s of synthetic level on `halo.start()`, `BURST_S`/`BURST_PEAK`) lived
+  only in the vendored copy and each build dropped it, leaving `index.html` modified in `git status`.
+  A page change is a commit on `walkie-pin`, a push, and a bump of `TAG`.
 - **`?embed=1` is the page's own mode for this host** (in `victorrentea/voice-halo`, not injected):
   transparent `html`/`body`, no chips, buttons, bars, version line or drawn cursor; the drawing
   origin on the real pointer through the page's walk offset (`halo.center(x, y)` on every move);
