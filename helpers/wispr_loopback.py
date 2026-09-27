@@ -72,13 +72,17 @@ import numpy as np
 HOME = os.path.expanduser("~")
 WISPR_DB = os.path.join(HOME, "Library/Application Support/Wispr Flow/flow.sqlite")
 
-# Wispr's own push-to-talk binding, read out of its config on 2026-09-11:
+# Wispr's own push-to-talk binding, read out of its config:
 #   ~/Library/Application Support/Wispr Flow/config.json
-#   prefs.user.shortcuts = { ..., "54+61": "ptt", ... }
-# 54 = Right Command, 61 = Right Option (macOS virtual keycodes). Overridable,
-# because it is a setting in an app we do not control and it will move one day.
+#   prefs.user.shortcuts = { ..., "54+60": "ptt", ... }
+# 54 = Right Command, 60 = Right Shift (macOS virtual keycodes). It was `54+61`
+# (right ⌘ + right ⌥) until 2026-09-27: Q9 gave that pair to Walkie's own clean
+# dictation and moved Wispr to right ⌘⇧, where Walkie leaves it alone (so a
+# teacher clip posted here no longer opens the relay's recorder and burns
+# ElevenLabs credits — the night of 26→27 Sep). Overridable, because it is a
+# setting in an app we do not control and it will move again one day.
 PTT_KEYS = [
-    int(k) for k in os.environ.get("WISPR_PTT_KEYS", "54,61").split(",") if k.strip()
+    int(k) for k in os.environ.get("WISPR_PTT_KEYS", "54,60").split(",") if k.strip()
 ]
 # Preferred virtual input devices, most specific first.
 #
@@ -362,8 +366,8 @@ def _chord_flags(modifiers) -> int:
         54: Quartz.kCGEventFlagMaskCommand,
         58: Quartz.kCGEventFlagMaskAlternate,
         61: Quartz.kCGEventFlagMaskAlternate,
-        56: Quartz.kCGEventFlagMaskShift,
-        60: Quartz.kCGEventFlagMaskShift,
+        56: Quartz.kCGEventFlagMaskShift,        # left shift
+        60: Quartz.kCGEventFlagMaskShift,        # right shift — Wispr's ptt is 54+60
     }
     flags = 0
     for code in modifiers:
