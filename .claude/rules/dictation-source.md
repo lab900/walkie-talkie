@@ -314,10 +314,11 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
   a positive verdict; outbox `affect: {pauses, fillers, restarts, rate, verdict, why, …}`; corpus
   nothing. Applies to a bound terminal, a spawn, the forward click's caret prompt — never the back
   click's plain words or a legacy caret sentence.
-- **Thresholds are placeholders** (`VoiceAffect.Thresholds`, each TODO) until voice-distill's
-  `affect/timing.py --report` percentiles land in `~/.walkie-talkie/voice-affect.json` (shape in
-  `VoiceAffect.load(from:)`; `gaps.p97` → `longPause`, `rate.p50` → `medianRate`). `medianRate`
-  nil = the rate signal is off. Every signal has a minimum count (precision before recall).
+- **Thresholds** (`VoiceAffect.Thresholds`) are read per sentence from voice-distill's
+  `~/.walkie-talkie/voice-affect.json` (shape in `VoiceAffect.load(from:)`): `gaps.p97` →
+  `longPause` but **never under `longPauseFloor` 1.5 s** (his p97 is 0.94 RO / 0.54 EN only
+  because ~90 % of gaps are 0), `rate.p50` → `medianRate` (nil = rate signal off). **2 signals
+  needed** (`requiredSignals`, 2026-09-27). Every signal has a minimum count (precision before recall).
 - **Tense = the energy-spread half only**, behind `WT_VOICE_TENSE=1`; pitch/arousal is not
   measured. Never infer either tag from the words.
 - **`POST /test/affect`** — verdict + marked text from fabricated timings; `VoiceAffectTests`.

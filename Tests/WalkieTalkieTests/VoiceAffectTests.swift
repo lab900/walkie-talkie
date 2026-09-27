@@ -82,8 +82,14 @@ final class VoiceAffectTests: XCTestCase {
         let r = VoiceAffect.analyse(words: scribe(said), thresholds: defaults, tense: false)
         XCTAssertEqual(r.restarts, 3)            // vreau vreau, să să, the the — not foarte foarte
         XCTAssertEqual(r.fillers, 0)
-        XCTAssertTrue(r.verdict.hesitant)        // 3 disfluencies in 11 words ≥ 8 %
         XCTAssertTrue(r.marked.isEmpty)          // no pause long enough to mark
+        // 3 disfluencies in 11 words ≥ 8 % is one signal: not a verdict by default (2 needed)…
+        XCTAssertFalse(r.verdict.hesitant)
+        XCTAssertEqual(r.verdict.why.count, 1)
+        // …and the verdict with one required.
+        var one = defaults
+        one.requiredSignals = 1
+        XCTAssertTrue(VoiceAffect.analyse(words: scribe(said), thresholds: one, tense: false).verdict.hesitant)
     }
 
     func testAWordRepeatedAfterTheWindowIsNotARestart() {
@@ -149,6 +155,7 @@ final class VoiceAffectTests: XCTestCase {
         XCTAssertFalse(VoiceAffect.analyse(words: words, thresholds: defaults, tense: false).verdict.hesitant)
         var t = defaults
         t.medianRate = 2.5
+        t.requiredSignals = 1                    // the rate alone, to see it fire
         let r = VoiceAffect.analyse(words: words, thresholds: t, tense: false)
         XCTAssertTrue(r.verdict.hesitant)
         XCTAssertEqual(r.verdict.why.count, 1)
@@ -201,20 +208,39 @@ final class VoiceAffectTests: XCTestCase {
 
     func testTheFileIsLayeredAndReadPerLanguage() {
         let obj: [String: Any] = [
-            "thresholds": ["longPause": 1.5, "requiredSignals": 2],
-            "ro": ["gaps": ["p97": 1.05], "rate": ["p10": 1.6, "p50": 2.4], "thresholds": ["boundaryPause": 2.4]],
+            "thresholds": ["longPause": 1.3, "requiredSignals": 3],
+            "ro": ["gaps": ["p97": 2.05], "rate": ["p10": 1.6, "p50": 2.4], "thresholds": ["boundaryPause": 2.4]],
             "en": ["rate": ["p50": 2.8]],
         ]
         let ro = VoiceAffect.load(from: obj, language: "ron")
-        XCTAssertEqual(ro.longPause, 1.05)
+        XCTAssertEqual(ro.longPause, 2.05)       // a p97 over the floor is taken as-is
         XCTAssertEqual(ro.medianRate, 2.4)
         XCTAssertEqual(ro.boundaryPause, 2.4)
-        XCTAssertEqual(ro.requiredSignals, 2)
+        XCTAssertEqual(ro.requiredSignals, 3)
         XCTAssertEqual(ro.source, "file + ro.gaps.p97 + ro.rate.p50 + ro.thresholds")
         let en = VoiceAffect.load(from: obj, language: "en")
-        XCTAssertEqual(en.longPause, 1.5)        // no gaps block → the hand override
+        XCTAssertEqual(en.longPause, 1.3)        // no gaps block → the hand override
         XCTAssertEqual(en.medianRate, 2.8)
         XCTAssertEqual(VoiceAffect.load(from: [:], language: nil), VoiceAffect.Thresholds())
+    }
+
+    /// His real p97s (0.94 s RO, 0.54 s EN) are low only because most gaps are 0:
+    /// the threshold is max(p97, 1.5 s), and it takes two signals.
+    func testALowP97IsFlooredAndTwoSignalsAreTheDefault() {
+        XCTAssertEqual(defaults.longPause, 1.5)
+        XCTAssertEqual(defaults.requiredSignals, 2)
+        let obj: [String: Any] = ["ro": ["gaps": ["p97": 0.94], "rate": ["p50": 2.3]],
+                                  "en": ["gaps": ["p97": 0.54]]]
+        let ro = VoiceAffect.load(from: obj, language: "ro")
+        XCTAssertEqual(ro.longPause, 1.5)
+        XCTAssertEqual(ro.requiredSignals, 2)
+        XCTAssertEqual(ro.source, "ro.gaps.p97 (floored) + ro.rate.p50")
+        XCTAssertEqual(VoiceAffect.load(from: obj, language: "en").longPause, 1.5)
+        // A 1.2 s gap is no longer a `[?]`; 1.5 s is.
+        let short = scribe([("pentru", 0.2, 0.5), ("clienți", 1.7, 2.0)])
+        XCTAssertTrue(VoiceAffect.analyse(words: short, thresholds: ro, tense: false).marked.isEmpty)
+        let long = scribe([("pentru", 0.2, 0.5), ("clienți", 2.0, 2.3)])
+        XCTAssertEqual(VoiceAffect.analyse(words: long, thresholds: ro, tense: false).marked.count, 1)
     }
 
     func testTheOutboxRecordStaysStudyShaped() {

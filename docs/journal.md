@@ -13521,6 +13521,14 @@ layered defaults → `thresholds` → `<lang>.gaps.p97` (→ `longPause`) and `<
 are already in `runs/timing.jsonl` and need one more line in the report (and a `--json` output) on
 the voice-distill side. The language is Scribe's `language_code`, normalised (`ron` → `ro`).
 
+**Tuned the same morning (2026-09-27), the voice-distill session's advice, accepted:** his file
+arrived (`voice-affect.json`, 873 clips) with `gaps.p97` 0.94 s RO / 0.54 s EN — low only because
+~90 % of the recogniser's inter-word gaps are 0, so as a threshold it would mark every breath.
+`longPause` = **max(`<lang>.gaps.p97`, `longPauseFloor` 1.5 s)** (default 1.5; `source` says
+`ro.gaps.p97 (floored)`), and **`requiredSignals` = 2** (long pauses *and* fillers/restarts, or
+either with a slow rate) — one signal alone leaves its `[?]` marks and no tag. `rate.p50` (2.30 RO,
+2.09 EN) now switches the rate signal on.
+
 **What "tense" needs, and what is stubbed.** Nothing tense is inferred from words — that was his
 rule. Arousal is the robust acoustic dimension (spec, fact 2) but needs **pitch (F0 level and
 range) and energy variance against his own baseline, per language and per microphone** (spec, fact

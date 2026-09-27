@@ -62,8 +62,15 @@ enum VoiceAffect {
     /// a missed one, so every signal also has a minimum count.
     struct Thresholds: Equatable {
         /// A gap between two words this long is *unusually long for him* and
-        /// gets a `[?]`. TODO: his p97 of inter-word gaps, per language (`gaps.p97`).
-        var longPause: TimeInterval = 1.2
+        /// gets a `[?]`: his p97 of inter-word gaps, per language (`gaps.p97`),
+        /// but never under `longPauseFloor`.
+        var longPause: TimeInterval = 1.5
+        /// The least a `gaps.p97` from the file may set `longPause` to. His
+        /// measured p97 (2026-09-27, 873 clips) is 0.94 s RO / 0.54 s EN only
+        /// because ~90 % of the recogniser's gaps are 0 — as a threshold that
+        /// would mark every breath. The voice-distill session's advice, accepted:
+        /// long pause = max(p97, 1.5 s).
+        var longPauseFloor: TimeInterval = 1.5
         /// The same after a `.`/`?`/`!` — a breath between two sentences is not a
         /// hesitation inside one. TODO: from his data. (`…` is not a boundary:
         /// trailing off *is* the hesitation.)
@@ -86,9 +93,11 @@ enum VoiceAffect {
         var minSpanForRate: TimeInterval = 4
         /// No verdict on fewer words than this (the `[?]` marks still apply).
         var minWords: Int = 5
-        /// How many of the three signals it takes. 1 = the brief's OR; the spec's
-        /// *≥ 2 independent signals* is `2`, once the data says 1 is too eager.
-        var requiredSignals: Int = 1
+        /// How many of the three signals it takes: the spec's *≥ 2 independent
+        /// signals* (e.g. long pauses **and** fillers/restarts) — one signal alone
+        /// is a `[?]` or two, not a verdict. Was 1 (the brief's OR) until the
+        /// voice-distill session's advice of 2026-09-27.
+        var requiredSignals: Int = 2
         /// A word said again within this long is a restart (`the the`, `vreau vreau`).
         var restartWindow: TimeInterval = 1.5
         /// A gap within this of a shutter/selection press is the gesture's, not a
@@ -107,6 +116,7 @@ enum VoiceAffect {
             func d(_ k: String) -> Double? { (o[k] as? NSNumber)?.doubleValue }
             func i(_ k: String) -> Int? { (o[k] as? NSNumber)?.intValue }
             if let v = d("longPause") { longPause = v }
+            if let v = d("longPauseFloor") { longPauseFloor = v }
             if let v = d("boundaryPause") { boundaryPause = v }
             if let v = d("longPausesPerMinute") { longPausesPerMinute = v }
             if let v = i("minLongPauses") { minLongPauses = v }
@@ -125,7 +135,7 @@ enum VoiceAffect {
 
         var json: [String: Any] {
             var o: [String: Any] = [
-                "longPause": longPause, "boundaryPause": boundaryPause,
+                "longPause": longPause, "longPauseFloor": longPauseFloor, "boundaryPause": boundaryPause,
                 "longPausesPerMinute": longPausesPerMinute, "minLongPauses": minLongPauses,
                 "disfluencyShare": disfluencyShare, "minDisfluencies": minDisfluencies,
                 "slowRateFactor": slowRateFactor, "minSpanForRate": minSpanForRate,
@@ -157,13 +167,9 @@ enum VoiceAffect {
     /// ```
     ///
     /// Layered, later wins: the defaults → top-level `thresholds` (hand
-    /// overrides) → the language's percentiles (`gaps.p97` → `longPause`,
-    /// `rate.p50` → `medianRate`) → the language's own `thresholds`.
-    /// **`gaps` is not in today's `--report`** — it prints `longest` (the
-    /// longest gap *per clip*), whose p50 would mark half his sentences; the
-    /// pooled inter-word gaps are in `runs/timing.jsonl` (`gaps`) and need one
-    /// more line in the report. Until then `longPause` stays at its default or a
-    /// hand-set `thresholds.longPause`.
+    /// overrides) → the language's percentiles (`gaps.p97` → `longPause`, never
+    /// under `longPauseFloor`; `rate.p50` → `medianRate`) → the language's own
+    /// `thresholds` (a hand-set `longPause` there is taken as-is).
     static func load(from obj: [String: Any], language: String?) -> Thresholds {
         var t = Thresholds()
         var from: [String] = []
@@ -172,7 +178,10 @@ enum VoiceAffect {
             func pct(_ measure: String, _ p: String) -> Double? {
                 ((block[measure] as? [String: Any])?[p] as? NSNumber)?.doubleValue
             }
-            if let v = pct("gaps", "p97") { t.longPause = v; from.append("\(lang).gaps.p97") }
+            if let v = pct("gaps", "p97") {
+                t.longPause = max(v, t.longPauseFloor)
+                from.append(v < t.longPauseFloor ? "\(lang).gaps.p97 (floored)" : "\(lang).gaps.p97")
+            }
             if let v = pct("rate", "p50") { t.medianRate = v; from.append("\(lang).rate.p50") }
             if let o = block["thresholds"] as? [String: Any] { t.apply(o); from.append("\(lang).thresholds") }
         }
