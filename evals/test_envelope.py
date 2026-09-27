@@ -18,10 +18,11 @@ against. A pure-Python re-implementation of `AppDelegate.selectionsClause` would
 assert that this file agrees with itself.
 
 **It refuses to run while Victor is talking**, and it puts his binding back. The
-sentence it delivers goes to a tty nothing is listening on: the outbox line is
-written at delivery and delivery to a tty with no tab comes back `targetGone`
-without a keystroke reaching any window — which is the only way to get a real
-envelope out of a relay that must not type into anything.
+sentence it delivers goes to a Terminal tab of its own running `cat > /dev/null`
+(`_nowhere()`): the outbox line is written at delivery and the words are typed
+into a foreground that throws them away — a real envelope out of a relay that
+must not type into anything of his. (Until 2026-09-26 it was a tty with no tab,
+`targetGone`; `bind(tty:)` now refuses one.)
 
 **It used to leave the chip saying `Listening…`**, and that is still not this
 file's doing: `/test/dictation/start` opens a dictation the recogniser knows
@@ -47,9 +48,51 @@ import urllib.request
 
 PORTS = (8917, 8918, 8919)
 OUTBOX = os.path.expanduser("~/.walkie-talkie/outbox.jsonl")
-# A tty nothing is listening on. `deliver` re-resolves the target and finds no
-# Terminal.app tab, so the words go nowhere and the relay unbinds itself.
-NOWHERE = "ttys999"
+# **Where the sentences go: a Terminal tab running `cat > /dev/null`.** It used to
+# be `ttys999`, a tty nothing is listening on — `deliver` found no tab, the words
+# went nowhere and the relay unbound itself. Since 2026-09-26 (796b85b, test plan
+# §3.4) `bind(tty:)` refuses a tty no Terminal tab or tmux client hosts (409), so
+# the bind is to a real tab whose foreground swallows whatever is typed — the
+# same witness the test plan's harness uses. Opened on first use, closed at exit.
+_WITNESS = {"tty": None}
+_WITNESS_NAME = "wt-envelope-sink"
+
+
+def _osa(*lines):
+    cmd = ["osascript"]
+    for line in lines:
+        cmd += ["-e", line]
+    return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
+
+
+def _nowhere():
+    if not _WITNESS["tty"]:
+        script = "printf '\\\\e]0;%s\\\\a'; stty -echo; exec cat > /dev/null" % _WITNESS_NAME
+        tty = _osa('tell application "Terminal" to set t to do script "%s"' % script,
+                   'tell application "Terminal" to get tty of t')
+        _WITNESS["tty"] = tty.replace("/dev/", "")
+        time.sleep(0.8)
+        atexit.register(_close_nowhere)
+    return _WITNESS["tty"]
+
+
+def _close_nowhere():
+    """Kill the tab's `cat` first — a window with a running process makes Terminal
+    ask *terminate?* and the close does nothing."""
+    tty = _WITNESS["tty"]
+    if not tty:
+        return
+    out = subprocess.run(["ps", "-t", tty, "-o", "pid=,comm="], capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        pid, _, comm = line.strip().partition(" ")
+        if pid.isdigit() and "login" not in comm:
+            try:
+                os.kill(int(pid), 9)
+            except (ProcessLookupError, PermissionError):
+                pass
+    time.sleep(0.3)
+    _osa('tell application "Terminal" to close (every window whose name contains "%s") saving no' % _WITNESS_NAME)
+    _WITNESS["tty"] = None
 
 
 def _post(base, path, obj=None, timeout=5):
@@ -149,7 +192,7 @@ class EnvelopeShape(unittest.TestCase):
             "move": {"from": {"x": 120, "y": 340}, "to": {"x": 500, "y": 205}}})
         time.sleep(1)
         _post(BASE, "/test/selection", {"text": "a second highlight"})
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/dictation", {"text": cls.marker})
 
         # **Bind again until the line appears.** With nothing bound the sentence
@@ -160,9 +203,9 @@ class EnvelopeShape(unittest.TestCase):
         for _ in range(10):
             time.sleep(1)
             entry = _last_line()
-            if entry.get("text") == cls.marker:
+            if cls.marker in (entry.get("text") or ""):
                 return entry
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     # ── the highlights ──────────────────────────────────────────────────────
@@ -249,7 +292,7 @@ class FrameList(unittest.TestCase):
         cls.previous = target.get("address") if target.get("bound") else None
         cls.marker = ("uite aici. Screenshot one. si mai jos. Screenshot 2. "
                       "si elementul picked element one. gata.")
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/dictation/start")
         time.sleep(1)
         # The app posts the real ⌃⌥⌘F6 chord; this file synthesises nothing.
@@ -264,10 +307,10 @@ class FrameList(unittest.TestCase):
         for _ in range(10):
             time.sleep(1)
             entry = _last_line()
-            if "uite aici" in (entry.get("text") or ""):
+            if "Screenshot one" in (entry.get("text") or ""):
                 cls.line = entry["line"]
                 return
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     @classmethod
@@ -412,14 +455,14 @@ class SelectionMarkers(unittest.TestCase):
         # What Wispr would hand back: his sentence with the second marker in it,
         # promoted to its own paragraph the way the formatter does.
         cls.marker = "uite ce zici de asta\n\nSelected text two.\n\nmerge?"
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/dictation", {"text": cls.marker})
         for _ in range(10):
             time.sleep(1)
             entry = _last_line()
             if entry.get("selection") == cls.first:
                 return entry
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     def test_the_marked_highlight_is_quoted_inside_the_sentence(self):
@@ -470,7 +513,7 @@ class AreaFrame(unittest.TestCase):
             raise unittest.SkipTest("a real dictation is in flight — not touching it")
         target = _get(BASE, "/target")
         cls.previous = target.get("address") if target.get("bound") else None
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/dictation/start")
         time.sleep(1)
         cls.area = _post(BASE, "/test/area")
@@ -483,7 +526,7 @@ class AreaFrame(unittest.TestCase):
             if "zona pe care o arăt" in (entry.get("text") or ""):
                 cls.line = entry["line"]
                 return
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     @classmethod
@@ -561,7 +604,7 @@ class MovedArea(unittest.TestCase):
             raise unittest.SkipTest("a real dictation is in flight — not touching it")
         target = _get(BASE, "/target")
         cls.previous = target.get("address") if target.get("bound") else None
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         # A wall clock and word timings, so the token lands in the words (the
         # footer's key alone would not carry the corners).
         _post(BASE, "/test/dictation/start", {"clock": True})
@@ -581,7 +624,7 @@ class MovedArea(unittest.TestCase):
             if "acolo" in (entry.get("text") or "") and "mută" in (entry.get("text") or ""):
                 cls.line = entry["line"]
                 return
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     @classmethod
@@ -641,7 +684,7 @@ class FoldedFrameRows(unittest.TestCase):
                           "type": "spacing"})
             t += 0.7
         cls.text = " ".join(said)
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/dictation/start", {"clock": True})
         # Three shutter presses, spaced so each lands in a different gap.
         for _ in range(3):
@@ -657,7 +700,7 @@ class FoldedFrameRows(unittest.TestCase):
             if "inca una gata" in (entry.get("text") or ""):
                 cls.line = entry["line"]
                 return
-            _post(BASE, "/bind", {"tty": NOWHERE})
+            _post(BASE, "/bind", {"tty": _nowhere()})
         _never_arrived()
 
     @classmethod
@@ -795,7 +838,7 @@ class MicrophoneAfterACancel(unittest.TestCase):
 
     def test_the_dictation_after_a_cancel_still_opens_the_device(self):
         mark = self._log_length()
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/gesture", {"name": "forward-right"})
         time.sleep(2)
         self._skip_if_wispr_took_it(mark)
@@ -814,7 +857,7 @@ class MicrophoneAfterACancel(unittest.TestCase):
         # pre-emption log line would go quiet the day the race stops happening.
         mark = self._log_length()
         _post(BASE, "/test/cancel")
-        _post(BASE, "/bind", {"tty": NOWHERE})
+        _post(BASE, "/bind", {"tty": _nowhere()})
         _post(BASE, "/test/gesture", {"name": "forward-right"})
         time.sleep(2)
         self._skip_if_wispr_took_it(mark)
