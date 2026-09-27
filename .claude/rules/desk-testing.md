@@ -11,6 +11,8 @@ paths:
 `MusicBridge` is a WebSocket on 8920). `/bind`, `/unbind`, `/target` are not gated on `dictating`.
 Real Wispr dictations end to end: `tools/wispr-loop.sh <scenario>` (scenarios, preconditions and
 timings in `docs/loopback.md`; it takes `~/.walkie-talkie/wispr-loop.lock` — never run two).
+The whole suite runs weekly **inside the Tart guest** at 02:00 (`tools/wt-night.sh`, brief
+`evals/plan/vm/night/PROMPT.md`) — `docs/vm-lab.md`, *Nightly*; desk runs prefer the local engine.
 
 | route | what |
 |---|---|

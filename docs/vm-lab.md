@@ -301,9 +301,7 @@ D 96 min (23 processes, 30 s idle before each).
   display (`LC11`, `LC18`); a way to sleep the guest (`TD23`); ElevenLabs credits (the account was
   at its 10 000-credit quota that night — see *The first two runs*). The full list is in
   `evals/plan/vm/night/report-vm-night.md`.
-- **Nightly**: the LaunchAgent below brings the VM up; the run itself would be a second host
-  LaunchAgent (`StartCalendarInterval`) calling the four lines above. Not written yet — the disk
-  speed decides whether a night is long enough.
+- **Nightly**: written and installed on 2026-09-27 — see *Nightly* below.
 
 ## From the phone
 
@@ -331,11 +329,71 @@ The guest serves Screen Sharing itself (the macOS VNC server on 5900), independe
   would fight over the `wt-lab` identity. `reset` deletes `wt-lab` before `up` clones, so one at a
   time is fine.
 
-## Starting with the host
+## Nightly (2026-09-27)
 
-`tools/ro.victorrentea.wt-lab.plist` — a **draft, not installed**: a user LaunchAgent that runs
-`tools/vm-lab.sh up` at login (`RunAtLoad`) and on every volume mount (`StartOnMount`), so the lab
-comes up when "Vic" appears. `up` exits 1 without the volume (harmless on other mounts) and is a
-no-op when `wt-lab` already runs; `AbandonProcessGroup` keeps launchd from killing the
-`nohup tart run` it leaves behind; no `KeepAlive`, so `down` stays down. Install line is in the
-plist's header.
+Victor, 2026-09-27: *"vreau sa configurezi suita de teste de walkie sa ruleze in fiecare seara cand ai
+hdd extern conectat, dar max 1/sapt automat. sa fie rulata si de claude intr-o sesiune interactiva
+pornita noaptea la 2:00 si sa repari ce defecte gasesti, daca pica ceva. + trimite o rulare
+exploratorie sa se joace cu app. totul in VM."*
+
+**What fires when.** The LaunchAgent `ro.victorrentea.wt-night` (`tools/ro.victorrentea.wt-night.plist`,
+symlinked into `~/Library/LaunchAgents/`, bootstrapped) runs `tools/wt-night.sh start` every day at
+**02:00**. `start` runs `gate`, which lets it through only when:
+
+- `/Volumes/Vic/tart` exists (the disk is plugged in);
+- the stamp **`/Volumes/Vic/tart/night/last-run`** is absent or older than **6 d 12 h** — so at most one
+  automatic run a week, and a 02:00 job still fires on the 7th night despite drift;
+- no tmux session `wt-night` younger than 20 h exists (a live run). An older one is last week's,
+  left open to read: `start` renames it `wt-night-<YYYYMMDD-HHMM>` and keeps it;
+- the hour is **01–05**. launchd does not skip a calendar trigger missed while the Mac slept: it fires
+  it **at wake**. Without this check a Mac asleep at 02:00 and woken at 09:00 would boot the VM during
+  Victor's work day; with it, that wake is a logged refusal and the next 02:00 tries again.
+
+Then `start` writes the stamp and opens a detached tmux `wt-night` (in the repo) running
+`claude --permission-mode auto --name wt-night --remote-control wt-night "$(cat evals/plan/vm/night/PROMPT.md)"`
+through `zsh -lc`, with the native build first on PATH, as `~/workspace/claude-rc.sh` does. When
+claude exits the pane drops to a shell, so the transcript stays. `--remote-control <name>` is the
+flag for one interactive session with RC (`claude --help`, 2.1.283); it runs fine beside the
+`claude remote-control` server in tmux `claude-rc` (the smoke on 27 Sep: `/remote-control is active`,
+a session URL, the answer). `WT_NIGHT_RC=0` drops the flag if RC ever blocks or asks for a login.
+The session's claude.ai URL is scraped from the pane into `~/.walkie-talkie/night/session-url`, for
+the `Claude-Session` trailer of its commits.
+
+**What the session does** — `evals/plan/vm/night/PROMPT.md`, a runbook with hard caps: pre-flight and
+ElevenLabs credits (5 min) → `vm-lab.sh up` (20) → deploy the installed app, `elevenlabs.env`, the repo
+mirror (15) → phases A/B/C/D with the 26/27 Sep ID lists (2 h 30) → triage against last night (30) →
+at most three fix iterations, each through `./relay-restart.sh --build` on the host and a redeploy
+(1 h 30) → one Opus subagent playing with the app in the guest, ≥ 25 unscripted actions, findings
+`X1…` (45, while the guest is otherwise free — one driver at a time) → report, journal entry, VM
+down (15). No new work after 07:00, VM down by 07:45. Unclear defects become questions `Q1…` in the
+report, not guesses. The session stays open at the end.
+
+**Engine and credits.** Desk tests prefer the local engine: the harness sets `whisper` at start and
+only the ElevenLabs-specific cases switch to an eleven engine and restore it. Those cases run only
+with **≥ 3 000 credits** left this month, otherwise they are SKIP `credit cap`, never defects — the
+harness enforces it with `WT_ELEVEN_MIN_CREDITS` (default 3000; being added with a fake realtime server
+by a separate change). Why: on 26 Sep one host test day spent 46 % of the month's 10 000 credits.
+The balance is read from `GET /v1/usage/character-stats?start_unix=<ms>&end_unix=<ms>&breakdown_type=model`
+(`xi-api-key`), summed against 10 000 from the 1st of the month; our key lacks `user_read`, so
+`/v1/user/subscription` answers `missing_permissions`.
+
+```sh
+tools/wt-night.sh status                    # stamp age, tmux alive?, launchd state, last report, log tail
+WT_NIGHT_FORCE=1 tools/wt-night.sh start    # run tonight / now: skips the weekly age and the 01–05 hour
+tools/wt-night.sh smoke                     # tmux + claude with a one-word prompt, checks the pane, kills it
+tmux attach -t wt-night                     # watch (detach: Ctrl-B D); or Remote Control session "wt-night"
+launchctl bootout gui/$(id -u)/ro.victorrentea.wt-night                  # disable
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ro.victorrentea.wt-night.plist   # enable again
+```
+
+`WT_NIGHT_FORCE=1` never overrides the disk check or a live `wt-night` session.
+
+**Where things go.** Reports: `evals/plan/vm/night/<YYYY-MM-DD>/` (`report.md`, `merged.md` from
+`merge.py`, per-phase reports and logs, `notes.json`, `exploratory.md`), committed and pushed by the
+session; screenshots on the disk, `/Volumes/Vic/tart/night/<date>/`. On the internal disk only logs:
+`~/.walkie-talkie/night/launcher.log` (every gate decision), `launchagent.log` (launchd's stdout),
+`history.log` (one line per night: date, counts, commit, report path).
+
+`tools/ro.victorrentea.wt-lab.plist` (VM up at login and on every mount) stays a **draft, not
+installed**: the night session brings the VM up and down itself, and that agent would keep it running
+all day.
