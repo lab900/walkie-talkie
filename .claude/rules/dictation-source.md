@@ -314,11 +314,12 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
   a positive verdict; outbox `affect: {pauses, fillers, restarts, rate, verdict, why, …}`; corpus
   nothing. Applies to a bound terminal, a spawn, the forward click's caret prompt — never the back
   click's plain words or a legacy caret sentence.
-- **Thresholds** (`VoiceAffect.Thresholds`) are read per sentence from voice-distill's
-  `~/.walkie-talkie/voice-affect.json` (shape in `VoiceAffect.load(from:)`): `gaps.p97` →
-  `longPause` but **never under `longPauseFloor` 1.5 s** (his p97 is 0.94 RO / 0.54 EN only
-  because ~90 % of gaps are 0), `rate.p50` → `medianRate` (nil = rate signal off). **2 signals
-  needed** (`requiredSignals`, 2026-09-27). Every signal has a minimum count (precision before recall).
+- **Thresholds** (`VoiceAffect.Thresholds` defaults = `voice-affect.json`'s top-level `thresholds`,
+  from his 2,369-clip distributions, journal *Voice affect*): `[?]` at a gap **≥ 2.5 s** (≥ 3 s
+  after `.?!`; a file `gaps.p97` never sets it lower — `longPauseFloor`). **Hesitant = 2 of 6
+  signals**: pause ratio ≥ 0.35 · ≥ 4 gaps over 1 s · rate < 1.4 **words**/s · lead > 3 s ·
+  ≥ 2 restarts · ≥ 2 fillers and ≥ 8 % (Scribe keeps fillers; Whisper does not). Gesture gaps count
+  for none of it.
 - **Tense = the energy-spread half only**, behind `WT_VOICE_TENSE=1`; pitch/arousal is not
   measured. Never infer either tag from the words.
 - **`POST /test/affect`** — verdict + marked text from fabricated timings; `VoiceAffectTests`.

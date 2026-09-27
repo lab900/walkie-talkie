@@ -13521,13 +13521,31 @@ layered defaults → `thresholds` → `<lang>.gaps.p97` (→ `longPause`) and `<
 are already in `runs/timing.jsonl` and need one more line in the report (and a `--json` output) on
 the voice-distill side. The language is Scribe's `language_code`, normalised (`ron` → `ro`).
 
-**Tuned the same morning (2026-09-27), the voice-distill session's advice, accepted:** his file
-arrived (`voice-affect.json`, 873 clips) with `gaps.p97` 0.94 s RO / 0.54 s EN — low only because
-~90 % of the recogniser's inter-word gaps are 0, so as a threshold it would mark every breath.
-`longPause` = **max(`<lang>.gaps.p97`, `longPauseFloor` 1.5 s)** (default 1.5; `source` says
-`ro.gaps.p97 (floored)`), and **`requiredSignals` = 2** (long pauses *and* fillers/restarts, or
-either with a slow rate) — one signal alone leaves its `[?]` marks and no tag. `rate.p50` (2.30 RO,
-2.09 EN) now switches the rate signal on.
+**Tuned the same morning (2026-09-27), on his own distributions.** voice-distill's `affect/timing.py
+--report` over **2,369 clips** (1,588 RO / 781 EN, Whisper turbo word timestamps —
+`~/workspace/voice-distill/reports/timing-distributions-20260927.txt`; a first cut at 08:00 had 873
+and was superseded within the hour):
+
+| measure (timing.py) | RO p10 / p50 / p90 / p97 | EN p10 / p50 / p90 / p97 | chosen |
+|---|---|---|---|
+| gaps, pooled | p97 **1.04** | p97 0.54 | not used as-is: ~90 % of gaps are 0 |
+| longest pause per clip | 0 / **1.10** / 5.80 / 11.06 | 0 / 0.44 / 3.88 / 10.04 | `[?]` at **≥ 2.5 s** (`longPause` = `longPauseFloor`), **≥ 3 s** after `.?!` (`boundaryPause`) |
+| pause_ratio | 0 / 0.13 / **0.37** / 0.48 | 0 / 0.06 / **0.27** / 0.46 | signal: **≥ 0.35** |
+| pauses_gt1 (per clip) | 0 / 1 / **4** / 7 | 0 / 0 / 2 / 4 | signal: **≥ 4** gaps over 1 s |
+| rate (**words**/s of span) | **1.39** / 2.20 / 3.28 / 4.02 | **1.35** / 2.26 / 3.62 / 4.03 | signal: **< 1.4** (span ≥ 4 s) |
+| lead (s before the first word) | 0 / 0.76 / **3.38** / 6.58 | 0 / 0.78 / **3.28** / 6.62 | signal: **> 3 s** |
+| restarts (per clip) | 0 / 0 / 0 / 1 | 0 / 0 / 3 / 3 | signal: **≥ 2** |
+| fillers | 0 / 0 / 0 / **0** | 0 / 0 / 0 / **0** | kept: Whisper drops them, **Scribe keeps them** — 73 `uh`/`um`/`ăăă` in 6,916 words of the corpus's 178 Scribe transcripts, 6 clips with ≥ 2, none at 8 %; signal ≥ 2 **and** ≥ 8 % |
+
+`[voice: hesitant]` = **2 of those 6 signals** (`requiredSignals` 2) on ≥ 5 words. Gaps with a
+shutter/selection press in them are left out of `pause_ratio` and the over-1 s count, as they are
+out of the marks. What went: the marked-pauses-per-minute signal and `medianRate` × 0.6 (the rate is
+an absolute p10 now, so `rate.p50` is no longer read). The values are the code's defaults **and**
+the file's top-level `thresholds` block (a regeneration of the file by `timing.py --json` drops that
+block; the defaults are the same, so nothing moves). The coordinator's brief said *characters* per
+second for the rate; `timing.py` measures **words** (`len(words) / span`) and so does this. **Caveat:**
+the distributions are Whisper's timestamps, the sentences judged are Scribe's — Scribe's gaps and
+lead are not measured yet (no quota this morning).
 
 **What "tense" needs, and what is stubbed.** Nothing tense is inferred from words — that was his
 rule. Arousal is the robust acoustic dimension (spec, fact 2) but needs **pitch (F0 level and
