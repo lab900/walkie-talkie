@@ -17,6 +17,21 @@ os.makedirs(WORK, exist_ok=True)
 CORPUS = os.path.expanduser("~/.walkie-talkie/voice-corpus")
 CLIP_EN = CORPUS + "/2026-09-18/21-05-35-11l735.wav"      # 3.5 s, "If I dictate now, how good is this dictation, I wonder?"
 CLIP_EN_LONG = CORPUS + "/2026-09-18/23-59-48-11l129.wav" # 157 s EN
+# **Real speech above Q8's floor** (2026-09-27, batch 7): the local model stands in for a failed
+# Scribe upload only with ≥ 2 s voiced (`ElevenLabsSource.fallbackVoicedFloor`, now on every
+# failure). CLIP_EN measures 1.1–1.9 s voiced on the relay's meter (1365-frame buffers through the
+# Loopback drop each buffer's tail hop), so a fallback case on it would end `heardNothing`. The
+# first 12 s of CLIP_EN_LONG measure ~3.5 s — the clip every "fallback delivers" case plays.
+CLIP_SPEECH_SECONDS = 12
+def _speech_clip():
+    out = os.path.join(os.environ.get("WT_WORK", "/tmp/wt-plan"), "speech12.wav")
+    if not os.path.exists(out) and os.path.exists(CLIP_EN_LONG):
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        r = wave.open(CLIP_EN_LONG)
+        w = wave.open(out, "wb"); w.setparams(r.getparams())
+        w.writeframes(r.readframes(int(r.getframerate() * CLIP_SPEECH_SECONDS))); w.close(); r.close()
+    return out
+CLIP_SPEECH = _speech_clip()
 # **Our own Loopback device** (2026-09-26): pure Pass-Thru, created from the plist
 # (`~/Library/Application Support/Loopback/Devices.plist`, template `🎙️TO Zoom`, new UUIDs, then
 # `open -a Loopback` once). `🎓 TO Wispr` belongs to the Wispr teacher-labelling rig and carries the

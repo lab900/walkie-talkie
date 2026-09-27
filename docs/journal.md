@@ -13587,3 +13587,40 @@ Wispr's config was moved first (`"54+60": "ptt"`, microphone back to the DJI); t
   ⌘⌥ released — the clean dictation ends` (0 s voiced → Q8's *No words heard*, audio kept).
   **🔽 🔽 on Engine = eleven-live** → `🎙️ ⬅️ back click — a clean dictation on the Engine (the
   start)` … `(the stop)`, the upload 401 → local model, no words.
+
+## Fixes to the test plan's findings, batch 7 (2026-09-27)
+
+Three items from the morning's runs (*Morning of 2026-09-27*), with ElevenLabs at **0 credits** the
+whole time — every real upload answered `HTTP 401 quota_exceeded`, which is exactly the condition
+the first item is about. Each item is its own commit.
+
+### 1. Q8 on every fallback path: no local decode without real speech
+
+> Victor's decision (Q8): *local fallback only with real speech* — ≥ 2 s voiced.
+
+Batch 6 put the floor on the empty-answer path only. Every other Scribe failure still went to
+`fallBackToLocal` whatever the take held — and with the quota gone, every take failed: the morning's
+TL16 (3 s of silence) came back `↪️ … transcribing on this Mac instead` and **delivered**, and the Q9
+live check's 0 s back-click take went to the local model too.
+
+- `ElevenLabsSource.finishWithFailure(_:_:_:voiced:)` — the one door every Scribe failure passes
+  (401/quota, 422, 429, 5xx, timeout, transport, the key gone mid-sentence) — now takes the take's
+  voiced seconds (read at the close in `stop()`, batch 6). Under `fallbackVoicedFloor` (2.0 s):
+  `.failed(why: DictationEnd.heardNothing, audio:)`, which `AppDelegate.dictationEnded` never hands
+  to `fallBackToLocal` — WAV staged for *Recover*, banner *No words heard — recover it from the
+  menu*, nothing delivered. The real cause stays in the log:
+  `ElevenLabs: HTTP 401 {…quota_exceeded…} — only 0.0 s voiced (under 2 s): no local fallback, the
+  audio is kept for Recover`. At or above the floor: `ElevenLabs: <why> (3.5 s voiced)` and the
+  fallback as before.
+- **The floor catches short real sentences, and that was measured before it was run.** The
+  harness's `CLIP_EN` (3.5 s, *"If I dictate now, how good is this dictation, I wonder?"*) measures
+  **1.1–1.9 s voiced** replayed through the meter's algorithm (1.15 s at the 1365-frame buffers the
+  Loopback delivers: each buffer carries one 1024-frame hop and drops its tail; 20 s of speech →
+  6.34 s simulated, 6.3 s logged by TR13 this morning). Live it logged **1.5 s** (TL12's second
+  sentence). So a ten-word sentence during an outage is now staged for Recover, not decoded —
+  Victor's floor as decided, but worth knowing; if that is too strict the number to move is
+  `fallbackVoicedFloor`, or the meter's dropped tail hop.
+- Harness: `CLIP_SPEECH` (the first 12 s of `CLIP_EN_LONG`, written to `$WT_WORK/speech12.wav`,
+  ~3.5 s voiced, 3.3–3.6 s logged live) replaces `CLIP_EN` in every case whose expectation is
+  *the fallback delivers*: TL11, TL12 (first sentence), TL13, TL14, TR9, TR10, TR11, TR12, TR14's
+  second sentence. TL16's expectation names batch 7.

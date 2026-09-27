@@ -240,7 +240,7 @@ def tl11():
         post("/test/eleven", {"fail": "401"})
         post("/test/whisper", {"stop": True})
         try:
-            m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+            m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
             if not on_inject(m): return not_inject(m)
             if not when(m, FALLBACK, 20):
                 return "FAIL", "no fallback to the local model after the 401"
@@ -269,7 +269,7 @@ def tl12():
     with rig():
         t0 = now_iso()
         post("/test/eleven", {"fail": "401"})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         t_stop = when(m, r"recording stopped", 10) or time.time()
         t_end = delivered(m, 120)
@@ -299,7 +299,7 @@ def tl13():
     with rig():
         t0 = now_iso()
         post("/test/eleven", {"fail": "transportx2"})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         t_stop = when(m, r"recording stopped", 10)
         t_fb = when(m, FALLBACK, 30)
@@ -322,7 +322,7 @@ def tl14():
     with rig():
         t0 = now_iso()
         post("/test/eleven", {"fail": "timeout", "delayMs": 20000})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         t_stop = when(m, r"recording stopped", 10)
         t_fb = when(m, FALLBACK, 40)
@@ -341,6 +341,7 @@ def tl14():
 @case("TL16", ("audio", "gesture"),
       expect="3 s of silence → 'returned no words', the WAV kept for Recover, nothing delivered (fixed 2026-09-26, "
              "§3.8: an empty answer is `.failed(heardNothing)` with the audio, no local fallback — Q8: under 2 s voiced; "
+             "batch 7: the same on ANY Scribe failure, so a 401/quota on silence is not decoded either; "
              "the BUG branch is the old loss)")
 def tl16():
     """An empty transcript: the audio used to be deleted with no fallback."""
@@ -490,7 +491,7 @@ def tr9():
     with rig():
         t0 = now_iso()
         post("/test/eleven", {"fail": "transportx2", "live": "drop"})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         delivered(m, 120)
         settle_out(60)
@@ -512,7 +513,7 @@ def tr10():
         post("/test/whisper", {"kill": True})
         wait_for(lambda: not helper().get("alive"), 3, 0.1)
         post("/test/eleven", {"fail": "401"})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         t_stop = when(m, r"recording stopped", 10) or time.time()
         t_end = delivered(m, 200)
@@ -538,7 +539,7 @@ def tr11():
     with rig():
         t0 = now_iso()
         post("/test/eleven", {"fail": "transportx2", "delayMs": 19000})
-        m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         if not on_inject(m): return not_inject(m)
         t_stop = when(m, r"recording stopped", 10) or time.time()
         t_to = when(m, r"timed out waiting for the text", 50, 0.2)
@@ -565,7 +566,7 @@ def tr12():
         for spec, want in (("401", 0), ("422", 0), ("500x2", 1), ("429x2", 1)):
             t0 = now_iso()
             post("/test/eleven", {"fail": spec})
-            m, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+            m, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
             if not on_inject(m): return not_inject(m)
             delivered(m, 120)
             settle_out(60)
@@ -649,7 +650,7 @@ def tr14():
         alive_pid = state()["pid"]
         t1 = now_iso()
         post("/test/eleven", {"fail": "401"})
-        m2, _ = dictate_loopback(CLIP_EN, wait_after=1.0)
+        m2, _ = dictate_loopback(CLIP_SPEECH, wait_after=1.0)
         delivered(m2, 150)
         settle_out(60)
         d2 = last_delivery(t1)

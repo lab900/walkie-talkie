@@ -273,6 +273,12 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
   (`MicRecorder.voicedSeconds`, read at the close in `ElevenLabsSource.stop`,
   `fallbackVoicedFloor`) is an ordinary `.failed` → the local model stands in. Under 2 s stays
   `heardNothing` (WAV kept, banner, nothing delivered).
+- **The same floor on every Scribe failure (2026-09-27, batch 7):** 401/quota, 429, 5xx, timeout,
+  transport, a key gone mid-sentence — `ElevenLabsSource.finishWithFailure` ends a take under 2 s
+  voiced as `heardNothing` (the cause stays in the log line), so it never reaches `fallBackToLocal`.
+  With the quota out (27 Sep) every silent take became a local decode otherwise. **Short real
+  sentences fall under it:** the 3.5 s `CLIP_EN` measures 1.1–1.9 s voiced (1365-frame buffers each
+  drop a tail hop), so fallback cases play `CLIP_SPEECH` (12 s, ~3.5 s voiced). TL16.
 - **Unmeasured:** `languageFloor = 0.5`, `scribe_v1` vs `v2`. `tools/eleven-test.sh [wav | --corpus n]`.
 
 ## Markers: where a picture was taken

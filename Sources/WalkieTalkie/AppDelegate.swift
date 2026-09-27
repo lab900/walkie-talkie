@@ -3542,6 +3542,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // a take with no speech invents one (2026-09-26) — that WAV goes to Recover.
         // Q8 (batch 6): ElevenLabs sends an empty answer on a take with ≥ 2 s
         // voiced as an ordinary failure instead, so it does fall back here.
+        // Batch 7: the same floor on **every** Scribe failure (401/quota, 429,
+        // 5xx, timeout, transport) — under 2 s voiced it arrives as
+        // `heardNothing`, so a silent take never reaches the local model.
         if case .failed(let why, let audio?, let duration) = end, why != DictationEnd.heardNothing,
            fallBackToLocal(why: why, wav: audio, duration: duration) { return }
         dictationEndedForGood(end)

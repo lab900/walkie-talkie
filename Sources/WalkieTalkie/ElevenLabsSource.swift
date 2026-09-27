@@ -471,7 +471,7 @@ final class ElevenLabsSource: DictationSource {
         guard let key = apiKey else {
             // Only reachable if the key was taken away mid-sentence — and the
             // audio still stays, for `finishWithFailure`'s reason.
-            answer(t) { finishWithFailure(wav, duration, "the ElevenLabs key went away mid-sentence") }
+            answer(t) { finishWithFailure(wav, duration, "the ElevenLabs key went away mid-sentence", voiced: voiced) }
             return
         }
         Log.info(String(format: "🎙️ recording stopped — %.1fs, uploading to ElevenLabs", duration))
@@ -501,7 +501,7 @@ final class ElevenLabsSource: DictationSource {
         let elapsed = Date().timeIntervalSince(startedAt)
         switch outcome {
         case .failure(let why):
-            self.finishWithFailure(wav, duration, why)
+            self.finishWithFailure(wav, duration, why, voiced: voiced)
         case .success(let r) where r.text.isEmpty:
             // **An empty answer is a failure with the audio in hand, not
             // silence** (2026-09-26, the test plan's §3.8: TL16, TR13). It
@@ -613,9 +613,26 @@ final class ElevenLabsSource: DictationSource {
         liveOpen = false
     }
 
-    private func finishWithFailure(_ wav: URL, _ duration: TimeInterval, _ why: String) {
-        Log.error("ElevenLabs: \(why)")
+    /// **Q8 on every failure, not only the empty answer** (2026-09-27, batch 7).
+    /// Victor's rule is *local fallback only with real speech*, and it is about
+    /// the local model, not about why Scribe did not answer: a 401 (the quota
+    /// ran out on 27 Sep), a 429, a 5xx, a timeout or a dead network on a take
+    /// of room tone would hand the same near-silence to Whisper, which invents
+    /// a sentence (`www.clu.com.br`) and types it. So under `fallbackVoicedFloor`
+    /// voiced seconds the end is `heardNothing` — which `AppDelegate.dictationEnded`
+    /// never sends to `fallBackToLocal` — the WAV staged for *Recover*, the banner
+    /// *No words heard — recover it from the menu*, nothing delivered. The
+    /// real cause stays in the log line.
+    private func finishWithFailure(_ wav: URL, _ duration: TimeInterval, _ why: String,
+                                   voiced: TimeInterval) {
         settlePhase(.done("error"))
+        guard voiced >= Self.fallbackVoicedFloor else {
+            Log.error(String(format: "ElevenLabs: %@ — only %.1f s voiced (under %.0f s): no local fallback, the audio is kept for Recover",
+                             why, voiced, Self.fallbackVoicedFloor))
+            didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
+            return
+        }
+        Log.error(String(format: "ElevenLabs: %@ (%.1f s voiced)", why, voiced))
         didEnd?(.failed(why: "ElevenLabs: \(why)", audio: wav, duration: duration))
     }
 
