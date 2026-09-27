@@ -1257,6 +1257,12 @@ def tg40():
             return g.done("FAIL", "the microphone never opened")
         if not wait_stopped(m):
             return g.done("FAIL", "the F10 stop did not land")
+        # Q12's admission refuses a start within `queueStartAfterStop` (0.8 s) of the stop — a second
+        # click of the same stop, and the refusal then says `words still in flight`, rightly. The
+        # case is about a back click *in the settle*, so it waits the guard out first (2026-09-27:
+        # at +0.12 s it hit the guard and read as FAIL).
+        if st().get("sentenceQueue"):
+            time.sleep(1.0)
         early = "📦 delivery:" in log_since(m)
         g.step("back-click")
         s_at = st()
