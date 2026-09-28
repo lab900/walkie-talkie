@@ -179,7 +179,11 @@ final class ElevenLabsLive {
     /// Opens the socket for the sentence that is starting. Main queue, from
     /// `ElevenLabsSource.start()`.
     func connect(key: String, language: String?) {
-        var parts = URLComponents(string: "wss://api.elevenlabs.io/v1/speech-to-text/realtime")!
+        // `WT_ELEVEN_LIVE_URL` (env, then `elevenlabs.env`, re-read at every engine pick): the
+        // harness's fake Scribe (`evals/plan/fake_scribe.py`, 2026-09-27) instead of the real one.
+        let real = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
+        let base = ProcessInfo.processInfo.environment["WT_ELEVEN_LIVE_URL"] ?? ElevenLabsSource.config["WT_ELEVEN_LIVE_URL"]
+        var parts = base.flatMap { URLComponents(string: $0) } ?? URLComponents(string: real)!
         var query = [URLQueryItem(name: "model_id", value: Self.model),
                      URLQueryItem(name: "audio_format", value: "pcm_16000"),
                      URLQueryItem(name: "commit_strategy", value: "vad"),

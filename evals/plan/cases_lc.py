@@ -2,8 +2,9 @@
 `state.liveCaption` (docs/test-plan.md). No microphone, no network: the band's own motion.
 
 Constants (LiveCaptionBand.swift, 07:50 centred layout): marginRight 48, dropSlack 40, vMax 700,
-ease 0.45, swap 1.0 (ghost 0.5), correctionFade 1.6, reflow 0.26, provisionalFloor 0.4, fadeIn 0.22 (opacity,
-batch 5), eraser after
+ease 0.45, swap 1.0 (ghost 0.5), correctionFade 1.6, reflow 0.26, provisionalFloor 0.4, fadeIn 0.22 (the
+provisional gradient since 84d420e), entry front revealSpeed 320 pt/s with the eraser's 160 pt edge (letter by
+letter since 2026-09-27, 84d420e: `reveal` per word, `opacity` = solidity × ink), eraser after
 5.0 s idle (2.0 until 2026-09-26 14:20) at 260 pt/s with a 160 pt edge, letter by letter.
 
 Centre of the visible text = anchor + (visibleStart + visibleWidth) / 2, visibleStart = max(0,
@@ -97,31 +98,54 @@ def verdict(fails, note):
 
 
 # ---------------------------------------------------------------- cases
-@case("LC1", ("lc",), expect="first word centred: |centre − bandWidth/2| < 3, velocity 0, opacity 0 → 0.4 within 0.5 s, never anchor ≥ bandWidth − 5")
+@case("LC1", ("lc",), expect="first word enters letter by letter, centred (2026-09-27, 84d420e): reveal grows monotonically "
+      "and the word is fully revealed (reveal null) within 1.2 s; |centre − bandWidth/2| < 3 on every sample; "
+      "anchor |velocity| and the entry front ≤ 320 pt/s; first opacity < 0.1, settled 0.4 ± 0.03 (provisional); never anchor ≥ bandWidth − 5")
 def lc1():
-    """First word appears centred and fades in to the provisional floor."""
+    """The first word appears in the middle and is swept in by the entry front.
+
+    Since 84d420e (2026-09-27) an appended word enters letter by letter: a front with the eraser's
+    160 pt soft edge at `revealSpeed` 320 pt/s, `reveal` = the front in points from the word's left
+    edge (null once the edge has passed its end), `opacity` = solidity × revealed ink. A 110 pt word
+    takes (110 + 160) / 320 ≈ 0.84 s. The whole-word fade it replaced (≥ 0.32 at 0.5 s) is gone."""
     fresh()
     caption("", "Hello")
-    S = sample(1.4)
+    t_add = time.time()
+    S = []
+    while time.time() - t_add < 1.8:
+        t_req = time.time(); s = lc(); s["t"] = (t_req + time.time()) / 2 - t_add
+        S.append(s); time.sleep(0.03)
     S = [s for s in S if s["words"] >= 1]
     if not S:
         return "FAIL", "the band never showed the word"
     s0, bw = S[0], S[0]["bandWidth"]
-    off = abs(centre(s0) - mid(s0))
-    vmax = max(s["velocity"] for s in S)
-    op0 = s0["opacity"][0]
-    at05 = [s["opacity"][0] for s in S if s["t"] >= S[0]["t"] + 0.5]
-    last = S[-1]["opacity"][0]
+    rv = [(s["t"], s["reveal"][0]) for s in S if s.get("reveal")]
+    if not rv:
+        return "FAIL", "no `reveal` in state.liveCaption — the build predates 84d420e"
+    series = [(t, r) for t, r in rv if r is not None]
+    done = next((t for t, r in rv if r is None), None)
+    back = [(round(a[0], 2), a[1], b[1]) for a, b in zip(series, series[1:]) if b[1] < a[1] - 1]
+    fast = [(round(b[0], 2), round((b[1] - a[1]) / (b[0] - a[0]))) for a, b in zip(series, series[1:])
+            if b[0] > a[0] and b[1] - a[1] > 320 * (b[0] - a[0] + JITTER) + 2]
+    speeds = sorted((b[1] - a[1]) / (b[0] - a[0]) for a, b in zip(series, series[1:]) if b[0] > a[0] and b[1] > a[1])
+    front_v = speeds[len(speeds) // 2] if speeds else None
+    offs = [abs(centre(s) - mid(s)) for s in S]
+    vmax = max(abs(s["velocity"]) for s in S)
+    op0, last = s0["opacity"][0], S[-1]["opacity"][0]
     edge = [s["anchor"] for s in S if s["anchor"] >= bw - 5]
     fails = []
-    if off >= 3: fails.append(f"off centre by {off:.1f}")
-    if vmax > 0.5: fails.append(f"velocity {vmax:.1f}")
+    if back: fails.append(f"reveal went back {back[:2]}")
+    if done is None: fails.append(f"not fully revealed after 1.8 s (reveal {rv[-1][1]})")
+    elif done > 1.2: fails.append(f"fully revealed only at +{done:.2f} s")
+    if max(offs) >= 3: fails.append(f"off centre by {max(offs):.1f}")
+    if vmax > 320: fails.append(f"anchor velocity {vmax:.0f} pt/s")
+    if fast: fails.append(f"entry front faster than 320 pt/s: {fast[:2]}")
     if op0 >= 0.1: fails.append(f"first opacity {op0}")
-    # τ = fadeIn 0.22 (reflow 0.26 before batch 5) → 90 % of 0.4 at 0.5 s; asked: ≥ 0.32 at 0.5 s, 0.4 ± 0.03 at the end
-    if not at05 or at05[0] < 0.32: fails.append(f"opacity at +0.5 s {at05[:1]}")
     if abs(last - 0.4) > 0.03: fails.append(f"settled opacity {last}")
     if edge: fails.append(f"{len(edge)} sample(s) with anchor ≥ bandWidth − 5")
-    return verdict(fails, f"centre off {off:.2f} pt, max velocity {vmax:.1f}, opacity {op0} → {at05[:1]} at +0.5 s → {last}, bandWidth {bw:.0f}")
+    return verdict(fails, f"reveal {series[0][1] if series else None} pt at +{rv[0][0]:.2f} s → in at +{done and round(done, 2)} s "
+                          f"(front median {front_v and round(front_v)} pt/s over {len(series)} samples); centre off ≤ {max(offs):.2f} pt; "
+                          f"max |velocity| {vmax:.0f}; opacity {op0} → {last}; bandWidth {bw:.0f}")
 
 
 @case("LC2", ("lc",), expect="growth at 0.4 s/word for 20 s: centre ±80 until line > bandWidth − 96, then anchor + shownWidth ≤ bandWidth − 48 + 2; |Δanchor| ≤ 700·Δt + 2; anchor rises only by a drop")
@@ -309,53 +333,79 @@ def lc8():
     return verdict(fails, f"{len(seq)} revisions, corrections +{dc}, {len(ghosts)} sample(s) with ghosts")
 
 
-@case("LC9", ("lc",), expect="append-only ×30: corrections 0; each appended word's opacity starts < 0.1 and reaches its target within 0.6 s")
+@case("LC9", ("lc",), expect="append-only ×30 at 2 words/s (letter by letter since 84d420e): corrections 0; per word, reveal "
+      "grows monotonically, the word starts at opacity < 0.1 and is fully revealed within 1.2 s of its append; centre ±10 pt "
+      "while the line is narrower than bandWidth − 96; anchor |velocity| ≤ 320 pt/s; entry front ≤ 0.7 vMax (490, the catch-up cap)")
 def lc9():
-    """Appending is never a correction; each new word fades in."""
+    """Appending is never a correction; each new word is swept in letter by letter.
+
+    Rewritten 2026-09-27 for 84d420e: the old limits (each word at its target within 0.6 s) belonged
+    to the whole-word fade. The entry front runs at 320 pt/s, or faster only to clear a backlog within
+    0.8 s (never past 0.7 vMax = 490); a word appended while the one before is still coming in starts
+    one word-width behind that word's front (one continuous edge), so its reveal may start negative.
+    **2 words/s, not the old 0.3 s/word** — the pace 84d420e was measured at, and his own: at 3.3
+    words/s the text outruns 320 pt/s by design and the catch-up takes over (measured 2026-09-28:
+    22/30 words over 1.2 s, the slowest 2.29 s, anchor 398 pt/s), which is the backlog path, not
+    the append path this case is about."""
     fresh()
-    starts, reach, t_add = {}, {}, {}
-    t0 = time.time()
+    t_add, first_op, seen, done = {}, {}, {}, {}
+    fronts, S = [], []
+
+    def read():
+        t_req = time.time(); s = lc(); s["at"] = (t_req + time.time()) / 2
+        S.append(s)
+        for i in t_add:
+            vis = i - s["dropped"]
+            if s["words"] <= i or not 0 <= vis < len(s.get("reveal") or []):
+                continue
+            if i not in first_op and vis < len(s["opacity"]):
+                first_op[i] = s["opacity"][vis]
+            r = s["reveal"][vis]
+            if r is None:
+                if i in seen and i not in done:
+                    done[i] = s["at"] - t_add[i]
+            elif i not in done:
+                seen.setdefault(i, []).append((s["at"], r))
+
     for k in range(30):
         caption(" ".join(WORDS[:k + 1]))
         t_add[k] = time.time()
-        end = t_add[k] + 0.3
+        end = t_add[k] + 0.5
         while time.time() < end:
-            t_req = time.time(); s = lc(); now = (t_req + time.time()) / 2   # the app answered in between
-            for i in list(t_add):
-                vis = i - s["dropped"]
-                if s["words"] <= i or not 0 <= vis < len(s["opacity"]):
-                    continue
-                op = s["opacity"][vis]
-                if i not in starts:
-                    starts[i] = op
-                if i not in reach and op >= 0.9:        # 90 % of the committed target 1.0
-                    reach[i] = now - t_add[i]
-            time.sleep(0.03)
-    tail, t_tail = [], time.time()
-    while time.time() - t_tail < 1.0:   # the last words' fade-ins, each sample stamped when it was read
-        t_req = time.time(); s = lc(); s["at"] = (t_req + time.time()) / 2
-        tail.append(s); time.sleep(0.03)
-    for s in tail:
-        for i in t_add:
-            vis = i - s["dropped"]
-            # 2026-09-26 (batch 5): this used `time.time()` *after* the whole second of sampling, so the
-            # last word always read ≈ 1.3 s (the "29: 1.39" of the first run) — the sample's own time now
-            if i not in reach and s["words"] > i and 0 <= vis < len(s["opacity"]) and s["opacity"][vis] >= 0.9:
-                reach[i] = s["at"] - t_add[i]
-    corr = tail[-1]["corrections"]
-    hot = {i: v for i, v in starts.items() if v >= 0.1}
-    slow = {i: round(v, 2) for i, v in reach.items() if v > 0.65}
-    missing = [i for i in t_add if i not in reach]
+            read(); time.sleep(0.03)
+    t_tail = time.time()
+    while time.time() - t_tail < 1.6:
+        read(); time.sleep(0.03)
+    if not any(s.get("reveal") is not None for s in S):
+        return "FAIL", "no `reveal` in state.liveCaption — the build predates 84d420e"
+    corr = S[-1]["corrections"]
+    back = {i: v for i, v in ((i, [(round(a[0] - t_add[i], 2), a[1], b[1]) for a, b in zip(ser, ser[1:]) if b[1] < a[1] - 1])
+                              for i, ser in seen.items()) if v}
+    steps = [(b[1] - a[1]) / (b[0] - a[0]) for ser in seen.values() for a, b in zip(ser, ser[1:]) if b[0] > a[0]]
+    fast = [round(v) for v in steps if v > 490 * 1.1 + 2 / 0.03]
+    over320 = sum(1 for v in steps if v > 320 * 1.15)
+    ups = sorted(v for v in steps if v > 0)
+    front_v = ups[len(ups) // 2] if ups else None
+    hot = {i: v for i, v in first_op.items() if v >= 0.1}
+    slow = {i: round(v, 2) for i, v in done.items() if v > 1.2}
+    missing = [i for i in t_add if i not in done]
+    narrow = [s for s in S if s["words"] and s["dropped"] == 0 and s["lineWidth"] <= s["bandWidth"] - 96]
+    offs = [abs(centre(s) - mid(s)) for s in narrow]
+    vmax = max(abs(s["velocity"]) for s in S)
     fails = []
     if corr: fails.append(f"corrections {corr}")
-    # read straight after the POST: one 60 Hz frame of τ 0.26 is 0.06, so < 0.1 is measurable
-    if hot: fails.append(f"{len(hot)} word(s) started at ≥ 0.1, e.g. {list(hot.items())[:3]}")
-    # τ fadeIn 0.22 puts 90 % at 0.51 s (0.26 put it at 0.60, on the limit); asked ≤ 0.65 s
-    if slow: fails.append(f"{len(slow)} word(s) slower than 0.65 s to 90 %: {list(slow.items())[:3]}")
-    if missing: fails.append(f"{len(missing)} word(s) never reached 90 %")
-    worst = max(reach.values()) if reach else float("nan")
-    return verdict(fails, f"corrections {corr}, start opacity max {max(starts.values()) if starts else 'n/a'}, "
-                          f"slowest to 90 % {worst:.2f} s over {len(reach)}/{len(t_add)} words")
+    if back: fails.append(f"{len(back)} word(s) whose reveal went back, e.g. {list(back.items())[:2]}")
+    if hot: fails.append(f"{len(hot)} word(s) started at opacity ≥ 0.1, e.g. {list(hot.items())[:3]}")
+    if slow: fails.append(f"{len(slow)} word(s) slower than 1.2 s to be fully revealed: {list(slow.items())[:3]}")
+    if missing: fails.append(f"{len(missing)} word(s) never fully revealed: {missing[:5]}")
+    if offs and max(offs) > 10: fails.append(f"off centre by {max(offs):.1f} pt while narrow")
+    if vmax > 320: fails.append(f"anchor velocity {vmax:.0f} pt/s")
+    if fast: fails.append(f"entry front over 0.7 vMax: {fast[:3]}")
+    worst = max(done.values()) if done else float("nan")
+    return verdict(fails, f"corrections {corr}; slowest full reveal {worst:.2f} s over {len(done)}/{len(t_add)} words; "
+                          f"first opacity max {max(first_op.values()) if first_op else 'n/a'}; front median "
+                          f"{front_v and round(front_v)} pt/s, {over320}/{len(steps)} steps over 320 (+15 %, catch-up); "
+                          f"centre off ≤ {max(offs) if offs else 0:.1f} pt over {len(offs)} narrow samples; max |velocity| {vmax:.0f}")
 
 
 @case("LC10", ("lc",), expect="{on:false}: open flips at once, words 0 after 0.6 s; reopen within 0.15 s is not reset by the fade's completion")

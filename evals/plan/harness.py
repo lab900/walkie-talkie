@@ -6,8 +6,16 @@ loopback routes; cases are small functions that return a verdict. Nothing here e
 
 Every case leaves the relay as it found it (bind, override, faults, cancel). A case that needs a
 gesture is tagged `gesture` and only runs when the process was started under `hands-off`
-(HANDS_OFF=1 in the environment, which `run-gestures.sh` sets)."""
-import json, os, subprocess, sys, time, urllib.request, urllib.error, datetime, traceback, re, wave, shutil
+(HANDS_OFF=1 in the environment, which `run-gestures.sh` sets).
+
+**ElevenLabs is opt-in per case** (2026-09-27, Victor: *"pune plafon + regula ca testele locale sa
+prefere intotdeauna motor local"*): the run sets the engine to the local Whisper and puts his back
+at exit; only the cases in `ELEVEN_ENGINE` switch to an ElevenLabs engine, for their duration.
+Those run against the fake Scribe (`fake_scribe.py`, `WT_FAKE_SCRIBE=1`, the default) unless they
+are in `VENDOR_ONLY`; a case that would reach the real service is SKIPped when the month has fewer
+than `WT_ELEVEN_MIN_CREDITS` (3000) of `WT_ELEVEN_QUOTA` (10000) credits left, or the usage cannot
+be read. `WT_FAKE_SCRIBE=0` sends every ElevenLabs case to the real service, under that cap."""
+import json, os, signal, subprocess, sys, time, urllib.request, urllib.error, datetime, traceback, re, wave, shutil
 
 HOME = os.path.expanduser("~/.walkie-talkie")
 LOG = HOME + "/relay.log"
@@ -40,6 +48,34 @@ CLIP_SPEECH = _speech_clip()
 # `WT_LOOPBACK` names it elsewhere: in the Tart lab (docs/vm-lab.md) there is no Loopback app.
 LOOPBACK = os.environ.get("WT_LOOPBACK", "🧪 WT Inject")
 LOCK_PATH = HOME + "/wispr-loop.lock"   # the one runner lock on this Mac (helpers/wispr_loop.py)
+
+# ---------------------------------------------------------------- ElevenLabs: local first, a cap, a fake (2026-09-27)
+# 26 Sep 2026: this suite alone burned 4 561 of the month's 10 000 credits (2 159 scribe_v2 +
+# 2 402 scribe_v2_realtime). Victor, 27 Sep: "pune plafon + regula ca testele locale sa prefere
+# intotdeauna motor local" · "poti emula daca vrei apiul lor de streaming pt testele de live subtitles".
+LOCAL_ENGINE = "whisper"                 # the ids of StatusItem / AppDelegate.engine(named:)
+ELEVEN_ENV = HOME + "/elevenlabs.env"    # re-read by the app at every engine pick (reloadKey)
+FAKE_MARK = "# fake-scribe: written by evals/plan/harness.py, removed at its exit"
+FAKE_ON = os.environ.get("WT_FAKE_SCRIBE", "1") != "0"
+QUOTA = int(os.environ.get("WT_ELEVEN_QUOTA", "10000"))
+MIN_CREDITS = int(os.environ.get("WT_ELEVEN_MIN_CREDITS", "3000"))
+# The engine a case needs for its duration — every case that reads `engine()` expecting ElevenLabs
+# (`cases_audio.pre`, `cases_gestures.need_el`, `cases_queue`) or switches to it itself and uploads.
+# Batch-only cases get `eleven` (no socket: nothing streamed, fewer credits on the real service).
+# Not here, because they switch themselves and upload nothing: TL3, TL22, TR19; local: TR15.
+_LIVE = "TL29 TL30 TR9 LC13 B1 B2 B3 B4 B5"
+_BATCH = ("TL8 TL9 TL10 TL11 TL12 TL13 TL14 TL15 TL16 TL25 TL32 TR10 TR11 TR12 TR13 TR14 TR23 TR24 "
+          "Q1 Q2 Q3 Q4 Q5 Q6 TG1 TG2 TG3 TG4 TG6 TG7 TG8 TG9 TG13 TG14 TG15 TG17 TG18 TG20 TG25 TG28 "
+          "TG29 TG36 TG40 TG41")
+ELEVEN_ENGINE = dict([(c, "eleven") for c in _BATCH.split()] + [(c, "eleven-live") for c in _LIVE.split()])
+# Every upload answered by the `/test/eleven` fault switch — no credits even on the real service,
+# so these run whatever the cap says.
+FAULT_ONLY = set("TL11 TL13 TL14 TL32 TR10 TR11 TR12 TR13 TR14".split())
+# What only the real service can answer: the 10-min ceiling's 19 MB upload against URLSession's
+# own 20 s timeout. Real (and under the cap) even with the fake on.
+VENDOR_ONLY = {"TL25"}
+RUN = {"credits_before": None, "usage_error": None, "engine0": None, "fake": None, "results": [],
+       "credits_after": None}
 
 
 # ---------------------------------------------------------------- transport
@@ -290,7 +326,9 @@ def loopback_alive():
     return share > 0.2
 
 def play(wav, peak=0.5, lead=0.5, tail=0.5, seconds=None):
-    """Play a 16 kHz mono WAV into the Loopback device, blocking. Silent for the room."""
+    """Play a 16 kHz mono WAV into the Loopback device, blocking. Silent for the room.
+    With the fake Scribe up, it is first told what this clip says (`fake_script`)."""
+    fake_script(wav, seconds)
     import numpy as np, sounddevice as sd
     from scipy.signal import resample_poly
     idx = [i for i, d in enumerate(sd.query_devices()) if LOOPBACK.lower() in d["name"].lower()][0]
@@ -338,12 +376,198 @@ def wait_delivered(mark, timeout=60):
     return wait_for(lambda: log_has(mark, r"📦 delivery:|words landed|dictation abandoned|No words|held"), timeout, 0.3)
 
 
+# ---------------------------------------------------------------- ElevenLabs: usage, engine, the fake
+def _his_lines(lines):
+    """`elevenlabs.env` without the block `fake_env` writes (FAKE_MARK … FAKE_MARK (end))."""
+    out, inside = [], False
+    for l in lines:
+        if l.startswith(FAKE_MARK):
+            inside = not l.endswith("(end)")
+            continue
+        if not inside:
+            out.append(l)
+    return out
+
+def _eleven_key():
+    k = os.environ.get("ELEVENLABS_API_KEY")
+    if k:
+        return k
+    try:
+        for line in _his_lines(open(ELEVEN_ENV, encoding="utf-8").read().splitlines()):
+            if line.strip().startswith("ELEVENLABS_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"') or None
+    except FileNotFoundError:
+        pass
+    return None
+
+def eleven_usage():
+    """(credits used this calendar month, None) or (None, why). `/v1/user/subscription` answers
+    nulls for this key; the character-stats breakdown by model is what the dashboard shows."""
+    key = _eleven_key()
+    if not key:
+        return None, "no ELEVENLABS_API_KEY"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    url = ("https://api.elevenlabs.io/v1/usage/character-stats?start_unix=%d&end_unix=%d&breakdown_type=model"
+           % (int(start.timestamp() * 1000), int(now.timestamp() * 1000)))
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"xi-api-key": key}), timeout=15) as r:
+            d = json.load(r)
+        return int(round(sum(sum(v or 0 for v in series) for series in (d.get("usage") or {}).values()))), None
+    except Exception as e:
+        return None, f"{type(e).__name__}: {e}"
+
+def credits_left():
+    b = RUN["credits_before"]
+    return None if b is None else QUOTA - b
+
+def needs_real(c):
+    """The case would spend real ElevenLabs credits."""
+    return bool(c.get("engine")) and c["id"] not in FAULT_ONLY and (not RUN["fake"] or c["id"] in VENDOR_ONLY)
+
+def routes_fake(c):
+    return bool(RUN["fake"]) and bool(c.get("engine")) and c["id"] not in VENDOR_ONLY
+
+def cap_blocks(c):
+    """The SKIP note when the credit cap stops this case, else None."""
+    if not needs_real(c):
+        return None
+    left = credits_left()
+    if left is None:
+        return f"credit cap (? left — usage unreadable: {RUN['usage_error']})"
+    if left < MIN_CREDITS:
+        return f"credit cap ({left} left)"
+    return None
+
+def fake_env(on):
+    """Point the app's ElevenLabs URLs at the fake (or back), through `elevenlabs.env` — the app
+    re-reads it at every engine pick, while the harness's own environment never reaches an app
+    that `relay-restart.sh` launched with `open`. Only lines carrying FAKE_MARK are written or
+    removed; everything else in the file (his key) is left byte for byte."""
+    try:
+        lines = open(ELEVEN_ENV, encoding="utf-8").read().splitlines()
+        mode = os.stat(ELEVEN_ENV).st_mode & 0o777
+    except FileNotFoundError:
+        lines, mode = [], 0o600
+    keep = _his_lines(lines)
+    if on and RUN["fake"]:
+        live, batch = RUN["fake"]["urls"]
+        # The app takes the whole rest of the line as the value, so the mark goes on a line of its own.
+        keep += [FAKE_MARK, f"WT_ELEVEN_LIVE_URL={live}", f"WT_ELEVEN_BATCH_URL={batch}"]
+        if not _eleven_key():   # the lab guest after a reset: a key only the fake accepts
+            keep.append("ELEVENLABS_API_KEY=fake-scribe")
+        keep.append(FAKE_MARK + " (end)")
+    if keep == lines:
+        return
+    tmp = ELEVEN_ENV + ".harness-tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(keep) + ("\n" if keep else ""))
+    os.chmod(tmp, mode)
+    os.replace(tmp, ELEVEN_ENV)
+
+def set_engine(eid, timeout=60):
+    """POST /engine once the relay is idle (a switch mid-sentence is refused); True when taken."""
+    wait_for(lambda: not state()["busy"], timeout, 0.5)
+    for _ in range(3):
+        _, r = post("/engine", {"id": eid})
+        if r.get("engine") == eid:
+            return True
+        time.sleep(1.0)
+    return False
+
+def engine_for_case(c):
+    """Switch to the case's ElevenLabs engine, fake or real. A pick of the engine already running
+    re-reads nothing (`setEngine` returns early), so it goes through the local one first."""
+    fake_env(routes_fake(c))
+    if engine()["engine"] == c["engine"]:
+        set_engine(LOCAL_ENGINE)
+    return set_engine(c["engine"])
+
+def engine_back():
+    """After every case: the local engine again, whatever the case did."""
+    try:
+        if engine()["engine"] != LOCAL_ENGINE:
+            set_engine(LOCAL_ENGINE)
+    except Exception:
+        pass
+
+_WAV_SECONDS = {}
+def _duration(wav):
+    if wav not in _WAV_SECONDS:
+        try:
+            w = wave.open(wav); _WAV_SECONDS[wav] = w.getnframes() / float(w.getframerate()); w.close()
+        except Exception:
+            _WAV_SECONDS[wav] = None
+    return _WAV_SECONDS[wav]
+
+def fake_script(wav, seconds=None):
+    """Tell the fake what the clip about to be played says: the corpus `.txt` beside it, cut to
+    the share played (CLIP_SPEECH is the first 12 s of CLIP_EN_LONG). No `.txt` (silence) → no
+    words, and the fake answers from the energy alone."""
+    if not RUN["fake"]:
+        return
+    src, share = wav, 1.0
+    if wav == CLIP_SPEECH and _duration(CLIP_EN_LONG):
+        src, share = CLIP_EN_LONG, CLIP_SPEECH_SECONDS / _duration(CLIP_EN_LONG)
+    txt = os.path.splitext(src)[0] + ".txt"
+    words = open(txt, encoding="utf-8", errors="replace").read().split() if os.path.exists(txt) else []
+    d = _duration(wav)
+    if seconds and d:
+        share *= min(1.0, seconds / d)
+    if words and share < 1.0:
+        words = words[: max(1, int(round(len(words) * share)))]
+    try:
+        RUN["fake"]["state"].set_script({"words": words, "wav": wav, "seconds": seconds})
+    except Exception as e:
+        print(f"  (fake_script: {type(e).__name__}: {e})")
+
+def eleven_setup():
+    """At the start of a run: the month's credits, a stale fake line gone, the fake up, the engine local."""
+    used, why = eleven_usage()
+    RUN["credits_before"], RUN["usage_error"] = used, why
+    fake_env(False)                       # a crashed run's lines
+    if FAKE_ON:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import fake_scribe
+        srv, port = fake_scribe.serve(0)
+        RUN["fake"] = {"server": srv, "port": port, "urls": fake_scribe.urls(port), "state": fake_scribe.STATE}
+    wait_idle()
+    RUN["engine0"] = engine()["engine"]
+    if RUN["engine0"] != LOCAL_ENGINE and not set_engine(LOCAL_ENGINE):
+        print(f"  (could not switch the engine to {LOCAL_ENGINE}: still {engine()['engine']})")
+    left = credits_left()
+    print(f"ElevenLabs: {used if used is not None else '?'} credits used this month, "
+          f"{left if left is not None else '?'} of {QUOTA} left (cap {MIN_CREDITS}){' — ' + why if why else ''}; "
+          f"engine {RUN['engine0']} → {LOCAL_ENGINE} for the run; fake Scribe "
+          + (f"on port {RUN['fake']['port']}" if RUN["fake"] else "off (WT_FAKE_SCRIBE=0)"))
+
+def eleven_teardown():
+    """The file first, then his engine: picking an ElevenLabs engine re-reads the file."""
+    fake_env(False)
+    e0 = RUN["engine0"]
+    try:
+        if e0 and engine()["engine"] != e0:
+            wait_for(lambda: not state()["busy"], 120, 0.5)
+            set_engine(e0)
+    except Exception as e:
+        print(f"  (engine not restored to {e0}: {type(e).__name__}: {e})")
+    if RUN["fake"]:
+        RUN["fake"]["server"].shutdown()
+    if RUN["credits_before"] is not None:
+        RUN["credits_after"], _ = eleven_usage()
+
+
 # ---------------------------------------------------------------- the registry
 CASES = []
 
-def case(id, tags=(), expect=""):
+def case(id, tags=(), expect="", engine=None):
+    """`engine`: the ElevenLabs engine the case needs for its duration (`eleven`｜`eleven-live`);
+    the cases written before 2026-09-27 get it from `ELEVEN_ENGINE`. Tagged `eleven` (+ `live`)."""
     def deco(fn):
-        CASES.append({"id": id, "fn": fn, "tags": set(tags), "expect": expect, "doc": (fn.__doc__ or "").strip()})
+        eng = engine or ELEVEN_ENGINE.get(id)
+        t = set(tags) | ({"eleven"} if eng else set()) | ({"live"} if eng == "eleven-live" else set())
+        CASES.append({"id": id, "fn": fn, "tags": t, "expect": expect, "doc": (fn.__doc__ or "").strip(),
+                      "engine": eng})
         return fn
     return deco
 
@@ -382,12 +606,18 @@ def release_lock():
         pass
 
 def run(selected, report_path):
-    results = []
-    t_start = datetime.datetime.now()
+    results = RUN["results"]
+    t_start = RUN.setdefault("t_start", datetime.datetime.now())
     print(f"relay on {PORT}, {len(selected)} case(s), report → {report_path}")
     for c in selected:
         if "gesture" in c["tags"] and not os.environ.get("HANDS_OFF"):
             results.append((c, "SKIP", "needs hands-off", 0)); print(f"  {c['id']}: SKIP (gesture, no hands-off)"); continue
+        capped = cap_blocks(c)
+        if capped:
+            results.append((c, "SKIP", capped, 0)); print(f"  {c['id']}: SKIP {capped}")
+            with open(report_path, "w") as f:
+                f.write(render(results, t_start))
+            continue
         try:
             wait_idle()
         except RuntimeError as e:
@@ -399,11 +629,19 @@ def run(selected, report_path):
             break
         t0 = time.time()
         try:
+            if c.get("engine") and not engine_for_case(c):
+                raise RuntimeError(f"POST /engine {c['engine']} was not taken (engine {engine()['engine']})")
+            if RUN["fake"]:
+                RUN["fake"]["state"].scripts = []
+                RUN["fake"]["state"].fault = {}
             verdict, note = c["fn"]()
+            if c.get("engine"):
+                note = f"[{c['engine']} → {'fake Scribe' if routes_fake(c) else 'real ElevenLabs'}] {note}"
         except Exception as e:
             verdict, note = "ERROR", f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=2)}"
         finally:
             cleanup()
+            engine_back()
         dt = time.time() - t0
         results.append((c, verdict, note, dt))
         print(f"  {c['id']}: {verdict} ({dt:.1f}s) — {str(note).splitlines()[0][:150] if note else ''}")
@@ -418,13 +656,37 @@ def render(results, t_start):
     out = [f"# Test plan run — {t_start:%Y-%m-%d %H:%M}", "",
            "Verdicts: **PASS** = the app does what the plan expects · **BUG** = the plan's prediction of a "
            "defect was confirmed · **FAIL** = neither the expectation nor the prediction · **SKIP** / **ERROR**.", "",
-           " · ".join(f"{k} {v}" for k, v in sorted(counts.items())), "",
+           " · ".join(f"{k} {v}" for k, v in sorted(counts.items())), "", _eleven_header(), "",
            "| case | verdict | s | expectation | observed |", "|---|---|---|---|---|"]
     for c, v, note, dt in results:
         note = str(note or "").replace("|", "\\|").replace("\n", "<br>")
         expect = c["expect"].replace("|", "\\|")   # outside the f-string: the lab's /usr/bin/python3 is 3.9
         out.append(f"| {c['id']} | **{v}** | {dt:.0f} | {expect} | {note} |")
-    return "\n".join(out) + "\n"
+    foot = _eleven_footer()
+    return "\n".join(out) + "\n" + (("\n" + foot + "\n") if foot else "")
+
+def _eleven_header():
+    b, left = RUN["credits_before"], credits_left()
+    credits = (f"**{b}** credits used this month before the run, **{left}** of {QUOTA} left" if b is not None
+               else f"credits unreadable ({RUN['usage_error']})")
+    cap = "cases that would spend real credits **SKIP**" if (left is None or left < MIN_CREDITS) else "real cases allowed"
+    fake = (f"fake Scribe on port {RUN['fake']['port']} (live + batch, `WT_FAKE_SCRIBE=1`)" if RUN["fake"]
+            else "fake Scribe off (`WT_FAKE_SCRIBE=0`): ElevenLabs cases go to the real service")
+    return (f"ElevenLabs: {credits}; cap {MIN_CREDITS} → {cap}. Engine for the run: `{LOCAL_ENGINE}` "
+            f"(was `{RUN['engine0']}`, put back at exit); only `eleven`-tagged cases switch. {fake}.")
+
+def _eleven_footer():
+    a, b = RUN["credits_after"], RUN["credits_before"]
+    lines = []
+    if a is not None and b is not None:
+        lines.append(f"ElevenLabs credits after the run: **{a}** — this run used **{a - b}** "
+                     "(ElevenLabs' daily buckets can lag by minutes; the dashboard is the final word).")
+    if RUN["fake"]:
+        st = RUN["fake"]["state"].describe()["stats"]
+        lines.append(f"Fake Scribe: {st['sessions']} live session(s), {st['chunks']} chunks ({st['audioSeconds']} s), "
+                     f"{st['partials']} partials, {st['commits']} commits, {st['batch']} batch upload(s), "
+                     f"{st['errorsSent']} error(s) sent.")
+    return "\n\n".join(lines)
 
 def main():
     import importlib, fnmatch
@@ -458,12 +720,25 @@ def main():
     def picked(cid, pats): return any(cid == p or fnmatch.fnmatch(cid, p) for p in pats)
     sel = [c for c in CASES if (not only or picked(c["id"], only)) and not (skip and picked(c["id"], skip))]
     take_lock()
+    # run-phase.sh stops a phase with SIGINT, then SIGKILL; a SIGTERM must reach the `finally` too
+    # (the fake's lines in elevenlabs.env, his engine).
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    # The band only moves while the display is awake (its CADisplayLink stops with the screen:
+    # 2026-09-28 07:20, LC1 read `reveal` 0 for 1.8 s after ten idle minutes). Wake it, keep it up.
+    if shutil.which("caffeinate"):
+        subprocess.run(["caffeinate", "-u", "-t", "2"])
+        subprocess.Popen(["caffeinate", "-dis", "-w", str(os.getpid())])
     try:
+        eleven_setup()
         run(sel, report)
     finally:
         cleanup()
         witness_close()
         close_tabs_named("wt-witness")   # any orphan a case left, through the same kill → idle → close
+        eleven_teardown()
+        if RUN.get("t_start"):
+            with open(report, "w") as f:
+                f.write(render(RUN["results"], RUN["t_start"]))
         release_lock()
 
 if __name__ == "__main__":

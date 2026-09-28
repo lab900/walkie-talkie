@@ -771,7 +771,9 @@ final class ElevenLabsSource: DictationSource {
         body.append(audio)
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
-        var req = URLRequest(url: URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!)
+        // `WT_ELEVEN_BATCH_URL` (env, then `elevenlabs.env`): the harness's fake Scribe (2026-09-27).
+        let batchURL = ProcessInfo.processInfo.environment["WT_ELEVEN_BATCH_URL"] ?? config["WT_ELEVEN_BATCH_URL"]
+        var req = URLRequest(url: batchURL.flatMap { URL(string: $0) } ?? URL(string: "https://api.elevenlabs.io/v1/speech-to-text")!)
         req.httpMethod = "POST"
         req.timeoutInterval = requestTimeout
         req.setValue(key, forHTTPHeaderField: "xi-api-key")

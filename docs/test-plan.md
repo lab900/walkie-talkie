@@ -309,8 +309,35 @@ prompts in the harness report (`scratchpad`, to be moved under `evals/codex/`).
 | G10 | `POST /test/run {"id"}` → `"harness":id` on corpus rows and outbox lines | `VoiceCorpus`, `Outbox.send` |
 | G11 | `POST /test/mic {"failNextOpen":true}` | `MicRecorder.start` |
 | G12 | `POST /test/dictation/start {"mic":true}` / `/test/dictation/stop` — a real-mic dictation without `CGEventPost` | `status.onStartDictation` |
-| G13 | `WT_ELEVEN_URL` env → a local fault server (stall, 5xx, RST) | ELS:539 hard-coded URL |
+| G13 ✅ 2026-09-27 (as a fake, not a fault server) | `WT_ELEVEN_LIVE_URL` / `WT_ELEVEN_BATCH_URL` (env or `elevenlabs.env`) → `evals/plan/fake_scribe.py`; stall/RST still to add to the fake (`/fault` has `live: stall｜drop｜<error type>`, `batch: <code>｜quota`) | `ElevenLabsLive.connect`, `ElevenLabsSource.transcribe` |
 | G14 | `POST /test/source-end {"end":"silent|failed","wav"}` | `didEnd` injection |
+
+### 6.5 ElevenLabs in the harness: local first, a cap, a fake (2026-09-27)
+
+Victor: *"pune plafon + regula ca testele locale sa prefere intotdeauna motor local"* · *"poti
+emula daca vrei apiul lor de streaming pt testele de live subtitles"* (26 Sep: the host suite alone
+spent 4 561 of 10 000 monthly credits — 2 159 `scribe_v2` + 2 402 `scribe_v2_realtime`).
+
+- **Engine:** the run starts on `whisper` and restores his engine at exit (the fake's lines first,
+  then the pick, which re-reads `elevenlabs.env`). `ELEVEN_ENGINE` in `harness.py` names the cases that
+  need ElevenLabs — every `pre()` / `need_el()` / `cases_queue` case and TL15 — with `eleven`
+  (batch only) or `eleven-live` (TL29, TL30, TR9, LC13, B1–B5); the harness switches for the case and
+  back to `whisper` after it. TL3, TL22, TR19 switch themselves and upload nothing; TR15 is local.
+  A new case passes `@case(..., engine="eleven-live")`.
+- **Fake Scribe** (`WT_FAKE_SCRIBE=1`, default): `evals/plan/fake_scribe.py` in-process on a free port,
+  the app pointed at it by `WT_ELEVEN_LIVE_URL`/`WT_ELEVEN_BATCH_URL` in `elevenlabs.env`. It speaks
+  `ElevenLabsLive`'s protocol (query params, `session_started` with keyterms echoed,
+  `input_audio_chunk`, `partial_transcript`, `committed_transcript` after `vad_silence_threshold_secs`
+  of 20 ms frames under RMS 300, injectable `quota_exceeded`-style errors) and answers the batch
+  upload `scribe_v2`-shaped. Words: `play()` sends the clip's corpus `.txt`; none → placeholders every
+  0.4 s voiced. Two scripts in flight → the upload matched by energy envelope. Everything but
+  `VENDOR_ONLY` (TL25: the real 19 MB upload) runs on it.
+- **Cap:** `WT_ELEVEN_QUOTA` (10000) − `GET /v1/usage/character-stats` for the calendar month (header
+  `xi-api-key`; `/v1/user/subscription` answers nulls for this key) < `WT_ELEVEN_MIN_CREDITS` (3000), or
+  the call fails → every case that would reach the real service is `SKIP credit cap (N left)`.
+  `FAULT_ONLY` cases (every upload answered by `/test/eleven`) run regardless.
+- **Lab:** `fake_scribe.py` sits in `evals/plan`, so the guest's mirror of `evals/` carries it;
+  `run-phase.sh` needs no change (hand-rolled websocket: the guest's 3.9 has no `websockets`).
 
 ## 7. The suites
 
