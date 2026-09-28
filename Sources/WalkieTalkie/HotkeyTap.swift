@@ -1497,6 +1497,16 @@ final class HotkeyTap {
     /// When 🔽 → last *started* a plain dictation — its stop waits
     /// `gestureStopDwellSeconds`, like F10's (2026-09-28).
     private var lastPlainStartAt: CFTimeInterval = 0
+    /// **C (lab wave 2, 2026-09-28): a refused 🔽 → start is half a pair.** He
+    /// pressed *start*, saw a refusal (or did not), talked, and pressed again to
+    /// *stop* — which opened a stray sentence (TW11, rows 28 and 33: one ran 48 s).
+    /// So the press after a refused start, with nothing open, is that pair's stop:
+    /// swallowed, said on the chip, and the toggle is back where it was. Within
+    /// `refusedStartPairSeconds`; tap thread.
+    private var lastRefusedPlainStartAt: CFTimeInterval = 0
+    private static let refusedStartPairSeconds: CFTimeInterval = 60
+    /// A plain start refused on the far side of the tap (`AppDelegate`'s blocker).
+    func notePlainStartRefused() { lastRefusedPlainStartAt = CACurrentMediaTime() }
     private static let backToggleSettleSeconds: CFTimeInterval = 0.8
     private static let gestureRetriggerSeconds: CFTimeInterval = 0.6
     /// **The same sliding window for the six flicks that had none** (2026-09-26,
@@ -3578,6 +3588,17 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                     Log.info("🎯 🔽 → \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
                     return swallow("\(gesture) — inside the stop dwell", type, event)
                 }
+                // **C: the press after a refused start is its stop, not a start.**
+                if !wisprSentence, !ownClean, lastRefusedPlainStartAt > 0 {
+                    let since = f5Now - lastRefusedPlainStartAt
+                    lastRefusedPlainStartAt = 0
+                    if since < Self.refusedStartPairSeconds, !ownDictation {
+                        lastBackToggleAt = f5Now
+                        Log.info(String(format: "🎯 🔽 → %.1fs after a refused start — that start's stop: nothing is recording, nothing starts (C)", since))
+                        onEngineBusy?("🔽 → — nothing was recording (the last start was refused)")
+                        return swallow("\(gesture) — the stop of a refused start", type, event)
+                    }
+                }
                 // **With the Engine off Wispr the plain sentence is the
                 // Engine's** (2026-09-25, `onCleanToggle`). A Wispr sentence
                 // already open is still stopped with Wispr's chord below — a
@@ -3585,6 +3606,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 if !wisprSentence, backUsesOwnEngine {
                     if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
                         refuseBackClick("🔽 →")
+                        lastRefusedPlainStartAt = f5Now
                         return swallow(gesture, type, event)
                     }
                     lastBackToggleAt = f5Now
@@ -3604,6 +3626,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
                 if !closing, ownDictation {
                     refuseBackClick("🔽 →")
+                    lastRefusedPlainStartAt = f5Now
                     return swallow(gesture, type, event)
                 }
                 lastBackToggleAt = f5Now

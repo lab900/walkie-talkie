@@ -2825,12 +2825,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if self.cleanSentence { self.endDictation() }
                 } else if self.settling || self.source.phase.isWaitingForWords, let why = self.queueRefusal() {
                     Log.info("⬅️ back click while the words are still in flight — nothing to start, nothing to stop (\(why))")
+                    self.hotkeys.notePlainStartRefused()   // C: the next 🔽 → is this one's stop
                     if why.hasPrefix("two sentences") {
                         self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
                     }
                 } else {
                     Log.info("🧼 a plain dictation (🔽 →) on \(self.source.name) — clean words at the caret, nothing added")
                     self.startDictation(paste: true, clean: true)
+                    // C: a start the blocker refused leaves the toggle where it was.
+                    if !self.listening, !self.speculative, !self.source.isRecording { self.hotkeys.notePlainStartRefused() }
                 }
             }
         }
@@ -4379,12 +4382,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **Always true since `holdsForBind`**, and kept rather than deleted: it
         // is the gate this path is written under.
         guard hasDestination else { return }
-        if spawn {
-            overlay.setSpawnDestination("✨ \(Self.spawnFolderName)", mark: "✨")
-            // **As early as the press allows** — Victor's ask, 2026-09-04. Its
-            // clock is his reading time, which starts now.
-            offerSpawnFolders()
-        }
+        // **W19 (2026-09-28): the folder menu only for a start the source took**
+        // — with Wispr quit, 🔼 ↑ opened the menu and left `spawnPending` up for
+        // a sentence that never started (TW15, 4/4 in the lab).
+        let offerFolders = spawn
 
         // A source that records its own WAV opens the microphone unready: the
         // cloud engine with no key (the local model transcribes what it cannot,
@@ -4396,10 +4397,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let why = source.start() {
             cleanSentence = false
             hotkeys.ownCleanSentence = false
+            // W19: none of this gesture's flags outlive its refusal.
+            clearSpawn()
+            pasteMode = false
+            caretPrompt = false
+            contextAtWheelRelease = false
             overlay.flash("⚠️ \(why)", duration: 6)
-            Log.error("\(source.name) did not start: \(why)")
+            Log.error("\(source.name) did not start: \(why) — the gesture's flags cleared (spawnPending, pasteMode)")
             if parkedHere { liveSentence = nil; unparkIfIdle() }
             return
+        }
+        if offerFolders {
+            overlay.setSpawnDestination("✨ \(Self.spawnFolderName)", mark: "✨")
+            // **As early as the press allows** — Victor's ask, 2026-09-04. Its
+            // clock is his reading time, which starts at the accepted start.
+            offerSpawnFolders()
         }
         // **And now nothing happens until the microphone is open.** For the local
         // model that is this same turn; for Wispr Flow it is Electron waking up.

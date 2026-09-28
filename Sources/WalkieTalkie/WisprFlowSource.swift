@@ -316,8 +316,10 @@ final class WisprFlowSource: DictationSource {
 
     /// Wispr Flow is running at all. Asked of the process list rather than
     /// remembered: it is quit and relaunched like any other app.
-    var isReady: Bool { NSWorkspace.shared.runningApplications.contains {
-        $0.bundleIdentifier?.hasPrefix(Self.bundlePrefix) == true } }
+    /// **W19 (2026-09-28): the main executable, anchored** — a bundle-id prefix
+    /// also matches the nested Accessibility helper, so a helper-only Wispr
+    /// passed and the sentence died 300 ms later as *Wispr Flow quit*.
+    var isReady: Bool { Self.wisprMainIsRunning }
 
     /// **Yes** — Wispr's microphone is pinned to the Loopback device
     /// `🎓 TO Wispr`, whose output side any app can speak into, and measured
