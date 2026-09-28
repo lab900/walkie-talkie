@@ -6848,7 +6848,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 self.deliveriesInFlight -= 1
                 switch outcome {
-                case .delivered, .deliveredSubmitted:
+                case .delivered:
                     let delivery = m.kind == "dictation"
                         ? self.recordDelivery(via: m.via, kind: m.deliveryKind, to: to) : nil
                     self.writeOutbox(m, line: line, delivery: delivery)
@@ -6884,12 +6884,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch outcome {
         case .delivered:
             Log.info("⌨️ delivered to the bound terminal")
-        case .deliveredSubmitted(let why):
-            // The Return-free typing (2026-09-28) could not be seen in the tab,
-            // so the words went in the old way — with a Return. Said out loud:
-            // a submit he did not ask for is the one thing this must not hide.
-            Log.error("⌨️ delivered with a Return — \(why)")
-            overlay.flash("⚠️ Sent with Return — \(why)", duration: 6)
         case .noTarget:
             break
         case .targetGone(let what):
