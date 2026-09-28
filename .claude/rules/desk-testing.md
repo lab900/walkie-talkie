@@ -67,7 +67,7 @@ are held — read this, never infer) · `keyTrace` · `keyRedirect` · `lastRing
 `liveCaption` (the band's ticker) · `fallingBack` · `autosend` · `lastFailure {why, engine, at}` · `recoverable {path,
 duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, `seconds`, `cutSeconds`, `segments`,
 `correctedSegments`, `corrections`, `correcting`, `committedChars`, `partialChars`, `keyterms`) · `elevenFault` ·
-`elevenCost {total, label, lines}` · `elevenQuota {used, total, remaining, reset, source (subscription｜character-stats), subscriptionStatus, missingUserRead, title, error, fetchedAt}` (null before the first fetch; the Engine list's 🧾 row, 2026-09-28) · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
+`elevenCost {total, label, lines}` · `elevenQuota {used, total, remaining, reset, source (subscription｜character-stats), subscriptionStatus, missingUserRead, pace (green｜orange｜red, the row's colour = the burn trend), burnRate, title, error, fetchedAt}` (null before the first fetch; the Engine list's 🧾 row, 2026-09-28) · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
 since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
 `sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11) · since 2026-09-28 (Wispr as engine):
 `wisprLive {micOpen (the poll's CoreAudio sample), newestRowId, newestRowStatus, newestRowText (chars), captureOpen,

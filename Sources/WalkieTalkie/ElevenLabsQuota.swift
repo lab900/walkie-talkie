@@ -125,14 +125,67 @@ enum ElevenLabsQuotaPolicy {
         return f.string(from: date)
     }
 
-    /// Compact on purpose (Victor: *"33 / 10k / Oct 30"*): remaining / total /
-    /// reset. The words live in the tooltip.
+    /// Compact on purpose (Victor: *"33 / 10k / Oct 30"*): **used** / total /
+    /// reset — used, not remaining, since 2026-09-28 08:50 (*"afișează
+    /// consumat, nu rămas înainte de /"*). The words live in the tooltip.
     static func title(_ s: Snapshot?, error: String?, timeZone: TimeZone = .current) -> String {
         guard let s else {
             return error == nil ? "🧾 ElevenLabs …" : "🧾 ElevenLabs ?"
         }
-        let remaining = (s.remaining < 0 ? "−" : "") + String(abs(s.remaining))
-        return "🧾 ElevenLabs \(remaining) / \(kilo(s.total)) / \(resetText(s.reset, timeZone: timeZone))"
+        return "🧾 ElevenLabs \(group(s.used)) / \(kilo(s.total)) / \(resetText(s.reset, timeZone: timeZone))"
+    }
+
+    // MARK: - Pace
+
+    /// The row's colour is a **trend**, not a level (2026-09-28: *"verde când
+    /// mai e mult, portocaliu sau roșu când ard mai mult decât trebuie ca
+    /// trend, proporțional cu zilele rămase"*): the plan is being spent at
+    /// some rate, and the question is whether that rate lands inside the
+    /// total by the reset, not how much is left today.
+    enum Pace: String { case green, orange, red }
+
+    /// The billing period is a month; the API only says when it ends.
+    static let periodDays = 30.0
+    /// Over trend by less than this → orange; more → red.
+    static let orangeAbove = 1.0
+    static let redAbove = 1.5
+
+    /// `used / (total × elapsed)`: 1 means exactly on trend, 2 means burning
+    /// twice what the days so far allow. `elapsed` is the share of the period
+    /// gone by, from the reset date, floored at one day so the first hour of a
+    /// new period does not paint a single dictation red. With no reset date
+    /// the used figure is a rolling 30-day sum (`fallbackWindowDays`), i.e.
+    /// a full period, so `elapsed` is 1 and the trend is simply used / total.
+    static func burnRate(_ s: Snapshot, now: Date = Date()) -> Double {
+        guard s.total > 0 else { return s.used > 0 ? .infinity : 0 }
+        var elapsed = 1.0
+        if let reset = s.reset {
+            let daysLeft = max(0, reset.timeIntervalSince(now) / 86_400)
+            elapsed = min(1, max(1 / periodDays, (periodDays - daysLeft) / periodDays))
+        }
+        return Double(s.used) / (Double(s.total) * elapsed)
+    }
+
+    static func pace(_ s: Snapshot, now: Date = Date()) -> Pace {
+        if s.exhausted { return .red }
+        let rate = burnRate(s, now: now)
+        if rate > redAbove { return .red }
+        if rate > orangeAbove { return .orange }
+        return .green
+    }
+
+    /// One line for the tooltip: what the trend says the period ends at.
+    static func paceText(_ s: Snapshot, now: Date = Date()) -> String {
+        let rate = burnRate(s, now: now)
+        guard rate.isFinite else { return "No plan total to measure the trend against." }
+        let projected = Int((Double(s.total) * rate).rounded())
+        let verdict: String
+        switch pace(s, now: now) {
+        case .green: verdict = "on trend"
+        case .orange: verdict = "over trend"
+        case .red: verdict = s.exhausted ? "spent" : "far over trend"
+        }
+        return "Trend: \(group(projected)) of \(group(s.total)) by the reset (×\(String(format: "%.2f", rate)), \(verdict))."
     }
 
     static func tooltip(_ s: Snapshot?, error: String?, fetchedAt: Date?, now: Date = Date()) -> String {
@@ -140,6 +193,7 @@ enum ElevenLabsQuotaPolicy {
         if let s {
             lines.append("Used \(group(s.used)) of \(group(s.total)) credits — \(group(s.remaining)) left.")
             if let reset = s.reset { lines.append("Resets \(resetText(reset)).") }
+            lines.append(paceText(s, now: now))
             lines.append("Used: \(s.usedSource). Total: \(s.totalSource).")
             if s.missingUserRead {
                 lines.append("Reset date unknown: the API key lacks the user_read permission "
@@ -182,6 +236,8 @@ final class ElevenLabsQuota: @unchecked Sendable {
     var title: String { ElevenLabsQuotaPolicy.title(snapshot, error: lastError) }
     var tooltip: String { ElevenLabsQuotaPolicy.tooltip(snapshot, error: lastError, fetchedAt: fetchedAt) }
     var exhausted: Bool { snapshot?.exhausted ?? false }
+    /// The row's colour; nil before the first answer (plain menu text).
+    var pace: ElevenLabsQuotaPolicy.Pace? { snapshot.map { ElevenLabsQuotaPolicy.pace($0) } }
 
     /// The key page when the fix is a permission there, the subscription page
     /// otherwise.
@@ -241,6 +297,8 @@ final class ElevenLabsQuota: @unchecked Sendable {
             "source": s.source,
             "subscriptionStatus": s.subscriptionStatus ?? NSNull(),
             "missingUserRead": s.missingUserRead,
+            "pace": ElevenLabsQuotaPolicy.pace(s).rawValue,
+            "burnRate": ElevenLabsQuotaPolicy.burnRate(s),
             "title": title,
             "error": lastError ?? NSNull(),
             "fetchedAt": fetchedAt.map { Outbox.iso($0) } ?? NSNull(),

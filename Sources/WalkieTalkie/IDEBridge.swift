@@ -191,10 +191,13 @@ enum IDEBridge {
         return (obj["ok"] as? Bool) == true
     }
 
-    /// Type the line into that terminal and nowhere else.
-    static func send(_ line: String, to handle: Handle) -> Bool {
+    /// Type the line into that terminal and nowhere else. `submit: false`
+    /// (2026-09-28, the bound delivery) asks the extension to leave out its
+    /// `\r`; an extension older than the flag ignores it and still presses
+    /// Return, which the read-back cannot see from here.
+    static func send(_ line: String, to handle: Handle, submit: Bool = true) -> Bool {
         guard let obj = request("POST", "/send", on: handle.endpoint,
-                                body: ["id": handle.id, "line": line])
+                                body: ["id": handle.id, "line": line, "submit": submit])
         else { return false }
         return (obj["ok"] as? Bool) == true
     }

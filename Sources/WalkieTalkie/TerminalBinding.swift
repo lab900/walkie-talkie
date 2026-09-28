@@ -233,6 +233,13 @@ final class TerminalBinding {
     /// What a delivery did, for the flash that reports it.
     enum Outcome {
         case delivered
+        /// **Typed and submitted, although the delivery should have left the
+        /// Return to Victor** (2026-09-28): the Return-free typing into a
+        /// Terminal.app tab could not be seen in the tab afterwards, so the
+        /// old `do script` path was used rather than losing the sentence. The
+        /// string says why, and `report` flashes it — a submit he did not ask
+        /// for must never pass silently.
+        case deliveredSubmitted(String)
         case noTarget
         /// The tab, pane or process is gone. The binding is dropped: a target
         /// that cannot be found again will not come back, and a stale one is
@@ -688,7 +695,15 @@ final class TerminalBinding {
 
     // MARK: - Delivery
 
-    /// Type one dictation into the bound terminal and press Return.
+    /// Type one dictation into the bound terminal — **and leave the Return to
+    /// Victor** (2026-09-28: *"pune textul în terminalul ăla, dar nu lovește
+    /// Enter-ul"*). Until then every bound delivery pressed Return (and a third
+    /// one when Claude Code asked to review a paste); now the words sit in the
+    /// agent's prompt and he sends them when he is done, or types on. Every
+    /// handle keeps that promise: `typeIntoTerminalApp`, `writeToTmux(submit:
+    /// false)`, `IDEBridge.send(submit: false)`, `paste(submit: false)`.
+    /// `submitPrompt(_:toTTY:)` — 🔽 → at a Claude Code prompt — still submits;
+    /// that Return is the gesture's.
     ///
     /// **The shell guard is the load-bearing part of this method.** If the
     /// foreground process on the target is a shell, the dictation is not typed
@@ -732,11 +747,22 @@ final class TerminalBinding {
             case .some:
                 break
             }
-            guard Self.writeToTerminalApp(line, tty: tty) else {
+            switch Self.typeIntoTerminalApp(line, tty: tty) {
+            case .typed:
+                return .delivered
+            case .gone:
                 unbind()
                 return .targetGone("no Terminal.app tab on \(target.address)")
+            case .unseen(let why):
+                // The keys did not show in the tab. Rather than lose the
+                // sentence, the pre-2026-09-28 delivery — which submits.
+                Log.error("⌨️ \(target.address): \(why) — falling back to do script, which presses Return")
+                guard Self.writeToTerminalApp(line, tty: tty) else {
+                    unbind()
+                    return .targetGone("no Terminal.app tab on \(target.address)")
+                }
+                return .deliveredSubmitted(why)
             }
-            return .delivered
 
         case .tmux(let pane, _):
             switch Self.tmuxPaneCommand(pane) {
@@ -748,7 +774,7 @@ final class TerminalBinding {
             case .some:
                 break
             }
-            guard Self.writeToTmux(line, pane: pane) else {
+            guard Self.writeToTmux(line, pane: pane, submit: false) else {
                 return .failed("tmux send-keys failed")
             }
             return .delivered
@@ -768,7 +794,7 @@ final class TerminalBinding {
             // nothing. `isGuarded` is false in this case and the bind flash says
             // `— no shell guard`, which is where the fact belongs.
             guard let shell = handle.shellPID, let tty = Self.tty(ofPID: shell) else {
-                guard IDEBridge.send(line, to: handle) else {
+                guard IDEBridge.send(line, to: handle, submit: false) else {
                     return .failed("\(handle.name) did not take the line")
                 }
                 return .delivered
@@ -796,7 +822,7 @@ final class TerminalBinding {
             // VS Code or IntelliJ can say which pane inside them owns the caret,
             // let alone what is running in it. The overlay marks these targets
             // differently for exactly that reason.
-            return Self.paste(line, into: running) ? .delivered : .failed("paste into \(app) failed")
+            return Self.paste(line, into: running, submit: false) ? .delivered : .failed("paste into \(app) failed")
         }
     }
 
@@ -1148,10 +1174,167 @@ final class TerminalBinding {
         return s
     }
 
+    /// What `typeIntoTerminalApp` found out.
+    enum Typed {
+        case typed
+        /// No Terminal.app tab has that tty.
+        case gone
+        /// The tab exists but the keys did not show in it (why). Nothing was
+        /// submitted; the caller decides what becomes of the sentence.
+        case unseen(String)
+    }
+
+    /// **Type one dictation into that tab and press nothing** (2026-09-28,
+    /// Victor: *"pune textul în terminalul ăla, dar nu lovește Enter-ul"*).
+    ///
+    /// `do script` cannot do this: it writes the text and a `\r` in one chunk
+    /// (measured below), so a short dictation submits itself and a long one
+    /// sits in Claude Code's prompt with an invisible `\r` that costs a second
+    /// Return (*Removed 1 invisible character · review and press Enter to
+    /// send*). Terminal.app has no verb that types without the Return, and the
+    /// tty device is the wrong side of the pty — writing to it prints.
+    ///
+    /// So the keys are **key events posted to Terminal's own process**
+    /// (`postToPid`, the route `pressPaste(to:)` already takes): they reach
+    /// Terminal whether or not it is in front, and no window is activated —
+    /// this is not the ⌘V-with-activation of the `.keystroke` targets. What has
+    /// to move is Terminal's *own* idea of the front window and its selected
+    /// tab, set by AppleScript first (`selected tab`, `frontmost`), because a
+    /// posted key lands wherever a real one would.
+    ///
+    /// The text goes out in chunks of up to 20 UTF-16 units per event (the
+    /// ceiling `CGEventKeyboardSetUnicodeString` is documented with), no chunk
+    /// opening on a newline, so a `\n` of the envelope never arrives as a
+    /// keystroke of its own: read with its line it is a newline in the prompt
+    /// whether Claude Code takes the chunk for typing or for a paste. No
+    /// bracketed paste (`<pasted_content>`, see `writeToTerminalApp`), no
+    /// `\r` anywhere.
+    ///
+    /// **Verified by read-back**, because a posted key that Terminal drops is
+    /// silent: the tab's `history` is read after the keys, and the sentence's
+    /// tail — or the `[Pasted text #N …]` placeholder Claude Code folds a long
+    /// one into — has to be on it. If neither is, the answer is `.unseen` and
+    /// `deliver` falls back to `writeToTerminalApp`, which submits, and says
+    /// so: a dictation that submitted is a smaller loss than one that vanished.
+    static func typeIntoTerminalApp(_ text: String, tty: String) -> Typed {
+        let select = """
+        tell application "Terminal"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    try
+                        if tty of t is "\(escape(tty))" then
+                            try
+                                set selected tab of w to t
+                            end try
+                            try
+                                set frontmost of w to true
+                            end try
+                            return "ok"
+                        end if
+                    end try
+                end repeat
+            end repeat
+            return "gone"
+        end tell
+        """
+        guard osascript(select) == "ok" else { return .gone }
+        guard let terminal = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Terminal").first
+        else { return .gone }
+        postText(text, to: terminal.processIdentifier)
+
+        // The tab's last 600 characters, a few beats after the keys: Terminal
+        // writes them to the pty and the TUI has to redraw.
+        let read = """
+        tell application "Terminal"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    try
+                        if tty of t is "\(escape(tty))" then
+                            set c to (history of t) as text
+                            if (count c) > 600 then set c to text -600 thru -1 of c
+                            return "ok" & linefeed & c
+                        end if
+                    end try
+                end repeat
+            end repeat
+            return "gone"
+        end tell
+        """
+        for attempt in 0..<4 {
+            usleep(attempt == 0 ? 250_000 : 200_000)
+            guard let answer = osascript(read), answer.hasPrefix("ok") else { continue }
+            if landed(text, in: String(answer.dropFirst(3))) {
+                Log.info("⌨️ typed into \(tty) without a Return (seen on read-back \(attempt + 1))")
+                return .typed
+            }
+        }
+        return .unseen("the typed keys never showed in the tab")
+    }
+
+    /// Whether the sentence — or the placeholder Claude Code folds a long paste
+    /// into — is on the tab's last lines. Whitespace is dropped on both sides
+    /// because the prompt wraps the words wherever its width says.
+    static func landed(_ text: String, in tail: String) -> Bool {
+        if tail.contains("[Pasted text #") { return true }
+        let squash: (String) -> String = { $0.filter { !$0.isWhitespace } }
+        let probe = String(squash(text).suffix(24))
+        return !probe.isEmpty && squash(tail).contains(probe)
+    }
+
+    /// Post `text` to one process as keyboard events carrying the characters —
+    /// no virtual key that means anything, no modifiers.
+    private static func postText(_ text: String, to pid: pid_t) {
+        let source = CGEventSource(stateID: .privateState)
+        for chunk in chunks(of: text) {
+            var units = Array(chunk.utf16)
+            guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+            else { continue }
+            down.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
+            up.keyboardSetUnicodeString(stringLength: units.count, unicodeString: &units)
+            down.flags = []
+            up.flags = []
+            down.postToPid(pid)
+            up.postToPid(pid)
+            usleep(2_000)
+        }
+    }
+
+    /// Up to 20 UTF-16 units per chunk, whole characters, none opening on a
+    /// newline — a newline that would overflow takes the character before it
+    /// along into the next chunk (see `typeIntoTerminalApp`).
+    static func chunks(of text: String) -> [String] {
+        var out: [String] = []
+        var current = ""
+        var units = 0
+        for ch in text {
+            let n = ch.utf16.count
+            if units + n > 20 {
+                if ch.isNewline, let last = current.last {
+                    current.removeLast()
+                    if !current.isEmpty { out.append(current) }
+                    current = String(last)
+                    units = last.utf16.count
+                } else if !current.isEmpty {
+                    out.append(current)
+                    current = ""
+                    units = 0
+                }
+            }
+            current.append(ch)
+            units += n
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
+    }
+
     /// `do script … in <that tab>` — which, despite the name, types the string
-    /// into the tab and presses Return rather than starting anything. That is
-    /// exactly the gesture wanted here, and it reaches a tab that is not in
-    /// front, not on this Space, and not in the active window.
+    /// into the tab and presses Return rather than starting anything. **Since
+    /// 2026-09-28 that Return makes it the wrong verb for a bound delivery**
+    /// (`typeIntoTerminalApp` above); it remains the delivery of 🔽 → at a
+    /// Claude Code prompt (`submitPrompt`) and the fallback when the typed keys
+    /// did not show. It reaches a tab that is not in front, not on this Space,
+    /// and not in the active window.
     ///
     /// **The Return is a second `do script`, with an empty string.** `do script`
     /// writes the text and the `\r` in **one write** — measured with a raw-mode
@@ -1295,8 +1478,10 @@ final class TerminalBinding {
     /// `-l` sends the text **literally**, so a dictation containing the word
     /// "Enter" or a `;` cannot turn into a key name or a command separator.
     /// The Return is a second call for the same reason.
-    private static func writeToTmux(_ text: String, pane: String) -> Bool {
+    private static func writeToTmux(_ text: String, pane: String, submit: Bool = true) -> Bool {
         guard tmux(["send-keys", "-t", pane, "-l", "--", text]) != nil else { return false }
+        // A bound delivery leaves the Return to Victor (2026-09-28).
+        guard submit else { return true }
         return tmux(["send-keys", "-t", pane, "Enter"]) != nil
     }
 
@@ -1321,7 +1506,7 @@ final class TerminalBinding {
     ///
     /// The clipboard is restored, because the relay must not cost Victor
     /// whatever he was carrying on it.
-    private static func paste(_ text: String, into app: NSRunningApplication) -> Bool {
+    private static func paste(_ text: String, into app: NSRunningApplication, submit: Bool = true) -> Bool {
         let pasteboard = NSPasteboard.general
         let saved = pasteboard.string(forType: .string)
 
@@ -1343,7 +1528,8 @@ final class TerminalBinding {
 
         tap(key: 0x09, command: true)     // ⌘V
         usleep(60_000)
-        tap(key: 0x24, command: false)    // Return
+        // A bound delivery leaves the Return to Victor (2026-09-28).
+        if submit { tap(key: 0x24, command: false) }    // Return
         usleep(80_000)
 
         // Back where he was, so the relay is not also a window manager.

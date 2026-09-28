@@ -1511,12 +1511,22 @@ final class StatusItem: NSObject, NSMenuDelegate {
         let q = ElevenLabsQuota.shared
         row.title = q.title
         row.toolTip = q.tooltip
-        // Red through `attributedTitle`, like the Halo presets' bolt: a tint on
-        // the title is the only colour a menu row takes.
-        row.attributedTitle = q.exhausted
-            ? NSAttributedString(string: q.title, attributes: [.foregroundColor: NSColor.systemRed,
-                                                               .font: NSFont.menuFont(ofSize: 0)])
-            : nil
+        // Tinted through `attributedTitle`, like the Halo presets' bolt: a tint
+        // on the title is the only colour a menu row takes. **The colour is the
+        // trend** (`ElevenLabsQuotaPolicy.pace`, 2026-09-28): green while the
+        // burn lands inside the plan by the reset, orange over it, red far
+        // over or spent. Plain before the first answer.
+        let tint: NSColor?
+        switch q.pace {
+        case .green?: tint = .systemGreen
+        case .orange?: tint = .systemOrange
+        case .red?: tint = .systemRed
+        case nil: tint = nil
+        }
+        row.attributedTitle = tint.map {
+            NSAttributedString(string: q.title, attributes: [.foregroundColor: $0,
+                                                             .font: NSFont.menuFont(ofSize: 0)])
+        }
     }
 
     @objc private func quotaClicked() {

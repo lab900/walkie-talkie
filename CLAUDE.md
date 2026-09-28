@@ -76,7 +76,7 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
   the clean words for a plain one, whatever the engine or destination; never restored. ⌘V re-pastes.
 - **Side buttons** (Options+ → ⌃⌥⌘F3…F12, duplicated in `HotkeyTap`, must not drift;
   `evals/test_gesture_spec.py` is the spec): 🔼 = prompt at the caret (full envelope); 🔼 → at the
-  bound terminal; 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; 🔽 = plain
+  bound terminal (typed, **no Return** — Victor sends it, 2026-09-28); 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; 🔽 = plain
   dictation (words only, follows the Engine); 🔽 → Return (mid plain dictation: stop, insert, Return).
 - **Unbound, everything still works:** the sentence is held 5 min for the next bind.
 - **The recipient is latched when the microphone closes — which terminal, not only *not the caret*.**
@@ -90,8 +90,12 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
 - **Wispr's DB as a recogniser**, **`copy_last_text` by default**, **focus-stealing as the Wispr
   wrap**, **revoking Wispr's Accessibility**, **`open -a "Wispr Flow"`** — why: `dictation-source.md`.
 - **Bracketed paste for terminal delivery** — Claude Code wraps it in `<pasted_content>` and the
-  model treats it as data. Delivery stays a raw `do script` chunk + Return, plus a third Return only
-  when the tab reads back `review and press Enter to send` *after* the sentence's own echo.
+  model treats it as data. A bound delivery is raw key events posted to Terminal's pid, **no Return**
+  (2026-09-28, Victor: the words wait in the prompt, he sends them); `do script` + Return, plus a
+  third Return only when the tab reads back `review and press Enter to send` *after* the sentence's
+  own echo, remains for 🔽 → at a Claude Code prompt and as the fallback when the typed keys did not
+  show (`terminal-binding.md`).
+- **A Return after a bound delivery** — Victor presses it (2026-09-28).
 - **A typing affordance on the overlay** (`RelayPanel.wantsKey` only while editing).
 - **A leash/smoothing/spring** on cursor-following; **a ✕ by the pointer**; **border, blur or
   shadow** on anything that rides the pointer; **an emoji where the mouse should be drawn**

@@ -29,6 +29,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *F10's re-fire guard, scoped to F10 only* (2026-09-16/18) — superseded 2026-09-26 by batch 4 §2: every flick has the 0.6 s window
 - *`PasteHint` after every delivered sentence* (2026-09-23) and **⌘⇧P** itself (2026-09-19) — superseded 2026-09-28 by Q17: the clipboard always holds the finished sentence (envelope or clean words), ⌘⇧P is gone, the chip's row after a delivery says ⌘V (*Wispr as engine: decisions Q14–Q23*)
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
+- *`do script` + a bare Return, plus the adaptive third Return* as **the bound delivery** (2026-08-26 → 2026-09-27) — superseded 2026-09-28 by *A bound delivery leaves the Return to Victor*: the words are typed into the bound terminal and nothing is pressed; `do script` + Return survives only for 🔽 → at a Claude Code prompt (`submitPrompt`) and as the fallback when the typed keys did not show
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
 - *The beacon is gone* (2026-09-11) — `RecordingBeacon.swift` is deleted; the halo is up for every dictation
@@ -13887,3 +13888,77 @@ Q13; the README's number is in brackets. Victor's answer, verbatim:
   (no GUI needed, so no Codex), to **right ⌥ + right ⇧ = `61+60`**. The relay's own right ⌘⌥
   stays `54+61`. Every `54+60` / `54+61` that meant Wispr's ptt (tables, rules, `docs/vm-wispr.md`,
   `WISPR_PTT_KEYS`, the teacher runbook) follows.
+
+## A bound delivery leaves the Return to Victor (2026-09-28)
+
+Victor, dictated at 08:21: *"Când dictezi cu tunel bound la un terminal, nu dă Enter după ce
+termină dictarea. Rămâne în continuare, deci pune textul în terminalul ăla, dar nu lovește
+Enter-ul."* Since 2026-08-26 every bound delivery pressed Return (and since 09-22 a third one when
+Claude Code asked to review a paste). Now it presses nothing: the words sit in the agent's prompt
+and he sends them, or keeps typing. Only the **bound** delivery changes — 🔽 → at a Claude Code
+prompt (`submitPrompt`) and a spawn's first prompt still submit, because there the Return *is* the
+gesture.
+
+### Why Terminal.app could not simply drop its second `do script`
+
+`do script "text" in t` writes `text\r` in one chunk (measured 2026-08-26 with a raw-mode reader:
+`109 b'…\r'`). Claude Code reads a short chunk as keystrokes and the `\r` submits; a long chunk
+as a paste, keeping the `\r` inside, which on the next Return shows *Removed 1 invisible
+character · review and press Enter to send* — so with only the first `do script` a short
+dictation would still submit itself and a long one would cost him two Returns. Terminal.app has
+no verb that types without the Return; `/dev/ttysNNN` is the slave side (writing prints);
+`TIOCSTI` needs root or the controlling tty. Bracketed paste stays out (the 2026-09-22 rejection:
+`<pasted_content>`).
+
+### What ships
+
+- **`TerminalBinding.typeIntoTerminalApp`**: AppleScript selects the tab and makes its window
+  Terminal's own frontmost (`selected tab`, `frontmost` — no activation, Terminal stays where it
+  is in the app order); then the text is posted to Terminal's pid as unicode key events
+  (`postToPid`, the route `pressPaste(to:)` already takes for Wispr's Scratchpad), ≤ 20 UTF-16
+  units per event, no chunk opening on a newline so a `\n` never travels as a keystroke of its
+  own. No `\r` anywhere. Then a read-back: the tab's last 600 characters, at 0.25 s and up to
+  three more times 0.2 s apart, must carry the sentence's last 24 non-blank characters or a
+  `[Pasted text #` placeholder (`landed`).
+- **Not seen → the old delivery, loudly**: `Typed.unseen` makes `deliver` fall back to
+  `writeToTerminalApp` (`do script` + Return + the adaptive third) and answer
+  `.deliveredSubmitted(why)`. `deliverToTerminal` writes the outbox row as for `.delivered`;
+  `report` logs `⌨️ delivered with a Return — …` and flashes `⚠️ Sent with Return — …` for 6 s.
+  A submit he did not ask for must never pass silently; a dictation that submitted is a smaller
+  loss than one that vanished.
+- **tmux**: `send-keys -l` only (`writeToTmux(submit: false)`). **`.keystroke`**: ⌘V without
+  the Return tap (`paste(submit: false)`). **IDE bridges**: `IDEBridge.send(submit: false)` puts
+  `"submit": false` in `/send`; `victor-vsc/relay-terminal.js` and `live-coding`'s
+  `RelayTerminalService.send` skip their `\r` on it and press as before without it (an older
+  extension against a newer relay still submits — the relay cannot see that).
+
+### Unmeasured, on purpose stated
+
+The bench probe (a scratch binary posting keys to Terminal's pid into a raw-mode reader tab,
+Terminal behind another app) was refused by the session's classifier, and the app's own loopback
+was not used to drive a delivery in its place. So two things are **not measured** on the day this
+shipped: that Terminal takes posted key events into its selected tab while another app is in
+front, and how Claude Code chunks ≤ 20-unit writes (typing or paste — either lands as text in the
+prompt, without a `\r` there is nothing to strip). The read-back and the flashed fallback are the
+safety net; the first real bound dictations are the measurement. **A `⚠️ Sent with Return` flash
+means the posted keys did not land** — read `relay.log` for `never showed in the tab` and fix the
+route (activation-free `frontmost` not taking? keys dropped for want of a key window?) rather than
+living with the fallback.
+
+## The quota row shows what was spent, coloured by the trend (2026-09-28, 08:50)
+
+Victor, mid-morning: *"la eleven labs afișează consumat, nu rămas înainte de /. cu verde când mai
+e mult, portocaliu sau roșu când ard mai mult decât trebuie ca trend (proporțional cu zilele
+rămase)."* The row born at 08:00 read `remaining / total / reset`, red only at ≤ 0.
+
+- **`🧾 ElevenLabs <used> / <total in k> / <reset>`** — used with thousands grouped (`8 766`),
+  the rest as before; the tooltip still says both numbers in words.
+- **The colour is `ElevenLabsQuotaPolicy.pace`**, a trend against the days gone by, not a level:
+  `burnRate = used / (total × elapsed)`, `elapsed` = the share of a 30-day period gone since the
+  reset date (`periodDays`), floored at one day so the first hour of a new period does not paint
+  one dictation red, and 1 when the reset is unknown (then *used* is already a rolling 30-day sum,
+  a full period). **Green ≤ 1.0** (the burn lands inside the plan), **orange ≤ 1.5**, **red**
+  above or spent. The tooltip's `Trend: 12 000 of 10 000 by the reset (×1.20, over trend).` says
+  where it lands. `/test/state.elevenQuota` carries `pace` and `burnRate`.
+- Tests: `ElevenLabsQuotaTests` — on trend at half/half, orange at ×1.2, red at ×1.8, the
+  first-day floor, the rolling window whole.
