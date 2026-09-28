@@ -169,6 +169,110 @@ struct VoicedMeter {
     }
 }
 
+/// **A (2026-09-28, wave 3): buffers flowing but every sample exactly zero — a
+/// stall the missing-buffer watchdog cannot see.** Pure: fed each converted
+/// buffer's peak and ticked by the watchdog, on one monotonic clock (seconds),
+/// so `ZeroPeakWatchTests` can drive it over a timeline.
+///
+/// In the VM every DEAF take looked the same — `105 buffers, peak 0, 0 tap
+/// restart(s)`, no `AVAudioEngineConfigurationChange` all night — on the first
+/// Wispr mic open after a Wispr launch, both apps reading BlackHole 2ch. Buffers
+/// arriving means the engine is running; digital zeros mean what reaches the
+/// tap is not the device's signal (a driver handing this client silence, a
+/// muted or zero-volume input, a denied grant). A real microphone never gives
+/// exact zeros for a second — room tone, ADC noise — so the watch only ever
+/// fires on a device that is feeding nothing.
+///
+/// - Armed until the take's first non-zero sample, then off for the rest of the
+///   take: a Loopback that goes quiet after its clip ends is not a stall.
+/// - Fires after `window` of zero buffers that are still arriving (the last one
+///   under `flowing` ago — a gap is the missing-buffer watchdog's).
+/// - At most `maxRestarts` per take; each restart starts a fresh window, so they
+///   are at least `window` apart. After the last one, another window of zeros
+///   is `gaveUp`: the take stays DEAF and goes to Recover.
+/// - The first non-zero buffer after a restart is `cameBack` — the log says
+///   whether the restart worked, which is the one thing only the VM can answer.
+struct ZeroPeakWatch: Equatable {
+    static let window: TimeInterval = 1.0
+    static let flowing: TimeInterval = 0.5
+    static let maxRestarts = 3
+    /// Two buffers is "flowing"; one could be the only buffer before a gap.
+    static let minBuffers = 2
+
+    enum Event: Equatable {
+        /// Restart number `step` (1…`maxRestarts`), after `buffers` zero buffers
+        /// over `seconds` since the window opened.
+        case restart(step: Int, buffers: Int, seconds: TimeInterval)
+        /// Audio after restart `step`: the buffer's peak, `after` seconds past it.
+        case cameBack(step: Int, peak: Int, after: TimeInterval)
+        /// `maxRestarts` restarts and still zeros: `buffers` zero buffers over
+        /// `seconds` since the first one of the take.
+        case gaveUp(restarts: Int, buffers: Int, seconds: TimeInterval)
+    }
+
+    private(set) var restarts = 0
+    /// A non-zero sample has arrived this take.
+    private(set) var heard = false
+    private(set) var gaveUp = false
+    private var windowStart: TimeInterval?
+    private var windowBuffers = 0
+    private var lastBuffer: TimeInterval?
+    private var firstZero: TimeInterval?
+    private var zeroBuffers = 0
+    private var restartedAt: TimeInterval?
+    private var pending: Event?
+
+    /// Still looking — the recorder only computes a buffer's peak while this is true.
+    var armed: Bool { !heard }
+
+    init() {}
+
+    /// One converted buffer, its loudest |sample| (0 = digital silence).
+    mutating func buffer(at t: TimeInterval, peak: Int) {
+        lastBuffer = t
+        guard !heard else { return }
+        if peak > 0 {
+            heard = true
+            if restarts > 0, let r = restartedAt {
+                pending = .cameBack(step: restarts, peak: peak, after: max(0, t - r))
+            }
+            return
+        }
+        if windowStart == nil { windowStart = t }
+        if firstZero == nil { firstZero = t }
+        windowBuffers += 1
+        zeroBuffers += 1
+    }
+
+    /// The tap was restarted for another reason (a configuration change, a
+    /// missing-buffer stall): the next window is measured from the buffers
+    /// after it.
+    mutating func tapRestarted(at t: TimeInterval) {
+        windowStart = nil
+        windowBuffers = 0
+    }
+
+    /// The watchdog's beat: what to do now, if anything.
+    mutating func tick(at t: TimeInterval) -> Event? {
+        if let e = pending { pending = nil; return e }
+        guard !heard, !gaveUp, let start = windowStart, windowBuffers >= Self.minBuffers,
+              t - start >= Self.window,
+              let last = lastBuffer, t - last < Self.flowing else { return nil }
+        let e: Event
+        if restarts >= Self.maxRestarts {
+            gaveUp = true
+            e = .gaveUp(restarts: restarts, buffers: zeroBuffers, seconds: t - (firstZero ?? start))
+        } else {
+            restarts += 1
+            restartedAt = t
+            e = .restart(step: restarts, buffers: windowBuffers, seconds: t - start)
+        }
+        windowStart = nil
+        windowBuffers = 0
+        return e
+    }
+}
+
 final class MicRecorder {
 
     /// **The device the last recording actually opened**, for
@@ -191,7 +295,11 @@ final class MicRecorder {
                                           sampleRate: 16000, channels: 1,
                                           interleaved: true)!
 
-    private let engine = AVAudioEngine()
+    /// **`var` since 2026-09-28 (A)**: the peak-0 watch's second step replaces
+    /// it with a fresh engine — a new AUHAL, a new client of the device.
+    /// Written only on `restartQueue` under `lifecycle`; read under `lifecycle`
+    /// (`start`, `close`) or on `restartQueue` (the watchdog), never racing.
+    private var engine = AVAudioEngine()
     private var file: AVAudioFile?
     private var converter: AVAudioConverter?
     private var outputFormat: AVAudioFormat?
@@ -235,6 +343,8 @@ final class MicRecorder {
     /// The last closed recording's `Health` (read after `stop()`).
     private(set) var lastHealth: Health?
     private var health = Health()
+    /// The peak-0 stall watch (`ZeroPeakWatch`), under `lock`, reset per take.
+    private var zeroWatch = ZeroPeakWatch()
     private var configObserver: NSObjectProtocol?
     private var stallTimer: DispatchSourceTimer?
     private let restartQueue = DispatchQueue(label: "mic.restart")
@@ -626,6 +736,7 @@ final class MicRecorder {
         writtenFrames = 0
         lastAppendAt = nil
         health = Health(device: device)
+        zeroWatch = ZeroPeakWatch()
         isRecording = true
         lock.unlock()
 
@@ -661,13 +772,19 @@ final class MicRecorder {
     /// `AVAudioEngineConfigurationChange` — every buffer after that is simply
     /// never delivered, and the take reads `0.0 s voiced`. Also a watchdog for
     /// the same silence without a notification: no buffer for 1 s.
+    ///
+    /// **And for buffers that arrive holding nothing** (2026-09-28, wave 3's
+    /// finding A): `ZeroPeakWatch` — 1 s of flowing buffers, every sample 0,
+    /// before the take's first sound. Step 1 puts the tap back on the running
+    /// engine (batch 2's restart — cheap, so a desk clip that starts late loses
+    /// a buffer at most); steps 2 and 3 build a **new `AVAudioEngine`** and
+    /// re-resolve the device (`InputDevice.select`) — a new HAL client with its
+    /// own IO start and IO cycle. Each line carries a readout of the
+    /// device (mute, input volume, nominal rate, whether another process runs it),
+    /// the next says whether audio came back, and after the third a take still
+    /// at peak 0 is said to stay DEAF (→ Recover, batch 2's path).
     private func watchForSilentEngine() {
-        if configObserver == nil {
-            configObserver = NotificationCenter.default.addObserver(
-                forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
-                    self?.restartQueue.async { self?.restartTap(why: "the device's configuration changed (AVAudioEngineConfigurationChange)") }
-                }
-        }
+        observeConfiguration()
         stallTimer?.cancel()
         let t = DispatchSource.makeTimerSource(queue: restartQueue)
         let opened = Date()
@@ -678,8 +795,10 @@ final class MicRecorder {
             let recording = self.isRecording
             let last = self.lastAppendAt ?? opened
             let restarts = self.health.restarts
+            let zero = recording ? self.zeroWatch.tick(at: Self.clock()) : nil
             self.lock.unlock()
             guard recording else { self.stallTimer?.cancel(); self.stallTimer = nil; return }
+            if let zero { self.handle(zero); return }
             let gap = Date().timeIntervalSince(last)
             guard gap >= 1.0, restarts < 5 else { return }
             self.restartTap(why: String(format: "no audio buffer for %.1f s%@", gap, self.engine.isRunning ? "" : " — the engine had stopped"))
@@ -688,12 +807,58 @@ final class MicRecorder {
         t.resume()
     }
 
+    /// The one clock `ZeroPeakWatch` is fed on — monotonic, seconds.
+    private static func clock() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    /// `restartQueue`. What the peak-0 watch said, acted on and said out loud.
+    private func handle(_ event: ZeroPeakWatch.Event) {
+        switch event {
+        case let .restart(step, buffers, seconds):
+            var why = String(format: "%d buffers with peak 0 for %.1f s", buffers, seconds)
+            if step > 1 { why += " — restart \(step - 1) did not bring audio back" }
+            why += " [\(deviceReadout())]"
+            restartTap(why: why, mode: step == 1 ? .tap : .rebuild, step: step)
+        case let .cameBack(step, peak, after):
+            Log.error(String(format: "🔁 mic: audio came back after restart %d — peak %d, %.1f s after it", step, peak, after))
+        case let .gaveUp(restarts, buffers, seconds):
+            Log.error(String(format: "🔁 mic: %d restart(s) did not bring audio back — %d buffers with peak 0 over %.1f s [%@]; the take stays DEAF",
+                             restarts, buffers, seconds, deviceReadout()))
+        }
+    }
+
+    /// `AVAudioEngineConfigurationChange` on the engine in use — re-registered
+    /// when a rebuild replaces it (the old observer named the old engine).
+    private func observeConfiguration() {
+        if let o = configObserver { NotificationCenter.default.removeObserver(o) }
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
+                self?.restartQueue.async { self?.restartTap(why: "the device's configuration changed (AVAudioEngineConfigurationChange)") }
+            }
+    }
+
+    /// How hard a restart tries. `.tap`: the tap back on the running engine,
+    /// the device re-selected (a configuration change, a missing buffer — batch
+    /// 2 — and the peak-0 watch's step 1). `.rebuild`: the old engine stopped and
+    /// dropped, a new `AVAudioEngine`, the device re-resolved on its fresh input
+    /// node (steps 2 and 3).
+    enum RestartMode { case tap, rebuild }
+
     /// Re-reads the device's format and puts the tap back; the WAV (16 kHz mono)
     /// goes on. `restartQueue`; takes `lifecycle`, never `lock` across the engine.
-    private func restartTap(why: String) {
+    private func restartTap(why: String, mode: RestartMode = .tap, step: Int = 0) {
         lifecycle.lock(); defer { lifecycle.unlock() }
         lock.lock(); let recording = isRecording; let device = health.device; lock.unlock()
         guard recording else { return }
+        var retired: AVAudioEngine?
+        switch mode {
+        case .tap: break
+        case .rebuild:
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+            retired = engine
+            engine = AVAudioEngine()
+            observeConfiguration()
+        }
         let input = engine.inputNode
         let chosen = InputDevice.select(on: input) ?? device
         let inFormat = input.inputFormat(forBus: 0)
@@ -702,18 +867,65 @@ final class MicRecorder {
             Log.error("🔁 mic: \(why) — and \(chosen) now reports no usable format (\(Int(inFormat.sampleRate)) Hz × \(inFormat.channelCount) ch); the recording stays silent")
             return
         }
-        lock.lock(); converter = conv; health.restarts += 1; health.device = chosen; lastAppendAt = Date(); lock.unlock()
+        lock.lock()
+        converter = conv; health.restarts += 1; health.device = chosen; lastAppendAt = Date()
+        zeroWatch.tapRestarted(at: Self.clock())
+        lock.unlock()
+        withExtendedLifetime(retired) {}   // the old engine goes here, outside the lock
         input.removeTap(onBus: 0)
         input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
             self?.append(buffer)
         }
         engine.prepare()
+        let how: String
+        switch mode {
+        case .tap: how = step > 0 ? "tap restarted (step \(step)) on" : "tap restarted on"
+        case .rebuild: how = "tap restarted (step \(step): a new AVAudioEngine, device re-resolved) on"
+        }
         do {
             try engine.start()
-            Log.error("🔁 mic: \(why) — tap restarted on \(chosen), \(Int(inFormat.sampleRate)) Hz × \(inFormat.channelCount) ch (was \(device))")
+            Log.error("🔁 mic: \(why) — \(how) \(chosen), \(Int(inFormat.sampleRate)) Hz × \(inFormat.channelCount) ch (was \(device))")
         } catch {
-            Log.error("🔁 mic: \(why) — restarting on \(chosen) failed: \(error.localizedDescription)")
+            Log.error("🔁 mic: \(why) — restarting on \(chosen) failed (\(how.replacingOccurrences(of: " on", with: ""))): \(error.localizedDescription)")
         }
+    }
+
+    /// **What CoreAudio says about the device the engine is on** — the four
+    /// things that turn a flowing stream into zeros from outside this process:
+    /// the input muted, its volume at 0, a nominal rate that is no longer the
+    /// one the tap was built for, and another process running the device.
+    /// Reads only; `restartQueue`, no lock held.
+    private func deviceReadout() -> String {
+        guard let unit = engine.inputNode.audioUnit else { return "no audio unit" }
+        var id = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        guard AudioUnitGetProperty(unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &id, &size) == noErr,
+              id != 0 else { return "no current device" }
+        func read<T>(_ selector: AudioObjectPropertySelector, _ scope: AudioObjectPropertyScope,
+                     _ elements: [AudioObjectPropertyElement], _ zero: T) -> T? {
+            for element in elements {
+                var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope, mElement: element)
+                guard AudioObjectHasProperty(id, &address) else { continue }
+                var value = zero
+                var sz = UInt32(MemoryLayout<T>.size)
+                if AudioObjectGetPropertyData(id, &address, 0, nil, &sz, &value) == noErr { return value }
+            }
+            return nil
+        }
+        let main = kAudioObjectPropertyElementMain
+        let mute: UInt32? = read(kAudioDevicePropertyMute, kAudioDevicePropertyScopeInput, [main, 1], 0)
+        let volume: Float32? = read(kAudioDevicePropertyVolumeScalar, kAudioDevicePropertyScopeInput, [main, 1], 0)
+        let rate: Float64? = read(kAudioDevicePropertyNominalSampleRate, kAudioObjectPropertyScopeGlobal, [main], 0)
+        let elsewhere: UInt32? = read(kAudioDevicePropertyDeviceIsRunningSomewhere, kAudioObjectPropertyScopeGlobal, [main], 0)
+        let frames: UInt32? = read(kAudioDevicePropertyBufferFrameSize, kAudioObjectPropertyScopeGlobal, [main], 0)
+        let tapRate = Int(engine.inputNode.inputFormat(forBus: 0).sampleRate)
+        return [
+            "mute " + (mute.map { $0 != 0 ? "ON" : "off" } ?? "n/a"),
+            "input volume " + (volume.map { String(format: "%.2f", $0) } ?? "n/a"),
+            "nominal " + (rate.map { "\(Int($0)) Hz" } ?? "n/a") + ", tap \(tapRate) Hz",
+            "running somewhere " + (elsewhere.map { $0 != 0 ? "yes" : "no" } ?? "n/a"),
+            "IO buffer " + (frames.map { "\($0)" } ?? "n/a"),
+        ].joined(separator: ", ")
     }
 
     /// Closes the file and hands back what was recorded, or nil when there was
@@ -872,6 +1084,7 @@ final class MicRecorder {
         let elapsed = (startedAt.map { Date().timeIntervalSince($0) } ?? 0) + inserted
         health.seconds = elapsed
         lastHealth = health
+        let closed = health
         startedAt = nil
         inserted = 0
         pendingInserts = []
@@ -879,6 +1092,12 @@ final class MicRecorder {
         url = nil
         lock.unlock()
         withExtendedLifetime(closing) {}   // the header is written here
+        // One line per recording, whatever the engine (2026-09-28): until now
+        // only the Wispr path logged `Health`, so a DEAF take on the local model
+        // or ElevenLabs said nothing about its device.
+        if out != nil {
+            Log.info("mic: closed — \(closed.line)\(closed.deaf ? " — DEAF" : "")")
+        }
         return (out, elapsed)
     }
 
@@ -977,10 +1196,14 @@ final class MicRecorder {
         let base = Double(writtenFrames) - Double(count)
         // A: the device is heard at all — buffers and the loudest sample.
         health.buffers += 1
-        if health.peak < 32767 {
-            var peak = health.peak
+        // This buffer's own peak, while anyone still needs it: the take's peak
+        // until it saturates, and the peak-0 watch until the first sound
+        // (a saturated take has been heard, so the second implies the first).
+        if health.peak < 32767 || zeroWatch.armed {
+            var peak = 0
             for i in 0..<count { let v = Int(samples[i]); peak = max(peak, v < 0 ? -v : v) }
-            health.peak = min(peak, 32767)
+            health.peak = max(health.peak, min(peak, 32767))
+            zeroWatch.buffer(at: Self.clock(), peak: peak)
         }
         let fed = windows.feed(UnsafeBufferPointer(start: samples, count: count), at: base)
         voiced += fed.seconds

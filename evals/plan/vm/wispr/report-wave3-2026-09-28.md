@@ -180,6 +180,60 @@ restart the tap and log whether audio comes back (today the watchdog fires only 
 or arm a check on the first Wispr mic open after each launch. **Open question — BlackHole only?** A
 host probe with a real microphone would say whether this affects Victor.
 
+**Answer (2026-09-28, 23:55, host, read-only): as far as can be checked without the VM, yes: BlackHole
+only.** It cannot reach his DJI, Elgato or MacBook microphone.
+- **The mechanism is BlackHole's own read path.** BlackHole 0.7.1's `DoIOOperation(ReadInput)` (the
+  version in the guest; identical on `master` 62953f5) fills the reader's buffer with **zeros** when
+  `lastOutputSampleTime - inIOBufferFrameSize < mInputTime.mSampleTime`. Put simply, this reader is
+  ahead of the last write. When that happens it also **clears the whole ring buffer**
+  (`vDSP_vclr(gRingBuffer…)`). `lastOutputSampleTime` and `isBufferClear` are function-`static`: one
+  value shared by every client and both BlackHole devices. The timeline resets in `StartIO` when the
+  client count goes 0→1, but `lastOutputSampleTime` does not
+  ([BlackHole.c @ v0.7.1](https://github.com/ExistentialAudio/BlackHole/blob/v0.7.1/BlackHole/BlackHole.c)).
+- The HAL calls `DoIOOperation` per client. Apple's `AudioServerPlugIn.h` says `inClientID` is *"the
+  client doing the operation"*, *"a device is allowed to do different sets of operations for
+  different clients"*, and `inIOBufferFrameSize` *"will be different than the nominal buffer frame
+  size"* for some operations. A second reader, such as Wispr's Chromium `getUserMedia` with its own
+  IO buffer and phase, is judged against the same global write time and can wipe the ring the relay
+  reads from. The relay then gets flowing buffers of exact zeros, and no configuration change is
+  posted, because nothing about the device changed. That is the VM's signature (A2-shaped, A1 = 0).
+  Why only the *first* open after a launch is **not** established; only the VM can say.
+- **A hardware input has no such branch.** Its driver hands every client the same ADC samples. There
+  is no "has anyone written" test and no shared state that one reader can clear for another. The
+  other generic ways to get zeros with buffers flowing do not come from Wispr:
+  - a missing grant, which macOS answers with `noErr` and zero-filled buffers: the sandbox's Audio
+    Input entitlement ([Apple forums 771048](https://developer.apple.com/forums/thread/771048)), or
+    TCC's audio-capture consent ([*2,000 Buffers of Nothing*](https://dev.to/nickdelv/2000-buffers-of-nothing-3i8)).
+    The guest's healthy takes (peak ~16 k) rule it out;
+  - an input muted or set to volume 0. Wispr's helper only *listens* for that
+    (`[AudioInterruptionMonitor] Input volume dropped to zero`, `Could not add mute listener`). Its
+    `Set system mute state` belongs to the *output* Volume Manager, behind `shouldMuteAudio`, which
+    is false on the host;
+  - hog mode (not in Wispr's binary).
+- **Probe, host, no Wispr driven:** `probe.swift` in the session's scratchpad. Reader A (AVAudioEngine,
+  default IO buffer) ran for 7 s. Reader B was a fresh process with a **128-frame** IO buffer (the
+  Chromium "interactive" shape), opened on the same device 2 s in, for 3 s:
+
+  | device | A before B | A during B | A after B |
+  |---|---|---|---|
+  | MacBook Pro Microphone, 48 kHz | peak 41–106 | 45–59 | 43–63 |
+  | Elgato Wave XLR, 96 kHz | 71–79 | 73–121 | 87–135 |
+
+  A never dropped to 0, and buffers never stopped. The room tone floor on a silent desk is **≥ 41**,
+  so the new peak-0 watch can never fire on these microphones. The DJI receiver was not plugged in
+  (a USB class device, same argument). Victor's host Wispr reads `🎓 TO Wispr` (1476 rows / 7 days),
+  the built-in (147) and `Wireless Mic Rx` (77), so it does share the built-in and the DJI with the
+  relay. The probe covers that sharing.
+- **Not probed:** a Loopback (Rogue Amoeba) device with two readers. The rig's `🧪 WT Inject` was in
+  use by another session's harness, and Loopback is closed source. On the host the relay is the
+  **writer** of `🎓 TO Wispr` and Wispr its reader, so a zero-on-read there would starve Wispr, not
+  the relay.
+- **What changes:** `MicRecorder`'s peak-0 watch restarts in steps: 1 = the tap, 2–3 = a new
+  `AVAudioEngine` with the device re-resolved. Each `🔁` line carries a `[device readout]` (mute,
+  input volume, nominal vs tap rate, running somewhere, IO buffer), and the next line says whether
+  audio came back. The VM run (wave 4: TM1, TM2, TW4, TW34, TX2) says which step, if any, beats the
+  BlackHole ring wipe.
+
 ### E — the ghost microphone, 3 times tonight, now blocking
 
 1. After TW20: relaunch 19:09:54, a sentence where Wispr "never opened its microphone", then Wispr

@@ -14412,3 +14412,70 @@ What ships:
 - `POST /test/local-auto {"on", "wisprDown", "fakeLaunch"}`, `state.localAuto`; cases TA1–TA5
   (`evals/plan/cases_localauto.py`); states page `transcribing-local-auto`,
   `transcribing-local-auto-fired`, `listening-wispr-starting`.
+
+### A after wave 3: buffers of zeros are a stall too (2026-09-28, 23:55)
+
+The VM answered batch 2's two readings for finding A. It was **not A1**: all night there was not
+one `AVAudioEngineConfigurationChange`. Every DEAF take was **flowing buffers of exact zeros**:
+TW4 105 buffers, TX2 51, both peak 0, with no `🔁` line. It came on the first Wispr mic open after
+a Wispr launch, 9 s or 63 s after the launch. Wispr's `shouldMuteAudio` is false in the guest. So
+batch 2's watchdog, which looks for *missing* buffers, never fired.
+
+**The mechanism is BlackHole's, and it is in its source.** BlackHole 0.7.1 is the guest's version,
+and its `DoIOOperation` is identical on `master`. Its `ReadInput` hands the reader **zeros** and
+**clears the whole ring buffer** whenever `lastOutputSampleTime - inIOBufferFrameSize <
+mInputTime.mSampleTime`, i.e. whenever this reader is ahead of the last write. `lastOutputSampleTime`
+and `isBufferClear` are function-`static`: one value for every client and both devices. Apple's
+`AudioServerPlugIn.h` says the HAL calls `DoIOOperation` per client (*"the client doing the
+operation"*, a buffer size that may differ from the nominal one). A second reader with its own IO
+buffer and phase (Wispr's Chromium `getUserMedia`) is therefore judged against the same global
+write time, and it can wipe the ring the relay reads. The relay's stream keeps flowing, full of
+zeros, and nothing posts a configuration change. Why only the *first* open after a launch is not
+established.
+
+**It is BlackHole only; Victor's microphones cannot do it.** A hardware input has no "has anyone
+written" test. Probe on the host, read-only, with no Wispr driven: reader A on the device for 7 s,
+and reader B, a fresh process with a 128-frame IO buffer (Chromium's "interactive" shape), on the
+same device from 2 s to 5 s. The MacBook microphone read peak 41–106 before B, 45–59 during, 43–63
+after. The Elgato read 71–79, 73–121, 87–135. A was never 0 and its buffers never stopped. Wispr
+touches no input mute or volume: its `AudioInterruptionMonitor` only listens, and its *output*
+mute is `shouldMuteAudio`, off on the host. Sources and the table:
+`evals/plan/vm/wispr/report-wave3-2026-09-28.md`, *Open question — BlackHole only?*
+
+**What `MicRecorder` does now.** `ZeroPeakWatch` is pure; `ZeroPeakWatchTests` has 8 tests over a
+buffer timeline. It fires on buffers still arriving (the last under 0.5 s ago) whose samples are all
+0 for ≥ 1 s, before the take's first sound. Each fire is a restart, at most 3, ≥ 1 s apart:
+- **step 1** puts the tap back on the running engine (batch 2's `restartTap`);
+- **steps 2–3** stop and drop the engine, build a **new `AVAudioEngine`** (a new HAL client with its
+  own IO start and cycle), re-resolve the device with `InputDevice.select` on the fresh input node,
+  and re-register the `AVAudioEngineConfigurationChange` observer on the new engine.
+
+Every line is `🔁 mic: N buffers with peak 0 for X s — tap restarted …` plus a `[device readout]`:
+input mute, input volume, nominal rate against the tap's, `DeviceIsRunningSomewhere`, IO buffer.
+Those are the four ways a stream turns to zeros from outside the process. Then `🔁 mic: audio came
+back after restart N — peak P, T s after it`, or, a window after the third, `3 restart(s) did not
+bring audio back … the take stays DEAF`. `Health.deaf` is unchanged, so that take still ends
+`recorderDeaf` → Recover.
+
+The watch turns off at the first non-zero sample: a Loopback silent after its clip is not a stall,
+and a real microphone never reaches exact 0 (floor ≥ 41). **Every recording now logs `mic: closed —
+<Health.line>[ — DEAF]`**, on every engine; until now only the Wispr path did.
+
+**Step 1 is the light one on purpose.** A desk clip starts ~0.9–1.2 s after the microphone opens: the
+case sleeps 0.4 s, and `play()` adds a 0.5 s zero lead-in. A loaded runner can reach the 1.5 s beat
+first, and there a tap swap costs a buffer where an engine stop would cost the first word. **TM2**
+checks exactly that: 2 s of zeros, then `CLIP_EN`, one restart, `audio came back`, and the words
+whole. **TM1** is the DEAF end: the Loopback with nothing played gives three restarts, `stays DEAF`,
+and `mic: closed … DEAF`. Both are in `cases_audio.py`, on the local engine so no silent take reaches
+ElevenLabs, and on `wave4-rerun.txt` with TW4 and TW34. **Neither was run here.** The desk rig
+(`🧪 WT Inject`) was in another session's harness run, and the installed app does not have this
+code until the next install.
+
+**Only the VM can say:**
+- whether step 1, a rebuild, or nothing brings the audio back against BlackHole's ring wipe;
+- what the device readout says at the stall;
+- why the first Wispr mic open after a launch is the one that does it.
+
+If nothing brings it back, the next move belongs to the lab rig, not the app: a second BlackHole
+(16ch) for the relay, so the two apps stop reading one ring. The app already does the right thing
+with a deaf take: it says DEAF and keeps it for Recover.

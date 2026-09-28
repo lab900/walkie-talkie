@@ -971,3 +971,66 @@ def b5():
     note = f"Δ ${got:.6f} vs expected ${want:.6f} (recording {d} s, corrections {corr:.1f} s, keyterms {kt}); label {c0['label']} → {c1['label']}"
     ok = d > 0 and got > 0 and abs(got - want) <= max(0.25 * want, 0.00002)
     return ("PASS" if ok else "FAIL"), note
+
+
+# ================================================================ A: the peak-0 watch (2026-09-28, wave 3)
+PEAK0 = r"🔁 mic: \d+ buffers with peak 0 for [\d.]+ s"
+
+@case("TM1", ("audio", "gesture"),
+      expect="a take on a device feeding digital zeros (the Loopback with nothing played): three `🔁 mic: N buffers "
+             "with peak 0` restarts (step 1 tap, steps 2–3 a new AVAudioEngine), `did not bring audio back … stays "
+             "DEAF`, and `mic: closed — … peak 0 … — DEAF`")
+def tm1():
+    """Wave 3's finding A at the desk: buffers flowing, every sample 0, no configuration change. The
+    Loopback (BlackHole in the lab) with no clip is exactly that stream. Local engine, so the silent
+    take never reaches ElevenLabs."""
+    why = pre(None)
+    if why: return "SKIP", why
+    with rig(), engine_as("whisper"):
+        m = start()
+        if not on_inject(m): return not_inject(m)
+        gave_up = when(m, r"did not bring audio back", 9)
+        stop()
+        when(m, r"mic: closed — ", 10)
+        settle_out(60)
+    txt = log_since(m)
+    restarts = re.findall(PEAK0 + r"[^\n]*", txt)
+    closed = re.search(r"mic: closed — ([^\n]*)", txt)
+    note = (f"{len(restarts)} peak-0 restart(s); gave up {bool(gave_up)}; closed: {closed.group(1) if closed else 'no line'}"
+            f"; first: {restarts[0][:160] if restarts else '-'}")
+    ok = (len(restarts) == 3 and gave_up and closed and "DEAF" in closed.group(1)
+          and "a new AVAudioEngine" in restarts[-1])
+    return ("PASS" if ok else "FAIL"), note
+
+
+@case("TM2", ("audio", "gesture"),
+      expect="2 s of digital zeros, then the clip: one peak-0 restart (step 1, the tap), `audio came back after "
+             "restart 1`, the take not DEAF, and the clip's words delivered whole (the restart cost no word)")
+def tm2():
+    """The other side of TM1: the watch must not cost a sentence whose audio merely starts late. The
+    restart is a tap swap on the running engine; the clip starts ~0.5 s after it."""
+    why = pre(None)
+    if why: return "SKIP", why
+    with rig(), engine_as("whisper"):
+        if not wait_for(lambda: engine().get("ready"), 90, 1.0):
+            return "SKIP", "the local engine did not get ready in 90 s"
+        t0 = now_iso()
+        m = start()
+        if not on_inject(m): return not_inject(m)
+        time.sleep(1.6)                     # the first beat past 1 s of zeros restarts; play() adds 0.5 s lead
+        play(CLIP_EN)
+        time.sleep(1.0)
+        stop()
+        delivered(m, 60)
+        settle_out(60)
+        d = last_delivery(t0)
+        text = (outbox_tail(1) or [{}])[0].get("text", "") if d else ""
+    txt = log_since(m)
+    restarts = re.findall(PEAK0, txt)
+    back = re.search(r"🔁 mic: audio came back after restart (\d+)[^\n]*", txt)
+    closed = re.search(r"mic: closed — ([^\n]*)", txt)
+    note = (f"{len(restarts)} peak-0 restart(s); came back: {back.group(0)[8:] if back else 'no'}; "
+            f"closed: {closed.group(1) if closed else 'no line'}; words: {text[:80]!r}")
+    whole = "if i dictate" in text.lower() and "wonder" in text.lower()
+    ok = len(restarts) == 1 and back and closed and "DEAF" not in closed.group(1) and whole
+    return ("PASS" if ok else "FAIL"), note

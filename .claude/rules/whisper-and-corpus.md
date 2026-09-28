@@ -383,6 +383,30 @@ never include a bare `dji mic`, which is the transmitter's name (`DJI Mic Mini-B
   entirely room tone. **Both reset per recording** — a carried floor is a floor for a room,
   microphone and distance that may all have changed. → journal: *The meter*
 
+## A take that gets no audio: restart, then say DEAF (2026-09-28)
+
+- **Three watchdogs, one `🔁 mic:` prefix.** `AVAudioEngineConfigurationChange` → the tap is put back.
+  No buffer for 1 s → the tap is put back (≤ 5 per take). **Buffers flowing but every sample 0 for
+  ≥ 1 s before the take's first sound** (`ZeroPeakWatch`, pure, `ZeroPeakWatchTests`) → step 1 puts
+  the tap back; steps 2–3 build a **new `AVAudioEngine`** and re-resolve the device. At most 3
+  restarts, ≥ 1 s apart. Then `🔁 mic: audio came back after restart N — peak P`, or `N restart(s) did
+  not bring audio back … the take stays DEAF` (→ Recover on the Wispr path). Every peak-0 line carries
+  `[mute, input volume, nominal vs tap rate, running somewhere, IO buffer]`.
+- **The watch is off after the first non-zero sample.** A Loopback gone quiet after its clip is not a
+  stall. A real microphone never gives exact zeros: the room floor measured ≥ 41 on the built-in and
+  the Elgato, so it never fires on his desk.
+- **Step 1 stays a tap swap on the running engine, deliberately.** Desk clips start ~0.9–1.2 s after
+  the mic opens (0.4 s sleep + `play`'s 0.5 s zero lead-in), so a late clip can meet the 1.5 s beat.
+  A tap swap costs at most a buffer; an engine stop there would cost the first word. TM2 is the guard.
+- **Why the VM's takes were zeros: BlackHole's read path**, not the relay. BlackHole 0.7.1 zeroes a
+  reader that is "ahead of the last write" and clears the *whole* ring on it, against one static
+  `lastOutputSampleTime` shared by every client. So a second reader (Wispr's `getUserMedia`) can
+  starve the relay with no configuration change. Hardware inputs have no such path. Sources and the
+  probe: `evals/plan/vm/wispr/report-wave3-2026-09-28.md` *Open question — BlackHole only?*
+- **`mic: closed — <device>: N buffers, peak P, R tap restart(s), S s[ — DEAF]`** is logged for every
+  recording, on every engine. `engine` is a `var` now: it is written only on `restartQueue` under
+  `lifecycle`, and the config observer is re-registered on each new engine.
+
 ## The menu row
 
 - **`Local Whisper — 1.6 GB RAM` is a disabled readout, read when the menu opens.** The number is

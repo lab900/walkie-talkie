@@ -21,3 +21,11 @@ TX8b
 #
 # One line for run-phase.sh / harness.py:
 # --only TW35,TW36,TW37,TW38,TW39,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b
+#
+# Finding A, the peak-0 watch (MicRecorder, 2026-09-28 night): TM1/TM2 in cases_audio.py (Loopback =
+# BlackHole 2ch, local engine), plus TW4 and TW34 where A showed (TX2 is already listed above):
+# read every `🔁 mic:` line — which step brought audio back, or `stays DEAF` — and its [device readout].
+TM1
+TM2
+TW4
+TW34
