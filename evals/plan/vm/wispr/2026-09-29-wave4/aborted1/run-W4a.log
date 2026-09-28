@@ -1,0 +1,7 @@
+start W4a cap=3000s ids=TM1,TM2,TW35,TW36,TW37,TW38,TW39,TW40,TW33,TW1,TW4,TW34,TW8a,TW8b,TW12,TW20,TN4 gap= Mon Sep 28 22:00:19 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 49240
+relay on 8917, 17 case(s), report → /Users/admin/wt-lab/night/wispr4/report-lab-W4a.md
+  TM1: SKIP (4.1s) — BlackHole 2ch pass-thru is dead (440 Hz check) — toggle the device in Loopback
+  TM2: SKIP (2.0s) — BlackHole 2ch pass-thru is dead (440 Hz check) — toggle the device in Loopback
+  TW1: BUG (6.9s) — held seen True; listening from 1.03 s for 2.3 s; release line before the case's cancel True; other cancel: None; dropped back to not-listening False
+  TW4: ERROR — prompt panel paused by the pointer for 20 s (autosend held) — needs ⎋ by hand

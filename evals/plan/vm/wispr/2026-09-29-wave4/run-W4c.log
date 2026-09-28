@@ -1,0 +1,26 @@
+start W4c cap=2700s ids=TA1,TA2,TA3,TA4,TA5,TQ1,TQ2,TQ3,TQ4 gap= Mon Sep 28 22:59:15 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 55031
+relay on 8917, 9 case(s), report → /Users/admin/wt-lab/night/wispr4/report-lab-W4c.md
+  TA1: PASS (57.9s) — [eleven → fake Scribe] budget 9.3 s (0 samples on elevenlabs); row counting at +1.3 s True (left 7.916556799411774); fired 9.35 s after the close; fla
+  TA2: PASS (25.2s) — [eleven → fake Scribe] budget 5.2 s (0 on elevenlabs); via elevenlabs-scribe 8.8 s after the close; inside line elevenlabs answered 1.3 s after the cl
+  TA3: PASS (30.8s) — budget 5.1 s (100 on wispr-flow); fired 5.15 s after the close; via local-auto; witness 263 chars, late row in it False; outbox +1; after the row: 09-
+  TA4: PASS (32.7s) — [eleven → fake Scribe] on False; at +2.5 s row `Local now` True, countdown False; budget line False; over-budget False; via elevenlabs-scribe
+  TA5: PASS (14.1s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is not running (POST /test/local-auto wisprDown) — ; flash True; borrowedFrom mid Wispr Flow; 
+   SEC TQ1.1 close→words 0.48 s via wispr-history budget 3.0 (100 samples on wispr-flow) fired no voiced 1.9
+   SEC TQ1.2 close→words 0.58 s via wispr-history budget 5.5 (100 samples on wispr-flow) fired no voiced 4.3
+   SEC TQ1.3 close→words 0.54 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 2.0
+   SEC TQ1.4 close→words 0.64 s via wispr-history budget 5.5 (100 samples on wispr-flow) fired no voiced 4.2
+   SEC TQ1.5 close→words 0.51 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.7
+   SEC TQ1.6 close→words 0.54 s via wispr-history budget 5.5 (100 samples on wispr-flow) fired no voiced 4.2
+  TQ1: PASS (120.1s) — auto True; 6/6 once; SEC TQ1.1 close→words 0.48 s via wispr-history budget 3.0 (100 samples on wispr-flow) fired no voiced 1.9 📦×1 wispr-history; copi
+   SEC TQ2 close→words - s via - budget 2.1 (100 samples on wispr-flow) fired at 2.2 s voiced 1.0
+   SEC TQ2.next close→words 1.26 s via local-whisper budget - (- samples on -) fired no voiced -
+  TQ2: BUG (76.1s) — nothing delivered, said so (Recover / failure / refusal); SEC TQ2 close→words - s via - budget 2.1 (100 samples on wispr-flow) fired at 2.2 s voiced 1
+   SEC TQ3 close→words 6.90 s via local-auto budget 5.5 (100 samples on wispr-flow) fired at 5.5 s voiced 4.3
+  TQ3: PASS (61.7s) — delivered once; SEC TQ3 close→words 6.90 s via local-auto budget 5.5 (100 samples on wispr-flow) fired at 5.5 s voiced 4.3; 📦×1 local-auto; copies 1.0
+   SEC TQ4.cold close→words 1.64 s via local-whisper budget - (- samples on -) fired no voiced -
+   SEC TQ4.+2s close→words 0.45 s via wispr-history budget 3.1 (100 samples on wispr-flow) fired no voiced 1.7
+   SEC TQ4.+15s close→words 0.41 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 2.0
+  TQ4: PASS (58.3s) — cold: SEC TQ4.cold close→words 1.64 s via local-whisper budget - (- samples on -) fired no voiced -; borrowed True; 📦×1 local-whisper; copies 1.0 reca
+rc=0 Mon Sep 28 23:07:18 UTC 2026
+PHASEDONE W4c

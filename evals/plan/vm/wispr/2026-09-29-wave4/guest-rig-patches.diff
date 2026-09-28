@@ -1,0 +1,42 @@
+--- src-051baed/evals/plan/harness.py	2026-09-29 00:39:52
++++ guestplan/harness.py	2026-09-29 02:21:18
+@@ -736,7 +736,7 @@
+     here = os.path.dirname(os.path.abspath(__file__))
+     sys.path.insert(0, here)
+     for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue",
+-                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto"):
++                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto", "cases_w4real"):
+         try:
+             importlib.import_module(mod)
+         except ModuleNotFoundError as e:
+--- src-051baed/evals/plan/cases_wispr_soak.py	2026-09-29 00:39:52
++++ guestplan/cases_wispr_soak.py	2026-09-29 02:21:19
+@@ -607,7 +607,7 @@
+     clock, recs, stuck_log = Clock(), [], []
+     ro, ro_note = clip_ro()
+     N = _n(20)
+-    plan = [(rng.choice(("relay", "standalone")), rng.choice((CLIP_EN, ro)), round(rng.uniform(1.0, 6.0), 1))
++    plan = [(rng.choice(("relay", "standalone")), rng.choice((CLIP_EN, ro)), (float(os.environ["WT_SOAK_GAP"]) if os.environ.get("WT_SOAK_GAP") else round(rng.uniform(1.0, 6.0), 1)))
+             for _ in range(N)]
+     bind_witness()
+     mic_override(LOOPBACK)
+--- src-051baed/evals/plan/cases_wispr_chaos.py	2026-09-29 00:39:52
++++ guestplan/cases_wispr_chaos.py	2026-09-29 02:21:19
+@@ -894,7 +894,7 @@
+         r_w, r_c = copies(wt, ref_r), copies(te, ref_r, avoid=ref_h)
+         h_c, h_w = copies(te, ref_h), copies(wt, ref_h)
+         note = ("relay: witness %.1f, TextEdit %.1f · his: TextEdit %.1f, witness %.1f · Q19 line %s · drop line %s; %s"
+-                % (r_w, r_c, h_c, h_w, re.search(r"\((?:B, )?Q19\)", txt) is not None, "dropped" in txt, _fmt(o)))
++                % (r_w, r_c, h_c, h_w, re.search(r"\((?:B, )?Q19\)", txt) is not None, "dropped" in txt, _fmt(o))) + " · TE=%r" % te[:300]
+         if h_w > 0 or r_c > 0:
+             return "FAIL", "crossed: " + note
+         if o["up"] or r_w > 1.4 or h_c > 1.4:
+@@ -1009,7 +1009,7 @@
+         lost_r = max(0.0, 5 - r_w)
+         lost_h = max(0.0, 5 - h_c)
+         note = ("relay: %d opened, %d refused, witness %.1f/5, TextEdit %.1f · his: TextEdit %.1f/5, witness %.1f · "
+-                "losses relay %.0f his %.0f; %s" % (opened, refused, r_w, r_c, h_c, h_w, lost_r, lost_h, _fmt(o)))
++                "losses relay %.0f his %.0f; %s" % (opened, refused, r_w, r_c, h_c, h_w, lost_r, lost_h, _fmt(o))) + " · TE=%r" % te[:400]
+         if r_c > 0 or h_w > 0:
+             return "FAIL", "misrouted: " + note
+         if o["up"] or not o["pidSame"] or r_w > 5.4 or h_c > 5.4:

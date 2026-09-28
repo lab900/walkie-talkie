@@ -1,0 +1,22 @@
+start W4a cap=3000s ids=TM1,TM2,TW35,TW36,TW37,TW38,TW39,TW40,TW33,TW1,TW4,TW34,TW8a,TW8b,TW12,TW20,TN4 gap= Mon Sep 28 22:10:48 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 49994
+relay on 8917, 17 case(s), report → /Users/admin/wt-lab/night/wispr4/report-lab-W4a.md
+  TM1: FAIL (38.1s) — 2 peak-0 restart(s); gave up True; closed: BlackHole 2ch: 31 buffers, peak 0, 2 tap restart(s), 3.6 s — DEAF; first: 🔁 mic: 14 buffers with peak 0 for
+  TM2: FAIL (24.4s) — 3 peak-0 restart(s); came back: udio came back after restart 3 — peak 354, 5.2 s after it; closed: BlackHole 2ch: 145 buffers, peak 16373, 3 tap resta
+  TW1: PASS (65.5s) — held seen True; listening from 0.14 s for 2.4 s; release line before the case's cancel False; other cancel: None; listening from 0.14 s to the end of 
+  TW4: BUG (20.7s) — 44/68 samples listening+warming+no row (2.2 s); first-5-words hit 0/5; chip named it True; still listening at the stop True
+  TW8a: PASS (27.4s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed True
+  TW8b: PASS (29.1s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed True
+  TW12: BUG (102.1s) — A at -1, B at -1 in the witness; 'No words came back' False
+  TW20: BUG (86.7s) — down in 1.48 s (True); next sentence delivered True; capture False
+  TW33: PASS (68.7s) — B opened True (row adopted True); A parked True; B refused False; A 537 chars before B at 538; 'dropped' False
+  TW34: PASS (134.9s) — +1s: 2.0 s voiced (BlackHole 2ch: 71 buffers, peak 16301, 0 tap restart(s), 7.2 s); opened BlackHole 2ch 48000 Hz × 2; restarts 0; 'No speech' False |
+  TW35: PASS (86.3s) — (a) raw_transcript empty: capture let go 0.03 s after the write, line True; (b) fallback: let go 0.02 s, witness True, via wispr-history, unknown-stat
+  TW36: PASS (82.0s) — capture let go 0.05 s after the newer row; dead line True; late-row hold let go True; Q2 wait False; a later ⌘V: passed (past the relay's tail (Q9))
+  TW37: PASS (64.3s) — discard capture closed 1.15 s after the cancel; line True
+  TW38: PASS (20.6s) — 6/6 changes seen; latency ms [6, 4, 4, 5, 5, 5] (max 6); watching ['flow.sqlite', 'flow.sqlite-wal']; file events +11, queries 92, cache hits 16085
+  TW39: BUG (29.2s) — (a) ⌘V passed; claim row None from None (None chars); (b) ⌘V dropped; claim row 4 from the pasteboard (the row still unfinished after 5 s) (21 chars);
+  TW40: PASS (25.4s) — helper stopped True; B waited its turn True; B in the witness True 3.5 s after the resume; A 261 chars before B at 262; 'wait for the one before' ×0; 
+  TN4: PASS (64.5s) — [eleven → fake Scribe] B opened True; A parked True; B refused False; deliveries in order ['local-fallback', 'elevenlabs-scribe']; 'which is over — dr
+rc=0 Mon Sep 28 22:49:43 UTC 2026
+PHASEDONE W4a

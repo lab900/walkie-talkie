@@ -1,0 +1,12 @@
+start W4b cap=2700s ids=TX2,TX3,TX6b,TX8a,TX8b,TX10,TX13 gap= Mon Sep 28 22:49:49 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 54256
+relay on 8917, 7 case(s), report → /Users/admin/wt-lab/night/wispr4/report-lab-W4b.md
+  TX2: PASS (72.8s) — listening down 0.61 s after the kill (True); 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Q14 fallback; Recover staged; 0.0 s voiced; failure: The relay
+  TX3: PASS (42.1s) — relaunch 1.0 s; first sentence opened True, 📦×1 local-auto; copies 1.0 recall 1.00; rows +0 (); 1.7 s voiced; clipboard writes 1; mic with no capture 
+  TX6b: PASS (60.6s) — delivered once: 📦×1 local-forced; copies 1.0 recall 1.00; rows +2 (processing); 1.9 s voiced; clipboard writes 1; dwell-guard swallows 0; Wispr mic 10
+  TX8a: PASS (66.4s) — relay opened False, refused True; his words: TextEdit 1.0 (recall 0.36), witness 0.0; 📦×0 -; copies 0.0 recall 0.00; rows +1 (formatted); refusal; cli
+  TX8b: BUG (50.4s) — his sentence lost (W4; lab finding 3): relay: witness 1.0, TextEdit 0.0 · his: TextEdit 0.0, witness 0.0 · Q19 line False · drop line True; 📦×1 wispr-
+  TX10: BUG (93.5s) — relay: 5 opened, 0 refused, witness 5.0/5, TextEdit 0.0 · his: TextEdit 0.0/5, witness 0.0 · losses relay 0 his 5; 📦×5 wispr-history,wispr-history,wis
+  TX13: PASS (108.7s) — gate held True; row 248 processing at the freeze; dry-run gate exit 3; restart exit 0; app pid 1598 → None; Wispr 3362 thawed; late row 248 → formatte
+rc=0 Mon Sep 28 22:58:15 UTC 2026
+PHASEDONE W4b

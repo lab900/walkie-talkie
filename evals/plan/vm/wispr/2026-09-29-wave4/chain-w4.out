@@ -1,0 +1,20 @@
+/Users/admin/wt-lab/run-w4phase.sh: line 17:  1681 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w4phase.sh: line 17:  1684 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  3195 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  3198 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  4157 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  4160 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w4phase.sh: line 17:  4915 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  4912 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  6085 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w4phase.sh: line 18:  6088 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )

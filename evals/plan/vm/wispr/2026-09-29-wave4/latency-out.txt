@@ -1,0 +1,98 @@
+09-28 22:17:04 relay local-fallback local-fallback None decode 3.43 audio 11.8 
+09-28 22:17:24 relay local-fallback local-auto 4890 decode 1.52 audio 7.4 
+09-28 22:17:51 relay wispr-row wispr-history 479 decode None audio None 
+09-28 22:18:21 desk - - None decode None audio None 
+09-28 22:18:22 desk - - None decode None audio None The relay's recording got no audio from the microp
+09-28 22:23:25 relay - - None decode None audio None No words heard
+09-28 22:23:35 relay local-fallback local-fallback 4261 decode 1.16 audio 7.4 
+09-28 22:28:33 relay - - None decode None audio None 
+09-28 22:29:26 relay wispr-row local-fallback 5190 decode 2.05 audio 49.1 
+09-28 22:29:43 desk local-fallback local-auto 4177 decode 0.88 audio 7.2 
+09-28 22:30:28 desk local-fallback local-auto 4360 decode 1.13 audio 7.3 
+09-28 22:31:14 desk local-fallback local-auto 4175 decode 0.91 audio 7.3 
+09-28 22:31:57 desk - - None decode None audio None The relay's recording got no audio from the microp
+09-28 22:32:15 desk wispr-row wispr-history 406 decode None audio None 
+09-28 22:37:03 desk - - None decode None audio None The relay's recording got no audio from the microp
+09-28 22:42:12 desk - - None decode None audio None 
+09-28 22:47:24 desk wispr-row wispr-history 659 decode None audio None 
+09-28 22:47:33 desk wispr-row wispr-history 629 decode None audio None 
+09-28 22:47:44 desk wispr-row wispr-history 464 decode None audio None 
+09-28 22:47:58 desk wispr-row wispr-history 337 decode None audio None 
+09-28 22:48:13 desk - - None decode None audio None 
+09-28 22:48:28 desk local-fallback local-fallback 9740 decode 1.47 audio 47.0 
+09-28 22:49:55 relay - test None decode 8.45 audio 5.8 The relay's recording got no audio from the microp
+09-28 22:51:08 relay local-fallback local-auto 5263 decode 1.47 audio 8.7 
+09-28 22:51:49 desk - - None decode None audio None 
+09-28 22:51:49 desk local-fallback local-forced 1387 decode 1.33 audio 6.0 
+09-28 22:53:57 relay wispr-row wispr-history 655 decode None audio None 
+09-28 22:54:48 relay wispr-row wispr-history 407 decode None audio None 
+09-28 22:55:04 relay wispr-row wispr-history 413 decode None audio None 
+09-28 22:55:21 relay wispr-row wispr-history 417 decode None audio None 
+09-28 22:55:38 relay wispr-row wispr-history 954 decode None audio None 
+09-28 22:55:54 relay wispr-row wispr-history 695 decode None audio None 
+09-28 22:56:20 relay local-fallback local-auto 5139 decode 1.23 audio 8.4 
+09-28 22:57:53 relay local-fallback wispr-history 383 decode 2.38 audio 27.1 
+09-28 23:00:43 relay local-fallback local-auto 6296 decode 1.17 audio 5.5 
+09-28 23:02:00 relay wispr-row wispr-history 483 decode None audio None 
+09-28 23:02:16 relay wispr-row wispr-history 576 decode None audio None 
+09-28 23:02:41 relay wispr-row wispr-history 541 decode None audio None 
+09-28 23:02:56 relay wispr-row wispr-history 641 decode None audio None 
+09-28 23:03:21 relay wispr-row wispr-history 511 decode None audio None 
+09-28 23:03:36 relay wispr-row wispr-history 544 decode None audio None 
+09-28 23:04:01 relay - test 1264 decode 1.14 audio 6.4 No words heard
+09-28 23:05:19 relay local-fallback local-auto 6896 decode 1.51 audio 6.4 
+09-28 23:06:36 relay wispr-row wispr-history 446 decode None audio None 
+09-28 23:07:05 relay wispr-row wispr-history 412 decode None audio None 
+09-28 23:07:29 relay wispr-row wispr-history 420 decode None audio None 
+09-28 23:07:53 relay wispr-row wispr-history 1720 decode None audio None 
+09-28 23:08:13 relay wispr-row wispr-history 664 decode None audio None 
+09-28 23:08:30 relay wispr-row wispr-history 2142 decode None audio None 
+09-28 23:08:50 relay wispr-row wispr-history 548 decode None audio None 
+09-28 23:09:06 relay wispr-row wispr-history 1747 decode None audio None 
+09-28 23:09:26 relay wispr-row wispr-history 1012 decode None audio None 
+09-28 23:09:43 relay wispr-row wispr-history 1525 decode None audio None 
+09-28 23:10:03 relay wispr-row wispr-history 586 decode None audio None 
+09-28 23:10:20 relay wispr-row wispr-history 1572 decode None audio None 
+09-28 23:10:40 relay wispr-row wispr-history 714 decode None audio None 
+09-28 23:10:56 relay wispr-row wispr-history 1670 decode None audio None 
+09-28 23:11:16 relay wispr-row wispr-history 535 decode None audio None 
+09-28 23:11:33 relay wispr-row wispr-history 1598 decode None audio None 
+09-28 23:11:53 relay wispr-row wispr-history 707 decode None audio None 
+09-28 23:12:10 relay wispr-row wispr-history 1676 decode None audio None 
+09-28 23:12:30 relay wispr-row wispr-history 481 decode None audio None 
+09-28 23:12:47 relay wispr-row wispr-history 1416 decode None audio None 
+09-28 23:13:07 relay wispr-row wispr-history 538 decode None audio None 
+09-28 23:13:23 relay wispr-row wispr-history 1733 decode None audio None 
+09-28 23:13:43 relay wispr-row wispr-history 521 decode None audio None 
+09-28 23:14:00 relay wispr-row wispr-history 1703 decode None audio None 
+09-28 23:14:20 relay wispr-row wispr-history 489 decode None audio None 
+09-28 23:14:37 relay wispr-row wispr-history 1581 decode None audio None 
+09-28 23:14:56 relay wispr-row wispr-history 540 decode None audio None 
+09-28 23:15:13 relay wispr-row wispr-history 1950 decode None audio None 
+09-28 23:15:33 relay wispr-row wispr-history 491 decode None audio None 
+09-28 23:15:50 relay wispr-row wispr-history 1893 decode None audio None 
+09-28 23:16:11 relay wispr-row wispr-history 512 decode None audio None 
+09-28 23:16:27 relay wispr-row wispr-history 1873 decode None audio None 
+09-28 23:22:15 relay wispr-row wispr-history 493 decode None audio None 
+09-28 23:22:30 relay wispr-row wispr-history 1606 decode None audio None 
+09-28 23:23:01 relay wispr-row wispr-history 674 decode None audio None 
+09-28 23:23:17 relay wispr-row wispr-history 1800 decode None audio None 
+09-28 23:23:38 relay wispr-row wispr-history 500 decode None audio None 
+09-28 23:24:08 relay wispr-row wispr-history 1797 decode None audio None 
+09-28 23:24:27 relay wispr-row wispr-history 1492 decode None audio None 
+09-28 23:25:14 relay wispr-row wispr-history 1415 decode None audio None 
+09-28 23:25:45 relay wispr-row wispr-history 1739 decode None audio None 
+09-28 23:26:30 relay wispr-row wispr-history 2007 decode None audio None 
+09-28 23:31:17 relay - - None decode None audio None 
+09-28 23:36:38 relay wispr-row wispr-history 498 decode None audio None 
+09-28 23:36:58 relay local-fallback local-fallback 6329 decode 3.24 audio 10.2 
+09-28 23:37:51 relay local-fallback local-fallback 4252 decode 1.11 audio 10.3 
+09-28 23:38:42 relay local-fallback local-fallback 4605 decode 1.49 audio 10.1 
+09-28 23:39:55 relay wispr-row wispr-history 466 decode None audio None 
+09-28 23:40:12 relay wispr-row wispr-history 466 decode None audio None 
+09-28 23:40:29 relay wispr-row wispr-history 516 decode None audio None 
+09-28 23:40:46 relay wispr-row wispr-history 401 decode None audio None 
+09-28 23:41:02 relay wispr-row wispr-history 456 decode None audio None 
+wispr-row (relay): n=62 min=401 p50=648 p90=1800 max=5190 (ms after mic close)
+local-fallback (relay): n=10 min=383 p50=5014 p90=6896 max=6896 (ms after mic close)
+local decode alone: n=19 p50=1470 ms, max=8450 ms

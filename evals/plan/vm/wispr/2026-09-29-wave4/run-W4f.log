@@ -1,0 +1,9 @@
+start W4f cap=1500s ids=TW4,TX8b,TX9,TX10 gap= Mon Sep 28 23:31:09 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 58563
+relay on 8917, 4 case(s), report → /Users/admin/wt-lab/night/wispr4/report-lab-W4f.md
+  TW4: BUG (105.4s) — 41/271 samples listening+warming+no row (2.1 s); first-5-words hit 0/5; chip named it True; still listening at the stop False
+  TX8b: BUG (21.0s) — his sentence lost (W4; lab finding 3): relay: witness 1.0, TextEdit 0.0 · his: TextEdit 0.0, witness 0.0 · Q19 line True · drop line True; 📦×1 wispr-h
+  TX9: PASS (176.4s) — losses 0/3 (silent 0), head losses 0; 
+  TX10: BUG (94.4s) — relay: 5 opened, 0 refused, witness 5.0/5, TextEdit 0.0 · his: TextEdit 0.0/5, witness 0.0 · losses relay 0 his 5; 📦×5 wispr-history,wispr-history,wis
+rc=0 Mon Sep 28 23:41:28 UTC 2026
+PHASEDONE W4f

@@ -1,0 +1,14 @@
+chain start 22:10:25 051baed
+440 Hz before W4a: W4a 1 peak 0.3 nonzero 59711
+W4a start 22:10:48
+440 Hz before W4b: W4b 1 peak 0.3 nonzero 59711
+W4b start 22:49:49
+pf rules after W4b:        0 in the anchor
+440 Hz before W4c: W4c 1 peak 0.3 nonzero 59711
+W4c start 22:59:15
+440 Hz before W4d: W4d 1 peak 0.3 nonzero 59711
+W4d start 23:07:24
+440 Hz before W4e: W4e 1 peak 0.3 nonzero 59711
+W4e start 23:21:19
+pf rules after end:        0 in the anchor
+CHAINDONE 23:27:23
