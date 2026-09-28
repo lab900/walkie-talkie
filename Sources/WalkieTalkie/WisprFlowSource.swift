@@ -1828,6 +1828,13 @@ final class WisprFlowSource: DictationSource {
 
     // MARK: - The meter, which is also the corpus's recording
 
+    /// The last take's `MicRecorder.Health` (A), read by `endWithRecording`.
+    private var recordingHealth: MicRecorder.Health?
+    /// `WT_KEEP_TAKES=1` (environment or `elevenlabs.env`, read per take).
+    private static var keepTakes: Bool {
+        (ProcessInfo.processInfo.environment["WT_KEEP_TAKES"] ?? ElevenLabsSource.fileValue("WT_KEEP_TAKES")) == "1"
+    }
+
     private func startMeter() {
         let wav = Outbox.shotsDir.appendingPathComponent("wispr-\(Int(Date().timeIntervalSince1970)).wav")
         meterQueue.async { [weak self] in
@@ -1859,6 +1866,22 @@ final class WisprFlowSource: DictationSource {
             self.meter.onBuffer = nil
             self.recordingVoiced = self.meter.voicedSeconds
             let taken = self.meter.stop()
+            // A (2026-09-28): what the device gave this take, always said.
+            let health = self.meter.lastHealth
+            self.recordingHealth = health
+            if let health {
+                Log.info(String(format: "wispr meter: %.1f s voiced — %@%@", self.recordingVoiced, health.line,
+                                health.deaf ? " — DEAF (no audio reached the recorder)" : ""))
+            }
+            if let taken, Self.keepTakes {
+                // `WT_KEEP_TAKES=1`: every relay Wispr take copied out before any delete.
+                let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".walkie-talkie/kept-takes")
+                try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let dest = dir.appendingPathComponent(taken.url.lastPathComponent)
+                try? FileManager.default.removeItem(at: dest)
+                try? FileManager.default.copyItem(at: taken.url, to: dest)
+                Log.info("🧪 WT_KEEP_TAKES — \(dest.path) (\(String(format: "%.1f", self.recordingVoiced)) s voiced)")
+            }
             // **After the recorder, and after whatever it had left.** Tearing the
             // bridge down with audio still queued throws away the end of his
             // sentence — the part Wispr has not heard yet. `bridgeDrainSeconds`
@@ -2398,6 +2421,7 @@ final class WisprFlowSource: DictationSource {
             let taken = self.recording
             self.recording = nil
             let voiced = self.recordingVoiced
+            let recHealth = self.recordingHealth
             DispatchQueue.main.async {
                 if let row { self.watchLateRow(row) }
                 guard let taken, FileManager.default.fileExists(atPath: taken.url.path) else {
@@ -2409,10 +2433,16 @@ final class WisprFlowSource: DictationSource {
                     Log.error(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording: the local model %@",
                                      why, voiced, forced ? "takes it" : "stands in (Q14)"))
                     self.didEnd?(.failed(why: why, audio: taken.url, duration: taken.duration))
+                } else if let health = recHealth, health.deaf {
+                    // **A: nobody listened — not "no speech".** Kept for Recover.
+                    Log.error(String(format: "wispr: %@ — the relay's own recording got NO AUDIO (%@): not 'no speech'; kept for Recover", why, health.line))
+                    self.didEnd?(.failed(why: "\(DictationEnd.recorderDeaf) (\(health.device))", audio: taken.url, duration: taken.duration))
                 } else if voiced < 0.3 {
-                    Log.info(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording too: no speech", why, voiced))
-                    try? FileManager.default.removeItem(at: taken.url)
-                    self.didEnd?(.silent("No speech was heard"))
+                    // **A (2026-09-28): Wispr failed too, so the take is kept** —
+                    // the meter's *no speech* is a judgement, and the lab showed it
+                    // wrong 4× in a row; Recover costs nothing.
+                    Log.info(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording too (%@): kept for Recover", why, voiced, recHealth?.line ?? "no health"))
+                    self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: taken.url, duration: taken.duration))
                 } else {
                     Log.error(String(format: "wispr: %@ — only %.1f s voiced (under %.1f s): no local fallback, the audio is kept for Recover", why, voiced, ElevenLabsSource.fallbackVoicedFloor))
                     self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: taken.url, duration: taken.duration))

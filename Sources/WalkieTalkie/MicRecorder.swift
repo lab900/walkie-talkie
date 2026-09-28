@@ -212,6 +212,33 @@ final class MicRecorder {
 
     private(set) var isRecording = false
 
+    // MARK: A (lab wave 2, 2026-09-28): a recording that got no audio
+
+    /// **What the device actually handed this recording** — told apart from
+    /// *he said nothing*. Four relay sentences started within ~5 s of a Wispr
+    /// launch measured `0.0 s voiced` while a clip was playing into the device,
+    /// and each was called *No speech was heard*, its WAV deleted. A take with
+    /// no buffers, or only digital zeros, is a deaf recorder, not a quiet room.
+    struct Health: Equatable {
+        var device = ""
+        var buffers = 0
+        /// The loudest converted sample, |int16| — 0 is digital silence.
+        var peak = 0
+        /// `AVAudioEngineConfigurationChange`s (and stall restarts) survived.
+        var restarts = 0
+        var seconds: TimeInterval = 0
+        var deaf: Bool { buffers == 0 || peak == 0 }
+        var line: String {
+            String(format: "%@: %d buffers, peak %d, %d tap restart(s), %.1f s", device, buffers, peak, restarts, seconds)
+        }
+    }
+    /// The last closed recording's `Health` (read after `stop()`).
+    private(set) var lastHealth: Health?
+    private var health = Health()
+    private var configObserver: NSObjectProtocol?
+    private var stallTimer: DispatchSourceTimer?
+    private let restartQueue = DispatchQueue(label: "mic.restart")
+
     /// **How many seconds of this recording were actually speech**, updated on
     /// the audio thread as the buffers arrive.
     ///
@@ -598,6 +625,7 @@ final class MicRecorder {
         windows.reset()
         writtenFrames = 0
         lastAppendAt = nil
+        health = Health(device: device)
         isRecording = true
         lock.unlock()
 
@@ -622,7 +650,70 @@ final class MicRecorder {
         if destination != nil {
             Self.lastOpened = (device, Int(inFormat.sampleRate), Int(inFormat.channelCount), Date())
         }
+        watchForSilentEngine()
         return nil
+    }
+
+    /// **A (2026-09-28): the tap restarts itself when the device changes under
+    /// it.** Another process opening the same input (Wispr Flow's launch is the
+    /// suspect: its CoreAudio set-up) can change the device's configuration;
+    /// AVAudioEngine then **stops itself** and posts
+    /// `AVAudioEngineConfigurationChange` — every buffer after that is simply
+    /// never delivered, and the take reads `0.0 s voiced`. Also a watchdog for
+    /// the same silence without a notification: no buffer for 1 s.
+    private func watchForSilentEngine() {
+        if configObserver == nil {
+            configObserver = NotificationCenter.default.addObserver(
+                forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
+                    self?.restartQueue.async { self?.restartTap(why: "the device's configuration changed (AVAudioEngineConfigurationChange)") }
+                }
+        }
+        stallTimer?.cancel()
+        let t = DispatchSource.makeTimerSource(queue: restartQueue)
+        let opened = Date()
+        t.schedule(deadline: .now() + 1.0, repeating: 0.5)
+        t.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            let recording = self.isRecording
+            let last = self.lastAppendAt ?? opened
+            let restarts = self.health.restarts
+            self.lock.unlock()
+            guard recording else { self.stallTimer?.cancel(); self.stallTimer = nil; return }
+            let gap = Date().timeIntervalSince(last)
+            guard gap >= 1.0, restarts < 5 else { return }
+            self.restartTap(why: String(format: "no audio buffer for %.1f s%@", gap, self.engine.isRunning ? "" : " — the engine had stopped"))
+        }
+        stallTimer = t
+        t.resume()
+    }
+
+    /// Re-reads the device's format and puts the tap back; the WAV (16 kHz mono)
+    /// goes on. `restartQueue`; takes `lifecycle`, never `lock` across the engine.
+    private func restartTap(why: String) {
+        lifecycle.lock(); defer { lifecycle.unlock() }
+        lock.lock(); let recording = isRecording; let device = health.device; lock.unlock()
+        guard recording else { return }
+        let input = engine.inputNode
+        let chosen = InputDevice.select(on: input) ?? device
+        let inFormat = input.inputFormat(forBus: 0)
+        guard inFormat.channelCount > 0, inFormat.sampleRate > 0,
+              let conv = AVAudioConverter(from: inFormat, to: Self.fileFormat) else {
+            Log.error("🔁 mic: \(why) — and \(chosen) now reports no usable format (\(Int(inFormat.sampleRate)) Hz × \(inFormat.channelCount) ch); the recording stays silent")
+            return
+        }
+        lock.lock(); converter = conv; health.restarts += 1; health.device = chosen; lastAppendAt = Date(); lock.unlock()
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 4096, format: inFormat) { [weak self] buffer, _ in
+            self?.append(buffer)
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+            Log.error("🔁 mic: \(why) — tap restarted on \(chosen), \(Int(inFormat.sampleRate)) Hz × \(inFormat.channelCount) ch (was \(device))")
+        } catch {
+            Log.error("🔁 mic: \(why) — restarting on \(chosen) failed: \(error.localizedDescription)")
+        }
     }
 
     /// Closes the file and hands back what was recorded, or nil when there was
@@ -779,6 +870,8 @@ final class MicRecorder {
         // the sentence took, and every reader of this number — the corpus row,
         // `DecodeRate` — is describing the file.
         let elapsed = (startedAt.map { Date().timeIntervalSince($0) } ?? 0) + inserted
+        health.seconds = elapsed
+        lastHealth = health
         startedAt = nil
         inserted = 0
         pendingInserts = []
@@ -882,6 +975,13 @@ final class MicRecorder {
         // Where this buffer starts in the file: `append` advanced `writtenFrames`
         // past it (and past any splice in front of it) just before calling here.
         let base = Double(writtenFrames) - Double(count)
+        // A: the device is heard at all — buffers and the loudest sample.
+        health.buffers += 1
+        if health.peak < 32767 {
+            var peak = health.peak
+            for i in 0..<count { let v = Int(samples[i]); peak = max(peak, v < 0 ? -v : v) }
+            health.peak = min(peak, 32767)
+        }
         let fed = windows.feed(UnsafeBufferPointer(start: samples, count: count), at: base)
         voiced += fed.seconds
         hopLock.lock()

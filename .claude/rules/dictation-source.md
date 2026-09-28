@@ -183,8 +183,13 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   `speculativeGrace`, the capture timeout, Wispr quitting — goes through `endWithRecording`: ≥ 1.5 s
   voiced (`ElevenLabsSource.fallbackVoicedFloor`) → `.failed(audio:)` → `AppDelegate.fallBackToLocal`
   (Wispr allowed since that day) → delivered to the latched destination, `via: local-fallback`; some
-  speech under the floor → Recover (`heardNothing`); < 0.3 s voiced → *No speech was heard* (the only
-  time it is said). The row given up on is watched (`watchLateRow`, ≤ 5 min) and held owned
+  speech under the floor → Recover (`heardNothing`); **< 0.3 s voiced → Recover too since A
+  (2026-09-28 wave 3)** — Wispr failed as well, and the meter's *no speech* was wrong 4× in the lab;
+  a take the recorder got **no audio** for (`MicRecorder.Health.deaf`: 0 buffers or digital zeros)
+  ends `DictationEnd.recorderDeaf`, Recover, never the local model. Every take logs
+  `wispr meter: N s voiced — <device>: buffers, peak, tap restarts`; `WT_KEEP_TAKES=1` copies each
+  WAV to `~/.walkie-talkie/kept-takes/`. `MicRecorder` restarts its tap on
+  `AVAudioEngineConfigurationChange` and after 1 s with no buffer (`🔁 mic:` lines). The row given up on is watched (`watchLateRow`, ≤ 5 min) and held owned
   (`HotkeyTap.holdWisprOwned`): its late ⌘V is dropped and the row only logged — never a second copy.
 - **The capture reads its own row after adoption** (W4, 2026-09-28): `pollHistory` takes
   `WisprHistory.entry(rowid: historyRow)`, never `newest()` — his own newer row hid the relay's.

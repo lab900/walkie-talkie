@@ -3796,6 +3796,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 5xx, timeout, transport) — under 2 s voiced it arrives as
         // `heardNothing`, so a silent take never reaches the local model.
         if case .failed(let why, let audio?, let duration) = end, why != DictationEnd.heardNothing,
+           !why.hasPrefix(DictationEnd.recorderDeaf),
            fallBackToLocal(why: why, wav: audio, duration: duration) { return }
         dictationEndedForGood(end)
     }

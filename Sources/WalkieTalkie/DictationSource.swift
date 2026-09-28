@@ -389,6 +389,13 @@ extension DictationEnd {
     /// local model on it, made by him with the banner in front of him.
     static let heardNothing = "No words heard"
 
+    /// **A (lab wave 2, 2026-09-28): the relay's recorder got no audio at all**
+    /// — no buffers, or digital zeros — while Wispr also failed. Not *No speech
+    /// was heard* (nobody listened): the WAV is staged for *Recover*, and like
+    /// `heardNothing` it is never handed to the local model (silence in, an
+    /// invented sentence out).
+    static let recorderDeaf = "The relay's recording got no audio from the microphone"
+
     /// **The `why` of a take ⌘⌃X handed to the local model** (2026-09-28) — not
     /// a failure of the recogniser: `fallBackToLocal` reads it as *asked for*,
     /// so no warning rides the words and `lastFailure` is left alone.
