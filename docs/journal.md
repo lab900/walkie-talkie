@@ -14235,3 +14235,20 @@ The host was at load 100–172 from ~19:30, which starved the S phase.
   - Soak osascript timeout 25 s.
 
 To fix before restoring: B, D, A, in that order. Then re-run on a quiet host.
+
+## 2026-09-28 — the Reverse tunnel never quite arrives; ⌘⌃X's row waits a second
+
+Victor: *"The reverse tunnel animation that shows during the dictation should be logarithmically
+decreasing so that we rarely hit the final size, and the final size should be 60 % of what it's
+currently at … more time to be collapsing, although on a slower pace as it gets slower and
+slower."* `RewindTimeline`: the eased-out approach that ended at 1.2 × the prediction (2026-09-25)
+is replaced by a hyperbola, `1 − 1 / (1 + 4u)` — 80 % in at the prediction (1.5 × rest), 89 % at
+twice it, 95 % at five times, never 1; `sizeFactor` 0.7 → 0.42. Unit tests rewritten
+(`RewindTimelineTests`: never arrives, decelerates forever, on-time pose).
+
+Victor: *"cmd-ctrl-x should only be displayed after 1 s after starting the transcribing, if any other
+engine is used (wispr or 11labs)."* `AppDelegate.syncLocalNow`: the `💻 Local now  ⌘⌃X` row is up
+only while the take waits on the cloud **and** ≥ 1 s after that wait began (`localNowRowDelay`);
+never while the microphone is open. The key works from the first sample as before. TN1 now expects
+no row while recording; TN2 reads the row 2 s after the stop. States page: the shot
+`listening-local-now` became `transcribing-local-now` (to be re-shot with the next install).

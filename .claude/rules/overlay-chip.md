@@ -134,12 +134,15 @@ yields to `--label`).
   and so is the hair of width the recording row gains at `×10`. → journal: *Size: minimal, per state*
 
 - **`💻 Local now  ⌘⌃X`** (2026-09-28) — the key that has this Mac transcribe the take, up while
-  `AppDelegate.localNowAvailability()` says there is one (recording, or waiting on the cloud) and
-  gone when the words land; `💻 Local now (loading)  ⌘⌃X` while the local weights are down (the key
-  still works). Built like `📋 Re-paste ⌘V` (`installEmojiRow`, `layoutGlyphRow`, both halo
-  branches), placed after `☠️ Kamikaze` and before the paste row. A 0.5 s tick runs only while it
-  is up, to keep `(loading)` honest. States page: `listening-local-now`,
-  `transcribing-local-now-loading`. → `mouse-gestures.md`, *⌘⌃X*
+  `AppDelegate.localNowAvailability()` says there is one **and from one second into the
+  transcription** (Victor, later that day: *"only displayed after 1 s after starting the
+  transcribing, if any other engine is used"* — never while the microphone is open, never for a
+  sentence a fast engine answers within the second; the key itself works from the first sample,
+  `localNowRowDelay`), gone when the words land; `💻 Local now (loading)  ⌘⌃X` while the local
+  weights are down (the key still works). Built like `📋 Re-paste ⌘V` (`installEmojiRow`,
+  `layoutGlyphRow`, both halo branches), placed after `☠️ Kamikaze` and before the paste row. A
+  0.25 s tick runs while a take is available, to keep the second and `(loading)` honest. States
+  page: `transcribing-local-now`, `transcribing-local-now-loading`. → `mouse-gestures.md`, *⌘⌃X*
 
 ## `Listening...` and `Transcribing...`
 

@@ -3889,18 +3889,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         syncLocalNow()
     }
 
-    /// The chip's `💻 Local now  ⌘⌃X` row follows `localNowAvailability`; while
-    /// it is up a half-second tick keeps `(loading)` honest as the weights come up.
+    /// The chip's `💻 Local now  ⌘⌃X` row follows `localNowAvailability`, **from
+    /// one second into the transcription** (2026-09-28, Victor: *"cmd-ctrl-x
+    /// should only be displayed after 1 s after starting the transcribing, if any
+    /// other engine is used (wispr or 11labs)"*): never while the microphone is
+    /// open, and not for a sentence the engine answers within the second — the
+    /// key itself works from the first sample. While a take is available a
+    /// quarter-second tick keeps the second and `(loading)` honest.
+    static let localNowRowDelay: TimeInterval = 1
+    private var localNowWaitingSince: CFAbsoluteTime?
+
     private func syncLocalNow() {
         // A parked sentence's answer (Q12) runs on its fields: the row is the live one's.
         guard !answeringInBackground else { return }
-        let on = localNowAvailability().available
-        overlay.setLocalNow(on, loading: !whisperSource.isReady)
-        if on, localNowTick == nil {
-            let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.syncLocalNow() }
+        let a = localNowAvailability()
+        let waiting = a.available && a.why != "recording"
+        let now = CFAbsoluteTimeGetCurrent()
+        if waiting {
+            if localNowWaitingSince == nil { localNowWaitingSince = now }
+        } else {
+            localNowWaitingSince = nil
+        }
+        let shown = waiting && now - (localNowWaitingSince ?? now) >= Self.localNowRowDelay - 0.05
+        overlay.setLocalNow(shown, loading: !whisperSource.isReady)
+        if a.available, localNowTick == nil {
+            let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in self?.syncLocalNow() }
             localNowTick = t
             RunLoop.main.add(t, forMode: .common)
-        } else if !on {
+        } else if !a.available {
             localNowTick?.invalidate()
             localNowTick = nil
         }

@@ -354,14 +354,14 @@ enum OverlayStates {
                 o.pinTranscribeWarmth(0.45)
             },
 
-            Shot(slug: "listening-local-now", group: "Dictating", title: "⌘⌃X — the local model, now",
-                 when: "While a sentence records on ElevenLabs (or Wispr Flow), and while its words are on their way back.",
-                 note: "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. It goes when the words land.",
+            Shot(slug: "transcribing-local-now", group: "Dictating", title: "⌘⌃X — the local model, now",
+                 when: "From one second into the wait for ElevenLabs (or Wispr Flow) — never while the microphone is open.",
+                 note: "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. The key works from the first sample; the row waits a second into the transcription (*\"only displayed after 1 s after starting the transcribing\"*), so a fast engine never shows it. It goes when the words land.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
-                o.setListening(true)
-                o.pinListenWarmth(1)
+                o.setTranscribing(true)
                 o.setShotCount(1)
+                o.pinTranscribeWarmth(0.5)
                 o.setLocalNow(true)
             },
 

@@ -37,7 +37,7 @@ def _forced_delivery(since_iso, timeout):
 
 
 @case("TN1", ("audio", "gesture"), engine="eleven",
-      expect="⌘⌃X mid-recording → via local-forced, no upload (fake batch count and elevenCost unchanged), row shown while recording")
+      expect="⌘⌃X mid-recording → via local-forced, no upload (fake batch count and elevenCost unchanged); no row while recording (it waits 1 s into the transcription)")
 def tn1():
     """⌘⌃X while recording on ElevenLabs: the take never leaves the Mac."""
     why = pre(("eleven",))
@@ -64,7 +64,7 @@ def tn1():
                 f"'uploading' {uploaded}, 'not uploaded' {skipped}; fake batch {batch0}→{batch1}, cost {cost0}→{cost1}; "
                 f"row gone after {row_gone}; witness {len(witness_text())} chars")
         ok = (via == "local-forced" and not uploaded and skipped and batch0 == batch1 and cost0 == cost1
-              and ln.get("available") and "Local now" in str(ln.get("row")) and row_gone and len(witness_text()) > 20)
+              and ln.get("available") and ln.get("row") is None and row_gone and len(witness_text()) > 20)
         return ("PASS" if ok else "FAIL"), note
 
 
@@ -87,7 +87,7 @@ def tn2():
         stop()
         if not when(m, r"recording stopped", 10):
             return "FAIL", "the recording never stopped"
-        time.sleep(1.5)
+        time.sleep(2.0)                      # the row waits 1 s into the transcription (2026-09-28)
         ln = state().get("localNow") or {}
         t_press, mp = time.time(), log_mark()
         post("/test/local-now")

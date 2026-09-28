@@ -1294,11 +1294,11 @@ final class CaretHalo {
     /// never *done* before they are. An early answer is `hide`'s: out in
     /// `RewindTimeline.collapse`, from wherever it got to.
     ///
-    /// **Ends at 1.2× the prediction, eased out** (2026-09-25: *"estimate to
-    /// finish in 120% of the time estimated … so that the animation is
-    /// interrupted half way by the transcription done … decrease size more
-    /// accelerated at start"*): at rest at `RewindTimeline.end(predicted:)` and
-    /// held there, steep at the start — the 90 % / 97 % creep is gone.
+    /// **Ends at 1.2× the prediction, eased out** (2026-09-25) — then
+    /// **never quite ends** (2026-09-28: *"logarithmically decreasing so that we
+    /// rarely hit the final size … 60 % of what it's currently at"*): a
+    /// hyperbola, 80 % in at the prediction and creeping ever slower toward a
+    /// rest it never reaches; every size 0.42 × — `RewindTimeline`.
     private var approachScale: (scale: CGFloat, alpha: CGFloat) {
         let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
                                        predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)
