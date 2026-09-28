@@ -196,6 +196,16 @@ enum OverlayStates {
                 o.setShotCount(1)
             },
 
+            Shot(slug: "listening-opening", group: "Dictating", title: "Opening Wispr Flow — its microphone is not open yet",
+                 when: "A Wispr Flow sentence, from the gesture until Wispr's own microphone opens (0.3–0.7 s warm, 5–6 s cold).",
+                 note: "**Q20 (2026-09-28, Victor's Q8 = A).** A cold Wispr is deaf for up to six seconds after the chord, and the chip used to say `Listening` over it — the first words went nowhere and nothing said so. It says `Opening Wispr Flow...` until the 100 ms poll or the CoreAudio edge sees Wispr's microphone open (`WisprFlowSource.micOpened`), then the ordinary row. The relay's own recording runs from the gesture regardless, which is what the local fallback (Q14) transcribes if Wispr never hears the sentence.",
+                 shape: "chip", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setListening(true)
+                o.setOpening(true)
+                o.setShotCount(1)
+            },
+
             Shot(slug: "listening-long", group: "Dictating", title: "Two minutes in",
                  when: "Any dictation that has been running for a whole minute — and every one that runs for several.",
                  note: "**`(2m)` is the one fact the rest of the row cannot carry.** `Listening...` fills in the first three voiced seconds and then never changes again, so from that moment on nothing distinguishes a sentence from a monologue — and a monologue costs real seconds at the other end, since the decode is charged per second of audio and the panel he has to read while Cancel is running is as long as he made it. Victor's ask, 2026-09-09: *\"să pui după toată povestea o paranteză rotundă în care treci numărul de minute\"*. **Nothing under a minute**: `(0m)` would be a readout saying only that a clock exists, an inch from what he is reading, for the length of every ordinary dictation — which is the rent the model id was taken off this row for paying.",

@@ -4389,6 +4389,14 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     private var wisprOwnedReleasedAt: CFAbsoluteTime = 0
     private static let wisprOwnedTail: CFAbsoluteTime = 10
     private static let wisprOwnedCeiling: CFAbsoluteTime = 11 * 60
+    /// **A Wispr row the relay gave up on is still the relay's** (Q2/Q14,
+    /// 2026-09-28): while it is watched its ⌘V is dropped, whatever the clock.
+    /// Counted, so two such rows do not release each other.
+    private var wisprRowsHeld = 0
+    func holdWisprOwned(_ on: Bool) {
+        stateLock.lock(); wisprRowsHeld = max(0, wisprRowsHeld + (on ? 1 : -1)); stateLock.unlock()
+    }
+
     func setWisprRelayOwned(_ owned: Bool) {
         stateLock.lock()
         if owned { wisprOwnedSince = CFAbsoluteTimeGetCurrent(); wisprOwnedReleasedAt = 0 }
@@ -4496,6 +4504,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
 
     /// Under `stateLock`.
     private func wisprRelayOwnedLocked() -> Bool {
+        if wisprRowsHeld > 0 { return true }
         let now = CFAbsoluteTimeGetCurrent()
         guard wisprOwnedSince > 0, now - wisprOwnedSince < Self.wisprOwnedCeiling else { return false }
         return wisprOwnedReleasedAt == 0 || now - wisprOwnedReleasedAt < Self.wisprOwnedTail

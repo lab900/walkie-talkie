@@ -247,6 +247,15 @@ final class WisprFlowSource: DictationSource {
     /// `History.micDevice`, the moment it is non-empty and whenever it changes.
     /// Main thread, like the row poll it comes out of.
     var micNamed: ((String) -> Void)?
+    /// **Wispr's microphone is open for this sentence — the first time** (Q20,
+    /// 2026-09-28): until then the chip says `Opening Wispr Flow...`, because a
+    /// cold Wispr is deaf for 0.3–6 s after the chord (W11).
+    var micOpened: (() -> Void)?
+    /// Whether this sentence ever saw Wispr's microphone open (poll or edge).
+    /// A row with no microphone behind it is not a recording (W2).
+    private(set) var micSeen = false
+    /// The relay's own recording's voiced seconds, read at its close (Q14).
+    private var recordingVoiced: TimeInterval = 0
     /// What `micNamed` last said for the adopted row, so a 100 ms poll says it once.
     private var namedMic = ""
     var didTranscribe: ((DictationResult) -> Void)?
@@ -1365,7 +1374,13 @@ final class WisprFlowSource: DictationSource {
             return
         }
         hotkeys.setWisprRelayOwned(true)
+        micSeen = false
         speculative = true
+        // **The relay's own recording starts at the gesture** (Q14, 2026-09-28),
+        // not at Wispr's confirmation: it is what stands in when Wispr fails,
+        // including when Wispr never answers the chord (W3) — and a cold Wispr's
+        // deaf first seconds are on it too (W11).
+        startMeter()
         // **A chord still waiting for a bare wire belongs to the sentence that
         // asked for it, and that sentence is over.** The epoch moves here and at
         // every `closeListening`; `HotkeyTap.emitScratchpad` drops a hold whose
@@ -1438,13 +1453,16 @@ final class WisprFlowSource: DictationSource {
             // Scratchpad mode the chord is still down — twelve seconds of a
             // held key, then a hundred and twenty until the dead-man's switch.
             if HotkeyTap.scratchpadIsHeld { HotkeyTap.postWisprScratchpad(down: false) }
-            self.stopMeter(keep: false)
+            // Q14: the relay's recording of those seconds is kept and judged.
+            let relays = self.relayStarted
+            self.stopMeter(keep: relays)
             self.state.timedOut("no row and no microphone within \(Int(Self.speculativeGrace)) s")
             let why = "Wispr never created a row within \(Int(Self.speculativeGrace)) s of the chord — it ignored it"
             RingDown.note(why)
             Log.info("⚡ ring down: \(why)")
             self.endCapture(quiet: true)
-            self.didEnd?(.silent(""))
+            if relays { self.endWithRecording("Wispr Flow did not answer the chord", row: nil) }
+            else { self.didEnd?(.silent("")) }
         }
         speculativeDrop?.cancel()
         speculativeDrop = drop
@@ -1570,6 +1588,7 @@ final class WisprFlowSource: DictationSource {
         lastPollSaw = on
         state.poll(on)
         if on {
+            noteMicSeen()
             confirmSpeculative(by: "the 100 ms poll")
         } else if isRecording {
             // The same credential the notification needs, for the same reason:
@@ -1629,6 +1648,7 @@ final class WisprFlowSource: DictationSource {
             return
         }
         state.notify(on)
+        if on { noteMicSeen() }
         if on {
             // **The edge confirms; it never re-opens.** A guess that is standing
             // is *this* dictation — the ring, the chip and the context shot are
@@ -1763,6 +1783,7 @@ final class WisprFlowSource: DictationSource {
         meterQueue.async { [weak self] in
             guard let self else { return }
             self.meter.onBuffer = nil
+            self.recordingVoiced = self.meter.voicedSeconds
             let taken = self.meter.stop()
             // **After the recorder, and after whatever it had left.** Tearing the
             // bridge down with audio still queued throws away the end of his
@@ -2155,6 +2176,17 @@ final class WisprFlowSource: DictationSource {
         // were first seen on 2026-09-13 and were unknown to this switch that day,
         // so a settle sat out its whole timeout on a sentence that was arriving.
         // Bounded by `captureTimeout` and by nothing else.
+        // **W2 (2026-09-28): a row with no microphone behind it is not a
+        // recording.** Wispr sometimes takes the chord, writes its row and never
+        // opens the microphone (100 NULL rows in September); the relay waited
+        // the whole 30 s for it. Closed, still NULL, never a microphone:
+        // Wispr heard nothing — the relay's own recording stands in (Q14).
+        case let s where s.isEmpty && !isRecording && !micSeen && took >= Self.nullNoMicCeiling * 1000:
+            Log.error(String(format: "wispr history: row %lld is still NULL %.1f s after the close and Wispr never opened its microphone — Wispr did not hear this sentence", e.rowid, took / 1000))
+            let row = e.rowid
+            endCapture(quiet: true)
+            if !wasDiscarding { endWithRecording("Wispr Flow never opened its microphone", row: row) }
+            return
         case let s where WisprState.intermediateStatuses.contains(s):
             // **…and one of them is not progress at all.** Two seconds of
             // digital silence left row 12814 in `raw_transcript` with `asrText`,
@@ -2169,8 +2201,9 @@ final class WisprFlowSource: DictationSource {
                   took >= Self.silenceCeiling * 1000 else { return }
             Log.info(String(format: "wispr history: %@ with nothing in it %.0f s after the microphone closed — Wispr heard no speech",
                             s, took / 1000))
+            let row = e.rowid
             endCapture(quiet: true)
-            if !wasDiscarding { didEnd?(.silent("No speech was heard")) }
+            if !wasDiscarding { endWithRecording("Wispr Flow returned no words", row: row) }
             return
 
         case "formatted", "extension_paste", "extension_other":
@@ -2241,16 +2274,18 @@ final class WisprFlowSource: DictationSource {
             return
         case "empty", "no_audio":
             Log.info(String(format: "wispr history: %@ — %.0f ms after the microphone closed", e.status, took))
+            let row = e.rowid
             endCapture(quiet: true)
-            if !wasDiscarding { didEnd?(.silent("No words detected")) }
+            if !wasDiscarding { endWithRecording("Wispr Flow reported \(e.status)", row: row) }
         default:
             // A status nobody has seen ends the dictation rather than hanging it
             // — today's behaviour, kept — but it says so, because the alternative
             // reading (unknown = progress) turns one new Wispr status into every
             // sentence waiting out thirty seconds.
             Log.error(String(format: "wispr history: %@ — %.0f ms after the microphone closed", e.status, took))
+            let row = e.rowid
             endCapture(quiet: true)
-            didEnd?(.silent("Wispr Flow reported \(e.status)"))
+            if !wasDiscarding { endWithRecording("Wispr Flow reported \(e.status)", row: row) }
         }
     }
 
@@ -2259,6 +2294,71 @@ final class WisprFlowSource: DictationSource {
     /// same number the settle gives up on, so nothing that was going to arrive
     /// is cut off by it.
     private static let silenceCeiling: TimeInterval = 8
+    /// **A NULL row with no microphone ever seen gives up after this**, counted
+    /// from the close (W2; Q2 keeps it fast). A real sentence's row leaves NULL
+    /// within ~0.5 s of the close (`processing`); 3 s is six times that.
+    private static let nullNoMicCeiling: TimeInterval = 3
+
+    private func noteMicSeen() {
+        guard !micSeen, isRecording || speculative else { return }
+        micSeen = true
+        micOpened?()
+    }
+
+    /// **Q14 (2026-09-28): a Wispr failure is not the end of the sentence** —
+    /// the relay recorded it too (`startMeter`). ≥ `fallbackVoicedFloor` voiced
+    /// (the Q8/Q13 floor, 1.5 s) → `.failed` with the WAV, which
+    /// `AppDelegate.fallBackToLocal` hands to the local model and delivers to
+    /// the latched destination (`via: local-fallback`); some speech under the
+    /// floor → Recover (`heardNothing`); none → *No speech was heard*, the only
+    /// time that is said (the meter agrees). The row it gave up on is watched,
+    /// owned, until it goes terminal, so a late row is logged and its ⌘V
+    /// dropped — never a second delivery (Q2).
+    private func endWithRecording(_ why: String, row: Int64?) {
+        meterQueue.async { [weak self] in
+            guard let self else { return }
+            let taken = self.recording
+            self.recording = nil
+            let voiced = self.recordingVoiced
+            DispatchQueue.main.async {
+                if let row { self.watchLateRow(row) }
+                guard let taken, FileManager.default.fileExists(atPath: taken.url.path) else {
+                    Log.error("wispr: \(why) — and the relay has no recording of it")
+                    self.didEnd?(.silent(why))
+                    return
+                }
+                if voiced >= ElevenLabsSource.fallbackVoicedFloor {
+                    Log.error(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording: the local model stands in (Q14)", why, voiced))
+                    self.didEnd?(.failed(why: why, audio: taken.url, duration: taken.duration))
+                } else if voiced < 0.3 {
+                    Log.info(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording too: no speech", why, voiced))
+                    try? FileManager.default.removeItem(at: taken.url)
+                    self.didEnd?(.silent("No speech was heard"))
+                } else {
+                    Log.error(String(format: "wispr: %@ — only %.1f s voiced (under %.1f s): no local fallback, the audio is kept for Recover", why, voiced, ElevenLabsSource.fallbackVoicedFloor))
+                    self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: taken.url, duration: taken.duration))
+                }
+            }
+        }
+    }
+
+    /// **The row the relay gave up on stays owned until Wispr finishes it**
+    /// (Q2/Q14): its ⌘V is dropped by the firewall and the row is only logged.
+    private func watchLateRow(_ row: Int64) {
+        hotkeys.holdWisprOwned(true)
+        let until = Date().addingTimeInterval(Self.lateRowWatch)
+        func tick() {
+            if let e = WisprHistory.entry(rowid: row), WisprState.isTerminal(e.status) {
+                Log.info("wispr history: late row \(row) came back \(e.status) (\(e.text.count) chars) after the relay had given up on it — only logged, never a second delivery (Q2)")
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteGrace) { self.hotkeys.holdWisprOwned(false) }
+                return
+            }
+            guard Date() < until else { hotkeys.holdWisprOwned(false); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { tick() }
+        }
+        tick()
+    }
+    private static let lateRowWatch: TimeInterval = 300
 
     /// **Wispr finished the sentence and never said so** (2026-09-22).
     ///
@@ -2345,7 +2445,7 @@ final class WisprFlowSource: DictationSource {
     private func abandonForDeadWispr(_ why: String) {
         sawWisprGone = 0
         wisprPidAtChord = 0
-        Log.error("⚠️ Wispr Flow quit — the sentence is lost (\(why))")
+        Log.error("⚠️ Wispr Flow quit mid-sentence (\(why)) — the relay's own recording stands in (Q14)")
         // **And the window the dead instance left behind.** It belongs to a
         // process that no longer exists, so nothing else is going to ask.
         WisprScratchpad.ensureClosed(reason: "Wispr Flow quit mid-sentence")
@@ -2356,7 +2456,7 @@ final class WisprFlowSource: DictationSource {
         state.timedOut("Wispr Flow quit")
         let wasDiscarding = discardOnArrival
         endCapture(quiet: true)
-        if !wasDiscarding { didEnd?(.silent("Wispr Flow quit — the sentence is lost")) }
+        if !wasDiscarding { endWithRecording("Wispr Flow quit", row: nil) }
     }
 
     /// **`WT_SCRATCHPAD_DELIVER=note`** — wait for the note rather than taking
@@ -2673,13 +2773,32 @@ final class WisprFlowSource: DictationSource {
             endCapture(quiet: true)
             return
         }
+        // **Q2 (2026-09-28, Victor: A): while Wispr's row is still being worked
+        // on, the relay waits — no 30 s cap.** Wispr's own fallback ASR finishes
+        // at 24–36 s and its `error` lands at ~33 s; giving up at 30 s dropped
+        // those sentences (W12). A NULL row with no microphone behind it gave up
+        // long ago (`nullNoMicCeiling`); `processing` / `raw_transcript` /
+        // `recording` keep the capture, re-armed, up to `workingCeiling`.
+        if let row = historyRow {
+            let st = status(of: row)
+            let working = !st.isEmpty && WisprState.intermediateStatuses.contains(st)
+            if working, CFAbsoluteTimeGetCurrent() - captureFrom < Self.workingCeiling {
+                Log.info("wispr: \(Int(Self.captureTimeout)) s and row \(row) is still \(st) — Wispr is still working on it; waiting on (Q2)")
+                armCaptureDeadline()
+                return
+            }
+        }
         let waiting = historyRow.map { "Wispr's row \($0) is still \(status(of: $0).isEmpty ? "empty" : status(of: $0))" }
             ?? "Wispr never created a row"
+        let row = historyRow
         state.timedOut("nothing came back within \(Int(Self.captureTimeout)) s")
         Log.error("wispr: nothing came back within \(Int(Self.captureTimeout)) s — \(waiting)")
         endCapture(quiet: true)
-        didEnd?(.silent("No words came back"))
+        endWithRecording("Wispr Flow returned no words (\(waiting))", row: row)
     }
+    /// The longest a row still `processing` is waited for (Q2) — a net, not a
+    /// verdict: Wispr's own budget is ~36 s; five minutes is a Wispr that hung.
+    private static let workingCeiling: CFAbsoluteTime = 300
 
     /// - Parameter via: the route, in the one word `outbox.jsonl` and
     ///   `GET /test/state` record it under. `reason` above is prose for the log;

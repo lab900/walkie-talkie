@@ -162,6 +162,22 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   only. Text columns normally appear in the same tick as the terminal status (`tools/wispr-row-watch.py`).
 - **A row with nothing in it stops being progress after 8 s** (`silenceCeiling`) → *"No speech was
   heard"*; `asrText` exists to tell *thinking* from *heard nothing*.
+- **A Wispr failure falls back on the relay's own recording (Q14, 2026-09-28).** The meter records
+  from the **gesture** (`startMeter` in `gestureSeen`), not from Wispr's confirmation. Every failure —
+  `error`/unknown status, `empty`/`no_audio`, an empty `raw_transcript` past `silenceCeiling`, a NULL
+  row with **no microphone ever seen** 3 s after the close (`nullNoMicCeiling`, W2), no row at all by
+  `speculativeGrace`, the capture timeout, Wispr quitting — goes through `endWithRecording`: ≥ 1.5 s
+  voiced (`ElevenLabsSource.fallbackVoicedFloor`) → `.failed(audio:)` → `AppDelegate.fallBackToLocal`
+  (Wispr allowed since that day) → delivered to the latched destination, `via: local-fallback`; some
+  speech under the floor → Recover (`heardNothing`); < 0.3 s voiced → *No speech was heard* (the only
+  time it is said). The row given up on is watched (`watchLateRow`, ≤ 5 min) and held owned
+  (`HotkeyTap.holdWisprOwned`): its late ⌘V is dropped and the row only logged — never a second copy.
+- **Q2/Q24: no 30 s cap while the row is working** — at `captureTimeout` a row still `processing` /
+  `raw_transcript` / `recording` re-arms the deadline (log `still processing — waiting on (Q2)`),
+  up to `workingCeiling` 300 s. A NULL row with no microphone does not wait (above).
+- **`Opening Wispr Flow...` until Wispr's microphone opens** (Q20): `micOpened` (poll or edge, once
+  per sentence, `micSeen`) → `RelayWindow.setOpening(false)`; shot `listening-opening`. The ring is
+  not yet told (it still breathes on the relay's own meter) — open item.
 - **Timeouts:** `captureTimeout` 30 s (an 81 s dictation was lost at 6 s); `settleTimeout` 8 s; both
   only nets behind the row. The settle steps aside while `phase.isWaitingForWords` — **with no
   ceiling since 2026-09-26** (it gave up at 30 s and a new sentence could start under a late reply:

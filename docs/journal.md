@@ -13848,11 +13848,12 @@ Q13; the README's number is in brackets. Victor's answer, verbatim:
   under the floor it is staged for *Recover*. Wispr's row is then marked consumed, so a late row
   cannot deliver the sentence a second time. *No speech was heard* is said only when the meter
   agrees.
-- **README Q2 — pending.** *"q2 nu inteleg"* — re-explained to him the same morning (Wispr's own
-  fallback ASR finishes at 24–36 s, its `error` at ~33 s; the relay gives up at 30 s and the late
-  row is logged as *already delivered*). Until he answers, `captureTimeout` stays **30 s** and a
-  late row is dropped as today (W12). With Q14 in place the 30 s timeout is itself a failure
-  path, so the relay's own WAV now covers most of what W12 lost.
+- **Q24 (README Q2) = A — decided later the same morning**, after it was re-explained (*"q2 nu
+  inteleg"* at first). Relayed answer: **while Wispr's row still says `processing` (or is otherwise
+  clearly still being worked on) the relay waits without the 30 s cap; a NULL-status row with no
+  microphone behind it still gives up fast (W2).** A late row after a real failure that the local
+  fallback (Q14) already delivered is **only logged, never delivered a second time**. (Wispr's own
+  fallback ASR finishes at 24–36 s and its `error` lands at ~33 s — W12.)
 - **Q15 (README Q3) = A — a Wispr sentence waits behind a held / paused / edited prompt panel**
   (Q12's rule: panels one at a time, in order), instead of force-sending it (W10).
 - **Q16 (README Q4) = A — a start while Wispr is still formatting the previous sentence is refused

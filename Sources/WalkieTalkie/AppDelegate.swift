@@ -3073,8 +3073,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.wisprMicSentence = !self.wisprSource.relayStarted
             self.noteCleanStart()
             self.dictationBegan()
+            // Q20: `Opening Wispr Flow...` until its microphone is open (W11).
+            if !self.wisprSource.micSeen { self.overlay.setOpening(true) }
         }
-        wisprSource.didStopListening = { [weak self] in self?.dictationStoppedListening() }
+        wisprSource.didStopListening = { [weak self] in self?.overlay.setOpening(false); self?.dictationStoppedListening() }
+        wisprSource.micOpened = { [weak self] in
+            guard let self, self.overlay.opening else { return }
+            Log.info("🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)")
+            self.overlay.setOpening(false)
+        }
         wisprSource.didTranscribe = { [weak self] result in self?.deliver(result) }
         wisprSource.didEnd = { [weak self] end in self?.dictationEnded(end) }
         // **One letter on the chip, saying which recogniser is listening**
@@ -3735,7 +3742,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// exactly where they would have gone. If the local model fails too, the
     /// failure goes on as before: WAV staged for *Recover Cancelled Dictation*.
     private func fallBackToLocal(why: String, wav: URL, duration: TimeInterval) -> Bool {
-        guard source.recordsOwnAudio, source !== whisperSource, !fallingBack,
+        // Wispr since Q14 (2026-09-28): the WAV is the relay's own meter recording.
+        guard source.recordsOwnAudio || source === wisprSource, source !== whisperSource, !fallingBack,
               FileManager.default.fileExists(atPath: wav.path) else { return false }
         lastFailure = (why, engineId, Date())
         let failed = source.name

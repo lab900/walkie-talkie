@@ -940,7 +940,21 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// step, taking a quarter of the bar with it. Identical on screen, and the
     /// three dots are the last three steps, which is the part Victor reads to
     /// know it is done.
-    private var listeningWord: String { "\(prompting ? "Prompting" : "Listening")\(micMark)..." }
+    private var listeningWord: String {
+        opening ? "Opening Wispr Flow..." : "\(prompting ? "Prompting" : "Listening")\(micMark)..."
+    }
+
+    /// **`Opening Wispr Flow...` until Wispr's microphone is really open** (Q20,
+    /// 2026-09-28, Victor's Q8 = A). A cold Wispr is deaf for 0.3–6 s after the
+    /// chord while the chip used to say `Listening` (W11): the first words went
+    /// nowhere and nothing said so. `AppDelegate` raises it at a Wispr
+    /// sentence's begin and drops it on `WisprFlowSource.micOpened`.
+    private(set) var opening = false
+    func setOpening(_ on: Bool) {
+        guard opening != on else { return }
+        opening = on
+        if listening { layoutContent() }
+    }
 
     /// **`Prompting...` for a sentence to an agent, `Listening...` for a clean
     /// one** (2026-09-25, Victor: *"The clean dictation should have the label
@@ -4341,7 +4355,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         // message is sent means the row never opens showing the last dictation's
         // total for the split second before the first shot lands.
         if value { shotCount = 0 }
-        if !value { liveCaption.setOpen(false) }
+        if !value { liveCaption.setOpen(false); opening = false }
         refreshTitle()
         layoutContent()          // the recording row lives and dies with this state
         reposition()             // …and the chip snaps back to the cursor
