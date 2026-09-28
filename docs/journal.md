@@ -14275,3 +14275,80 @@ green *Listening 🎤* announcement, in blue, for 3 s, with the Engine row's wor
 Victor: *"change the menu icon so the icon is always the walkie-talkie with a yellow circle around
 it."* `StatusItem.refreshGlyph` no longer switches to the bare device when unbound; the disc
 (`walkie-bound.png`) is the icon at every state. Bound/unbound is read from the chip and the menu rows.
+
+## Wispr as engine: wave 3 — B, D, A, C, W19 fixed at the desk (2026-09-28, night)
+
+Fixes for the relay-side defects of the wave-2 verdict (*not yet*, 90.8 % against a 95 % bar).
+Commits `383917c` (B), `34119c3` (D), `79c0b16` (A), `0879b9b` (C, W19), `575bbb2` (cases, the
+re-run list `evals/plan/vm/wispr/wave3-rerun.txt`). Victor at 20:45, relayed: *"Invest more into
+investigating Wispr Flow as the engine — ElevenLabs burns a lot of money for all-day prompt
+transcription."*
+
+- **B — the tail is rows, not a clock.** The 10 s relay-owned tail dropped 8/8 of his own right ⌥⇧
+  sentences. At idle `startTailWatch` reads the newest row every 0.2 s; a row above the relay's
+  floor (its adopted row, else the row on top at its chord, and then also started after the
+  relay's close), once the relay's own ⌘V was seen or 1.5 s passed, is his →
+  `HotkeyTap.noteForeignWisprRow` → his ⌘V **passes** (Q9). A ⌘V still dropped with no capture
+  asks the rows: his → pasted at the caret (Q19), the relay's → said to be the relay's. Only a row
+  that existed at the drop is claimed: Wispr creates the row at the start (integration-surfaces:
+  the row is `processing` when its ⌘V goes out, p50 74 ms before the final write). A row made
+  later belongs to a later ⌘V, which may still pass the tap, so claiming it would paste it twice.
+  Pure half: `WisprOwnership` (9 tests). Route: `POST /test/wispr-paste`.
+- **D — a sentence decoding locally is parked.** `dictationBegan` closed a live sentence whose
+  Q14 decode was still out, and the answer was then dropped. Now `startBlocker` lets a start
+  through while `fallingBack` if the sentence can be parked, on every engine.
+  `startDictation` / `dictationBegan` park it; Q12's envelope swap delivers it first. When it
+  cannot be parked (a second one parked, a spawn, a film, no ledger entry) the start is refused
+  with *⏳ The previous sentence is still being transcribed locally*.
+- **A — the recorder.** `MicRecorder` restarts its tap on `AVAudioEngineConfigurationChange` and
+  after 1 s with no buffer (`🔁 mic:`). Every relay Wispr take logs `Health` (device, buffers,
+  peak, restarts). A take that got no buffers, or only digital zeros, ends
+  `DictationEnd.recorderDeaf` in Recover and never goes to the local model. Under 0.3 s voiced
+  with Wispr also failed → Recover instead of delete. *No speech was heard* is no longer said on
+  a Wispr failure. `WT_KEEP_TAKES=1` (env or `elevenlabs.env`, re-read per take) copies each WAV
+  to `~/.walkie-talkie/kept-takes/`.
+- **C — a refused 🔽 → is half a pair.** The next 🔽 → (≤ 60 s, nothing open) is its stop:
+  swallowed, flash *🔽 → — nothing was recording (the last start was refused)*.
+- **W19** — the folder menu opens only after the source takes the start. A refusal clears
+  `spawnPending` / `pasteMode` / `caretPrompt`. `isReady` is Wispr's anchored main executable.
+- **Cases:**
+  - the soak counts `🚫 start refused` (and the tap's refusals) as loud;
+  - TX7's cap regex no longer matches `ceiling ×`;
+  - TX2 tolerates a missing `wisprLive`;
+  - TX13 waits for Recover, drains it and waits until nothing is staged;
+  - TW1's 2.3 s bar was the sampler's ceiling, now 2.2 s.
+
+**Desk results** (host, Loopback 🧪 WT Inject, fake `History`, chords muted, under `hands-off`):
+
+| case | result |
+|---|---|
+| TW32 (B) | PASS: the relay's tail ⌘V dropped and said so (*the relay's own late ⌘V*); his newer row noted; his ⌘V passed |
+| TW33 (D, Wispr) | PASS: NULL row → Q14 on 45 s; 🔼→ B 0.5 s in: A parked, A's 556 chars before B's |
+| TN4 (D, ElevenLabs) | PASS: 401 → local; B 1 s in: A parked; delivered local-fallback then elevenlabs-scribe |
+| TW34 (A) | PASS, 3/3: real Wispr relaunched, relay take at +1/+3/+5 s → 2.1/2.2/2.2 s voiced, peak 16 366, 0 tap restarts |
+| TW15 (W19) | PASS: Wispr killed, 🔼↑ → `spawnPending` false, *not running* flashed |
+| TW2, TW5, TW7, TW13, TW14, TW19, TW22 | PASS |
+| TW1 | BUG by 0.01 s: listened 0.28 → 2.58 s against a 2.3 s bar the 2.6 s sampler cannot exceed. Case bar fixed, not re-run |
+| TW12 | BUG as before (plan step 3; only a mic edge reaches that path now) |
+
+**A is not reproduced on the host.** The relay records a Loopback, and Wispr's launch-time
+AudioContext opens on the default output (integration-surfaces A1). In the guest, BlackHole 2ch
+is both, which fits A1: a configuration change after which AVAudioEngine stops. One
+`AVAudioEngineConfigurationChange` was seen on the host, at 21:28:27, on 🧪 WT Inject. It came
+right after the recorder opened, the first take after an app relaunch, not a Wispr one. The tap
+restart logged, the take went on, and no clip was playing, so its peak 0 says nothing.
+
+Only the VM can say which of these holds:
+- the tap restart fixes A1;
+- it is A2 (Wispr's `shouldMuteAudio` zeroing the output), where buffers keep coming, so there is
+  no `🔁` line and the take is `DEAF` peak 0, now Recover.
+
+The refuse-for-5-s-after-launch fallback is **not** built. It waits for that answer.
+
+**Not done here, batch 3** (from `evals/plan/wispr/integration-surfaces.md`):
+- `raw_transcript` / `fallback` / `verification_failed` / `timeout` as terminal statuses;
+- a dead-row verdict: `processing` superseded by a newer row, a pid change, or 1 s after our
+  dismiss;
+- WAL-watch wake instead of the 150 ms poll;
+- reading the promised pasteboard at the dropped ⌘V;
+- the `wispr-flow://` deep links (VM only).

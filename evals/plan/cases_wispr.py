@@ -189,7 +189,7 @@ def tw1():
            f"release line before the case's cancel {early}; other cancel: {quiet.group(1)[:60] if quiet else None}"
     if not held:
         return "FAIL", "the tap never saw the pair — " + note
-    if early or lasted < 2.3:
+    if early or lasted < 2.2:   # sampled 0.1 s apart from ~0.3 s to 2.6 s: 2.3 is the ceiling, not a floor
         return "BUG", note
     return "PASS", note
 

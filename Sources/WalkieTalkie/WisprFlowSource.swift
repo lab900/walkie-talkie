@@ -1832,9 +1832,12 @@ final class WisprFlowSource: DictationSource {
 
     /// The last take's `MicRecorder.Health` (A), read by `endWithRecording`.
     private var recordingHealth: MicRecorder.Health?
-    /// `WT_KEEP_TAKES=1` (environment or `elevenlabs.env`, read per take).
+    /// `WT_KEEP_TAKES=1` (environment or `elevenlabs.env`, the file read per take —
+    /// `fileValue` is cached at launch, so a line added for a run was never seen).
     private static var keepTakes: Bool {
-        (ProcessInfo.processInfo.environment["WT_KEEP_TAKES"] ?? ElevenLabsSource.fileValue("WT_KEEP_TAKES")) == "1"
+        if ProcessInfo.processInfo.environment["WT_KEEP_TAKES"] == "1" { return true }
+        let text = (try? String(contentsOf: ElevenLabsSource.configURL, encoding: .utf8)) ?? ""
+        return text.split(separator: "\n").contains { $0.trimmingCharacters(in: .whitespaces) == "WT_KEEP_TAKES=1" }
     }
 
     private func startMeter() {
