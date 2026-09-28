@@ -51,6 +51,13 @@ Rules for where a dictation goes and when it is written: the held prompt, the ou
   engine that is not `queuesSentences` (only ElevenLabs is: local and Wispr keep batch 3's refusal),
   a spawn or a film in flight, or within **0.8 s of the stop** (the same click twice).
   `WT_SENTENCE_QUEUE=0` (env / `elevenlabs.env`) puts the old rule back.
+- **A sentence the local model is decoding is parked on every engine** (D, 2026-09-28 wave 3 —
+  two Wispr Q14 answers were dropped silently when the next sentence closed them): `startBlocker`
+  lets the start through when `fallingBack` and `fallbackParkRefusal()` is nil, `startDictation`
+  parks it (`queuesSentences || fallingBack`), and `dictationBegan` parks instead of closing (a raw
+  chord that skipped `startDictation`). Not parkable (a second one parked, a spawn, a film) → refused
+  with the flash *⏳ The previous sentence is still being transcribed locally*. Cases TN4 (Scribe 401),
+  TW33 (Wispr NULL row).
 - **The mechanism is a swap, not a rewrite.** Every per-sentence field stays where `deliver` / `send`
   read it; `parkLiveSentence()` moves them into the in-flight `Sentence` (`Envelope`:
   `takeEnvelope` / `putEnvelope`, the shutter's under `stateLock`), the new sentence starts fresh,

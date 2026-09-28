@@ -3208,8 +3208,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **The sentence this microphone is** (Q12). A live one still here was
         // not parked by `startDictation`, so nothing is waiting for it.
         if let stale = liveSentence, !stale.finished {
-            Log.info("🧾 sentence #\(stale.id) had no answer left to wait for — closed")
-            stale.finished = true
+            // **D (2026-09-28): never closed under its own local decode** — a
+            // start that did not come through `startDictation` (a raw chord)
+            // parks it here instead.
+            if fallingBack, Self.sentenceQueueOn, fallbackParkRefusal() == nil {
+                parkLiveSentence()
+            } else {
+                if fallingBack {
+                    Log.error("🧾 sentence #\(stale.id) is still being transcribed locally and cannot be parked (\(fallbackParkRefusal() ?? "?")) — its answer will be dropped")
+                } else {
+                    Log.info("🧾 sentence #\(stale.id) had no answer left to wait for — closed")
+                }
+                stale.finished = true
+            }
         }
         sentenceSerial += 1
         // The take only for the Engine's own recording — a Wispr sentence begun by
@@ -4304,7 +4315,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard clearStuckListening(by: "a start gesture"), startBlocker() == nil else {
                 Log.info("🚫 start refused — \(why)")
                 // **A third sentence is refused out loud** (Q12).
-                if why.hasPrefix("two sentences") {
+                if why.hasPrefix(Self.localStillWorking) {
+                    overlay.flash("⏳ The previous sentence is still being transcribed locally", duration: 3)
+                } else if why.hasPrefix("two sentences") {
                     overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
                 } else if source === wisprSource {
                     // Q16 (2026-09-28): Wispr does not queue — said on the chip,
@@ -4341,7 +4354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **The sentence in flight steps aside** (Q12): its fields are parked in
         // it before this one's flags are set — see `Sentence`.
         let parkedHere: Bool
-        if Self.sentenceQueueOn, source.queuesSentences, let live = liveSentence, !live.finished {
+        if Self.sentenceQueueOn, source.queuesSentences || fallingBack, let live = liveSentence, !live.finished {
             if liveInFlight { parkLiveSentence(); parkedHere = parkedSentence === live }
             else { live.finished = true; parkedHere = false }
         } else { parkedHere = false }
@@ -4434,6 +4447,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if speculative {
             return String(format: "`speculative` (%.1f s old — waiting for a microphone)", now - speculativeSince)
         }
+        // **D (lab wave 2, 2026-09-28): a sentence the local model is still
+        // decoding steps aside, whatever the engine** — parked like a Q12
+        // sentence (`fallbackParks`), its words delivered to its latched
+        // destination when the decode returns. Where it cannot be parked, the
+        // start is refused out loud; it is never closed under its decode (two
+        // answers were dropped that way in the lab, silently).
+        if fallingBack {
+            // No ledger entry to park it in (a sentence opened below `dictationBegan`'s
+            // guard): refused, never opened over its fields.
+            guard let live = liveSentence, !live.finished else {
+                return "\(Self.localStillWorking) (it has no sentence to park it in)"
+            }
+            if let why = fallbackParkRefusal() { return "\(Self.localStillWorking) (\(why))" }
+            // The same click twice is still not a new sentence (Q12's window).
+            let sinceStop = now - settlingFrom
+            if settling, sinceStop < Self.queueStartAfterStop {
+                return String(format: "%.2f s after the stop — the same click, not a new sentence", sinceStop)
+            }
+            return nil
+        }
         // **Q12 (2026-09-26 batch 6): a start while the words are in flight is
         // queued, not refused** — unless two sentences are already in flight, the
         // engine takes one at a time, or the one in flight cannot be parked
@@ -4463,6 +4496,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let live = liveSentence, !live.finished else { return false }
         return settling || fallingBack || source.phase.isWaitingForWords
             || source.answersPending > 0 || !live.waiting.isEmpty
+    }
+
+    /// The refusal a start meets while the local model decodes the last sentence (D).
+    static let localStillWorking = "the previous sentence is still being transcribed locally"
+
+    /// **Can the sentence the local model is decoding be parked?** Nil = yes.
+    /// What the park cannot carry is `queueRefusal`'s list: a second sentence
+    /// already parked, a spawn's folder menu, a film still recording.
+    fileprivate func fallbackParkRefusal() -> String? {
+        guard Self.sentenceQueueOn else { return "the sentence queue is off" }
+        if parkedSentence.map({ !$0.finished }) ?? false { return "two sentences are already in flight" }
+        if spawnPending || spawnPickInFlight != nil { return "it is opening a new session" }
+        if film != nil { return "it is still filming" }
+        return nil
     }
 
     private var stuckCheck: DispatchWorkItem?
