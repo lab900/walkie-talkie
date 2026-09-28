@@ -12,7 +12,12 @@ Victor, 2026-09-28 18:39, after a restart landed while he was dictating:
 happen (while dictating or transcribing). restart is only possible after 5 secs
 of inactivity after the last insert of text."*
 
-So the gate opens only when all of these hold:
+Victor, 2026-09-28 21:20: *"there should only be 5 seconds since the last ended
+dictation for the walkie deploy to be authorized to happen."* — so the wait on
+his hands (5 s since his last key, click or scroll, added at 18:39) is gone
+again: his typing is not a dictation.
+
+So the gate opens only when both of these hold:
 
 1. **Nothing is dictating or transcribing, on any engine** — `GET
    /test/state.busy` (the app's `restartBlockers`: every microphone of its own,
@@ -23,16 +28,12 @@ So the gate opens only when all of these hold:
    from `wisprLive` and from Wispr's `flow.sqlite` read directly, so an app
    installed before that fix is gated too. An older build without `busy` is read
    from the flags it does have.
-2. **`QUIET_AFTER_DELIVERY` (10 s) since the last insert or dictation** — the
-   last poll that saw it busy, `lastDelivery.at`, `lastInsertAt` (a clipboard
-   write, Wispr's newest finished row), a dictation start or stop, the outbox's
-   mtime. Anything new restarts the countdown.
-3. **`INACTIVITY` (5 s) since his last input** — keys, modifiers, mouse buttons,
-   the wheel (not a mouse that only moves): `lastInputAt` from the app's tap, and
-   the HID system's own clock read here through CoreGraphics, which needs no app
-   at all.
+2. **`QUIET_AFTER_DELIVERY` (5 s) since the last ended dictation** — the last
+   poll that saw it busy, `lastDelivery.at`, `lastInsertAt` (a clipboard write,
+   Wispr's newest finished row), a dictation start or stop, the outbox's mtime.
+   Anything new restarts the countdown.
 
-The effective wait is the longest of the three. **No escape for an app that does
+**No escape for an app that does
 not answer** (2026-09-28): a frozen relay is still not a reason to cut into a
 dictation. The gate waits, and after `UNREACHABLE_REFUSE` seconds refuses (exit
 4) with a note for the operator; `--force` goes past that one refusal only, only
@@ -63,12 +64,11 @@ from pathlib import Path
 PORTS = (8917, 8918, 8919)
 APP_EXEC = "/Applications/Walkie Talkie.app/Contents/MacOS/Walkie Talkie"
 
-#: Victor, 2026-09-28: *"restart is only possible after 5 secs of inactivity
-#: after the last insert of text."* Seconds since his last key, button or scroll.
-INACTIVITY = 5.0
-#: Victor, 2026-09-23: *"even 10 more seconds in case I routed the prompt to the
-#: wrong place"* — seconds after the last insert, dictation edge or busy poll.
-QUIET_AFTER_DELIVERY = 10.0
+#: Victor, 2026-09-28 21:20: *"there should only be 5 seconds since the last
+#: ended dictation"* — seconds after the last insert, dictation edge or busy
+#: poll (it was 10 from 2026-09-23, *"even 10 more seconds in case I routed the
+#: prompt to the wrong place"*).
+QUIET_AFTER_DELIVERY = 5.0
 #: A Wispr row still being worked on is a transcription in flight this long
 #: after its gesture (p99 7.1 s, max 13.7 s; a row can stall for ever).
 WISPR_ROW_FRESH = 60.0
@@ -162,10 +162,8 @@ class Verdict:
 
 class Gate:
     def __init__(self, quiet: float = QUIET_AFTER_DELIVERY, stale_flag: float = 30.0,
-                 unreachable: float = UNREACHABLE_REFUSE, inactivity: float = INACTIVITY,
-                 force: bool = False):
+                 unreachable: float = UNREACHABLE_REFUSE, force: bool = False):
         self.quiet = quiet
-        self.inactivity = inactivity
         self.stale_flag = stale_flag
         self.unreachable = unreachable
         self.force = force
@@ -232,11 +230,8 @@ class Gate:
             if quiet_for < self.quiet:
                 return Verdict(False, f"{self.quiet:.0f} quiet seconds after the last insert"
                                       f" ({quiet_for:.0f} s so far)", note)
-        if self.last_input is not None:
-            idle_for = now - self.last_input
-            if idle_for < self.inactivity:
-                return Verdict(False, f"{self.inactivity:.0f} s with no key, click or scroll from him"
-                                      f" ({max(0.0, idle_for):.0f} s so far)", note)
+        # `last_input` is read for `once` and the logs only: since 21:20 his hands
+        # do not hold the gate — typing is not a dictation.
         return Verdict(True, "", note)
 
 
@@ -357,7 +352,7 @@ def confirm_force() -> bool:
 def cmd_wait(args) -> int:
     if args.force and not confirm_force():
         return 4
-    gate = Gate(quiet=max(args.quiet, INACTIVITY), force=args.force)
+    gate = Gate(quiet=max(args.quiet, QUIET_AFTER_DELIVERY), force=args.force)
     started = time.time()
     replaced = bundle_replaced_under_app()
     if replaced:
@@ -376,8 +371,8 @@ def cmd_wait(args) -> int:
             print("⛔️ refused — nothing was restarted", flush=True)
             return 4
         if v.ready:
-            print(f"✅ nothing dictating or transcribing on any engine, quiet for {gate.quiet:.0f} s after"
-                  f" the last insert, {gate.inactivity:.0f} s since his last input — safe to restart"
+            print(f"✅ nothing dictating or transcribing on any engine, {gate.quiet:.0f} s since the"
+                  f" last ended dictation — safe to restart"
                   f" (waited {int(now - started)} s)", flush=True)
             return 0
         if now - started >= args.max_wait:
@@ -416,7 +411,7 @@ def main(argv: list[str]) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     w = sub.add_parser("wait")
     w.add_argument("--quiet", type=float, default=QUIET_AFTER_DELIVERY,
-                   help="seconds after the last insert (never below the 5 s of inactivity)")
+                   help="seconds after the last ended dictation (never below 5)")
     w.add_argument("--max-wait", type=float, default=1800.0)
     w.add_argument("--force", action="store_true",
                    help="a human's: go past an app that has not answered for 60 s (asks to type `force`)")

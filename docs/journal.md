@@ -14252,3 +14252,12 @@ only while the take waits on the cloud **and** ≥ 1 s after that wait began (`l
 never while the microphone is open. The key works from the first sample as before. TN1 now expects
 no row while recording; TN2 reads the row 2 s after the stop. States page: the shot
 `listening-local-now` became `transcribing-local-now` (to be re-shot with the next install).
+
+## 2026-09-28 21:20 — the restart gate: 5 s since the last ended dictation, nothing else
+
+Victor: *"there should only be 5 seconds since the last ended dictation for the walkie deploy to be
+authorized to happen."* `QUIET_AFTER_DELIVERY` 10 → 5 s; the 5 s wait on his last key/click/scroll
+(added at 18:39) is removed — typing is not a dictation. Busy on any engine (own mics, local fallback,
+queue, caption, Wispr's mic and a row in flight) still holds it. `lastInputAt` stays in `/test/state`
+and in `restart_gate.py once` for the logs. Tests rewritten (30 pass); `relay-restart.sh --quiet`
+defaults to 5.

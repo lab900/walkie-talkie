@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from restart_gate import INACTIVITY, QUIET_AFTER_DELIVERY, Gate, busy_reasons  # noqa: E402
+from restart_gate import QUIET_AFTER_DELIVERY, Gate, busy_reasons  # noqa: E402
 
 T0 = 1_800_000_000.0
 
@@ -57,34 +57,35 @@ class GateTest(unittest.TestCase):
             v = g.observe(T0, s)
             self.assertFalse(v.ready)
             self.assertIn("Recover", v.waiting_for)
-        # …and once it is gone, the ten quiet seconds start from the last poll that saw it.
+        # …and once it is gone, the five quiet seconds start from the last poll that saw it.
         g = Gate()
         g.observe(T0, idle(recoverable=staged))
-        self.assertFalse(g.observe(T0 + 5, idle(recoverable=None)).ready)
-        self.assertTrue(g.observe(T0 + 10, idle(recoverable=None)).ready)
+        self.assertFalse(g.observe(T0 + 4, idle(recoverable=None)).ready)
+        self.assertTrue(g.observe(T0 + 5, idle(recoverable=None)).ready)
 
-    def test_waits_ten_seconds_after_a_fresh_delivery(self):
+    def test_waits_five_seconds_after_a_fresh_delivery(self):
+        # 2026-09-28 21:20: *"only 5 seconds since the last ended dictation"* (it was 10).
         g = Gate()
         delivered = T0 - 3
         self.assertFalse(g.observe(T0, idle(delivered_at=delivered)).ready)
-        self.assertFalse(g.observe(T0 + 6.9, idle(delivered_at=delivered)).ready)
-        self.assertTrue(g.observe(T0 + 7.0, idle(delivered_at=delivered)).ready)
+        self.assertFalse(g.observe(T0 + 1.9, idle(delivered_at=delivered)).ready)
+        self.assertTrue(g.observe(T0 + 2.0, idle(delivered_at=delivered)).ready)
 
-    def test_ten_seconds_after_the_last_busy_poll(self):
+    def test_five_seconds_after_the_last_busy_poll(self):
         g = Gate()
         g.observe(T0, busy("transcribing"))
         # The words landed, but the delivery stamp is older than the last busy poll.
-        for i in range(1, 10):
+        for i in range(1, 5):
             self.assertFalse(g.observe(T0 + i, idle(delivered_at=T0 - 1)).ready, i)
-        self.assertTrue(g.observe(T0 + 10, idle(delivered_at=T0 - 1)).ready)
+        self.assertTrue(g.observe(T0 + 5, idle(delivered_at=T0 - 1)).ready)
 
     def test_new_activity_restarts_the_countdown(self):
         g = Gate()
         g.observe(T0, idle(delivered_at=T0))
-        self.assertFalse(g.observe(T0 + 8, busy("dictating", "microphone open")).ready)
+        self.assertFalse(g.observe(T0 + 3, busy("dictating", "microphone open")).ready)
         self.assertFalse(g.observe(T0 + 12, idle(delivered_at=T0 + 11)).ready)
-        self.assertFalse(g.observe(T0 + 20.9, idle(delivered_at=T0 + 11)).ready)
-        self.assertTrue(g.observe(T0 + 21, idle(delivered_at=T0 + 11)).ready)
+        self.assertFalse(g.observe(T0 + 15.9, idle(delivered_at=T0 + 11)).ready)
+        self.assertTrue(g.observe(T0 + 16, idle(delivered_at=T0 + 11)).ready)
 
     def test_a_delivery_between_polls_is_seen(self):
         # A whole short sentence between two polls leaves only its delivery stamp behind.
@@ -116,16 +117,15 @@ class GateTest(unittest.TestCase):
         self.assertIn("refusing", v.note)
         self.assertIn("--force", v.note)
 
-    def test_force_goes_past_unreachable_but_not_past_his_hands_or_wispr(self):
+    def test_force_goes_past_unreachable_but_not_past_wispr(self):
         g = Gate(force=True)
         g.observe(T0, None)
-        v = g.observe(T0 + 70, None, input_at=T0 + 68)
+        v = g.observe(T0 + 70, None, wispr_row=row("", T0 + 60))
         self.assertFalse(v.ready)
         self.assertFalse(v.refused)
-        v = g.observe(T0 + 71, None, input_at=T0 + 68, wispr_row=row("", T0 + 60))
         self.assertIn("Wispr Flow transcribing", v.waiting_for)
-        self.assertTrue(g.observe(T0 + 90, None, input_at=T0 + 68,
-                                  wispr_row=row("formatted", T0 + 60, finished=T0 + 62)).ready)
+        self.assertFalse(g.observe(T0 + 65, None, wispr_row=row("formatted", T0 + 60, finished=T0 + 62)).ready)
+        self.assertTrue(g.observe(T0 + 90, None, wispr_row=row("formatted", T0 + 60, finished=T0 + 62)).ready)
 
     def test_answering_again_resets_the_unreachable_clock(self):
         g = Gate()
@@ -153,8 +153,8 @@ class DictatingOnAnyEngineTest(unittest.TestCase):
     possible after 5 secs of inactivity after the last insert of text."*"""
 
     def test_constants_are_his(self):
-        self.assertEqual(INACTIVITY, 5.0)
-        self.assertEqual(QUIET_AFTER_DELIVERY, 10.0)
+        # 21:20 the same day: *"only 5 seconds since the last ended dictation"*.
+        self.assertEqual(QUIET_AFTER_DELIVERY, 5.0)
 
     def test_wispr_microphone_open_is_not_safe(self):
         # A build from before the fix: busy false, only wisprLive says it.
@@ -181,24 +181,22 @@ class DictatingOnAnyEngineTest(unittest.TestCase):
         v = Gate().observe(T0, s, wispr_row=row("", T0 - 3))
         self.assertEqual(v.waiting_for.count("Wispr Flow transcribing"), 1)
 
-    def test_input_3s_ago_is_not_safe(self):
-        v = Gate().observe(T0, idle(delivered_at=T0 - 600), input_at=T0 - 3)
-        self.assertFalse(v.ready)
-        self.assertIn("no key, click or scroll", v.waiting_for)
-        # …and from the app's own tap, the same.
-        self.assertFalse(Gate().observe(T0, idle(lastInputAt=iso(T0 - 3))).ready)
+    def test_his_hands_do_not_hold_the_gate(self):
+        # 21:20: typing is not a dictation — a key 0.4 s ago with nothing dictating is safe.
+        self.assertTrue(Gate().observe(T0, idle(delivered_at=T0 - 600), input_at=T0 - 0.4).ready)
+        self.assertTrue(Gate().observe(T0, idle(lastInputAt=iso(T0 - 0.4))).ready)
 
-    def test_input_6s_ago_delivery_12s_ago_nothing_open_is_safe(self):
+    def test_delivery_12s_ago_nothing_open_is_safe(self):
         s = idle(delivered_at=T0 - 12, lastInputAt=iso(T0 - 6),
                  wisprLive={"micOpen": False, "captureOpen": False}, liveCaption={"open": False},
                  sentences=[], fallingBack=False)
         self.assertTrue(Gate().observe(T0, s, wispr_row=row("formatted", T0 - 300, finished=T0 - 296),
                                        input_at=T0 - 6).ready)
 
-    def test_an_insert_restarts_ten_seconds_even_with_his_hands_still(self):
+    def test_an_insert_restarts_five_seconds(self):
         g = Gate()
         self.assertFalse(g.observe(T0, idle(lastInsertAt=iso(T0 - 4)), input_at=T0 - 100).ready)
-        self.assertTrue(g.observe(T0 + 6, idle(lastInsertAt=iso(T0 - 4)), input_at=T0 - 100).ready)
+        self.assertTrue(g.observe(T0 + 1, idle(lastInsertAt=iso(T0 - 4)), input_at=T0 - 100).ready)
 
     def test_a_dictation_edge_counts(self):
         self.assertFalse(Gate().observe(T0, idle(lastDictationEdgeAt=iso(T0 - 2))).ready)
@@ -214,11 +212,16 @@ class DictatingOnAnyEngineTest(unittest.TestCase):
         self.assertTrue(Gate().observe(T0, idle(sentences=[{"id": 3, "state": "done"}])).ready)
 
     def test_incident_2026_09_28_1839(self):
-        # What the gate saw: busy false, the last delivery 83 s old, no Wispr row
-        # since 07:33 — and him at the keyboard. Now it waits for his hands.
+        # What the gate saw: busy false, the last delivery 83 s old — and a Wispr
+        # sentence of his own (chord 61+60) in flight, invisible to the relay's
+        # `busy` of that build. Now the row in Wispr's own file holds the gate,
+        # and its finish is an ended dictation the five seconds count from.
         s = idle(delivered_at=T0 - 83)
-        self.assertTrue(Gate().observe(T0, s).ready)                      # the old reading
-        self.assertFalse(Gate().observe(T0, s, input_at=T0 - 0.4).ready)  # the new one
+        self.assertTrue(Gate().observe(T0, s).ready)                                  # the old reading
+        g = Gate()
+        self.assertFalse(g.observe(T0, s, wispr_row=row("", T0 - 3)).ready)           # his sentence
+        self.assertFalse(g.observe(T0 + 6, s, wispr_row=row("formatted", T0 - 3, finished=T0 + 4)).ready)
+        self.assertTrue(g.observe(T0 + 9, s, wispr_row=row("formatted", T0 - 3, finished=T0 + 4)).ready)
 
 
 class OldBuildTest(unittest.TestCase):
