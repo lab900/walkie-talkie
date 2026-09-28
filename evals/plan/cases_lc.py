@@ -334,7 +334,7 @@ def lc8():
 
 
 @case("LC9", ("lc",), expect="append-only ×30 at 2 words/s (letter by letter since 84d420e): corrections 0; per word, reveal "
-      "grows monotonically, the word starts at opacity < 0.1 and is fully revealed within 1.2 s of its append; centre ±10 pt "
+      "grows monotonically, the word starts at opacity < 0.1 and is fully revealed within 2.0 s of its append; centre ±10 pt "
       "while the line is narrower than bandWidth − 96; anchor |velocity| ≤ 320 pt/s; entry front ≤ 0.7 vMax (490, the catch-up cap)")
 def lc9():
     """Appending is never a correction; each new word is swept in letter by letter.
@@ -387,7 +387,11 @@ def lc9():
     ups = sorted(v for v in steps if v > 0)
     front_v = ups[len(ups) // 2] if ups else None
     hot = {i: v for i, v in first_op.items() if v >= 0.1}
-    slow = {i: round(v, 2) for i, v in done.items() if v > 1.2}
+    # 2.0 s, not 1.2 (2026-09-28, coordinator: "the app's letter-wise entry at a 2 words/s pace is the
+    # requested behaviour ('less shocks')"): a word appended while the one before is still coming in
+    # starts one word-width behind that word's front, so its full reveal is width-dependent,
+    # ≈ (prev width + width + 160) / 320 — measured up to 1.64 s at 2 words/s.
+    slow = {i: round(v, 2) for i, v in done.items() if v > 2.0}
     missing = [i for i in t_add if i not in done]
     narrow = [s for s in S if s["words"] and s["dropped"] == 0 and s["lineWidth"] <= s["bandWidth"] - 96]
     offs = [abs(centre(s) - mid(s)) for s in narrow]
@@ -396,7 +400,7 @@ def lc9():
     if corr: fails.append(f"corrections {corr}")
     if back: fails.append(f"{len(back)} word(s) whose reveal went back, e.g. {list(back.items())[:2]}")
     if hot: fails.append(f"{len(hot)} word(s) started at opacity ≥ 0.1, e.g. {list(hot.items())[:3]}")
-    if slow: fails.append(f"{len(slow)} word(s) slower than 1.2 s to be fully revealed: {list(slow.items())[:3]}")
+    if slow: fails.append(f"{len(slow)} word(s) slower than 2.0 s to be fully revealed: {list(slow.items())[:3]}")
     if missing: fails.append(f"{len(missing)} word(s) never fully revealed: {missing[:5]}")
     if offs and max(offs) > 10: fails.append(f"off centre by {max(offs):.1f} pt while narrow")
     if vmax > 320: fails.append(f"anchor velocity {vmax:.0f} pt/s")
