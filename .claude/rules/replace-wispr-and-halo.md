@@ -56,8 +56,9 @@ The mouse-5 legend went with the row. → `.claude/rules/menu-bar.md`, *The Engi
 - **Persisted across launches since 2026-09-07.** `AppDelegate` seeds the flag and the tap from
   `StatusItem.isReplaceWispr` **without** going through `setReplaceWispr`: that call flashes the
   overlay, and a restored mode is not an event to announce. → journal: *Replace Wispr: the relay as a way to type*
-- **The transcript goes on the clipboard as well** (`pasteText`, shared with ⌘⇧P) and sets
-  `lastDictation`, so a paste that landed somewhere unhelpful is one ⌘V away. → journal: *Replace Wispr: the relay as a way to type*
+- **The transcript goes on the clipboard as well** (`pasteText` → `holdOnClipboard`) and sets
+  `lastDictation`, so a paste that landed somewhere unhelpful is one ⌘V away — and since Q17
+  (2026-09-28) **every** finished sentence does, whatever the destination (`destinations-and-outbox.md`). → journal: *Replace Wispr: the relay as a way to type*
 - **The menu row's icon is its state** — `checkmark` on, an empty box of the same size off — never
   `NSMenuItem.state`: a ticked row makes AppKit reserve the state column for the whole menu and
   shoves every other row sideways. → journal: *Replace Wispr: the relay as a way to type*
@@ -370,7 +371,13 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
   Measured at the desk 2026-09-23: 4/4 caret dictations (DJI 16 kHz and the built-in 48 kHz mic),
   2.3–2.6 s takes at 1.5–1.6×.
 
-## `PasteHint` — `⌘⇧P`, after every delivered sentence (2026-09-22, widened 2026-09-23)
+## `PasteHint` — after every delivered sentence (2026-09-22, widened 2026-09-23; **⌘V since 2026-09-28**)
+
+**Q17 (2026-09-28): the row says `📋 On the clipboard  ⌘V`** (`PasteHint.label` / `keys`). ⌘⇧P is
+removed — the key in `HotkeyTap`, the menu row's chord — because the clipboard now always holds the
+finished sentence (`AppDelegate.holdOnClipboard`, `destinations-and-outbox.md`). A cancelled prompt
+puts its envelope on the clipboard too, so its hint is still true. Everything below about *when*
+still holds; read `⌘⇧P` in it as the re-paste it was. `evals/test_paste_row.py` checks the keys.
 
 Victor, 2026-09-22: *"după ce ai dat cancel la dictare sau după ce s-a încheiat o dictare la caret
 … să apară foarte transparent, încă un hint, cu tastele pe care le apăs ca să dau paste la acel

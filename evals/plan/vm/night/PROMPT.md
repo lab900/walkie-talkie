@@ -151,7 +151,7 @@ re-run waits until it has handed back. Spawn **one** subagent (model Opus, descr
 > the routes), the menu through the AX paths in `evals/plan/codex/README.md`, corpus clips played into
 > `BlackHole 2ch` in the guest (`~/wt-lab/voice-corpus/`), a restart of the guest app (`pkill` + `open` is
 > fine in the guest only). An unscripted sequence of ≥ 25 actions mixing bind/unbind, dictations,
-> cancel, ⌘⇧P re-paste, the rebind panel, engine switches (local engine by default; an eleven engine only
+> cancel, ⌘V of the last sentence (the clipboard holds it — Q17; ⌘⇧P is gone), the rebind panel, engine switches (local engine by default; an eleven engine only
 > if ≥ 3000 credits remain), autosend, killing the helper, restart. After each action:
 > `GET /test/state` and `tools/vm-lab.sh shot $SHOTS/x-<nn>.png`. Look for a stuck chip, a wrong row, a
 > crash (`~/.walkie-talkie/hangs/`, `~/Library/Logs/DiagnosticReports/`, errors in `relay.log`), a state

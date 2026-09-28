@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""**The `⌘⇧P` reminder is an ordinary chip row, drawn like `☠️ Kamikaze`.**
+"""**The paste reminder is an ordinary chip row, drawn like `☠️ Kamikaze`.**
+
+Since 2026-09-28 (Q17) it says `📋 On the clipboard ⌘V` — the clipboard always
+holds the finished sentence and ⌘⇧P is gone; until then `📋 Re-paste ⌘⇧P`.
 
 Victor, 2026-09-23: *"It looks like now it has a border around it, with a
 different font, which is wrong. I just want you to display yet another row in
@@ -12,7 +15,7 @@ rounded outline round `⌘⇧P`, 15 pt medium). The row that replaced it is
 `RelayWindow.pasteRow`, and this test keeps it the Kamikaze row's twin:
 
 * both are built by the one constructor, `installEmojiRow` (face, size, ink,
-  glyph), and the paste one says `📋` / `Re-paste` / `PasteHint.keys`;
+  glyph), and the paste one says `📋` / `PasteHint.label` / `PasteHint.keys`;
 * **every other line that touches a Kamikaze view has a paste twin** — the
   layout through `layoutGlyphRow`, the height, the width, the halo and the
   white ink on the bare chip, the plain ink off it. That is the list a new row
@@ -56,9 +59,11 @@ def check(relay: str, hint: str) -> list[str]:
     if not any(re.search(r'installEmojiRow\(pasteRow, glyph: pasteGlyph, '
                          r'label: pasteInfo, emoji: "📋"\)', l) for l in lines):
         problems.append("the paste row is not built by `installEmojiRow(…, emoji: \"📋\")`")
-    if not any('pasteInfo = NSTextField(labelWithString: "Re-paste' in l
+    if not any('pasteInfo = NSTextField(labelWithString:' in l and "PasteHint.label" in l
                and "PasteHint.keys" in l for l in lines):
-        problems.append("the paste row does not say `Re-paste` + `PasteHint.keys`")
+        problems.append("the paste row does not say `PasteHint.label` + `PasteHint.keys`")
+    if 'static let keys = "⌘V"' not in hint:
+        problems.append("the row's keys are not ⌘V (Q17: ⌘⇧P is gone, the clipboard holds the sentence)")
 
     install = [l for l in lines if l.startswith("private func installEmojiRow")]
     if not install:
@@ -105,6 +110,8 @@ def self_test() -> int:
         "the paste row laid out another way":
             (relay.replace("layoutGlyphRow(pasteRow, glyph: pasteGlyph, label: pasteInfo, width: innerWidth)",
                            "pasteRow.frame.size = NSSize(width: innerWidth, height: 30)"), hint),
+        "⌘⇧P back on the row":
+            (relay, hint.replace('static let keys = "⌘V"', 'static let keys = "⌘⇧P"')),
         "a keycap window back in PasteHint":
             (relay, hint + "\nlet p = RelayPanel(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)\n"),
     }
@@ -126,7 +133,7 @@ def main(argv: list[str]) -> int:
         for problem in problems:
             print(f"  ✗ {problem}")
         return 1
-    print("✓ `📋 Re-paste ⌘⇧P` is built, laid out and inked exactly like `☠️ Kamikaze`")
+    print("✓ `📋 On the clipboard ⌘V` is built, laid out and inked exactly like `☠️ Kamikaze`")
     return 0
 
 

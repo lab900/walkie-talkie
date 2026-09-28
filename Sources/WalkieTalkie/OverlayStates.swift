@@ -403,16 +403,16 @@ enum OverlayStates {
                 o.flash("⚠️ Whisper unavailable — no module named mlx_whisper", duration: 60)
             },
 
-            Shot(slug: "paste-again", group: "Flashes", title: "Re-paste — the keys, after every sentence",
-                 when: "Three seconds after every delivered sentence (caret, bound terminal, new session, a held sentence's release) and after a cancelled prompt. Never after a cancelled dictation.",
-                 note: "**An ordinary row**, built like `☠️ Kamikaze`: 📋, `Re-paste`, then `⌘⇧P` in the chip's own face. It was a keycap in a window of its own until 2026-09-23 — a white outline round the keys in another font — and Victor read the border and the font as wrong. Unbound, it is the chip's only row, which is what puts the chip beside the pointer.",
+            Shot(slug: "paste-again", group: "Flashes", title: "On the clipboard — ⌘V, after every sentence",
+                 when: "Five seconds after every delivered sentence (caret, bound terminal, new session, a held sentence's release) and after a cancelled prompt. Never after a cancelled dictation.",
+                 note: "**Q17 (2026-09-28): the clipboard always holds the finished sentence** — the envelope for a prompt, the clean words for a plain one — so the row says `On the clipboard` and `⌘V`; ⌘⇧P is gone (it said `Re-paste ⌘⇧P` until then). **An ordinary row**, built like `☠️ Kamikaze`: 📋, the words, then the keys in the chip's own face. It was a keycap in a window of its own until 2026-09-23 — a white outline round the keys in another font — and Victor read the border and the font as wrong. Unbound, it is the chip's only row, which is what puts the chip beside the pointer.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setPasteHint(true)
             },
 
             Shot(slug: "flash-nothing-to-paste", group: "Flashes", title: "Flash — nothing to paste yet",
-                 when: "⌘⇧P, or the menu row, before anything has been dictated this session.",
-                 note: "The only thing ⌘⇧P ever says out loud. A paste that lands is silent — the words appear at the caret, which is the whole of the evidence — so this row exists for the one case where nothing happens at all.",
+                 when: "The menu's Paste last prompt row, before anything has been dictated this session (⌘⇧P said it too until 2026-09-28).",
+                 note: "The only thing the re-paste ever says out loud. A paste that lands is silent — the words appear at the caret, which is the whole of the evidence — so this row exists for the one case where nothing happens at all.",
                  shape: "flash", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
                 o.flash("⚠️ nothing dictated yet", duration: 60)

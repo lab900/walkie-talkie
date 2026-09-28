@@ -83,7 +83,12 @@ import AppKit
 final class PasteHint {
 
     /// The keys, as they are written on his keyboard — the row's shortcut.
-    static let keys = "⌘⇧P"
+    /// **⌘V since 2026-09-28** (Q17): the clipboard always holds the finished
+    /// sentence, so the paste is the system's own key and ⌘⇧P is gone. Victor:
+    /// *"Punem pentru moment Ctrl V în tooltip"* — ⌘V on this Mac.
+    static let keys = "⌘V"
+    /// The row's words: the sentence is on the clipboard, ⌘V puts it anywhere.
+    static let label = "On the clipboard"
 
     /// **Up for this long, counted from the last keystroke.** His *"trei
     /// secunde"* of the morning, raised to 5 the same evening: *"let it be 5
@@ -113,7 +118,7 @@ final class PasteHint {
     /// `GET /test/state.pasteHint`.
     var report: [String: Any] {
         ["visible": chip?.pasteHint ?? false,
-         "pulsing": pulsing, "hold": Self.hold, "row": "Re-paste  \(Self.keys)"]
+         "pulsing": pulsing, "hold": Self.hold, "row": "\(Self.label)  \(Self.keys)"]
     }
 
     /// **Put the row up for `hold`, then take it down.** `reason` is for the log

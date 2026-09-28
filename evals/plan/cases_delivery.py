@@ -986,9 +986,9 @@ def td29():
         _settle()
 
 
-@case("TD30", tags=("codex",), expect="⌘⇧P during the panel hold pastes the sentence on screen, not the previous one")
+@case("TD30", tags=("codex",), expect="⌘⇧P during the panel hold pastes the sentence on screen, not the previous one — retired 2026-09-28 (Q17: ⌘⇧P is gone, the clipboard holds the sentence)")
 def td30():
-    return "SKIP", "needs a real ⌘⇧P during the hold — [CODEX/keys]"
+    return "SKIP", "⌘⇧P was removed 2026-09-28 (Q17) — the clipboard holds the finished sentence"
 
 
 @case("TD31", tags=("http", "tty"),

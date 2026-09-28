@@ -52,7 +52,7 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
 |---|---|---|
 | `Bind Terminal` (`Connect Terminal` until 2026-09-22) | `mappin`, in Google Maps red | `⬅️ + 🛞` |
 | `Disconnect` | `mappin.slash` | `➡️ + 🛞` |
-| `Paste last prompt` | 📋 | `⌘⇧P` — **enabled off the log, not off this run's memory** (2026-09-22) |
+| `Paste last prompt` | 📋 | none since 2026-09-28 (⌘⇧P removed, Q17 — the clipboard holds the sentence) — **enabled off the log, not off this run's memory** (2026-09-22) |
 | — separator — | | |
 | `Start Dictation` | `mic` | `🛞` |
 | `Prompt new Claude` (`Dictate to New Claude` and before it `Start dictation to new claude`, both until 2026-09-22) | ✨ | `🛞🛞` |
@@ -71,7 +71,7 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
 | `Victor's Walkie Talkie (<build>)` | ℹ️ | | |
 | `Quit` | `power` | | |
 
-- **`Paste last prompt` asks the same question `⌘⇧P` does** — `AppDelegate.pastableDictation`:
+- **`Paste last prompt` asks the question `⌘⇧P` used to** (the key is gone since 2026-09-28) — `AppDelegate.pastableDictation`:
   this run's `lastDictation`, else the newest line in the outbox. Victor, 2026-09-22: *"în prompt
   history apar elemente, dar «paste last prompt» e dezabilitat. Nu prea are sens asta, nu?"* — and
   it did not: `lastDictation` is born nil, so every relaunch greyed the row out above a
@@ -120,7 +120,7 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   reason the two families are the dotted and the doubled ones: those it draws as given.
 - **None of these fire as key equivalents**: this app is never the key app, so the menu matches
   them only while it is open, and `⇢` is not a key any keyboard produces. ⌘⌃B and ⌘⌃D are not
-  written on rows at all; ⌘⇧P and ⌘⇧◀ are drawn by AppKit from the mask and belong to `HotkeyTap`.
+  written on rows at all; ⌘⇧◀ is drawn by AppKit from the mask and belongs to `HotkeyTap` (⌘⇧P was, until 2026-09-28).
 - **The emoji legend moved to the About window** (`AboutWindow`, `Glyphs.mouse`): a menu row holds
   one glyph, a drawing of his own mouse holds the vocabulary.
   → journal: *Every row has an icon, and two alphabets share the column*
@@ -405,7 +405,7 @@ and source should be selectable via menu too. those unavailable disabled"* — a
   the one bend in "no script": a dozen lines, delegated from `document`, and with JS off the page
   still shows every message minus a button.
   → journal: *Prompt Log: the outbox read back as a page*
-- **Copy copies the exact `line` from the outbox — byte for byte what ⌘⇧P would paste.** `commit`
+- **Copy copies the exact `line` from the outbox — byte for byte what the clipboard got at delivery (Q17).** `commit`
   writes `line` (the `terminalLine` the delivery used) into the JSON; older lines have none and
   `MessageLog.payload` re-assembles them — close, not identical. The payload rides in a **hidden
   `<pre>`**, not a `data-` attribute (a dictation is arbitrary text). `document.execCommand` is the

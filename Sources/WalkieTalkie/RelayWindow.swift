@@ -283,7 +283,7 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// `evals/test_paste_row.py` keeps it that way.
     private let pasteRow = NSView()
     private let pasteGlyph = NSImageView()
-    private let pasteInfo = NSTextField(labelWithString: "Re-paste  \(PasteHint.keys)")
+    private let pasteInfo = NSTextField(labelWithString: "\(PasteHint.label)  \(PasteHint.keys)")
     /// **`📨 N waiting — bind to send`** (2026-09-26) — sentences spoken with
     /// nothing bound, held in memory for the next bind (`AppDelegate.awaitingBind`).
     /// Victor, Q1: *"mi-ar trebui un cue vizual să știu că trebuie să las mesajul

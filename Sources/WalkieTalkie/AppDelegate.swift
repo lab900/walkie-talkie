@@ -2259,9 +2259,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // which this needs: it spends several subprocesses working out what it
         // is looking at.
         hotkeys.onBindHotkey = { [weak self] in _ = self?.bindFrontmostTerminal() }
-        hotkeys.onPasteLast = { [weak self] in
-            DispatchQueue.main.async { self?.pasteLastDictation() }
-        }
         hotkeys.onMouse5Double = { [weak self] in
             guard let self = self else { return }
             // The first click of the pair has already opened the microphone if
@@ -3561,6 +3558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? FileManager.default.removeItem(at: wav)
         }
         lastDictation = result.text
+        lastAnswerWasWispr = result.engine == "wispr-flow"
         pendingPromptWarning = result.warning
         // A caret sentence whose microphone close this side never saw — the
         // held right ⌘⌥, confirmed by Wispr's row — reaches here with the latch
@@ -3576,6 +3574,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             clearSpawn()
             abandonDictation("the source delivered it itself")
             if submitClean { submitAfterCleanWords() }
+            holdOnClipboard(result.text, why: "\(source.name) inserted it itself")
             // Landed all the same, and wherever the focus was — which is the
             // likeliest place of all to be the wrong one (2026-09-23).
             pasteHint.pulse(reason: "\(source.name) inserted a sentence itself")
@@ -3593,6 +3592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 clearSpawn()
                 abandonDictation("the source delivered it itself")
                 if submitClean { submitAfterCleanWords() }
+                holdOnClipboard(result.text, why: "\(source.name) inserted it at the caret")
                 pasteHint.pulse(reason: "\(source.name) inserted a caret sentence itself")
                 return
             }
@@ -9312,6 +9312,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            !text.isEmpty {
             lastDictation = line
             pastable = true
+            // **Q17: the clipboard holds the finished prompt** — bound, spawned
+            // or held for a bind, the envelope the agent gets is one ⌘V away.
+            holdOnClipboard(line, why: m.spawn ? "the prompt (new session)" : "the prompt")
         }
         // **Nothing is written before there is somewhere to write it to.** A
         // dictation spoken with nothing bound goes to `awaitingBind` and comes
@@ -9465,7 +9468,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("⏳ held dictation expired — never bound (\(self.awaitingBind.count) still held)")
             // Said out loud, because the alternative is a sentence he believes
             // is still going to arrive somewhere. ⌘⇧P is the way back to it.
-            self.overlay.flash("⏳ held dictation expired — ⌘⇧P to paste it", duration: 4)
+            self.overlay.flash("⏳ held dictation expired — ⌘V to paste it", duration: 4)
         }
         awaitingBind.append(Held(id: id, m: m, expiry: expiry))
         let words = (m.text ?? "").split(whereSeparator: { $0.isWhitespace }).count
@@ -9554,15 +9557,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///   focus in the meantime. Nil is *whatever has the caret*, which is what
     ///   every caller but one means.
     private func pasteText(_ text: String, after delay: TimeInterval = 0, to pid: pid_t? = nil, settles: Bool = true) {
-        // So ⌘⇧P can say it again — a Replace Wispr dictation is a dictation that
-        // went out, and it is exactly the kind he wants twice: the same sentence
-        // into a second field.
+        // So the menu's *Paste last prompt* can say it again — a Replace Wispr
+        // dictation is a dictation that went out, and it is exactly the kind he
+        // wants twice: the same sentence into a second field.
         lastDictation = text
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        PasteboardTimeline.noteOwnWrite("pasteText")
-        Log.info("📋 \(text.count) chars on the clipboard — pasting at the caret"
+        holdOnClipboard(text, why: "pasteText")
+        Log.info("📋 pasting \(text.count) chars at the caret"
                  + (pid.map { " (addressed to pid \($0))" } ?? ""))
         // The insertion the ring has been waiting for, said at the ⌘V rather than
         // at the transcript: the words are on screen when the key goes out, not
@@ -9578,6 +9578,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 press()
                 if settles { self?.endSettling(reason: "pasted at the caret") }
+            }
+        }
+    }
+
+    /// **Q17 (2026-09-28): the clipboard always holds the finished sentence** —
+    /// the prompt envelope for a relay sentence, the clean words for a plain one,
+    /// whatever the engine and wherever it went. Victor: *"întotdeauna la finalul
+    /// dictării cu walkie-talkie să rămână în clipboard ce s-a dictat … indiferent
+    /// ce și cum."* Never restored: that is the feature (⌘⇧P went with it).
+    ///
+    /// **Wispr's restore comes after ours** (W8): Wispr writes its text ~30 ms
+    /// before `formatted` and puts the old clipboard back ~250 ms later, even when
+    /// the firewall dropped its ⌘V. So on a Wispr sentence the write is checked
+    /// again at 0.7 s and 1.6 s and re-made if someone put something else there.
+    private var clipboardHeld: (text: String, count: Int)?
+    private var lastAnswerWasWispr = false
+    private func holdOnClipboard(_ text: String, why: String) {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let write = {
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            PasteboardTimeline.noteOwnWrite(why)
+            self.clipboardHeld = (text, pasteboard.changeCount)
+        }
+        write()
+        Log.info("📋 \(text.count) chars on the clipboard — \(why) (Q17)")
+        guard lastAnswerWasWispr else { return }
+        for delay in [0.7, 1.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, let held = self.clipboardHeld, held.text == text else { return }
+                // The count only — never the text: reading another process's
+                // fresh write is the crash `WisprFlowSource.pasteboardString`
+                // guards against, and inside 1.6 s of a Wispr sentence the writer
+                // is Wispr's restore, not him.
+                guard NSPasteboard.general.changeCount != held.count else { return }
+                Log.info(String(format: "📋 the clipboard moved %.1f s after the sentence (Wispr's restore) — the sentence put back", delay))
+                write()
             }
         }
     }
@@ -9621,6 +9659,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if m.spawn { clearSpawn() }
             overlay.flash("✕ cancelled", duration: 2.0)
+            // Q17: the words he just read are finished text — on the clipboard.
+            if let t = m.text, !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                holdOnClipboard(Self.terminalLine(m), why: "a cancelled prompt")
+            }
             // Cancelled is not lost: the words are still `lastDictation`, and
             // the difference between *I meant that* and *I did not* is often
             // one second wide. The picks went back in the queue above for the

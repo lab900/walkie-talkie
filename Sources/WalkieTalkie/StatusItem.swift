@@ -1199,8 +1199,6 @@ final class StatusItem: NSObject, NSMenuDelegate {
             // column, and a button glyph in front would be naming a button that
             // is already drawn there (`⇧⌘◀`). They keep their plain titles, and
             // with them the native dimming an attributed title costs.
-            (pasteLast, pasteLast.title, "⌘⇧P", "⌘⇧P",
-             Chord("", "p", [.command, .shift]), Chord("", "p", [.command, .shift])),
             (shot, shot.title, "🔽", "🔽", Chord("", "●"), Chord("", "●")),
             // **The wheel is back in this column, in one row.** Everything else
             // it used to say is gone from Logi mode — but a *drag* is not a
@@ -1385,7 +1383,6 @@ final class StatusItem: NSObject, NSMenuDelegate {
             "🛞🛞": "Double-click the wheel",
             "🛞 2s": "Hold the wheel for 2 seconds",
             "🛞 drag": "Drag with the wheel held, while dictating",
-            "⌘⇧P": "Press ⌘⇧P",
             "⌘⇧◀️": "Hold ⌘⇧ and click an element in Chrome, while dictating",
         ][legend]
     }

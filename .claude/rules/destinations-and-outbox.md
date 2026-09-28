@@ -120,8 +120,13 @@ scriem în clipboard la final promptul sau dictarea curată, indiferent ce și c
   Wispr sentence the write is re-asserted once Wispr's restore has passed.
 - **⌘⇧P is gone** (and ⌘⌃P before it). Nothing re-pastes: ⌘V does. The chip's row after a delivery
   names **⌘V** (`PasteHint`). Do not bring a re-paste key back — the clipboard holds the sentence.
-- **A cancelled sentence writes nothing** — there is no finished text; *Recover Cancelled
-  Dictation* is that case's door.
+- **A cancelled dictation writes nothing** — there is no finished text; *Recover Cancelled
+  Dictation* is that case's door. **A cancelled prompt panel does** (its words are finished text):
+  the envelope goes on the clipboard and the hint follows.
+- **One door: `AppDelegate.holdOnClipboard(_:why:)`** — called from `commit` (every relay sentence,
+  bound, spawned or held for a bind), `pasteText` (every caret sentence), the two *the source
+  inserted it itself* branches of `deliver`, and a cancelled panel. Log line `📋 N chars on the
+  clipboard — <why> (Q17)`; `GET /test/state.pasteboard` shows the write as `writer: walkie`.
 
 ## The held prompt
 
