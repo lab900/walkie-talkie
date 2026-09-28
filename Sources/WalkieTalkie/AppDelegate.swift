@@ -1948,6 +1948,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if let on = body["on"] as? Bool { self.overlay.setLiveCaptionOpen(on) }
+                // The band's dodge, without moving the real mouse (2026-09-28).
+                if body.keys.contains("pointer") {
+                    let p = body["pointer"] as? [String: Any]
+                    self.overlay.liveCaption.testPointer = p.flatMap { p in
+                        guard let x = (p["x"] as? NSNumber)?.doubleValue, let y = (p["y"] as? NSNumber)?.doubleValue else { return nil }
+                        return NSPoint(x: x, y: y)
+                    }
+                }
                 if let text = body["text"] as? String {
                     self.overlay.setLiveCaptionOpen(true)
                     self.overlay.setLiveCaption(text, partial: (body["partial"] as? String) ?? "",

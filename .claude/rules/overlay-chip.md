@@ -136,40 +136,56 @@ yields to `--label`).
 ## `Listening...` and `Transcribing...`
 
 - **The live caption is not on the chip since 2026-09-26** — it is `LiveCaptionBand`, a click-through
-  80 pt band across the top of the screen under the pointer (below the menu bar), white bold 38 pt
-  with a black outline and shadow, like a film subtitle. Victor: *"îl scoți așadar din tooltip"*.
-  **The visible text stays centred** (since 07:50): first words fade in at the middle, new words
-  are appended on the right, an eraser (**5 s idle** since 14:20 — *"să nu dispară
-  atât de repede"*; 2 s before) stings the line from the left **letter by letter** (a word the
-  160 pt soft edge crosses gets one opacity per glyph, via a `destinationIn` mask inside the
-  word's one transparency layer — never a layer per glyph: a glyph's outline reaches ~4.5 pt
-  out and would bite its left neighbour's white) and the rest re-centres; wider than the band →
-  the end stays inside the right margin. **Since batch 5 (2026-09-26 evening) the anchor tracks
-  the centred position with no lag**: an appended word counts for the centring only as far as it
-  has come in (`appear`, τ `reflow`, slower for a word so long it would ask more than 0.7 `vMax`),
-  and the goal's motion frame to frame is fed forward — measured 0 pt off centre while narrow,
-  never past the margin once wide, at 0.4 s/word (it was 109 pt and 271 pt). **Since 2026-09-27
-  words enter letter by letter, the eraser's mirror** (*"the entering text at right should fade in
-  character by character (the same way it fades out at the left) ⇒ with less 'shocks' to the
-  move"*): an entry front with the same 160 pt soft edge sweeps each appended word at
-  `revealSpeed` 320 pt/s (faster only to clear a backlog within `revealCatchUp` 0.8 s, ≤ 0.7
-  `vMax`), per word (`reveal`, points from its left edge, `nil` once in) so a correction that
-  lengthens the line never re-hides letters; a burst is one continuous edge. `appear` is now the
-  word's revealed ink (mean glyph opacity, C¹ in the front), so the line makes room exactly as the
-  letters arrive — no width reserved for an invisible word, no velocity step at a word's start or
-  end. A fresh line grows from the middle outward. Corrections keep their swap (not lettered).
-  `GET /test/state.liveCaption.opacity` is solidity × ink (what the eye sees); `reveal` is the
-  front per word; `glyphAlphas` covers both soft edges. A fresh line (first
-  words, after a full wipe, or a revision past the dropped words) is placed centred **at rest**
-  and carries nothing of the old one. The provisional gradient eases at `fadeIn` 0.22 s. **The band opens only when
-  the sentence's live session is up** (`DictationSource.didOpenLive`/`liveOpen`) — never for a
-  sentence with no key or a socket that never opened. No ticker, no entry from the right edge. `RelayWindow`
-  keeps only `setLiveCaptionOpen`/`setLiveCaption` as forwarders (so `AppDelegate` and
-  `POST /test/live-caption` are unchanged) and `setListening(false)` closes the band. The ticker's
-  numbers are `GET /test/state.liveCaption` (`anchor`, `velocity`, `reflowing`, `ghosts`,
-  `correcting`, `visibleWidth`, `appear`, `reveal`). The 2026-09-25 `💬` row (fixed 360 pt window, 7 words, 0.28 s slide) is gone with
-  its `listening-live` shot. **Never put it back on the chip.**
-  → journal: *The live caption is a subtitle band (2026-09-26)*
+  band across the top of the screen under the pointer (below the menu bar), white text with a black
+  outline and shadow, like a film subtitle. Victor: *"îl scoți așadar din tooltip"*. **Never put it
+  back on the chip.** → journal: *The live caption is a subtitle band (2026-09-26)*
+- **Two lines that roll up, since 2026-09-28** (*"Not very happy with how they look, scrolling text
+  to the left … when a full line is filled up, a second line should be written below … at the
+  maximum of eighty percent of the screen width … when the second line gets full as well, it pushes
+  up the first line"*). No horizontal scroll and **no eraser** any more. A line is at most
+  `maxLineShare` 0.8 of the band; the word that would pass it starts line 2; when a third line is
+  needed, **in this order** (*"când ar trebui să apară rândul 3, atunci rândul 1 iese în sus, și
+  după ce rândul 2 devine 1, atunci începe să apară și rândul '3' pe poziția 2"*): line 1 starts
+  leaving (glides up, fades crossing the top) the frame the overflow word arrives, line 2 glides to
+  slot 0 (`lineGlide` τ 0.2, `landed` at 0.03 slot, ~0.7 s), and only then does the new line's entry
+  front start — **a word not yet begun waits while its line, or one above it, is moving** (a word
+  already half in finishes). Words said during the glide wait; none is dropped. **Each line is
+  centred** (assumed, from the 07:50 rule), so a growing line still moves left by half its ink —
+  the only horizontal motion. **Silence**: the top line rolls out after `readTime = max(readMin 3 s,
+  readPerWord 0.3 s × its words)` without a new word (gentle corrections do not count); the clock
+  restarts when a line has left, so the one that moved up gets its own read time; empty, the band
+  stays open. **A new sentence starts a new line**: a commit whose last word ends in `.?!…` marks
+  the next word (`breakBefore`); a commit without one does not. **Lines are sticky per word**
+  (carried by the LCS alignment like the x); a correction's words take the line of the words they
+  replace, an insertion the line of the word before — a batch correction merging two sentences
+  leaves the second on line 2; a correction re-flows only inside its line (never re-wrapped).
+  **Font 30.4 pt semibold** (38 bold before: *"slightly less bold and twenty percent smaller"*),
+  outline and shadow kept; band = two line boxes (pitch 38) + 12 pt top and bottom = 97 pt.
+- **Grey backdrop and the mouse dodge (2026-09-28)** (*"pune o margine de 10x … de fundal gri
+  semitransparent în jurul textului subtitrării … câtă vreme mouse-ul este peste subtitrarea de
+  sus, ea să fugă jos"*): a rounded rect (radius 8, white 0.15 at 45 %) 10 pt around the union of the
+  lines' text boxes (*"10x"* read as 10 pt), following the ink frame by frame and easing jumps (a
+  line added/gone), fading when the band empties. Pointer inside the backdrop at the top → the band
+  **jumps** to the bottom of the same screen, in one frame (*"flip top/bottom should be without pan,
+  sudden. no animation"*), backdrop `edgeGap` 2 pt from the bottom edge (the block grows upward
+  there); back up once the pointer has been out of the top backdrop + 12 pt for 0.25 s. The pointer
+  is `NSEvent.mouseLocation` each frame; `POST /test/live-caption {"pointer": {x, y}}` stands in for
+  it (`null` gives it back; closing the band clears it).
+- **Corrections keep their swap** (ghost fade-out, reflow inside the line, faded yellow fade-in;
+  gentle = paler); **words enter letter by letter** (2026-09-27: an entry front with a 160 pt soft
+  edge, `revealSpeed` 320 pt/s, catch-up within 0.8 s ≤ 0.7 `vMax`, one opacity per glyph through a
+  `destinationIn` mask inside the word's one transparency layer — never a layer per glyph, a
+  glyph's outline would bite its neighbour); a line makes room only as far as the ink has come in
+  (`appear`), so its re-centring moves with the letters. The provisional tail is drawn 0.4…1
+  (`fadeIn` 0.22). **The band opens only when the sentence's live session is up**
+  (`DictationSource.didOpenLive`/`liveOpen`). `RelayWindow` keeps only
+  `setLiveCaptionOpen`/`setLiveCaption` as forwarders. `GET /test/state.liveCaption`: `lines[]` (`id`,
+  `slot`, `slotTarget`, `landed`, `first`, `words`, `text`, `anchor`, `velocity`, `width`,
+  `visibleWidth`, `centre`, `readTime`, `reason` first|full|sentence), `lineOf`, `leaving`, `lifts`,
+  `breakBefore`, `silentFor`, `liftIn`, `opacity` (solidity × ink), `appear`, `reveal`, `widths`,
+  `backdrop`/`lineBoxes`/`frame`/`screen` (screen points), `position` top|bottom, `flipLagMs`,
+  `frameMs`/`drawMs`. The eraser's `eraseFront`/`eraseAfter` and the single `anchor` are gone.
+  → journal: *Two lines that roll up (2026-09-28)*
 
 - **`Listening to 🎤 → ⬮...` since 2026-09-24** — the listening row names the recogniser too, after an
   arrow (*"place an arrow and then specify as well the transcription engine"*). Wispr's five bars

@@ -28,6 +28,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *The fail-open* (2026-09-24, `MainStallGate`: wall clock, a 0.5 s beat, judged only when an event came by, a trace line per event, the canary handed through) — superseded 2026-09-26 by *Fixes to the test plan's findings, batch 4* §1: uptime, a 0.1 s beat, a 10 Hz watchdog, the real stall length, the canary seen while open, the app's own chords dropped
 - *F10's re-fire guard, scoped to F10 only* (2026-09-16/18) — superseded 2026-09-26 by batch 4 §2: every flick has the 0.6 s window
 - *`PasteHint` after every delivered sentence* (2026-09-23) and **⌘⇧P** itself (2026-09-19) — superseded 2026-09-28 by Q17: the clipboard always holds the finished sentence (envelope or clean words), ⌘⇧P is gone, the chip's row after a delivery says ⌘V (*Wispr as engine: decisions Q14–Q23*)
+- *The eraser waits 5 s and fades letter by letter* (2026-09-26 14:20), the eraser of *The caption after a night of use*, and the single centred line that scrolled left once wider than the band (*The caption is centred…*) — superseded 2026-09-28 by *Two lines that roll up*: two centred lines ≤ 80 % of the band, a roll-up on the third, silence rolls lines out after a read time; no eraser, no horizontal scroll
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
@@ -268,6 +269,7 @@ The journal contradicts itself over time, because it was written as things chang
 - [Active Terminals: the spawn menu's first row (2026-09-23)](#active-terminals-the-spawn-menus-first-row-2026-09-23)
 - [Voice affect: `[?]` where he hesitated, `[voice: hesitant]` when the sentence was (2026-09-27)](#voice-affect--where-he-hesitated-voice-hesitant-when-the-sentence-was-2026-09-27)
 - [Fixes to the test plan's findings, batch 7 (2026-09-27)](#fixes-to-the-test-plans-findings-batch-7-2026-09-27)
+- [Two lines that roll up (2026-09-28)](#two-lines-that-roll-up-2026-09-28)
 
 ---
 
@@ -13989,3 +13991,63 @@ in the prompt box`, `Return #4 — Claude Code read the block as a paste and ask
 delivered; Victor: *"worked this time"*. A submitted sentence is echoed with `>` and the box is
 empty, so an empty prompt is never pressed. When no extra Return was needed, or the sentence is
 still there after two, the squashed tail is logged so the next stall leaves its screen in the log.
+
+## Two lines that roll up (2026-09-28)
+
+Victor, dictated: *"We need to work a bit on the subtitles. Not very happy with how they look,
+scrolling text to the left. When new text is added onto the right, that's okay. But then when a
+full line is filled up, a second line should be written below the first one. The first one should
+stay at the maximum of eighty percent of the screen width. And then when the second line gets full
+as well, it pushes up the first line out of screen, basically. And on silence, there is no fade
+coming from the left, but instead, the whole line is pushed up after sufficient time to read it.
+Also, in case there is a break in the speech that results in a new sentence being started, I'd like
+to have that other sentence starting on the second line … even if under a correction the sentence
+is merged with the previous one, it still remains on the second line. And corrections still are
+smooth. The font should be also slightly less bold and twenty percent smaller."* Then, the same
+morning: *"rândul 1 să facă fade out doar când rândul 2 aproape s-a umplut. De fapt: când ar trebui
+să apară rândul 3, atunci rândul 1 iese în sus, și după ce rândul 2 devine 1, atunci începe să
+apară și rândul '3' pe poziția 2"*; *"pune o margine de 10x pe toate direcțiile de fundal gri
+semitransparent în jurul textului subtitrării. În plus, câtă vreme mouse-ul este peste subtitrarea
+de sus, ea să fugă jos (revine sus când mouse-ul iese din zona subtitrării)"*; *"flip top/bottom
+should be without pan, sudden. no animation"*.
+
+- **Two slots, each line ≤ 80 % of the band, each centred** (centring assumed, from the 07:50
+  rule). A word that would pass 80 % starts line 2. No horizontal scroll, no eraser; a growing line
+  only moves left by half its ink. Measured (LC2, 50 words at 0.4 s/word on a 1728 pt band): 0.0 pt
+  off centre, max 160 pt/s, never more than two lines, one roll-up; LC19: line 1 = 18 words, 1347 pt,
+  its next word (93 pt) would have made 1440 > 1382.
+- **The overflow order**: line 1 leaves the frame the overflow word arrives (LC24: seen 23 ms after
+  the POST already leaving), line 2 glides up and lands in 0.68 s (`lineGlide` τ 0.2, `landed`
+  0.03 slot), the new line's letters start only then; a word said mid-glide waits. First cut had
+  the gliding line's half-revealed last word frozen mid-reveal — now a word already half in
+  finishes as its line rides up; only a word not yet begun waits.
+- **Silence**: `readTime = max(3 s, 0.3 s × words)` (assumed; *"sufficient time to read it"*),
+  from the last new word, restarted when a line has left. Measured: 8 words → +3.10 s (LC3), 14 →
+  +4.25 s (LC21), 18 then 8 → +5.49 s and 3.02 s later (LC16), a gentle correction at +1.5 s did not
+  restart it (LC17, +3.02 s). Empty, the band stays open.
+- **New sentence ⇒ new line**: a commit (VAD 1.5 s) whose last word ends in `.?!…` marks the next
+  word; one without terminal punctuation does not (LC22). The chain `committed`/`partial` carries no
+  segment boundaries, so the band reads it off `committed` growing. **Sticky lines**: the LCS
+  alignment carries each word's line; a correction takes the replaced words' line, an insertion the
+  line of the word before — `We deploy today. Then we test` → gentle `…today and then we test` keeps
+  `then we test` on line 2 (LC23). The whole sentence is aligned now (it was the visible part only),
+  so a revision among rolled-out words moves `dropped` instead of pulling a word back.
+- **Font 30.4 pt semibold** (bold 38 before). Band 97 pt: two 35 pt line boxes, pitch 38, 12 pt pads.
+- **Backdrop**: grey (white 0.15 at 45 %), radius 8, 10 pt around the union of the lines' text boxes
+  (*"10x"* read as 10 pt); edges follow the ink frame by frame, jumps eased; fades when empty.
+  Measured exact to the point once settled (a 26-word burst takes ~4 s to sweep in: LC25's first
+  cut checked at 3 s and caught line 2 still coming).
+- **Dodge**: pointer inside the top backdrop → the band jumps to the bottom (one frame, no pan),
+  backdrop 2 pt above the bottom edge; back up after 0.25 s outside the top backdrop + 12 pt.
+  `POST /test/live-caption {"pointer": …}` stands in for the mouse. Over HTTP the flip is seen
+  0.1–0.16 s after the POST — the route's hop to main plus the next tick (frames ~20 ms, draw
+  1.2 ms) — so the band reports `flipLagMs` from the pointer reaching it to the flip.
+- **LC**: rewritten for the model (LC1–LC5, LC7, LC7b, LC9, LC16, LC17) plus LC19–LC26. LC15's
+  +0.6 s ramp read `opacity`, which is solidity × ink since 84d420e — it now reads `opacity /
+  appear` (the two reports where it passed predate 84d420e). First full run on the installed
+  build (11:37): 20 PASS, 3 FAIL (LC15, LC25, LC26 — the three test fixes above, plus `flipLagMs`),
+  4 SKIP (LC11, LC12, LC13, LC18 as before). The
+  rerun was cut at LC1 by Victor taking the machine (*"I am in training. Don't block my screen
+  until 17:00"*); still to run after 17:00.
+- GIF (top and bottom strips stacked, 28 s): `scratchpad/caption-two-lines.gif` in session
+  45081fa6.

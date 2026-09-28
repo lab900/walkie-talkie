@@ -9,50 +9,133 @@ import AppKit
 ///
 /// One borderless, click-through panel, `bandHeight` tall, pinned to the top
 /// of the screen the pointer was on when the sentence began — under the menu
-/// bar, so neither covers the other. No backdrop: white text with a black
-/// outline and a soft shadow reads on a terminal and on a white page alike.
+/// bar, so neither covers the other. White text with a black outline and a
+/// soft shadow, and since 2026-09-28 a backdrop (below).
 ///
-/// **The motion, not the words, is the design.** The recogniser hands over the
-/// whole sentence as it has it now, about once a second, and the tail keeps
-/// being revised. Anchoring the line at its *first* word and moving that anchor
-/// means a revision only redraws the glyphs at the right end: everything
-/// already on screen keeps its place. **The visible text stays centred**
-/// (Victor, 2026-09-26 07:50: *"the visible text remains ~centered at all
-/// times"*): the first words appear in the middle of the band, fading in; new
-/// words are added on the right, fading in; when the eraser stings words out
-/// on the left the rest re-centres. The anchor eases toward the centred
-/// position elastically (`ease`, capped at `vMax`), so nothing ever steps.
-/// A line wider than the band keeps its newest words inside the right margin
-/// and lets the oldest leave on the left. Words fully gone — erased or off the
-/// left edge — are dropped by advancing the anchor by exactly their width.
+/// **Two lines that roll up, not a line that scrolls left** (2026-09-28).
+/// Victor: *"We need to work a bit on the subtitles. Not very happy with how
+/// they look, scrolling text to the left. When new text is added onto the
+/// right, that's okay. But then when a full line is filled up, a second line
+/// should be written below the first one. The first one should stay at the
+/// maximum of eighty percent of the screen width. And then when the second
+/// line gets full as well, it pushes up the first line out of screen,
+/// basically. And on silence, there is no fade coming from the left, but
+/// instead, the whole line is pushed up after sufficient time to read it.
+/// Also, in case there is a break in the speech that results in a new
+/// sentence being started, I'd like to have that other sentence starting on
+/// the second line, therefore initiating a new line, even if the first line
+/// isn't entirely full. But then once it's on the second line, even if under
+/// a correction the sentence is merged with the previous one, it still
+/// remains on the second line. And corrections still are smooth. The font
+/// should be also slightly less bold and twenty percent smaller."*
 ///
-/// **Words enter letter by letter, the eraser's mirror** (2026-09-27). Victor:
-/// *"the entering text at right should fade in character by character (the
-/// same way it fades out at the left) ⇒ with less 'shocks' to the move."* An
-/// appended word no longer fades in whole: a reveal front with the eraser's
-/// soft edge (`eraseEdge`) sweeps it from its first letter to its last at
-/// `revealSpeed`, one opacity per glyph (the same `destinationIn` mask). The
-/// room the line makes for it is the ink the front has revealed so far
-/// (`appear`, the word's mean glyph opacity), so the re-centring moves exactly
-/// with the letters — no width reserved while the word is still invisible,
-/// and no velocity step when a word starts or ends (the ink grows
-/// quadratically in and out of the edge). Corrections keep their swap.
+/// - **Two slots, a line ≤ `maxLineShare` (80 %) of the band's width.** Words
+///   are appended on the right of the current line; a word that would take the
+///   line past 80 % starts the next line. When a third line is needed the top
+///   one glides up and out (`lineGlide`, the same exponential ease as the
+///   reflow, fading as it crosses the band's top edge) and the second takes its
+///   slot. Nothing scrolls sideways any more, and **the eraser is gone**.
+///   **In that order** (Victor, same day: *"când ar trebui să apară rândul 3,
+///   atunci rândul 1 iese în sus, și după ce rândul 2 devine 1, atunci începe
+///   să apară și rândul '3' pe poziția 2"*): line 1 starts leaving the frame
+///   the word that needs line 3 arrives; line 2 glides up; only once it has
+///   landed does the new line's entry front start. Words that arrive during
+///   the glide wait on the new line, unrevealed — none is dropped or shown
+///   early. Generally: **a line's letters come in only while it, and every
+///   line above it, stands still** (`landed`), so a silence roll-up holds a
+///   word said mid-glide the same way (a word already half in finishes as
+///   its line rides up). Line 1 never leaves while line 2 is still filling.
+/// - **Each line is centred on the band** — an assumption, not his words: it
+///   keeps his standing rule *"the visible text remains ~centered at all
+///   times"* (2026-09-26 07:50) and is how film subtitles sit. So a line
+///   still re-centres by half of each word's ink as it grows (the feed-forward
+///   ease of batch 5, now per line); it never travels further than that.
+/// - **Silence lifts a line after a read time**: `readTime = max(readMin 3 s,
+///   readPerWord 0.3 s × words on the line)` — an assumption (he said *"after
+///   sufficient time to read it"*). The clock is silence: it starts at the last
+///   new word (a gentle batch correction does not restart it, as it did not
+///   wake the eraser), and after a line has left it restarts for the next one,
+///   so the line that just moved up is given its own read time in its new
+///   place. When both are gone the band stays up, empty, as it did after a
+///   full wipe, and closes with the sentence.
+/// - **A new sentence starts a new line.** The live engine commits a segment
+///   at a VAD pause (1.5 s); a commit whose last word ends a sentence (`.`,
+///   `?`, `!`, `…`) marks the next word to start a new line even if the current
+///   one is short (`breakBefore`). A commit with no terminal punctuation is a
+///   pause inside the sentence and changes nothing.
+/// - **Lines are sticky per word.** Each word carries the line it was placed
+///   on through every revision (the LCS alignment carries it, as it carries
+///   the x); a correction's new words take the line of the words they replace,
+///   so a batch correction that merges two sentences leaves the second one
+///   where it is. A correction re-flows only inside its own line (and may make
+///   that line wider than 80 % — it is never re-wrapped).
+/// - **Font: 30.4 pt semibold** (38 bold before: 20 % smaller, one weight
+///   lighter; medium was too thin under the 9 % black outline on video),
+///   outline and shadow kept.
+///
+/// **A grey backdrop, and the band dodges the pointer** (2026-09-28). Victor:
+/// *"pune o margine de 10x pe toate direcțiile de fundal gri semitransparent în
+/// jurul textului subtitrării. În plus, câtă vreme mouse-ul este peste
+/// subtitrarea de sus, ea să fugă jos (revine sus când mouse-ul iese din zona
+/// subtitrării)"*.
+/// - **Backdrop**: a rounded rect (radius `backdropRadius` 8), grey at 45 %,
+///   `backdropPad` 10 pt around the union of the lines' text boxes on all four
+///   sides — *"10x"* read as 10 pt (an assumption). It follows the text as the
+///   eye sees it: widening with the ink, growing a line down when line 2
+///   begins, shrinking when a line leaves — continuous motion followed frame
+///   by frame, jumps eased (τ `lineGlide`); it fades out when the band empties.
+/// - **Dodge**: while the pointer is inside the backdrop at the top, the band
+///   **jumps** to the bottom of the same screen — in one frame, no pan, no fade
+///   (Victor, same day: *"flip top/bottom should be without pan, sudden. no
+///   animation"*) — the backdrop the same `edgeGap`
+///   from the bottom edge as it was from the top (the block then grows upward).
+///   It jumps back up once the pointer has been out of the top backdrop
+///   (grown by `dodgeSlack` 12 pt) for `dodgeDebounce` 0.25 s — enter at once,
+///   leave with hysteresis, so it cannot flap. The pointer is read every frame
+///   (`NSEvent.mouseLocation`, what the chip rides on); `POST /test/live-caption
+///   {"pointer": {"x", "y"}}` stands in for it at a desk (`null` gives it back).
+///
+/// **Corrections are a swap** (2026-09-26, unchanged): the replaced words fade
+/// out where they stood (ghosts), the rest of their line glides to its new
+/// layout, the new words fade in in a faded yellow that returns to white.
+///
+/// **Words enter letter by letter** (2026-09-27, unchanged). Victor: *"the
+/// entering text at right should fade in character by character (the same way
+/// it fades out at the left) ⇒ with less 'shocks' to the move."* An appended
+/// word is swept by a front with a soft edge (`softEdge`) from its first letter
+/// to its last at `revealSpeed`, one opacity per glyph (a `destinationIn`
+/// mask). Its line makes room for it only as far as its ink has come in
+/// (`appear`), so the re-centring moves with the letters.
 final class LiveCaptionBand {
 
-    static let bandHeight: CGFloat = 80
-    /// Where the line's end wants to be when he pauses: this far from the
-    /// right edge. Inside the band, so the last word is always readable.
-    private static let marginRight: CGFloat = 48
-    /// A new line enters from the right edge and the first drop from the left
-    /// happens this far past it, so nothing is dropped while still fading in.
-    private static let dropSlack: CGFloat = 40
-    private static let fontSize: CGFloat = 38
+    /// 38 × 0.8 (2026-09-28: *"twenty percent smaller"*).
+    static let fontSize: CGFloat = 30.4
+    /// Bold before 2026-09-28 (*"slightly less bold"*).
+    static let fontWeight: NSFont.Weight = .semibold
+    /// A line never grows past this share of the band's width by appending.
+    static let maxLineShare: CGFloat = 0.8
+    /// Above the first line's box and below the second's: the backdrop's
+    /// padding and `edgeGap`.
+    private static let padTop: CGFloat = 12
+    private static let padBottom: CGFloat = 12
+    /// Line box to line box.
+    static let linePitch: CGFloat = (TickerView.lineHeight + 3).rounded(.up)
+    /// Two lines and the padding (80 pt for one 38 pt line before 2026-09-28).
+    static let bandHeight: CGFloat = padTop + linePitch + TickerView.lineHeight + padBottom
+    /// **The backdrop** (2026-09-28): 10 pt around the text on every side.
+    static let backdropPad: CGFloat = 10
+    static let backdropRadius: CGFloat = 8
+    static let backdropColour = NSColor(calibratedWhite: 0.15, alpha: 0.45)
+    /// The backdrop's distance from the screen edge it sits against.
+    static let edgeGap: CGFloat = padTop - backdropPad
+    /// **The dodge** (2026-09-28): leave-check margin and debounce.
+    static let dodgeSlack: CGFloat = 12
+    static let dodgeDebounce: CFTimeInterval = 0.25
 
     private static let vMax: CGFloat = 700
     /// **Elastic, not a ramp** (Victor, 2026-09-26: *"o mișcare elastică
-    /// blândă"*): the speed approaches its target exponentially with this time
-    /// constant, so a burst of words is taken up as a gentle pull, never a
-    /// kick, and a pause lets the line ease to rest.
+    /// blândă"*): a line's re-centring approaches its target exponentially with
+    /// this time constant.
     private static let ease: CGFloat = 0.45
     /// **A replacement is a swap in three overlapping beats** (Victor,
     /// 2026-09-26): the old words fade out over the first half of `swap`, the
@@ -64,44 +147,28 @@ final class LiveCaptionBand {
     static let correctionFade: CFTimeInterval = 1.6
     /// The glide's time constant: 95 % of the way in three of these ≈ `swap`.
     static let reflow: CGFloat = 0.26
+    /// **A line rolling up** (2026-09-28): an exponential ease like the
+    /// reflow's, a little quicker (τ 0.2 s), because the next line waits for it
+    /// — it has landed once within `landed` of its slot (1 pt), ~0.7 s.
+    static let lineGlide: CGFloat = 0.2
+    static let landed: CGFloat = 0.03
+    /// **The read time a line is given in silence** (2026-09-28, assumed):
+    /// `max(readMin, readPerWord × its words)`.
+    static let readMin: CFTimeInterval = 3.0
+    static let readPerWord: CFTimeInterval = 0.3
+    static func readTime(words: Int) -> CFTimeInterval { max(readMin, readPerWord * Double(words)) }
     /// **The segment still being spoken is provisional and looks it** (Victor,
     /// 2026-09-26: *"faded progresiv in"*): its words are drawn from this
-    /// opacity at the newest up to solid at the committed boundary, and each
-    /// word brightens (τ `reflow`) as the boundary catches up with it.
+    /// opacity at the newest up to solid at the committed boundary.
     static let provisionalFloor: CGFloat = 0.4
-    /// **How fast a word's opacity eases toward its target** (batch 5, LC9):
-    /// 90 % in 0.51 s. It shared `reflow` (0.26, 90 % at 0.60 s) until the
-    /// plan's *"reaches its target within 0.6 s"* was measured at 0.60–0.66 s
-    /// for a word appended at 0.4 s/word — the design point sat on the limit.
-    /// Since 2026-09-27 an appended word's own entry is the letter-by-letter
-    /// front (`revealSpeed`); this τ is left for the provisional gradient
-    /// shifting as the open segment grows or commits.
+    /// How fast the provisional gradient eases toward its target (batch 5).
     static let fadeIn: CGFloat = 0.22
-    /// **Words said are wiped after a pause** (Victor, 2026-09-26: *"cuvintele
-    /// dictate trebuie să și dispară … un fade out ce vine din stânga când nu
-    /// se mai transcrie nimic nou, până șterge tot textul; dacă reîncep să
-    /// vorbesc, textul o ia din nou cu tot cu fade-ul surprins în acțiune"*).
-    /// After `eraseAfter` seconds without a new word, an eraser front starts
-    /// left of the screen and advances right at `eraseSpeed`, a soft edge
-    /// `eraseEdge` wide; a new word freezes it where it stands on the line.
-    /// **Five seconds, not two** (Victor, 2026-09-26 14:20: *"sus, în
-    /// subtitrare, să nu dispară atât de repede textul; fade out-ul din stânga
-    /// să înceapă la vreo cinci secunde"*): two seconds wiped a sentence while
-    /// he was still reading it.
-    /// **Letter by letter, not word by word** (same request: *"fade out-ul să
-    /// se facă literă cu literă în cuvântul din stânga, nu cuvânt cu
-    /// cuvânt"*): a word the soft edge crosses gets one opacity per glyph —
-    /// see `drawWord(_:at:fill:alpha:glyphAlpha:)`.
-    static let eraseAfter: CFTimeInterval = 5.0
-    static let eraseSpeed: CGFloat = 260
-    static let eraseEdge: CGFloat = 160
-    /// **The entry front** (2026-09-27, *"fade in character by character (the
-    /// same way it fades out at the left)"*): the soft edge is `eraseEdge`, so
-    /// a letter fades in over 160 / 320 = 0.5 s and its right neighbour starts
-    /// ~0.07 s later. A touch faster than the eraser's 260 so a steady 2
-    /// words/s (~220 pt/s of text) never queues behind it; a burst the front
-    /// has not reached yet is caught up within `revealCatchUp` seconds, never
-    /// faster than 0.7 `vMax` (the anchor follows the ink at up to that speed).
+    /// **The entry front** (2026-09-27): a letter fades in over the soft edge
+    /// (160 / 320 = 0.5 s) and its right neighbour starts ~0.07 s later; a
+    /// burst the front has not reached yet is caught up within
+    /// `revealCatchUp` seconds, never faster than 0.7 `vMax`. The soft edge was
+    /// the eraser's (`eraseEdge`) until the eraser went (2026-09-28).
+    static let softEdge: CGFloat = 160
     static let revealSpeed: CGFloat = 320
     static let revealCatchUp: CGFloat = 0.8
 
@@ -111,6 +178,24 @@ final class LiveCaptionBand {
     private var displayLink: Any?
     private var lastTick: CFTimeInterval = 0
     private(set) var isOpen = false
+    /// The visible frame of the screen the band opened on.
+    private var screenFrame: NSRect = .zero
+    /// Where the band is (dodging the pointer to the bottom, or at the top),
+    /// the panel's y as drawn, and since when the pointer has been out.
+    private var atBottom = false
+    private var panelY: CGFloat = 0
+    private var outSince: CFTimeInterval?
+    /// `POST /test/live-caption {"pointer": {x, y}}`: the pointer as a desk
+    /// test places it, in screen points; nil reads the real one. Cleared when
+    /// the band closes.
+    var testPointer: NSPoint? { didSet { pointerSetAt = CACurrentMediaTime() } }
+    /// When the test pointer last moved, and how long after it the band last
+    /// flipped (ms): one frame going down, the debounce plus one frame going up.
+    private var pointerSetAt: CFTimeInterval?
+    private var flipLagMs: Double?
+    /// The clock's frame interval and the view's draw time, smoothed (ms) —
+    /// for `GET /test/state`, to tell a slow frame from a slow route.
+    private var frameMs: Double = 0
 
     init() {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 800, height: Self.bandHeight),
@@ -140,7 +225,10 @@ final class LiveCaptionBand {
             let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
             guard let screen else { isOpen = false; return }
             let v = screen.visibleFrame
-            panel.setFrame(NSRect(x: v.minX, y: v.maxY - Self.bandHeight, width: v.width, height: Self.bandHeight),
+            screenFrame = v
+            atBottom = false; outSince = nil; flipLagMs = nil
+            panelY = v.maxY - Self.bandHeight
+            panel.setFrame(NSRect(x: v.minX, y: panelY, width: v.width, height: Self.bandHeight),
                            display: false)
             view.reset()
             panel.alphaValue = 1
@@ -148,6 +236,7 @@ final class LiveCaptionBand {
             startLink()
         } else {
             stopLink()
+            testPointer = nil
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.35
                 panel.animator().alphaValue = 0
@@ -163,12 +252,28 @@ final class LiveCaptionBand {
     func describe() -> [String: Any] {
         var out = view.describe()
         out["open"] = isOpen
+        let o = panel.frame.origin
+        let rect: (NSRect) -> [String: Double] = { r in
+            ["x": Double(r.minX + o.x), "y": Double(r.minY + o.y), "w": Double(r.width), "h": Double(r.height)]
+        }
+        out["frameMs"] = (frameMs * 10).rounded() / 10
+        out["flipLagMs"] = flipLagMs.map { $0 as Any } ?? NSNull()
+        out["drawMs"] = (view.drawMs * 10).rounded() / 10
+        out["position"] = atBottom ? "bottom" : "top"
+        out["frame"] = ["x": Double(o.x), "y": Double(o.y), "w": Double(panel.frame.width), "h": Double(panel.frame.height)]
+        out["screen"] = ["x": Double(screenFrame.minX), "y": Double(screenFrame.minY),
+                         "w": Double(screenFrame.width), "h": Double(screenFrame.height)]
+        out["backdrop"] = rect(view.backdrop)
+        out["backdropTarget"] = view.backdropTarget.map { rect($0) as Any } ?? NSNull()
+        out["backdropAlpha"] = Double(view.backdropAlpha)
+        out["lineBoxes"] = view.lineBoxes().map { rect($0) }
+        out["pointer"] = testPointer.map { ["x": Double($0.x), "y": Double($0.y), "test": true] as [String: Any] } ?? NSNull()
         return out
     }
 
     /// The whole sentence as the recogniser has it now, revisions included.
     /// `gentle`: a batch correction of words behind him — softer tint, and it
-    /// does not count as him speaking again (the eraser keeps sweeping).
+    /// does not count as him speaking again (the silence clock keeps running).
     func setText(committed: String, partial: String, gentle: Bool = false) {
         guard isOpen else { return }
         let split: (String) -> [String] = { $0.split(whereSeparator: { $0.isWhitespace }).map(String.init) }
@@ -203,69 +308,125 @@ final class LiveCaptionBand {
         let now = CACurrentMediaTime()
         defer { lastTick = now }
         guard lastTick > 0 else { return }
-        // A frame after a stall (a hidden Space, a debugger) is clamped so the
-        // line does not leap; it merely catches up at `accel`.
+        frameMs += ((now - lastTick) * 1000 - frameMs) * 0.1
+        // A frame after a stall (a hidden Space, a debugger) is clamped so
+        // nothing leaps; it merely catches up.
         let dt = CGFloat(min(now - lastTick, 1.0 / 20))
-        view.advance(dt: dt, now: now, vMax: Self.vMax, ease: Self.ease,
-                     marginRight: Self.marginRight, dropSlack: Self.dropSlack)
+        view.advance(dt: dt, now: now, vMax: Self.vMax, ease: Self.ease)
+        dodge(dt: dt, now: now)
+    }
+
+    private func flipped(_ now: CFTimeInterval) {
+        flipLagMs = testPointer != nil ? pointerSetAt.map { ((now - $0) * 1000 * 10).rounded() / 10 } : nil
+    }
+
+    /// **The band gets out of the pointer's way** (2026-09-28): into the
+    /// backdrop at the top → the bottom; out of it (plus `dodgeSlack`) for
+    /// `dodgeDebounce` → back to the top. Each flip is one frame (*"sudden. no
+    /// animation"*); at the bottom the panel then follows the backdrop's own
+    /// eased growth so its bottom edge stays put.
+    private func dodge(dt: CGFloat, now: CFTimeInterval) {
+        let v = screenFrame
+        guard v.width > 0 else { return }
+        let topY = v.maxY - Self.bandHeight
+        let pointer = testPointer ?? NSEvent.mouseLocation
+        let zone = view.backdropTarget.map { $0.offsetBy(dx: v.minX, dy: topY) }
+        if !atBottom {
+            if let zone, zone.contains(pointer) { atBottom = true; outSince = nil; flipped(now) }
+        } else if let zone, zone.insetBy(dx: -Self.dodgeSlack, dy: -Self.dodgeSlack).contains(pointer) {
+            outSince = nil
+        } else if let since = outSince {
+            if now - since >= Self.dodgeDebounce { atBottom = false; outSince = nil; flipped(now) }
+        } else {
+            outSince = now
+        }
+        // At the bottom the backdrop keeps `edgeGap` from the bottom edge,
+        // whatever its height: the block grows upward there.
+        panelY = atBottom ? v.minY + Self.edgeGap - view.backdrop.minY : topY
+        if abs(panel.frame.origin.y - panelY) >= 0.25 {
+            panel.setFrameOrigin(NSPoint(x: v.minX, y: panelY.rounded()))
+        }
     }
 
     // MARK: - The view
 
-    /// Draws one line of subtitle text at a fractional x and moves it.
-    private final class TickerView: NSView {
+    /// Draws up to two lines of subtitle text (plus the ones rolling out).
+    fileprivate final class TickerView: NSView {
+        /// One line on the band. `slot` is where it is drawn (0 top, 1 below,
+        /// negative above the band while rolling out), easing toward
+        /// `slotTarget`; `anchor` is the x of its first word, easing toward
+        /// the centred position like the single line's did.
+        struct Line {
+            let id: Int
+            var anchor: CGFloat = 0
+            var velocity: CGFloat = 0
+            var lastGoal: CGFloat?
+            var slot: CGFloat
+            var slotTarget: CGFloat
+            /// Why it began: `first`, `full` (the 80 % wrap) or `sentence`.
+            let reason: String
+        }
+        /// A line pushed out, drawn from a snapshot while it glides up and fades.
+        struct Leaving {
+            var line: Line
+            var words: [(word: String, x: CGFloat, alpha: CGFloat, fill: NSColor)]
+        }
+
         private var words: [String] = []
-        /// Words at the head of `words` that have left through the left edge.
+        /// Words at the head of `words` that have rolled out of the band.
         private var dropped = 0
-        /// Per visible word (`words[dropped + k]`): where it belongs in the
-        /// new layout, and where it is drawn right now — the second eases
-        /// toward the first (`reflow`), which is the elastic compression or
-        /// extension of the rest of the line when a word behind is replaced.
+        /// The visible lines, top first (at most two once an update settles).
+        private var lines: [Line] = []
+        private var leaving: [Leaving] = []
+        private var nextLineId = 0
+        /// Per visible word (`words[dropped + k]`): the id of its line — sticky
+        /// across revisions — where it belongs inside that line, and where it
+        /// is drawn right now (the second eases toward the first, `reflow`).
+        private var lineOf: [Int] = []
         private var target: [CGFloat] = []
         private var shown: [CGFloat] = []
         private var widths: [CGFloat] = []
-        /// x of the first drawn word (`words[dropped]`), in view points.
-        private var anchor: CGFloat = 0
-        private var velocity: CGFloat = 0
         /// **When a word replaced one already on screen**, by absolute index:
         /// invisible for the first half of `swap`, fading in over the second,
         /// then a faded yellow returning to white (*"corecțiile din spate să
-        /// apară cu un galben șters și să facă fade înapoi la alb"*). Words
-        /// merely appended, and the tail's punctuation flicker, are not
-        /// corrections.
+        /// apară cu un galben șters și să facă fade înapoi la alb"*).
         private var bornAt: [Int: CFTimeInterval] = [:]
-        /// The words a correction removed, fading out where they stood while
-        /// the line reflows under them. `x` is relative to `anchor`. `front`:
-        /// the entry front it had, frozen — a word replaced while still coming
-        /// in fades out as far as it had come, its unrevealed letters never
-        /// flash in (2026-09-27).
-        private var ghosts: [(word: String, x: CGFloat, since: CFTimeInterval, front: CGFloat?)] = []
+        /// The words a correction removed, fading out where they stood (x
+        /// relative to their line's anchor) while their line reflows. `front`:
+        /// the entry front a word replaced mid-entry had, frozen.
+        private var ghosts: [(word: String, x: CGFloat, line: Int, since: CFTimeInterval, front: CGFloat?)] = []
         private var now: CFTimeInterval = CACurrentMediaTime()
         private var correctionsShown = 0
+        private var lifts = 0
         /// `words[..<committed]` are frozen by the server; the rest is provisional.
         private var committed = 0
-        /// Per visible word: how solid it is drawn now, and where that is heading
-        /// (1 once committed, `provisionalFloor`…1 across the open segment).
+        /// **The next word starts a new line** (2026-09-28): the absolute index
+        /// after a commit that ended a sentence. Used by an appended word only.
+        private var breakBefore: Int?
+        /// Per visible word: how solid it is drawn now, and where that is heading.
         private var opacity: [CGFloat] = []
         private var opacityTarget: [CGFloat] = []
         /// **Where the entry front is inside each visible word** (2026-09-27),
-        /// in points from the word's left edge: a glyph centred at `x` is
-        /// drawn at `(reveal - x) / eraseEdge`, clamped to 0…1. `nil` once the
-        /// front is a whole soft edge past the word's end — every word that was
-        /// not appended (a correction has its own swap) and every word already in.
-        /// Per word rather than one front for the line, so a correction that
-        /// lengthens the line never pushes revealed letters back behind it;
-        /// consecutive appended words start one word-width apart, which makes
-        /// them one continuous front.
+        /// in points from the word's left edge; `nil` once it is in.
         private var reveal: [CGFloat?] = []
-        /// **How far each visible word has come in**, 0…1 — the share of its
-        /// width the centring counts (2026-09-26, batch 5, LC2). It counted
-        /// whole from its first frame before batch 5, while still invisible,
-        /// and the ease (τ 0.45) lagged every append: 109 pt off centre while
-        /// narrow, 271 pt past the margin once wide, at 0.4 s/word. **Since
-        /// 2026-09-27 it is the word's revealed ink** — the mean of its glyph
-        /// opacities under the entry front — so the width grows with the
-        /// letters and lands with the last one.
+        /// The last new word (not a gentle correction) and the last line to
+        /// roll out: the silence clock runs from the later of the two.
+        private var lastWordsAt: CFTimeInterval = CACurrentMediaTime()
+        private var lastLiftAt: CFTimeInterval = 0
+        /// Per word drawn letter by letter in the last frame: each glyph's
+        /// opacity under the entry front. For `GET /test/state` only.
+        private var glyphAlphas: [[CGFloat]] = []
+        /// **The backdrop** (2026-09-28), in view points: as drawn, where it is
+        /// heading (nil while no text shows), its target last frame, and how
+        /// visible it is.
+        private(set) var backdrop: NSRect = .zero
+        private(set) var backdropTarget: NSRect?
+        private var lastBackdropTarget: NSRect?
+        private(set) var backdropAlpha: CGFloat = 0
+        private static let spaceWidth = NSAttributedString(string: " ", attributes: fillAttributes).size().width
+
+        /// **How far each visible word has come in**, 0…1: its revealed ink,
+        /// the share of its width its line's centring counts.
         private var appear: [CGFloat] {
             reveal.indices.map { k in
                 guard let r = reveal[k], k < widths.count else { return 1 }
@@ -274,10 +435,10 @@ final class LiveCaptionBand {
         }
 
         /// The mean opacity over `0…width` of a front at `r` with the soft
-        /// edge `eraseEdge`: ∫ clamp((r − x)/e, 0, 1) dx / width. C¹ in `r`, so
-        /// the centring built on it has no velocity step at a word's start or end.
+        /// edge: ∫ clamp((r − x)/e, 0, 1) dx / width. C¹ in `r`, so the
+        /// centring built on it has no velocity step at a word's start or end.
         private static func ink(_ r: CGFloat, width: CGFloat) -> CGFloat {
-            let e = LiveCaptionBand.eraseEdge
+            let e = LiveCaptionBand.softEdge
             func h(_ y: CGFloat) -> CGFloat { y <= 0 ? 0 : y <= e ? y * y / (2 * e) : y - e / 2 }
             guard width > 0 else { return 1 }
             return min(1, max(0, (h(r) - h(r - width)) / width))
@@ -287,20 +448,8 @@ final class LiveCaptionBand {
         /// `x` (from the word's left edge).
         private func revealed(_ k: Int, at x: CGFloat) -> CGFloat {
             guard k < reveal.count, let r = reveal[k] else { return 1 }
-            return min(1, max(0, (r - x) / LiveCaptionBand.eraseEdge))
+            return min(1, max(0, (r - x) / LiveCaptionBand.softEdge))
         }
-        /// The centring goal of the previous frame, in view points; its
-        /// motion is fed forward into the anchor (see `advance`). Nil until
-        /// the first frame after a layout change.
-        private var lastGoal: CGFloat?
-        /// The eraser front in line coordinates (relative to `anchor`), once a
-        /// pause has started it; `nil` while words keep coming.
-        private var eraseFront: CGFloat?
-        private var lastWordsAt: CFTimeInterval = CACurrentMediaTime()
-        /// Per word drawn letter by letter in the last frame (the ones the
-        /// eraser's or the entry front's soft edge crosses): each glyph's
-        /// opacity under both. For `GET /test/state` only.
-        private var glyphAlphas: [[CGFloat]] = []
 
         override var isFlipped: Bool { false }
         override var wantsUpdateLayer: Bool { false }
@@ -311,7 +460,7 @@ final class LiveCaptionBand {
         /// screenshot, 2026-09-26). So: the shadow under everything, the black
         /// outline (a positive `strokeWidth` is stroke only, centred on the
         /// glyph edge), then the fill on top covering the inner half.
-        private static let font = NSFont.systemFont(ofSize: LiveCaptionBand.fontSize, weight: .bold)
+        private static let font = NSFont.systemFont(ofSize: LiveCaptionBand.fontSize, weight: LiveCaptionBand.fontWeight)
         private static let shadowAttributes: [NSAttributedString.Key: Any] = {
             let shadow = NSShadow()
             shadow.shadowColor = NSColor.black.withAlphaComponent(0.9)
@@ -331,114 +480,244 @@ final class LiveCaptionBand {
         private static let gentleColour = NSColor(calibratedRed: 1.0, green: 0.95, blue: 0.78, alpha: 1)
         /// Absolute indices of the words born gentle.
         private var gentleBorn = Set<Int>()
-        private static let lineHeight = NSAttributedString(string: "Ag", attributes: fillAttributes).size().height
+        static let lineHeight = NSAttributedString(string: "Ag", attributes: fillAttributes).size().height
 
-        /// The whole line's width in the layout the words are heading for.
-        private var lineWidth: CGFloat { (target.last ?? 0) + (widths.last ?? 0) }
-        /// …and as drawn this frame.
-        private var shownWidth: CGFloat { (shown.last ?? 0) + (widths.last ?? 0) }
-        /// The drawn end of the line with every appended word counted only as
-        /// far as it has come in — the text the eye actually sees.
-        private var visibleWidth: CGFloat {
-            var end = shownWidth
-            for k in appear.indices where k < widths.count { end -= (1 - appear[k]) * widths[k] }
+        private var maxLineWidth: CGFloat { LiveCaptionBand.maxLineShare * bounds.width }
+
+        /// The visible-word range of each line, by line index (lines are in
+        /// order and `lineOf` never decreases).
+        private func ranges() -> [Range<Int>] {
+            var out: [Range<Int>] = []
+            var k = 0
+            for line in lines {
+                let start = k
+                while k < lineOf.count, lineOf[k] == line.id { k += 1 }
+                out.append(start..<k)
+            }
+            return out
+        }
+
+        /// Each visible line's text box as the eye sees it now — from its first
+        /// letter to the end of its ink, the trailing space left out — in view
+        /// points. Lines with nothing drawn yet are left out.
+        func lineBoxes() -> [NSRect] {
+            let rs = ranges()
+            let a = appear
+            var out: [NSRect] = []
+            for (i, r) in rs.enumerated() {
+                guard let first = r.first, let last = r.last else { continue }
+                let start = lines[i].anchor + shown[first]
+                let end = lines[i].anchor + visibleWidth(r) - Self.spaceWidth * (last < a.count ? a[last] : 1)
+                guard end - start >= 1 else { continue }
+                out.append(NSRect(x: start, y: y(forSlot: lines[i].slot), width: end - start, height: Self.lineHeight))
+            }
+            return out
+        }
+
+        /// The backdrop follows the text box union: its continuous motion (ink
+        /// coming in, a line gliding up) edge by edge, frame by frame; a jump
+        /// (a line added or gone, a correction) eased at `lineGlide`.
+        private func updateBackdrop(dt: CGFloat) {
+            let boxes = lineBoxes()
+            let k = 1 - exp(-dt / LiveCaptionBand.lineGlide)
+            let target = boxes.isEmpty ? nil
+                : boxes.dropFirst().reduce(boxes[0]) { $0.union($1) }.insetBy(dx: -LiveCaptionBand.backdropPad, dy: -LiveCaptionBand.backdropPad)
+            backdropTarget = target
+            backdropAlpha += ((target == nil ? 0 : 1) - backdropAlpha) * k
+            if backdropAlpha < 0.005 { backdropAlpha = 0 }
+            guard let t = target else { lastBackdropTarget = nil; return }
+            if backdrop == .zero || backdropAlpha < 0.05 && lastBackdropTarget == nil {
+                backdrop = t; lastBackdropTarget = t; return
+            }
+            let last = lastBackdropTarget ?? t
+            func follow(_ drawn: CGFloat, _ goal: CGFloat, _ was: CGFloat) -> CGFloat {
+                let moved = goal - was
+                let fed = abs(moved) <= 20 ? moved : 0
+                let next = drawn + fed + (goal - drawn - fed) * k
+                return abs(goal - next) < 0.3 ? goal : next
+            }
+            let x0 = follow(backdrop.minX, t.minX, last.minX), x1 = follow(backdrop.maxX, t.maxX, last.maxX)
+            let y0 = follow(backdrop.minY, t.minY, last.minY), y1 = follow(backdrop.maxY, t.maxY, last.maxY)
+            backdrop = NSRect(x: x0, y: y0, width: max(0, x1 - x0), height: max(0, y1 - y0))
+            lastBackdropTarget = t
+        }
+
+        /// Per line: it and every line above it stand in their slots.
+        private func landedLines() -> [Bool] {
+            var ok = true
+            return lines.map { l in
+                ok = ok && abs(l.slot - l.slotTarget) < LiveCaptionBand.landed
+                return ok
+            }
+        }
+
+        /// A line's width in the layout its words are heading for, and as the
+        /// eye sees it now (each appended word counted as far as it has come in).
+        private func targetWidth(_ r: Range<Int>) -> CGFloat {
+            guard let last = r.last else { return 0 }
+            return target[last] + widths[last]
+        }
+        private func visibleWidth(_ r: Range<Int>) -> CGFloat {
+            guard let last = r.last else { return 0 }
+            var end = shown[last] + widths[last]
+            let a = appear
+            for k in r where k < a.count { end -= (1 - a[k]) * widths[k] }
             return end
+        }
+
+        /// Where a line's anchor belongs for its visible text to sit centred.
+        private func centredAnchor(_ r: Range<Int>, current: CGFloat) -> CGFloat {
+            guard let first = r.first else { return current }
+            let start = shown[first]
+            let end = visibleWidth(r)
+            return bounds.width / 2 - (start + end) / 2
         }
 
         /// What `GET /test/state` reports, for an assertion at a desk.
         func describe() -> [String: Any] {
             // `opacity` is what the eye sees of each word: its solidity times
             // the ink the entry front has revealed (1 once it is in).
-            let seen = opacity.indices.map { $0 < appear.count ? opacity[$0] * appear[$0] : opacity[$0] }
-            return ["words": words.count, "dropped": dropped, "anchor": Double(anchor),
-             "lineWidth": Double(lineWidth), "shownWidth": Double(shownWidth), "velocity": Double(velocity),
-             "visibleWidth": Double(visibleWidth), "appear": appear.map { Double(($0 * 100).rounded() / 100) },
-             "bandWidth": Double(bounds.width), "reflowing": Double(zip(shown, target).map { abs($0 - $1) }.max() ?? 0),
-             "corrections": correctionsShown, "correcting": bornAt.keys.sorted(), "ghosts": ghosts.map { $0.word },
-             "committed": committed, "opacity": seen.map { Double(($0 * 100).rounded() / 100) },
-             "reveal": reveal.map { r -> Any in r.map { Double($0.rounded()) } ?? NSNull() },
-             "revealSpeed": Double(LiveCaptionBand.revealSpeed),
-             "eraseFront": eraseFront.map { Double($0) } ?? NSNull(),
-             "eraseAfter": LiveCaptionBand.eraseAfter,
-             "idleFor": Double(now - lastWordsAt),
-             "glyphAlphas": glyphAlphas.map { $0.map { Double(($0 * 100).rounded() / 100) } }]
+            let a = appear
+            let seen = opacity.indices.map { $0 < a.count ? opacity[$0] * a[$0] : opacity[$0] }
+            let rs = ranges()
+            let still = landedLines()
+            let lineDescs: [[String: Any]] = lines.indices.map { i in
+                let r = rs[i], l = lines[i]
+                let vis = visibleWidth(r)
+                let start = r.first.map { shown[$0] } ?? 0
+                return ["id": l.id, "slot": Double(l.slot), "slotTarget": Double(l.slotTarget),
+                        "first": dropped + r.lowerBound, "words": r.count,
+                        "text": r.map { words[dropped + $0] }.joined(separator: " "),
+                        "anchor": Double(l.anchor), "velocity": Double(l.velocity),
+                        "width": Double(targetWidth(r)), "visibleWidth": Double(vis),
+                        "centre": Double(l.anchor + (start + vis) / 2),
+                        "opacity": r.map { Double(((($0 < seen.count ? seen[$0] : 1)) * 100).rounded() / 100) },
+                        "readTime": LiveCaptionBand.readTime(words: r.count), "reason": l.reason,
+                        "landed": still[i]]
+            }
+            let index = Dictionary(uniqueKeysWithValues: lines.enumerated().map { ($1.id, $0) })
+            let silent = now - max(lastWordsAt, lastLiftAt)
+            let liftIn: Any = rs.first.map { LiveCaptionBand.readTime(words: $0.count) - silent } ?? NSNull()
+            return ["words": words.count, "dropped": dropped, "committed": committed,
+                    "lines": lineDescs, "lineOf": lineOf.map { index[$0] ?? -1 },
+                    "leaving": leaving.map { ["id": $0.line.id, "slot": Double($0.line.slot), "words": $0.words.count] as [String: Any] },
+                    "lifts": lifts, "breakBefore": breakBefore.map { $0 as Any } ?? NSNull(),
+                    "bandWidth": Double(bounds.width), "bandHeight": Double(bounds.height),
+                    "maxLineWidth": Double(maxLineWidth), "linePitch": Double(LiveCaptionBand.linePitch),
+                    "fontSize": Double(LiveCaptionBand.fontSize), "fontWeight": "semibold",
+                    "velocity": Double(lines.map { abs($0.velocity) }.max() ?? 0),
+                    "appear": a.map { Double(($0 * 100).rounded() / 100) },
+                    "widths": widths.map { Double(($0 * 10).rounded() / 10) },
+                    "reflowing": Double(zip(shown, target).map { abs($0 - $1) }.max() ?? 0),
+                    "corrections": correctionsShown, "correcting": bornAt.keys.sorted(), "ghosts": ghosts.map { $0.word },
+                    "opacity": seen.map { Double(($0 * 100).rounded() / 100) },
+                    "reveal": reveal.map { r -> Any in r.map { Double($0.rounded()) } ?? NSNull() },
+                    "revealSpeed": Double(LiveCaptionBand.revealSpeed),
+                    "readMin": LiveCaptionBand.readMin, "readPerWord": LiveCaptionBand.readPerWord,
+                    "idleFor": Double(now - lastWordsAt), "silentFor": Double(silent), "liftIn": liftIn,
+                    "glyphAlphas": glyphAlphas.map { $0.map { Double(($0 * 100).rounded() / 100) } }]
         }
 
         func reset() {
             words = []
             dropped = 0
-            target = []; shown = []; widths = []
-            anchor = 0
-            velocity = 0
+            lines = []; leaving = []; nextLineId = 0
+            lineOf = []; target = []; shown = []; widths = []
             bornAt = [:]
             gentleBorn = []
             ghosts = []
             correctionsShown = 0
+            lifts = 0
             committed = 0
+            breakBefore = nil
             opacity = []; opacityTarget = []
-            reveal = []; lastGoal = nil
-            eraseFront = nil
+            reveal = []
             lastWordsAt = CACurrentMediaTime()
+            lastLiftAt = 0
             glyphAlphas = []
+            backdrop = .zero; backdropTarget = nil; lastBackdropTarget = nil; backdropAlpha = 0
             needsDisplay = true
+        }
+
+        private static func endsSentence(_ word: String) -> Bool {
+            guard let last = word.last(where: { !"\"'”’»)]".contains($0) }) else { return false }
+            return ".?!…".contains(last)
         }
 
         func setWords(_ new: [String], committed newCommitted: Int, gentle: Bool = false) {
             guard new != words || newCommitted != committed else { return }
+            let oldCommitted = committed
             committed = min(newCommitted, new.count)
+            // **A commit that ends a sentence** (2026-09-28): the next word
+            // starts a new line. A gentle batch correction is not a pause.
+            if !gentle, committed > oldCommitted, committed > 0, Self.endsSentence(new[committed - 1]) {
+                breakBefore = committed
+            }
             retarget()
             guard new != words else { return }
             let old = words
-            let wasEmpty = old.isEmpty
             let stamp = CACurrentMediaTime()
             if !gentle { lastWordsAt = stamp }
-            // **The eraser has wiped the whole line**: what comes next is a new
-            // line entering from the right; the old words are dropped for real
-            // (nothing visible moves — they were already gone).
-            var freshLine = old.isEmpty
-            if let front = eraseFront, front >= lineWidth, !old.isEmpty {
-                dropped = old.count
-                shown = []; opacity = []; reveal = []
-                bornAt = [:]; ghosts = []
-                freshLine = true
+            // A gentle correction while every line has already rolled out:
+            // nothing on screen to correct, and nothing to show.
+            if gentle, lines.isEmpty, !old.isEmpty {
+                words = new; dropped = new.count
+                bornAt = [:]; gentleBorn = []; ghosts = []
+                lineOf = []; target = []; shown = []; widths = []; opacity = []; opacityTarget = []; reveal = []
+                return
             }
-            // A revision that reaches back past what has already left: a new
-            // line, placed in the centre like the first one was. **Nothing of
-            // the old line is carried into it** (2026-09-26, batch 5, LC7): the
-            // old words used to stay "visible" here — `dropped` had just been
-            // zeroed — so they were aligned against the new ones, the new words
-            // counted as three corrections, and the line glided in from the
-            // left at 700 pt/s instead of appearing in the centre.
-            if new.count <= dropped {
-                dropped = 0; bornAt = [:]; ghosts = []; shown = []; opacity = []; reveal = []; eraseFront = nil
-                freshLine = true
+            // A revision that reaches back past what has already rolled out:
+            // the lines on the band roll out too, and the new words start a
+            // fresh top line. Nothing of the old lines is carried into it
+            // (batch 5, LC7).
+            let oldDropped = dropped
+            var pairs: [(Int, Int)] = []
+            var freshAll = old.isEmpty
+            if !old.isEmpty, new.count <= dropped {
+                liftAll()
+                dropped = 0
+                freshAll = true
             }
-            // **Aligned, not compared by index**: a recogniser that turns
-            // "cinci sute" into "500" shifts every later word one place, and
-            // an index diff would paint the whole rest of the line yellow. The
-            // longest common subsequence keeps every unchanged word's identity:
-            // its own fade if it was a correction a moment ago, and the x it is
-            // drawn at, which is what makes the reflow a glide and not a jump.
-            let oldVisible = freshLine ? [] : Array(old.dropFirst(min(dropped, old.count)))
+            var oldVisible: [String] = []
+            if !freshAll {
+                // **Aligned, not compared by index**: a recogniser that turns
+                // "cinci sute" into "500" shifts every later word one place.
+                // The whole sentence is aligned, so a revision among the words
+                // already gone moves `dropped` with it instead of pulling one
+                // of them back onto the band.
+                let all = Self.align(old, new)
+                var newDropped = min(dropped, new.count)
+                if dropped > 0 {
+                    let p = all.last(where: { $0.0 < oldDropped })
+                    let q = all.first(where: { $0.0 >= oldDropped })
+                    let lower = p.map { $0.1 + 1 } ?? 0
+                    let guess = p.map { $0.1 + 1 + (oldDropped - 1 - $0.0) } ?? oldDropped
+                    newDropped = max(lower, min(guess, q?.1 ?? new.count, new.count))
+                }
+                oldVisible = Array(old.dropFirst(oldDropped))
+                dropped = newDropped
+                pairs = all.filter { $0.0 >= oldDropped && $0.1 >= newDropped }.map { ($0.0 - oldDropped, $0.1 - newDropped) }
+            }
             let newVisible = Array(new.dropFirst(dropped))
-            let pairs = Self.align(oldVisible, newVisible)
             var carried: [Int: CFTimeInterval] = [:]
             var carriedX: [Int: CGFloat] = [:]
             var carriedOpacity: [Int: CGFloat] = [:]
             var carriedReveal: [Int: CGFloat?] = [:]
             var carriedGentle = Set<Int>()
+            var lineOfNew = [Int?](repeating: nil, count: newVisible.count)
             for (o, n) in pairs {
-                if let at = bornAt[dropped + o] { carried[dropped + n] = at }
-                if gentleBorn.contains(dropped + o) { carriedGentle.insert(dropped + n) }
+                if let at = bornAt[oldDropped + o] { carried[dropped + n] = at }
+                if gentleBorn.contains(oldDropped + o) { carriedGentle.insert(dropped + n) }
                 if o < shown.count { carriedX[n] = shown[o] }
                 if o < opacity.count { carriedOpacity[n] = opacity[o] }
                 if o < reveal.count { carriedReveal[n] = reveal[o] }
+                if o < lineOf.count { lineOfNew[n] = lineOf[o] }
             }
             let matchedOld = Set(pairs.map { $0.0 })
             let matchedNew = Set(pairs.map { $0.1 })
             // Every old word no longer there fades out where it stood.
-            for o in oldVisible.indices where !matchedOld.contains(o) && o < shown.count {
-                ghosts.append((oldVisible[o], shown[o], stamp, o < reveal.count ? reveal[o] : nil))
+            for o in oldVisible.indices where !matchedOld.contains(o) && o < shown.count && o < lineOf.count {
+                ghosts.append((oldVisible[o], shown[o], lineOf[o], stamp, o < reveal.count ? reveal[o] : nil))
             }
             let lastMatchedNew = pairs.last?.1 ?? -1
             let lastMatchedOld = pairs.last?.0 ?? -1
@@ -452,27 +731,85 @@ final class LiveCaptionBand {
                 if gentle { carriedGentle.insert(dropped + n) }
                 correctionsShown += 1
             }
+            // **A correction's words take the line of the words they replace**
+            // (2026-09-28): the r-th new word of a gap takes the line of the
+            // r-th old word of the same gap (the last one's, past its end); a
+            // pure insertion takes the line of the word before it, or after it
+            // at the very start.
+            var prev = (-1, -1)
+            for (o, n) in pairs + [(oldVisible.count, newVisible.count)] {
+                let gapOld = Array((prev.0 + 1)..<max(prev.0 + 1, o))
+                let gapNew = Array((prev.1 + 1)..<max(prev.1 + 1, n))
+                for (r, j) in gapNew.enumerated() where !appended.contains(j) {
+                    if !gapOld.isEmpty, let g = gapOld.last, g < lineOf.count {
+                        lineOfNew[j] = lineOf[min(gapOld[min(r, gapOld.count - 1)], lineOf.count - 1)]
+                    } else if j > 0, let l = lineOfNew[j - 1] {
+                        lineOfNew[j] = l
+                    } else if o < lineOf.count {
+                        lineOfNew[j] = lineOf[o]
+                    } else {
+                        lineOfNew[j] = lines.last?.id
+                    }
+                }
+                prev = (o, n)
+            }
+            widths = newVisible.map { Self.width(of: $0) }
+            // Lines left with no word (a correction took them all) go; the
+            // rest close up.
+            let used = Set(lineOfNew.compactMap { $0 })
+            lines.removeAll { !used.contains($0.id) }
+            // **Appended words flow** (2026-09-28): onto the line of the word
+            // before them, until a word would take that line past 80 % of the
+            // band, or the word is the first after a sentence's commit — then
+            // a new line.
+            var lineWidth: [Int: CGFloat] = [:]
+            for (j, l) in lineOfNew.enumerated() { if let l, !appended.contains(j) { lineWidth[l, default: 0] += widths[j] } }
+            var opened: Set<Int> = []
+            for j in appended.sorted() {
+                let current: Int? = j > 0 ? lineOfNew[j - 1] : nil
+                let w = widths[j]
+                var reason: String?
+                if let c = current {
+                    let filled = lineWidth[c, default: 0]
+                    if dropped + j == breakBefore, filled > 0 { reason = "sentence" }
+                    else if filled > 0, filled + w > maxLineWidth { reason = "full" }
+                } else {
+                    reason = lines.isEmpty ? "first" : (dropped + j == breakBefore ? "sentence" : "full")
+                }
+                var line = current ?? lines.last?.id ?? -1
+                if let reason {
+                    let l = Line(id: nextLineId, slot: CGFloat(lines.count), slotTarget: CGFloat(lines.count), reason: reason)
+                    nextLineId += 1
+                    lines.append(l)
+                    opened.insert(l.id)
+                    line = l.id
+                }
+                lineOfNew[j] = line
+                lineWidth[line, default: 0] += w
+            }
+            if let b = breakBefore, b < dropped + newVisible.count, appended.contains(b - dropped) || b < dropped { breakBefore = nil }
             bornAt = carried
             gentleBorn = carriedGentle
             words = new
-            // The new layout; each word starts where its old self was drawn,
-            // or in place if it is new.
-            widths = newVisible.map { Self.width(of: $0) }
+            lineOf = lineOfNew.map { $0 ?? (lines.last?.id ?? 0) }
+            // The new layout, per line; each word starts where its old self
+            // was drawn, or in place if it is new.
+            target = []
             var x: CGFloat = 0
-            target = widths.map { w in defer { x += w }; return x }
+            for k in widths.indices {
+                if k == 0 || lineOf[k] != lineOf[k - 1] { x = 0 }
+                target.append(x); x += widths[k]
+            }
             shown = target.indices.map { carriedX[$0] ?? target[$0] }
             retarget()
             // A carried word keeps the opacity it had and eases from there; a
             // new one starts at its target: an appended word's fade-in is the
-            // entry front's, letter by letter (2026-09-27), and a correction
-            // has its own swap.
+            // entry front's, and a correction has its own swap.
             opacity = target.indices.map { carriedOpacity[$0] ?? opacityTarget[$0] }
-            // **An appended word enters behind the front** (2026-09-27): at 0 —
-            // nothing of it drawn — or, when the word before it is still
-            // coming in, one word-width behind that word's front, so a burst
-            // of words is swept by one continuous edge. A correction takes its
-            // place in the layout at once (the reflow glides the rest), so it
-            // is in (`nil`); a carried word keeps its front.
+            // **An appended word enters behind the front** (2026-09-27): at 0,
+            // or one word-width behind the word before it while that one is
+            // still coming in, so a burst is one continuous edge — across a
+            // line break too.
             var fronts: [CGFloat?] = []
             for n in target.indices {
                 if let c = carriedReveal[n] { fronts.append(c); continue }
@@ -481,45 +818,62 @@ final class LiveCaptionBand {
                 else { fronts.append(0) }
             }
             reveal = fronts
-            // A fresh line (first words, after a full wipe, or a revision past
-            // the dropped words) is set in the centre at once, **at rest** — it
-            // comes in there, it does not travel: its words are all appended, so
-            // the entry front grows it from the middle outward, both ends at
-            // half the front's speed. The velocity is zeroed here
-            // too: it was the previous frame's (the old line re-centring behind
-            // the eraser), and a fresh line reported 109 pt/s on its first
-            // frame while standing still (LC16).
-            if oldVisible.isEmpty || wasEmpty || freshLine {
-                eraseFront = nil
-                anchor = centredAnchor()
-                velocity = 0
+            // More than two lines: the top ones roll out.
+            while lines.count > 2 { lift() }
+            // Every line heads for its slot; a line opened by this update is
+            // placed there (its words are still invisible), centred, at rest.
+            let rs = ranges()
+            for i in lines.indices {
+                lines[i].slotTarget = CGFloat(i)
+                if opened.contains(lines[i].id) {
+                    lines[i].slot = CGFloat(i)
+                    lines[i].anchor = centredAnchor(rs[i], current: bounds.width / 2)
+                    lines[i].velocity = 0
+                }
+                // A jump of the goal made here (a correction) is eased; only
+                // its motion from frame to frame (a word coming in) is fed
+                // forward — so the goal is re-read in the new layout.
+                lines[i].lastGoal = centredAnchor(rs[i], current: lines[i].anchor)
             }
-            // A jump of the goal made here (a correction, a fresh line) is eased
-            // like it always was, not fed forward; only its motion from frame to
-            // frame (a word coming in, the eraser) is. So the goal is re-read
-            // here, in the new layout — nil would lose the first frame of every
-            // append's motion to the slow ease, ~6 % of a word each time, which
-            // added up to 20 pt past the margin at 0.4 s/word.
-            lastGoal = centredAnchor()
             needsDisplay = true
         }
 
-        /// Where the anchor belongs for the visible text to sit centred — or,
-        /// when the visible text is wider than the band, for its end to sit
-        /// inside the right margin.
-        private func centredAnchor(marginRight: CGFloat = LiveCaptionBand.marginRight) -> CGFloat {
-            guard !widths.isEmpty else { return anchor }
-            var start = shown[0]
-            if let front = eraseFront { start = max(start, front + LiveCaptionBand.eraseEdge / 2) }
-            let end = visibleWidth
-            let centred = bounds.width / 2 - (start + end) / 2
-            return min(centred, bounds.width - marginRight - end)
+        /// **The top line rolls out** (2026-09-28): its words leave the
+        /// visible arrays (a snapshot draws them gliding up and fading), every
+        /// line below moves up one slot.
+        private func lift() {
+            guard let top = lines.first else { return }
+            var m = 0
+            while m < lineOf.count, lineOf[m] == top.id { m += 1 }
+            var snap: [(word: String, x: CGFloat, alpha: CGFloat, fill: NSColor)] = []
+            let a = appear
+            for k in 0..<m {
+                let (fill, alpha) = look(k)
+                snap.append((words[dropped + k], shown[k], alpha * (k < a.count ? a[k] : 1), fill))
+            }
+            var out = top
+            out.slotTarget = top.slotTarget - 1
+            for i in leaving.indices { leaving[i].line.slotTarget -= 1 }
+            leaving.append(Leaving(line: out, words: snap))
+            lines.removeFirst()
+            for i in lines.indices { lines[i].slotTarget = CGFloat(i) }
+            for k in 0..<m { bornAt[dropped + k] = nil; gentleBorn.remove(dropped + k) }
+            dropped += m
+            lineOf.removeFirst(m); target.removeFirst(m); shown.removeFirst(m); widths.removeFirst(m)
+            opacity.removeFirst(min(m, opacity.count)); opacityTarget.removeFirst(min(m, opacityTarget.count))
+            reveal.removeFirst(min(m, reveal.count))
+            ghosts.removeAll { $0.line == top.id }
+            if let b = breakBefore, b < dropped { breakBefore = nil }
+            lifts += 1
+            lastLiftAt = CACurrentMediaTime()
         }
+
+        private func liftAll() { while !lines.isEmpty { lift() } }
 
         /// Where each visible word's opacity is heading: solid once committed,
         /// then a ramp down to `provisionalFloor` at the newest word.
         private func retarget() {
-            let visible = words.count - dropped
+            let visible = max(0, words.count - dropped)
             let open = max(0, words.count - committed)
             opacityTarget = (0..<visible).map { k in
                 let i = dropped + k
@@ -539,17 +893,18 @@ final class LiveCaptionBand {
         static func align(_ a: [String], _ b: [String]) -> [(Int, Int)] {
             guard !a.isEmpty, !b.isEmpty else { return [] }
             let sa = a.map { stem($0).lowercased() }, sb = b.map { stem($0).lowercased() }
-            var dp = Array(repeating: Array(repeating: 0, count: b.count + 1), count: a.count + 1)
+            let w = b.count + 1
+            var dp = [Int](repeating: 0, count: (a.count + 1) * w)
             for i in stride(from: a.count - 1, through: 0, by: -1) {
                 for j in stride(from: b.count - 1, through: 0, by: -1) {
-                    dp[i][j] = sa[i] == sb[j] ? dp[i + 1][j + 1] + 1 : max(dp[i + 1][j], dp[i][j + 1])
+                    dp[i * w + j] = sa[i] == sb[j] ? dp[(i + 1) * w + j + 1] + 1 : max(dp[(i + 1) * w + j], dp[i * w + j + 1])
                 }
             }
             var out: [(Int, Int)] = []
             var i = 0, j = 0
             while i < a.count, j < b.count {
                 if sa[i] == sb[j] { out.append((i, j)); i += 1; j += 1 }
-                else if dp[i + 1][j] >= dp[i][j + 1] { i += 1 } else { j += 1 }
+                else if dp[(i + 1) * w + j] >= dp[i * w + j + 1] { i += 1 } else { j += 1 }
             }
             return out
         }
@@ -565,14 +920,30 @@ final class LiveCaptionBand {
             NSAttributedString(string: word + " ", attributes: fillAttributes).size().width
         }
 
-        func advance(dt: CGFloat, now: CFTimeInterval, vMax: CGFloat,
-                     ease: CGFloat, marginRight: CGFloat, dropSlack: CGFloat) {
+        func advance(dt: CGFloat, now: CFTimeInterval, vMax: CGFloat, ease: CGFloat) {
             self.now = now
-            guard !words.isEmpty, !widths.isEmpty else { return }
+            // The lines' slots: rolling up, and out.
+            let kg = 1 - exp(-dt / LiveCaptionBand.lineGlide)
+            for i in lines.indices {
+                let d = lines[i].slotTarget - lines[i].slot
+                lines[i].slot += abs(d) < 0.002 ? d : d * kg
+            }
+            for i in leaving.indices {
+                let d = leaving[i].line.slotTarget - leaving[i].line.slot
+                leaving[i].line.slot += abs(d) < 0.002 ? d : d * kg
+            }
+            leaving.removeAll { $0.line.slot <= -0.995 || abs($0.line.slot - $0.line.slotTarget) < 0.002 && $0.line.slotTarget < 0 }
+            // **Silence rolls the top line out after its read time**
+            // (2026-09-28); the next one's time starts when it has moved up.
+            if let r = ranges().first {
+                let silent = now - max(lastWordsAt, lastLiftAt)
+                if silent >= LiveCaptionBand.readTime(words: r.count) { lift() }
+            }
+            defer { updateBackdrop(dt: dt); needsDisplay = true }
+            guard !lines.isEmpty, !widths.isEmpty else { return }
             // The reflow: every word eases toward its place in the new layout
             // and toward how solid it should be, and the entry front moves
-            // through the words coming in — all before the anchor moves, so
-            // the goal below is this frame's.
+            // through the words coming in — all before the anchors move.
             let k = 1 - exp(-dt / LiveCaptionBand.reflow)
             for i in shown.indices {
                 let d = target[i] - shown[i]
@@ -583,72 +954,49 @@ final class LiveCaptionBand {
                 let d = opacityTarget[i] - opacity[i]
                 opacity[i] += abs(d) < 0.005 ? d : d * kf
             }
-            // **The entry front** (2026-09-27): every word still coming in
-            // advances by the same step, so a burst stays one continuous edge.
-            // `revealSpeed`, or faster when the text not yet reached would take
-            // longer than `revealCatchUp` — never past 0.7 `vMax`, the speed
-            // the anchor can follow the ink at (the tail of a correction's
-            // glide has to fit under the cap too). A word is in once the soft
-            // edge has passed its end.
-            if let last = reveal.indices.last(where: { reveal[$0] != nil }), let r = reveal[last] {
+            // **The entry front**: every word still coming in advances by the
+            // same step, so a burst stays one continuous edge; faster only to
+            // clear a backlog within `revealCatchUp`, never past 0.7 `vMax`.
+            // **Only in a line that stands still** (2026-09-28): a word not yet
+            // begun in a line still gliding into place, or under one that is,
+            // waits. One already half in finishes, riding its line up.
+            let rs = ranges()
+            let still = landedLines()
+            var moving = [Bool](repeating: false, count: reveal.count)
+            for (i, r) in rs.enumerated() where !still[i] {
+                for k in r where k < moving.count { moving[k] = (reveal[k] ?? 1) <= 0 }
+            }
+            if let last = reveal.indices.last(where: { reveal[$0] != nil && !moving[$0] }), let r = reveal[last] {
                 let backlog = max(0, widths[last] - r)
                 let v = min(0.7 * vMax, max(LiveCaptionBand.revealSpeed, backlog / LiveCaptionBand.revealCatchUp))
-                for i in reveal.indices {
+                for i in reveal.indices where !moving[i] {
                     guard let r = reveal[i] else { continue }
                     let next = r + v * dt
-                    reveal[i] = i < widths.count && next >= widths[i] + LiveCaptionBand.eraseEdge ? nil : next
+                    reveal[i] = i < widths.count && next >= widths[i] + LiveCaptionBand.softEdge ? nil : next
                 }
             }
-            // **The anchor tracks the centred position** (batch 5, LC2): the
-            // goal's own motion since the last frame — a word coming in, the
-            // eraser's front — is fed forward, so a steady stream of words is
-            // followed without lag; what is left of the gap (a correction's
-            // jump) eases as before, the same fraction per `ease` seconds.
-            // Never faster than `vMax` either way.
-            let goal = centredAnchor(marginRight: marginRight)
-            let fed = lastGoal.map { goal - $0 } ?? 0
-            lastGoal = goal
-            var step = fed + (goal - anchor - fed) * (1 - exp(-dt / ease))
-            step = max(-vMax * dt, min(vMax * dt, step))
-            if abs(goal - anchor) < 0.3 { step = goal - anchor }
-            velocity = abs(step) / max(dt, 0.0001)
-            anchor += step
-            // **The eraser**: nothing new for `eraseAfter` → a front starts left
-            // of the screen and sweeps right; a new word froze it (it no longer
-            // advances) and it rides the line from then on.
-            if now - lastWordsAt >= LiveCaptionBand.eraseAfter {
-                let front = eraseFront ?? (-anchor - LiveCaptionBand.eraseEdge)
-                eraseFront = min(lineWidth, front + LiveCaptionBand.eraseSpeed * dt)
-            }
-            // Drop what has fully gone, advancing the anchor by its own width so
-            // every remaining glyph stays exactly where it was drawn.
-            while widths.count > 1 {
-                let w = widths[0]
-                let gone = anchor + w < -dropSlack || (eraseFront.map { shown[0] + w < $0 } ?? false)
-                guard gone, abs(shown[1] - target[1]) < 0.5 else { break }
-                anchor += w
-                bornAt[dropped] = nil
-                dropped += 1
-                widths.removeFirst(); target.removeFirst(); shown.removeFirst()
-                if !opacity.isEmpty { opacity.removeFirst() }
-                if !opacityTarget.isEmpty { opacityTarget.removeFirst() }
-                if !reveal.isEmpty { reveal.removeFirst() }
-                // The goal moves by the same width the anchor just did.
-                if let g = lastGoal { lastGoal = g + w }
-                for i in target.indices { target[i] -= w; shown[i] -= w }
-                for i in ghosts.indices { ghosts[i].x -= w }
-                if let front = eraseFront { eraseFront = front - w }
+            // **Each line's anchor tracks its centred position** (batch 5,
+            // per line since 2026-09-28): the goal's own motion since the last
+            // frame is fed forward, what is left of the gap (a correction's
+            // jump) eases; never faster than `vMax`.
+            for i in lines.indices {
+                let goal = centredAnchor(rs[i], current: lines[i].anchor)
+                let fed = lines[i].lastGoal.map { goal - $0 } ?? 0
+                lines[i].lastGoal = goal
+                var step = fed + (goal - lines[i].anchor - fed) * (1 - exp(-dt / ease))
+                step = max(-vMax * dt, min(vMax * dt, step))
+                if abs(goal - lines[i].anchor) < 0.3 { step = goal - lines[i].anchor }
+                lines[i].velocity = abs(step) / max(dt, 0.0001)
+                lines[i].anchor += step
             }
             let fadeOut = LiveCaptionBand.swap / 2
             ghosts.removeAll { now - $0.since >= fadeOut }
             for (i, at) in bornAt where now - at > LiveCaptionBand.swap + LiveCaptionBand.correctionFade { bornAt[i] = nil }
-            needsDisplay = true
         }
 
         /// The fill colour and the opacity of visible word `k`: its swap fade-in
-        /// if it is a correction, times how solid it is. The eraser and the
-        /// entry front are not in it: `draw` applies them per word or per
-        /// glyph (`erasure(_:)`).
+        /// if it is a correction, times how solid it is. The entry front is not
+        /// in it: `draw` applies it per word or per glyph.
         private func look(_ k: Int) -> (NSColor, CGFloat) {
             var alpha = k < opacity.count ? opacity[k] : 1
             var colour = NSColor.white
@@ -663,30 +1011,13 @@ final class LiveCaptionBand {
             return (colour, alpha)
         }
 
-        /// 0 behind the eraser front, 1 past its soft edge.
-        private func erased(at x: CGFloat) -> CGFloat {
-            guard let front = eraseFront else { return 1 }
-            return min(1, max(0, (x - front) / LiveCaptionBand.eraseEdge))
-        }
-
-        /// How the eraser and the entry front treat visible word `k`:
-        /// `whole(a)` — one opacity for the word (1 when neither soft edge
-        /// touches it, 0 behind the eraser or not yet reached by the entry
-        /// front); `glyphs` — a soft edge crosses the word, so each letter gets
-        /// its own (`erased(at:) × revealed(_:at:)`).
-        private enum Erasure { case whole(CGFloat), glyphs }
-        private func erasure(_ k: Int) -> Erasure {
-            var lettered = false
-            if let front = eraseFront {
-                let start = shown[k], end = shown[k] + widths[k]
-                if end <= front { return .whole(0) }
-                if start < front + LiveCaptionBand.eraseEdge { lettered = true }
-            }
-            if k < reveal.count, let r = reveal[k] {
-                if r <= 0 { return .whole(0) }
-                lettered = true
-            }
-            return lettered ? .glyphs : .whole(1)
+        /// How the entry front treats visible word `k`: `whole(a)` — 1 once it
+        /// is in, 0 before the front reaches it; `glyphs` — the soft edge
+        /// crosses it, so each letter gets its own opacity.
+        private enum Entry { case whole(CGFloat), glyphs }
+        private func entry(_ k: Int) -> Entry {
+            guard k < reveal.count, let r = reveal[k] else { return .whole(1) }
+            return r <= 0 ? .whole(0) : .glyphs
         }
 
         /// Each letter's x inside `word` (from its left edge), and one past the
@@ -707,14 +1038,12 @@ final class LiveCaptionBand {
         }
 
         /// A word drawn as one translucent group: the three passes inside a
-        /// transparency layer at `alpha`. With `glyphAlpha`, **the eraser
-        /// fades it letter by letter** (2026-09-26 14:20): once the three
-        /// passes are in the layer, each letter's column is multiplied by its
-        /// own opacity (`destinationIn`), so letter *n* is dimmer than *n+1*.
-        /// One layer for the word rather than one per letter, because a
-        /// letter's black outline reaches ~4.5 pt past its edge and, drawn
-        /// after its left neighbour, would bite into that neighbour's white —
-        /// the muddy fill the three passes exist to avoid.
+        /// transparency layer at `alpha`. With `glyphAlpha`, **letter by
+        /// letter** (2026-09-26 14:20): once the three passes are in the layer,
+        /// each letter's column is multiplied by its own opacity
+        /// (`destinationIn`). One layer for the word rather than one per letter,
+        /// because a letter's black outline reaches past its edge and, drawn
+        /// after its left neighbour, would bite into that neighbour's white.
         private func drawWord(_ word: String, at: NSPoint, fill: NSColor, alpha: CGFloat,
                               glyphAlpha: ((CGFloat) -> CGFloat)? = nil) {
             guard alpha > 0.01, let ctx = NSGraphicsContext.current?.cgContext else { return }
@@ -756,30 +1085,52 @@ final class LiveCaptionBand {
             if faded { ctx.endTransparencyLayer(); ctx.restoreGState() }
         }
 
+        /// The y a line in `slot` is drawn at (0 is the top slot; a negative
+        /// slot is above the band, rolling out).
+        private func y(forSlot slot: CGFloat) -> CGFloat {
+            bounds.height - LiveCaptionBand.padTop - Self.lineHeight - slot * LiveCaptionBand.linePitch
+        }
+
+        private(set) var drawMs: Double = 0
         override func draw(_ dirtyRect: NSRect) {
-            guard !words.isEmpty, !widths.isEmpty else { return }
-            let y = ((bounds.height - Self.lineHeight) / 2).rounded()
-            let visible = Array(words[dropped...])
-            // The settled words first, in three passes over the whole line so
-            // a word's fill never sits under its neighbour's shadow; then the
-            // ghosts and the words fading in, each as its own translucent group.
-            // A word the eraser's soft edge crosses is drawn letter by letter
-            // (at most two per frame: the edge is 160 pt, a word ~100–250);
-            // one wholly behind the front is not drawn at all. The same for
-            // the entry front on the right (2026-09-27): the one to three words
-            // it is sweeping are lettered, the ones it has not reached are not
-            // drawn.
-            var fading: [(String, NSPoint, NSColor, CGFloat)] = []
-            var lettered: [(String, NSPoint, NSColor, CGFloat, CGFloat, Int)] = []
+            let began = CACurrentMediaTime()
+            defer { drawMs += ((CACurrentMediaTime() - began) * 1000 - drawMs) * 0.1 }
             glyphAlphas = []
+            if backdropAlpha > 0.01, backdrop.width > 0 {
+                LiveCaptionBand.backdropColour.withAlphaComponent(LiveCaptionBand.backdropColour.alphaComponent * backdropAlpha).setFill()
+                NSBezierPath(roundedRect: backdrop, xRadius: LiveCaptionBand.backdropRadius,
+                             yRadius: LiveCaptionBand.backdropRadius).fill()
+            }
+            // The lines rolling out: a snapshot, fading as they cross the top.
+            for l in leaving {
+                let fade = min(1, max(0, 1 + l.line.slot))
+                guard fade > 0.01 else { continue }
+                let y = y(forSlot: l.line.slot)
+                for w in l.words {
+                    drawWord(w.word, at: NSPoint(x: l.line.anchor + w.x, y: y), fill: w.fill, alpha: w.alpha * fade)
+                }
+            }
+            guard !lines.isEmpty, !widths.isEmpty else { return }
+            let rs = ranges()
+            var slotOf = [CGFloat](repeating: 0, count: widths.count)
+            var anchorOf = [CGFloat](repeating: 0, count: widths.count)
+            for (i, r) in rs.enumerated() { for k in r { slotOf[k] = lines[i].slot; anchorOf[k] = lines[i].anchor } }
+            // The settled words first, in three passes so a word's fill never
+            // sits under its neighbour's shadow; then the ghosts and the words
+            // fading in, each as its own translucent group. The one to three
+            // words the entry front is sweeping are lettered; the ones it has
+            // not reached are not drawn.
+            var fading: [(String, NSPoint, NSColor, CGFloat)] = []
+            var lettered: [(String, NSPoint, NSColor, CGFloat, Int)] = []
             for pass in 0..<3 {
-                for (k, word) in visible.enumerated() where k < shown.count {
-                    let at = NSPoint(x: anchor + shown[k], y: y)
+                for k in widths.indices where dropped + k < words.count {
+                    let word = words[dropped + k]
+                    let at = NSPoint(x: anchorOf[k] + shown[k], y: y(forSlot: slotOf[k]))
                     var (fill, alpha) = look(k)
-                    switch erasure(k) {
+                    switch entry(k) {
                     case .whole(let a): alpha *= a
                     case .glyphs:
-                        if pass == 0 { lettered.append((word, at, fill, alpha, shown[k], k)) }
+                        if pass == 0 { lettered.append((word, at, fill, alpha, k)) }
                         continue
                     }
                     if alpha < 0.999 { if pass == 0 { fading.append((word, at, fill, alpha)) }; continue }
@@ -795,22 +1146,21 @@ final class LiveCaptionBand {
             }
             let fadeOut = LiveCaptionBand.swap / 2
             for g in ghosts {
-                let alpha = CGFloat(1 - min(1, (now - g.since) / fadeOut)) * erased(at: g.x)
-                let at = NSPoint(x: anchor + g.x, y: y)
+                guard let line = lines.first(where: { $0.id == g.line }) else { continue }
+                let alpha = CGFloat(1 - min(1, (now - g.since) / fadeOut))
+                let at = NSPoint(x: line.anchor + g.x, y: y(forSlot: line.slot))
                 if let r = g.front {
                     guard r > 0 else { continue }
                     drawWord(g.word, at: at, fill: .white, alpha: alpha) { x in
-                        min(1, max(0, (r - x) / LiveCaptionBand.eraseEdge))
+                        min(1, max(0, (r - x) / LiveCaptionBand.softEdge))
                     }
                 } else {
                     drawWord(g.word, at: at, fill: .white, alpha: alpha)
                 }
             }
             for (word, at, fill, alpha) in fading { drawWord(word, at: at, fill: fill, alpha: alpha) }
-            for (word, at, fill, alpha, lineX, k) in lettered {
-                drawWord(word, at: at, fill: fill, alpha: alpha) { [unowned self] x in
-                    self.erased(at: lineX + x) * self.revealed(k, at: x)
-                }
+            for (word, at, fill, alpha, k) in lettered {
+                drawWord(word, at: at, fill: fill, alpha: alpha) { [unowned self] x in self.revealed(k, at: x) }
             }
         }
     }

@@ -480,8 +480,10 @@ final class ElementPicker {
     /// `POST /test/engine-menu {"appearance": "light"|"dark", "seconds", "x", "y"}` — the Engine
     /// list popped up on its own so the 🧾 quota row can be photographed; closes itself.
     var onTestEngineMenu: (([String: Any]) -> Void)?
-    /// `POST /test/live-caption` `{"text": "…", "partial": "…"?}` — the subtitle band's words as if
-    /// the live recogniser had just heard them; `{"on": false}` closes the band.
+    /// `POST /test/live-caption` `{"text": "…", "partial": "…"?, "gentle": bool?}` — the subtitle
+    /// band's words as if the live recogniser had just heard them; `{"on": false}` closes the band;
+    /// `{"pointer": {"x", "y"}}` stands in for the mouse (screen points) for the band's dodge,
+    /// `{"pointer": null}` gives the real one back (so does closing the band).
     var onTestLiveCaption: (([String: Any]) -> Void)?
     /// `POST /test/local-fallback {"wav": path}` — the local model standing in
     /// for a failed engine, on that file; answers the result, delivers nothing.
