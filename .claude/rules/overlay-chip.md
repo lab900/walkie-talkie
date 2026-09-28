@@ -133,6 +133,14 @@ yields to `--label`).
   title, the hidden legend, or a ✕ the chip does not have. Resizing on a state change is expected,
   and so is the hair of width the recording row gains at `×10`. → journal: *Size: minimal, per state*
 
+- **`💻 Local now  ⌘⌃X`** (2026-09-28) — the key that has this Mac transcribe the take, up while
+  `AppDelegate.localNowAvailability()` says there is one (recording, or waiting on the cloud) and
+  gone when the words land; `💻 Local now (loading)  ⌘⌃X` while the local weights are down (the key
+  still works). Built like `📋 Re-paste ⌘V` (`installEmojiRow`, `layoutGlyphRow`, both halo
+  branches), placed after `☠️ Kamikaze` and before the paste row. A 0.5 s tick runs only while it
+  is up, to keep `(loading)` honest. States page: `listening-local-now`,
+  `transcribing-local-now-loading`. → `mouse-gestures.md`, *⌘⌃X*
+
 ## `Listening...` and `Transcribing...`
 
 - **The live caption is not on the chip since 2026-09-26** — it is `LiveCaptionBand`, a click-through

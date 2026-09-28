@@ -344,6 +344,27 @@ def spec(src: dict):
                              r"== VK_FUNCTION \{\s*fnKeyHeld = event\.flags\.contains\(\.maskSecondaryFn\)")),
             ],
         },
+        {
+            # Victor, 2026-09-28: "a local fallback that I can access during the
+            # dictation, at any point, through a key combination displayed in the
+            # tooltip". ⌘⌃L is Victor Addons' calendar, ⌘⌃W Wispr Flow's paste.
+            "row": ("⌨️ ⌘⌃X", "keyboard, while recording or waiting"),
+            "does": "the take goes to the local model now (via local-forced); idle: a flash; always swallowed",
+            "checks": [
+                ("⌘⌃X is swallowed, autorepeat included, and raises onLocalNow", "HotkeyTap keyDown branch",
+                 lambda: has(_strip_comments(src["HotkeyTap.swift"]),
+                             r"if keyCode == VK_X && cmd && ctrl && !opt \{\s*if event\.getIntegerValueField\(\.keyboardEventAutorepeat\) != 0 \{ return swallow\(.*?onLocalNow\?\(\).*?return swallow\(")),
+                ("it is one of the app's own chords while frozen", "HotkeyTap `isOwnChordWhileFrozen`",
+                 lambda: has(function(src, "HotkeyTap.swift", "isOwnChordWhileFrozen"), r"code == VK_X")),
+                ("onLocalNow runs transcribeLocallyNow", "AppDelegate `hotkeys.onLocalNow`",
+                 lambda: has(_strip_comments(src[ad]), r"hotkeys\.onLocalNow = \{[^\n]*transcribeLocallyNow\(")),
+                ("…which hands the take to the local model, or flashes at rest", "AppDelegate `transcribeLocallyNow`",
+                 lambda: has(function(src, ad, "transcribeLocallyNow"),
+                             r"guard a\.available else \{.*?Nothing to transcribe locally.*?source\.handToLocal\(\)")),
+                ("the local model's answer says local-forced", "AppDelegate `transcribeLocally`",
+                 lambda: has(function(src, ad, "transcribeLocally"), r'via: forced \? "local-forced" : "local-fallback"')),
+            ],
+        },
     ]
 
 
@@ -428,6 +449,10 @@ MUTATIONS = [
      "            rescueFromRow(after: process)"),
     ("plain dictation gets the kamikaze word", "AppDelegate.swift",
      "if clean { kamikaze = false }", ""),
+    ("⌘⌃X passes to the front app on autorepeat (acted on twice)", "HotkeyTap.swift",
+     "if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow(\"⌘⌃X (autorepeat)\", type, event) }", ""),
+    ("⌘⌃X stops the take the ordinary way (the cloud still gets it)", "AppDelegate.swift",
+     "        guard source.handToLocal() else {", "        guard { endDictation(); return true }() else {"),
     ("bare F7/F9 swallowed for the halo again (Q10)", "HotkeyTap.swift",
      "(keyCode == VK_F7 || keyCode == VK_F9) && fnKeyHeld && ", "(keyCode == VK_F7 || keyCode == VK_F9) && "),
 ]

@@ -354,6 +354,28 @@ enum OverlayStates {
                 o.pinTranscribeWarmth(0.45)
             },
 
+            Shot(slug: "listening-local-now", group: "Dictating", title: "⌘⌃X — the local model, now",
+                 when: "While a sentence records on ElevenLabs (or Wispr Flow), and while its words are on their way back.",
+                 note: "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. It goes when the words land.",
+                 shape: "chip", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setListening(true)
+                o.pinListenWarmth(1)
+                o.setShotCount(1)
+                o.setLocalNow(true)
+            },
+
+            Shot(slug: "transcribing-local-now-loading", group: "Dictating", title: "⌘⌃X while the local model is cold",
+                 when: "Waiting on ElevenLabs with the local weights not loaded (a cold start, or the helper restarted).",
+                 note: "`(loading)` says the key will not answer at once — not that it will not work. Pressed now, the WAV waits for the weights (up to 90 s, the fallback's own window) and the words go where the sentence was going.",
+                 shape: "chip", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setTranscribing(true)
+                o.setShotCount(1)
+                o.pinTranscribeWarmth(0.7)
+                o.setLocalNow(true, loading: true)
+            },
+
             Shot(slug: "transcribing-overdue", group: "Dictating", title: "Waiting, and past the estimate",
                  when: "Past 150% of the decode `DecodeRate` promised — the bar has been full for half as long again.",
                  note: "The bar says *past my own estimate* by arriving full and staying there, and that was enough while the only thing past the estimate was a slow decode. It stopped being enough on 2026-09-22, the evening Wispr began leaving finished sentences labelled `raw_transcript` and the row sat out thirty seconds: a full bar and a lost sentence look exactly alike. Said once, at a threshold, rather than counted out — and it is the only thing on this row that is not the bar, which is why it is appended after the word instead of joining it.",
@@ -618,6 +640,7 @@ enum OverlayStates {
         o.setBound(label: nil)
         o.setWisprHearing(false)
         o.setKamikaze(false)
+        o.setLocalNow(false)
         o.setPasteHint(false)
         o.setHeldCount(0)
         o.setFilming(false)

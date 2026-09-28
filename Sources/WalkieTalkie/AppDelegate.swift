@@ -1969,6 +1969,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 _ = self?.cancelDictationInFlight(reason: "POST /test/cancel")
             }
         }
+        picker.onTestLocalNow = { [weak self] in
+            DispatchQueue.main.async { self?.transcribeLocallyNow(from: "POST /test/local-now") }
+        }
+        status.onLocalNow = { [weak self] in self?.transcribeLocallyNow(from: "the menu") }
+        status.isLocalNowAvailable = { [weak self] in self?.localNowAvailability().available ?? false }
         picker.onTestRecover = { [weak self] in
             // The listener's thread; everything this touches is the main queue's.
             DispatchQueue.main.async { self?.recoverCancelledDictation() }
@@ -2167,6 +2172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CropSelectionOverlay.onAwaitingDestination = { [weak self] parked in
             self?.hotkeys.areaAwaitingDestination = parked
         }
+        // ⌘⌃X — the local model, now (2026-09-28). The tap hands it over on main.
+        hotkeys.onLocalNow = { [weak self] in self?.transcribeLocallyNow(from: "⌘⌃X") }
         hotkeys.onLocalToggle = { [weak self] in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -3776,13 +3783,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wispr since Q14 (2026-09-28): the WAV is the relay's own meter recording.
         guard source.recordsOwnAudio || source === wisprSource, source !== whisperSource, !fallingBack,
               FileManager.default.fileExists(atPath: wav.path) else { return false }
-        lastFailure = (why, engineId, Date())
+        // **⌘⌃X is not a failure** (2026-09-28): asked for, so no warning rides
+        // the words and `lastFailure` keeps the last real one.
+        let forced = why == DictationEnd.localForced
+        if !forced { lastFailure = (why, engineId, Date()) }
         let failed = source.name
         fallingBack = true
         fallbackToken += 1
         let token = fallbackToken
         fallbackAudio = (wav, duration)
-        Log.error("↪️ \(why) — transcribing the \(String(format: "%.1f", duration))s recording on this Mac instead")
+        if forced {
+            Log.info("💻 ⌘⌃X — transcribing the \(String(format: "%.1f", duration))s recording on this Mac, as asked\(whisperSource.isReady ? "" : " (the weights are loading — the WAV waits for them)")")
+        } else {
+            Log.error("↪️ \(why) — transcribing the \(String(format: "%.1f", duration))s recording on this Mac instead")
+        }
+        syncLocalNow()
         DecodeRate.activeEngine = DecodeRate.whisperLocal
         // A parked sentence's fallback (Q12) leaves the live one's chip alone.
         if !answeringInBackground {
@@ -3792,7 +3807,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // **Its answer goes to the sentence that failed** (Q12), in its turn.
         let owner = contextSentence
-        transcribeLocally(wav: wav, duration: duration, standingInFor: failed) { [weak self] result in
+        transcribeLocally(wav: wav, duration: duration, standingInFor: failed, forced: forced) { [weak self] result in
             guard let self else { return }
             if let owner, owner.finished {
                 Log.info("🗑️ the local model answered for sentence #\(owner.id), which is over — dropped")
@@ -3806,6 +3821,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 self.fallbackAudio = nil
                 self.fallingBack = false
+                self.syncLocalNow()
                 if !self.answeringInBackground { self.overlay.setEngineMark(Self.mark(engine: self.engineId)) }
                 guard let result else {
                     self.dictationEndedForGood(.failed(why: "\(why); the local model could not transcribe it either",
@@ -3819,12 +3835,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    // MARK: - ⌘⌃X: the local model, now (2026-09-28)
+
+    /// **Whether ⌘⌃X has a take to hand the local model, and why not.** Victor,
+    /// 2026-09-28: *"To compensate as a backup for slow transcriptions, I want a
+    /// local fallback that I can access during the dictation, at any point,
+    /// through a key combination displayed in the tooltip … Sometimes even
+    /// ElevenLabs takes a lot to transcribe and I want this quick exit."*
+    /// Available while the source records and while its words are in flight —
+    /// never on the local engine itself, nor while the local model is already
+    /// standing in.
+    func localNowAvailability() -> (available: Bool, why: String) {
+        if source === whisperSource { return (false, "the engine is the local model already") }
+        if fallingBack { return (false, "the local model is already transcribing it") }
+        // Not `listening` alone: with another engine picked it can be a Wispr
+        // sentence his own chord opened, which is Wispr's and not ours to hand over.
+        if source.isRecording || (source === wisprSource && (speculative || wisprSource.isRecording)) {
+            return (true, "recording")
+        }
+        if settling || source.phase.isWaitingForWords || source.answersPending > 0 {
+            return (true, "waiting for \(source.name)")
+        }
+        return (false, "nothing is recording or in flight")
+    }
+
+    /// ⌘⌃X, the menu row, `POST /test/local-now` — main queue.
+    func transcribeLocallyNow(from gesture: String) {
+        let a = localNowAvailability()
+        guard a.available else {
+            Log.info("💻 \(gesture) — nothing to hand the local model (\(a.why))")
+            overlay.flash(fallingBack ? "💻 Already transcribing on this Mac"
+                          : source === whisperSource && (listening || settling) ? "💻 Already on the local model"
+                          : "Nothing to transcribe locally", duration: 2)
+            return
+        }
+        // The weights start coming up at the press, not after the close: on a
+        // cold model that is seconds off the wait (the WAV is banked for them).
+        let cold = !whisperSource.isReady
+        if cold { whisperSource.bringUpModel() }
+        guard source.handToLocal() else {
+            Log.info("💻 \(gesture) — \(source.name) had no take to hand over (\(a.why))")
+            overlay.flash("Nothing to transcribe locally", duration: 2)
+            return
+        }
+        Log.info("💻 \(gesture) — \(a.why): the take goes to the local model now\(cold ? " (cold — the weights are loading)" : "")")
+        syncLocalNow()
+    }
+
+    /// The chip's `💻 Local now  ⌘⌃X` row follows `localNowAvailability`; while
+    /// it is up a half-second tick keeps `(loading)` honest as the weights come up.
+    private func syncLocalNow() {
+        // A parked sentence's answer (Q12) runs on its fields: the row is the live one's.
+        guard !answeringInBackground else { return }
+        let on = localNowAvailability().available
+        overlay.setLocalNow(on, loading: !whisperSource.isReady)
+        if on, localNowTick == nil {
+            let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.syncLocalNow() }
+            localNowTick = t
+            RunLoop.main.add(t, forMode: .common)
+        } else if !on {
+            localNowTick?.invalidate()
+            localNowTick = nil
+        }
+    }
+    private var localNowTick: Timer?
+
     /// **The WAV through the local model, as the result the failed engine
     /// would have handed over** — brings the weights up if they are down
     /// (polled, as `LocalWhisperSource.whenModelUp` does; 90 s, then nil). On
     /// the main queue.
     /// `POST /test/local-fallback` calls it with a corpus WAV, delivering nothing.
     private func transcribeLocally(wav: URL, duration: TimeInterval, standingInFor failed: String,
+                                   forced: Bool = false,
                                    _ done: @escaping (DictationResult?) -> Void) {
         whisperSource.bringUpModel()
         var asked = Date()
@@ -3862,12 +3944,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                     DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(started),
                                       chars: r.text.count, compression: r.compressionRatio)
-                    Log.info("↪️ transcribed on this Mac instead of \(failed) — \(r.text.count) chars")
+                    Log.info("↪️ transcribed on this Mac instead of \(failed)\(forced ? " (⌘⌃X)" : "") — \(r.text.count) chars")
                     done(DictationResult(
                         text: r.text, language: r.language, audio: wav, duration: duration,
                         engine: "whisper-local",
-                        warning: "⚠️ \(failed) was unavailable — transcribed on this Mac",
-                        delivery: .route, via: "local-fallback",
+                        warning: forced ? nil : "⚠️ \(failed) was unavailable — transcribed on this Mac",
+                        delivery: .route, via: forced ? "local-forced" : "local-fallback",
                         // The failed engine spliced its markers into this very file.
                         markersInAudio: true,
                         engineLabel: LocalWhisperSource.modelLabel))
@@ -5565,6 +5647,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func syncBorrowedGestures() {
         // A parked sentence's answer (Q12) runs on its fields; `run` syncs after the swap-back.
         guard !answeringInBackground else { return }
+        syncLocalNow()
         let live = hasDestination && listening
         // **Replace Wispr borrows them too, since 2026-09-08.** It did not until
         // then, and the argument was that both buttons are taken in order to
@@ -6389,6 +6472,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["liveCaption"] = overlay.liveCaption.describe()
         // Gap G7 (2026-09-26): what the plan's assertions could not read.
         out["fallingBack"] = fallingBack
+        // ⌘⌃X (2026-09-28): whether the key has a take to hand over, and the row as drawn.
+        let localNow = localNowAvailability()
+        out["localNow"] = ["available": localNow.available, "why": localNow.why,
+                           "loading": !whisperSource.isReady,
+                           "row": overlay.localNowRowText ?? NSNull()] as [String: Any]
         out["autosend"] = autosend
         // Q12 (batch 6): the sentences in flight, oldest first — {id, state, target, startedAt, take, waiting}.
         out["sentences"] = describeSentences()

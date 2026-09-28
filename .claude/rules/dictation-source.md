@@ -63,6 +63,12 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   (no ceiling since 2026-09-26 — the fallback is bounded by the model's 90 s and 300 s). ElevenLabs' `requestTimeout` is 20 s (was 45)
   and a timeout is not retried. Measured: cold model + 3.5 s clip = 6.0 s
   (`POST /test/local-fallback {"wav"}`, which answers the result and delivers nothing).
+- **⌘⌃X hands the take to the local model on demand** (2026-09-28, `DictationSource.handToLocal()`):
+  the same `fallBackToLocal` path, entered with `why == DictationEnd.localForced` — `via:
+  local-forced`, no warning, `lastFailure` untouched. ElevenLabs: recording → no upload
+  (`forcedTakes`); uploading → `Upload.abandonedAt`, the call finishes and is only logged. Wispr:
+  recording → ⌃Escape + `endWithRecording(forced:)`; settling → `discardOnArrival` without the
+  dismiss. The local engine answers false. → `mouse-gestures.md`, *⌘⌃X*
 - **`engine(named:)` is one table read by the launch pick and the menu pick; anything unrecognised is
   the default**, never a named engine, so a typo cannot pick a recogniser.
 - **`setEngine`** nils the old source's callbacks, assigns `source`, writes `dictationSource`, re-runs

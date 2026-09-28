@@ -69,7 +69,9 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
 
 ## Gestures, in one screen
 
-- **Keys:** ⌘⌃B bind (again = unbind), ⌘⌃D dictate. Both swallowed. ⌘⌃⌥D belongs to Victor Addons.
+- **Keys:** ⌘⌃B bind (again = unbind), ⌘⌃D dictate, **⌘⌃X = the local model now** (recording or
+  waiting on the cloud: this Mac transcribes the take, `via: local-forced`; 2026-09-28). All three
+  swallowed. ⌘⌃⌥D and ⌘⌃L belong to Victor Addons, ⌘⌃W to Wispr Flow.
   Right ⌘⌥ held = Walkie's clean dictation (`54+61`); right ⌥⇧ held = **Wispr's own** ptt (`61+60`,
   Q23), left alone.
 - **The clipboard always holds the finished sentence** (Q17, 2026-09-28): the envelope for a prompt,

@@ -14085,3 +14085,35 @@ settle alone (0.8 s from the start) let a re-fire at ~0.9 s close what the flick
 `evals/test_gesture_spec.py --self-test` now also reads `HotkeyTap.swift` at `c8d918b` (the last
 09-23 mapping) out of git and asserts the spec rejects it.
 
+## ⌘⌃X: the local model, now (2026-09-28)
+
+Victor, dictated: *"To compensate as a backup for slow transcriptions, I want a local fallback that
+I can access during the dictation, at any point, through a key combination displayed in the
+tooltip: if I press it, the local transcription is used for this recorded sound. Sometimes even
+ElevenLabs takes a lot to transcribe and I want this quick exit. I know it automatically falls back
+to local, but I'd like to have this faster whenever I want."*
+
+**The key is ⌘⌃X, not ⌘⌃L.** L (for *local*) was the first pick and is taken: Victor Addons'
+`EventTapManager` opens Google Calendar on ⌘⌃L (the cheat-sheet's 📅). The fallback named in the
+brief, ⌘⌃W, is taken too — Wispr Flow's `config.json` binds `[13, 55, 59]` (W + ⌘ + ⌃) to
+`paste_last_text`, and the Addons sheet lists it display-only for that reason; swallowing it here
+would kill Wispr's paste. X is free in this tap, in Addons and in Wispr, and it is his own word for
+the thing: *quick exit*.
+
+What ships (`DictationSource.handToLocal()`, `AppDelegate.transcribeLocallyNow`):
+
+| state | ⌘⌃X |
+|---|---|
+| recording, ElevenLabs (± Live) | the ordinary stop, but `finishRecording` uploads nothing (`forcedTakes`) — no request, no bill |
+| recording, Wispr | ⌃Escape (the cancel's dismiss), the relay's own recording kept (`endWithRecording(forced:)`), the row held owned (`watchLateRow`) |
+| waiting on Scribe | the upload is **abandoned, not cancelled**: it finishes and is logged with how late it was (`💻 ElevenLabs answered N s after ⌘⌃X … only logged, never delivered`) — the one number that says whether the key was worth pressing |
+| waiting on Wispr's row | `discardOnArrival` without the dismiss: its row and ⌘V are swallowed and logged |
+| idle / local engine / already falling back | swallowed, one flash |
+
+Every branch ends the take `.failed(why: DictationEnd.localForced, audio:)` into the existing
+`fallBackToLocal` (Q13's 1.5 s floor still decides Recover vs decode), which reads that `why` as
+*asked for*: `via: local-forced`, no `⚠️ … was unavailable` on the words, `lastFailure` untouched.
+A cold model is banked by the fallback's own 90 s wait, and the press itself starts the load. The
+chip's `💻 Local now  ⌘⌃X` row (`(loading)` while the weights are down) is up while there is a take
+to hand over; the menu has **Transcribe Locally Now** with ⌘⌃X in its shortcut column.
+`POST /test/local-now`, `state.localNow`, harness cases TN1–TN3 (`evals/plan/cases_localnow.py`).

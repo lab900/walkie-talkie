@@ -20,6 +20,32 @@ What `HotkeyTap` may and may not do with the two keyboard chords and with the mo
 - **⌘⌃B on the target already bound unbinds** (`bindFrontmostTerminal(toggle:)` defaults to the toggle); only the mouse chord passes `false`. → journal: *The wheel is the relay's; mouse 5 is nobody's (except in Replace Wispr)*
 - **Both ride the menu as real key equivalents** (`StatusItem`): ⌘⌃B on **Connect Window**, ⌘⌃D on **Start Dictation** *and* **End Dictation** — only one of the two rows is ever enabled. → journal: *⌘⌃B binds, ⌘⌃D dictates (since 2026-09-01)*
 
+## ⌘⌃X — the local model, now (2026-09-28)
+
+Victor: *"To compensate as a backup for slow transcriptions, I want a local fallback that I can
+access during the dictation, at any point, through a key combination displayed in the tooltip … I
+know it automatically falls back to local, but I'd like to have this faster whenever I want."*
+
+| state | ⌘⌃X does |
+|---|---|
+| recording (ElevenLabs, ElevenLabs + Live, Wispr) | the microphone closes as the stop closes it (destination latched), **nothing is uploaded** — `ElevenLabsSource` marks the take (`forcedTakes`), Wispr is dismissed with ⌃Escape and its row held owned (`watchLateRow`); the relay's WAV goes to `fallBackToLocal` |
+| settling (waiting on Scribe's upload or Wispr's row) | the wait is abandoned: the upload goes on and its answer is **only logged** (`💻 ElevenLabs answered N s after ⌘⌃X … only logged`), Wispr's row/⌘V land in the discard; the same WAV goes to the local model |
+| idle, the local engine, or the local model already standing in | swallowed; one flash — `Nothing to transcribe locally` (`💻 Already on the local model`, `💻 Already transcribing on this Mac`) |
+
+- **Why X and not L:** ⌘⌃L is Victor Addons' Google Calendar (`EventTapManager`), ⌘⌃W is Wispr
+  Flow's *paste last transcript* (`config.json`: `[13, 55, 59]`), ⌘⌃C is Addons' Claude terminal and
+  Wispr's copy. X is free in all three and reads as his own word for it, *quick exit*.
+- **One path with the automatic fallback**: `source.handToLocal()` ends the take
+  `.failed(why: DictationEnd.localForced, audio:)`; `fallBackToLocal` reads that `why` as *asked
+  for* — no `⚠️ … was unavailable` warning on the words, `lastFailure` untouched, `via: local-forced`.
+  The Q13 floor still holds: under 1.5 s voiced it is `heardNothing` → Recover.
+- **Cold model:** the key still works — the press starts `bringUpModel()` and `transcribeLocally`
+  waits up to 90 s for the weights (the fallback's own bank). The chip says `(loading)`.
+- **Swallowed always, autorepeat included, dropped while main is frozen** (`isOwnChordWhileFrozen`).
+  Handed on `DispatchQueue.main`, not through `ToggleTicket` — it is not a toggle. Menu row
+  **Transcribe Locally Now** (⌘⌃X in the shortcut column, enabled only when there is a take).
+  `POST /test/local-now` is the action; `evals/plan/cases_localnow.py` TN1–TN3.
+
 ## Logi mode (default, ticked): the side buttons speak in function keys
 
 In this mode the app takes **no mouse button at all**. Every mouse event is handed straight back one comparison later in `HotkeyTap.handle`; the side buttons arrive as ⌃⌥⌘F-key chords posted by Logi Options+.

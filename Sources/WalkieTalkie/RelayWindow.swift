@@ -283,6 +283,15 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// `evals/test_paste_row.py` keeps it that way.
     private let pasteRow = NSView()
     private let pasteGlyph = NSImageView()
+    /// **`💻 Local now  ⌘⌃X`** (2026-09-28) — while a sentence records and while
+    /// its words are on their way from the cloud, the key that has this Mac
+    /// transcribe it instead (Victor: *"a key combination displayed in the
+    /// tooltip"*). `(loading)` while the local weights are down: the key still
+    /// works, the WAV waits for them. Gone once the words land. Built like
+    /// `pasteRow`, which it deliberately reads like.
+    private let localNowRow = NSView()
+    private let localNowGlyph = NSImageView()
+    private let localNowInfo = NSTextField(labelWithString: "")
     private let pasteInfo = NSTextField(labelWithString: "\(PasteHint.label)  \(PasteHint.keys)")
     /// **`📨 N waiting — bind to send`** (2026-09-26) — sentences spoken with
     /// nothing bound, held in memory for the next bind (`AppDelegate.awaitingBind`).
@@ -1427,6 +1436,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         root.addSubview(filmRow)
         installEmojiRow(kamikazeRow, glyph: kamikazeGlyph, label: kamikazeInfo, emoji: "☠️")
         installEmojiRow(pasteRow, glyph: pasteGlyph, label: pasteInfo, emoji: "📋")
+        installEmojiRow(localNowRow, glyph: localNowGlyph, label: localNowInfo, emoji: "💻")
         installEmojiRow(heldRow, glyph: heldGlyph, label: heldInfo, emoji: "📨")
 
         // Same face as every other row (see `titleFont`): it carries a CSS
@@ -1865,7 +1875,8 @@ private let frontLabel = NSTextField(labelWithString: "")
         var emojiRowsWidth: CGFloat = 0
         // Written before it is measured, for the selection row's reason below.
         if heldCount > 0 { heldInfo.stringValue = Self.heldText(heldCount) }
-        for (on, label) in [(kamikaze, kamikazeInfo), (pasteHint, pasteInfo),
+        if let loading = localNow { localNowInfo.stringValue = Self.localNowText(loading: loading) }
+        for (on, label) in [(kamikaze, kamikazeInfo), (localNow != nil, localNowInfo), (pasteHint, pasteInfo),
                             (heldCount > 0, heldInfo)] where on {
             label.sizeToFit()
             emojiRowsWidth = max(emojiRowsWidth, glyphColumn + recordDotGap + ceil(label.frame.width))
@@ -2114,6 +2125,16 @@ private let frontLabel = NSTextField(labelWithString: "")
             rows.append((kamikazeRow, recordRowHeight))
         } else {
             kamikazeRow.isHidden = true
+        }
+
+        // ⌘⌃X, the same way — see `localNowRow`.
+        if localNow != nil {
+            localNowInfo.sizeToFit()
+            layoutGlyphRow(localNowRow, glyph: localNowGlyph, label: localNowInfo, width: innerWidth)
+            localNowRow.isHidden = false
+            rows.append((localNowRow, recordRowHeight))
+        } else {
+            localNowRow.isHidden = true
         }
 
         // The paste row, the same way — see `pasteRow`.
@@ -2959,6 +2980,8 @@ private let frontLabel = NSTextField(labelWithString: "")
         kamikazeGlyph.wantsLayer = true
         pasteInfo.wantsLayer = true
         pasteGlyph.wantsLayer = true
+        localNowInfo.wantsLayer = true
+        localNowGlyph.wantsLayer = true
         heldInfo.wantsLayer = true
         heldGlyph.wantsLayer = true
         // The flash row joins them whenever it is drawn bare — with no blur under
@@ -2986,6 +3009,9 @@ private let frontLabel = NSTextField(labelWithString: "")
             pasteInfo.shadow = Self.halo()
             pasteInfo.textColor = .white
             pasteGlyph.shadow = Self.halo()
+            localNowInfo.shadow = Self.halo()
+            localNowInfo.textColor = .white
+            localNowGlyph.shadow = Self.halo()
             heldInfo.shadow = Self.halo()
             heldInfo.textColor = .white
             heldGlyph.shadow = Self.halo()
@@ -3033,6 +3059,9 @@ private let frontLabel = NSTextField(labelWithString: "")
             pasteInfo.shadow = nil
             pasteInfo.textColor = .secondaryLabelColor
             pasteGlyph.shadow = nil
+            localNowInfo.shadow = nil
+            localNowInfo.textColor = .secondaryLabelColor
+            localNowGlyph.shadow = nil
             heldInfo.shadow = nil
             heldInfo.textColor = .secondaryLabelColor
             heldGlyph.shadow = nil
@@ -4153,6 +4182,26 @@ private let frontLabel = NSTextField(labelWithString: "")
         kamikaze = on
         layoutContent()
     }
+
+    /// The `💻 Local now  ⌘⌃X` row — nil when down, else whether it says
+    /// `(loading)`; see `localNowRow`.
+    private(set) var localNow: Bool?
+
+    func setLocalNow(_ on: Bool, loading: Bool = false) {
+        let next: Bool? = on ? loading : nil
+        guard next != localNow else { return }
+        localNow = next
+        layoutContent()
+        refreshOpacity()
+    }
+
+    static let localNowKeys = "⌘⌃X"
+    static func localNowText(loading: Bool) -> String {
+        "Local now\(loading ? " (loading)" : "")  \(localNowKeys)"
+    }
+
+    /// For `GET /test/state` — the row as drawn, or nil.
+    var localNowRowText: String? { localNow.map { Self.localNowText(loading: $0) } }
 
     /// How many sentences wait for a bind — see `heldRow`. Zero takes the row down.
     private(set) var heldCount = 0

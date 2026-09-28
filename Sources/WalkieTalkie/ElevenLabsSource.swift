@@ -374,10 +374,18 @@ final class ElevenLabsSource: DictationSource {
     final class Upload {
         let wav: URL
         let duration: TimeInterval
+        /// The take's voiced seconds — ⌘⌃X judges the Q13 floor on them.
+        let voiced: TimeInterval
         private let lock = NSLock()
         private var _cancelled = false
         private var task: URLSessionDataTask?
-        init(wav: URL, duration: TimeInterval) { self.wav = wav; self.duration = duration }
+        /// **⌘⌃X handed this take to the local model** (2026-09-28): the call
+        /// goes on — cancelling it would say nothing about how late Scribe was —
+        /// and its answer is logged, never delivered.
+        var abandonedAt: Date?
+        init(wav: URL, duration: TimeInterval, voiced: TimeInterval = 0) {
+            self.wav = wav; self.duration = duration; self.voiced = voiced
+        }
         var isCancelled: Bool { lock.withLock { _cancelled } }
         func cancel() {
             let t: URLSessionDataTask? = lock.withLock { _cancelled = true; return task }
@@ -393,6 +401,10 @@ final class ElevenLabsSource: DictationSource {
     /// `cancel()` with the microphone shut disowns the newest — the sentence
     /// most recently in flight, which is the one the relay's cancel means.
     private var uploads: [Int: Upload] = [:]
+    /// Takes ⌘⌃X claimed before their upload existed (recording, or the close
+    /// still on `audioQueue`): `finishRecording` hands them to the local model
+    /// instead of uploading (2026-09-28).
+    private var forcedTakes: Set<Int> = []
 
     // MARK: - Takes (Q12)
 
@@ -477,9 +489,17 @@ final class ElevenLabsSource: DictationSource {
     /// The tail of `stop()`, on the main queue, exactly as it always ran.
     private func finishRecording(_ closed: (url: URL, duration: TimeInterval)?, voiced: TimeInterval,
                                  hops: [MeterHop] = [], take t: Int, stoppedAt: Date?, markers: Bool) {
+        let forced = forcedTakes.remove(t) != nil
         guard let (wav, duration) = closed else {
             Log.info("recording discarded — under \(MicRecorder.minimumDuration)s")
             answer(t) { settlePhase(.done("empty")); didEnd?(.silent("")) }
+            return
+        }
+        // **⌘⌃X while recording: nothing is uploaded** (2026-09-28) — no request,
+        // no bill, the WAV goes straight to the local model.
+        if forced {
+            Log.info(String(format: "💻 recording stopped — %.1fs, not uploaded: ⌘⌃X hands it to the local model", duration))
+            answer(t) { finishHandedToLocal(wav, duration, voiced: voiced) }
             return
         }
         guard let key = apiKey else {
@@ -491,12 +511,16 @@ final class ElevenLabsSource: DictationSource {
         Log.info(String(format: "🎙️ recording stopped — %.1fs, uploading to ElevenLabs", duration))
 
         let startedAt = Date()
-        let upload = Upload(wav: wav, duration: duration)
+        let upload = Upload(wav: wav, duration: duration, voiced: voiced)
         uploads[t] = upload
         Self.transcribe(wav: wav, key: key, upload: upload) { [weak self] outcome in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.uploads[t] === upload { self.uploads[t] = nil }
+                if let at = upload.abandonedAt {
+                    self.logAbandonedAnswer(outcome, abandonedAt: at, startedAt: startedAt)
+                    return
+                }
                 guard !upload.isCancelled else {
                     self.unanswered.remove(t)
                     Log.info("🗑️ ElevenLabs answered a cancelled upload — dropped")
@@ -573,6 +597,58 @@ final class ElevenLabsSource: DictationSource {
         uploads[t] = nil
         up.cancel()
         answer(t) { settlePhase(.done("dismissed")); didEnd?(.cancelled(audio: up.wav, duration: up.duration)) }
+    }
+
+    // MARK: - ⌘⌃X: the local model, now (2026-09-28)
+
+    func handToLocal() -> Bool {
+        // Recording: the ordinary stop, with the take marked so `finishRecording`
+        // uploads nothing.
+        if isRecording {
+            forcedTakes.insert(take)
+            stop()
+            return true
+        }
+        // In flight: the newest take still owed an answer — the one the relay's
+        // settle is waiting on.
+        guard let t = unanswered.max() else { return false }
+        guard let up = uploads[t] else {
+            // Stopped, and its close still on `audioQueue`: no upload yet.
+            forcedTakes.insert(t)
+            Log.info("💻 ⌘⌃X — take \(t) is closing; it will not be uploaded")
+            return true
+        }
+        uploads[t] = nil
+        up.abandonedAt = Date()
+        Log.info("💻 ⌘⌃X — the ElevenLabs upload of take \(t) is abandoned; its answer, if it comes, is only logged")
+        answer(t) { finishHandedToLocal(up.wav, up.duration, voiced: up.voiced) }
+        return true
+    }
+
+    /// The take's end once ⌘⌃X took it — the Q13 floor still applies: under
+    /// 1.5 s voiced the local model would invent a sentence, so it is Recover.
+    private func finishHandedToLocal(_ wav: URL, _ duration: TimeInterval, voiced: TimeInterval) {
+        settlePhase(.done("local"))
+        guard voiced >= Self.fallbackVoicedFloor else {
+            Log.error(String(format: "💻 ⌘⌃X — only %.1f s voiced (under %.1f s): no local decode, the audio is kept for Recover",
+                             voiced, Self.fallbackVoicedFloor))
+            didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
+            return
+        }
+        didEnd?(.failed(why: DictationEnd.localForced, audio: wav, duration: duration))
+    }
+
+    /// The answer ⌘⌃X stopped waiting for — how late it was, never delivered.
+    private func logAbandonedAnswer(_ outcome: Outcome, abandonedAt: Date, startedAt: Date) {
+        let late = Date().timeIntervalSince(abandonedAt)
+        let total = Date().timeIntervalSince(startedAt)
+        switch outcome {
+        case .success(let r):
+            Log.info(String(format: "💻 ElevenLabs answered %.1f s after ⌘⌃X (%.1f s after the upload) — %d chars, only logged, never delivered",
+                            late, total, r.text.count))
+        case .failure(let why):
+            Log.info(String(format: "💻 ElevenLabs failed %.1f s after ⌘⌃X — %@ (only logged)", late, why))
+        }
     }
 
     func cancel() {

@@ -67,6 +67,13 @@ final class HotkeyTap {
     /// anything else, including take the screenshots the same minute is for.
     var onLocalToggle: (() -> Void)?
 
+    /// **⌘⌃X — the local model, now** (2026-09-28): the take being recorded, or
+    /// the one whose words are still on their way, is transcribed on this Mac
+    /// instead of waiting for the cloud. X for *exit* — Victor's *"quick exit"*;
+    /// ⌘⌃L (for *local*) is Victor Addons' Google Calendar and ⌘⌃W is Wispr
+    /// Flow's *paste last transcript*.
+    var onLocalNow: (() -> Void)?
+
 
 
 
@@ -1897,6 +1904,7 @@ final class HotkeyTap {
 
     private let VK_B: CGKeyCode = 0x0B
     private let VK_D: CGKeyCode = 0x02
+private let VK_X: CGKeyCode = 0x07
 private let VK_P: CGKeyCode = 0x23
     private let VK_RETURN: CGKeyCode = 0x24        // Return
     private let VK_KEYPAD_ENTER: CGKeyCode = 0x4C  // Enter (keypad / Fn-Return)
@@ -2242,7 +2250,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         let ctrl = flags.contains(.maskControl), opt = flags.contains(.maskAlternate), cmd = flags.contains(.maskCommand)
         let code = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         if ctrl && opt && cmd { return Self.gestureNames[code] != nil }
-        return ctrl && cmd && !opt && (code == VK_B || code == VK_D)
+        return ctrl && cmd && !opt && (code == VK_B || code == VK_D || code == VK_X)
     }
 
     /// **The freeze photographs itself.** The 17:12 one was only understood
@@ -2292,7 +2300,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             if isOwnChordWhileFrozen(type, event) {
                 chordsDroppedWhileOpen += 1
                 let code = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-                Log.info("🧊 \(Self.gestureNames[code] ?? (code == VK_B ? "⌘⌃B" : "⌘⌃D")) dropped — the main thread is frozen; a gesture made now is not acted on, and never reaches the front app")
+                Log.info("🧊 \(Self.gestureNames[code] ?? (code == VK_B ? "⌘⌃B" : code == VK_X ? "⌘⌃X" : "⌘⌃D")) dropped — the main thread is frozen; a gesture made now is not acted on, and never reaches the front app")
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -3276,6 +3284,16 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             queueToggle()
             DispatchQueue.global().async { [weak self] in self?.onLocalToggle?() }
             return swallow("⌘⌃D dictate", type, event)
+        }
+
+        // ⌘⌃X — **the local model, now** (2026-09-28): see `onLocalNow`. Swallowed
+        // always, like the two above — at rest too, where the relay flashes
+        // *Nothing to transcribe locally* rather than let ⌘⌃X through to the
+        // front app half the time. Autorepeat swallowed and not acted on.
+        if keyCode == VK_X && cmd && ctrl && !opt {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow("⌘⌃X (autorepeat)", type, event) }
+            DispatchQueue.main.async { [weak self] in self?.onLocalNow?() }
+            return swallow("⌘⌃X local now", type, event)
         }
 
         // (⌘⇧P, the re-paste, lived here until 2026-09-28 — Q17: the clipboard

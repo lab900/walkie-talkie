@@ -97,6 +97,12 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// out wrong before it was ever worth transcribing.
     var onCancelDictation: (() -> Void)?
 
+    /// Picked from **Transcribe Locally Now** (⌘⌃X, 2026-09-28) — the take being
+    /// recorded, or the one still on its way from the cloud, goes to the local
+    /// model. Enabled when `isLocalNowAvailable` says there is such a take.
+    var onLocalNow: (() -> Void)?
+    var isLocalNowAvailable: (() -> Bool)?
+
     /// Picked from **Start / Stop Screen Recording** — the same call 🔽 ↑
     /// makes, so the row and the gesture cannot drift apart.
     var onToggleScreenRecording: (() -> Void)?
@@ -238,6 +244,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
     private let stopRecording = NSMenuItem(title: "End Dictation", action: nil, keyEquivalent: "")
     /// Same row, opposite verdict — see `onCancelDictation`.
     private let cancelDictation = NSMenuItem(title: "Cancel Dictation", action: nil, keyEquivalent: "")
+    /// ⌘⌃X (2026-09-28) — a real keyboard chord, so AppKit draws it whole in the
+    /// shortcut column; not in `gestureRows`, it has no mouse gesture.
+    private let localNowItem = NSMenuItem(title: "Transcribe Locally Now", action: nil, keyEquivalent: "x")
     /// **Start / Stop Screen Recording** (2026-09-18) — the film's own row, and
     /// it exists for the reason `Start Dictation` does: *"the wheel is one button
     /// on one specific mouse whose battery goes."* 🔽 ↑ is worse than the wheel
@@ -974,6 +983,12 @@ final class StatusItem: NSObject, NSMenuDelegate {
         cancelDictation.target = self
         cancelDictation.isEnabled = false
 
+        localNowItem.image = Self.symbolIcon("laptopcomputer")
+        localNowItem.keyEquivalentModifierMask = [.command, .control]
+        localNowItem.action = #selector(localNowClicked)
+        localNowItem.target = self
+        localNowItem.isEnabled = false
+
         // **Directly under `Start Dictation`, because it is the same verb**
         // (Victor, 2026-09-06). It was up with the destination rows, beside Bind
         // and Disconnect, on the argument that a new session is a destination —
@@ -1053,6 +1068,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         menu.addItem(newSession)
         menu.addItem(stopRecording)
         menu.addItem(cancelDictation)
+        menu.addItem(localNowItem)
         menu.addItem(recoverDictation)
         // **Under the dictation verbs, because it is one of them.** A recording
         // only exists inside a sentence, so the row belongs with the rows that
@@ -1799,6 +1815,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         startDictation.isEnabled = !recording
         stopRecording.isEnabled = recording
         cancelDictation.isEnabled = isDictationCancellable?() ?? recording
+        localNowItem.isEnabled = isLocalNowAvailable?() ?? false
         // **Live only while a sentence is open**, which is the whole gate on the
         // gesture too — a film has to have something to belong to. The title is
         // the state readout: greyed it still says which of the two it would do,
@@ -2003,6 +2020,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
     @objc private func disconnectClicked() { onDisconnect?() }
 
     @objc private func stopRecordingClicked() { onStopRecording?() }
+    @objc private func localNowClicked() { onLocalNow?() }
     @objc private func cancelDictationClicked() { onCancelDictation?() }
     @objc private func screenRecordingClicked() { onToggleScreenRecording?() }
     @objc private func recoverDictationClicked() { onRecoverDictation?() }

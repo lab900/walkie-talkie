@@ -189,6 +189,18 @@ protocol DictationSource: AnyObject {
     /// flight, which is not always the source's newest upload.
     func cancelTake(_ take: Int)
 
+    /// **⌘⌃X — the take goes to the local model, now** (2026-09-28). Victor:
+    /// *"Sometimes even ElevenLabs takes a lot to transcribe and I want this
+    /// quick exit."* Recording: the microphone closes as `stop()` closes it
+    /// (`didStopListening`, the destination latched) but nothing is handed to
+    /// this recogniser. In flight: the answer being waited for is abandoned —
+    /// it may still arrive, and is then only logged. Either way the take ends
+    /// `.failed(why: DictationEnd.localForced, audio:)`, which the relay's
+    /// `fallBackToLocal` transcribes on this Mac (`via: local-forced`); under the
+    /// Q13 voiced floor it ends `heardNothing` instead (Recover), as every
+    /// fallback does. False when there is no take of this source's to hand over.
+    func handToLocal() -> Bool
+
 }
 
 /// **One token of a transcript, with the moment it was said** (2026-09-19).
@@ -376,6 +388,11 @@ extension DictationEnd {
     /// was typed into the bound terminal. Recover is the choice to spend the
     /// local model on it, made by him with the banner in front of him.
     static let heardNothing = "No words heard"
+
+    /// **The `why` of a take ⌘⌃X handed to the local model** (2026-09-28) — not
+    /// a failure of the recogniser: `fallBackToLocal` reads it as *asked for*,
+    /// so no warning rides the words and `lastFailure` is left alone.
+    static let localForced = "Handed to the local model (⌘⌃X)"
 }
 
 extension DictationSource {
@@ -413,4 +430,6 @@ extension DictationSource {
     var answersPending: Int { 0 }
     func isPending(take: Int) -> Bool { false }
     func cancelTake(_ take: Int) { cancel() }
+    /// The local model itself, and any source added later: nothing to hand over.
+    func handToLocal() -> Bool { false }
 }

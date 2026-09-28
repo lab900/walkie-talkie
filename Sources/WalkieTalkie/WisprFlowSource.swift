@@ -510,6 +510,10 @@ final class WisprFlowSource: DictationSource {
         ProcessInfo.processInfo.environment["WT_WISPR_COPY_FALLBACK"] == "1"
 
     private var cancelling = false
+    /// **The close `cancelling` drives is ⌘⌃X's, not a cancel** (2026-09-28):
+    /// Wispr is dismissed the same way, but the relay's own recording goes to
+    /// the local model instead of to Recover.
+    private var handingToLocal = false
 
     /// **The sentence is cancelled but Wispr has not finished with it.**
     ///
@@ -1180,6 +1184,35 @@ final class WisprFlowSource: DictationSource {
         state.reset("cancelled")
     }
 
+    // MARK: - ⌘⌃X: the local model, now (2026-09-28)
+
+    func handToLocal() -> Bool {
+        // **Recording: Wispr is dismissed, not stopped** — a stop would have it
+        // transcribe (and paste) words nobody is waiting for any more. The same
+        // close the cancel makes, with the recording kept for the local model.
+        if isRecording || speculative {
+            cancelling = true
+            handingToLocal = true
+            if startedMode == .scratchpad { HotkeyTap.postWisprScratchpad(down: false) }
+            Log.info("💻 ⌘⌃X — Wispr Flow dismissed (⌃Escape); the relay's own recording goes to the local model")
+            HotkeyTap.postWisprCancel()
+            closeListening("⌘⌃X — the local model takes it")
+            state.reset("handed to the local model (⌘⌃X)")
+            return true
+        }
+        // **In flight: the wait is abandoned, Wispr is left to finish** — its
+        // row and its ⌘V arrive into the discard (swallowed, logged, dropped),
+        // exactly as after a cancel during the settle, minus the dismiss.
+        guard capturing, intercepting, !discardOnArrival else { return false }
+        discardOnArrival = true
+        dismissedAt = CFAbsoluteTimeGetCurrent()
+        Log.info("💻 ⌘⌃X — no longer waiting for Wispr's row; whatever it sends is only logged")
+        state.reset("handed to the local model (⌘⌃X) — Wispr's answer is only logged")
+        armDiscardClose()
+        endWithRecording(DictationEnd.localForced, row: historyRow, forced: true)
+        return true
+    }
+
     // MARK: - The test routes
 
     /// `POST /test/wispr` — the CoreAudio edge with no CoreAudio behind it.
@@ -1558,6 +1591,16 @@ final class WisprFlowSource: DictationSource {
         didStopListening?()
         if cancelling {
             cancelling = false
+            if handingToLocal {
+                handingToLocal = false
+                // The row Wispr opened for it is held owned until it goes
+                // terminal (Q14's `watchLateRow`): a paste that slips past the
+                // dismiss is dropped, never a second copy.
+                let row = historyRow
+                endCapture(quiet: true)
+                endWithRecording(DictationEnd.localForced, row: row, forced: true)
+                return
+            }
             endCapture(quiet: true)
             endCancelledWithRecording()
             return
@@ -2320,7 +2363,7 @@ final class WisprFlowSource: DictationSource {
     /// time that is said (the meter agrees). The row it gave up on is watched,
     /// owned, until it goes terminal, so a late row is logged and its ⌘V
     /// dropped — never a second delivery (Q2).
-    private func endWithRecording(_ why: String, row: Int64?) {
+    private func endWithRecording(_ why: String, row: Int64?, forced: Bool = false) {
         meterQueue.async { [weak self] in
             guard let self else { return }
             let taken = self.recording
@@ -2334,7 +2377,8 @@ final class WisprFlowSource: DictationSource {
                     return
                 }
                 if voiced >= ElevenLabsSource.fallbackVoicedFloor {
-                    Log.error(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording: the local model stands in (Q14)", why, voiced))
+                    Log.error(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording: the local model %@",
+                                     why, voiced, forced ? "takes it" : "stands in (Q14)"))
                     self.didEnd?(.failed(why: why, audio: taken.url, duration: taken.duration))
                 } else if voiced < 0.3 {
                     Log.info(String(format: "wispr: %@ — %.1f s voiced on the relay's own recording too: no speech", why, voiced))

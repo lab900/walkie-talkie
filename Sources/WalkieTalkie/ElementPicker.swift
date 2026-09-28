@@ -499,6 +499,9 @@ final class ElementPicker {
     /// is otherwise reachable only by clicking a row.
     var onTestRecover: (() -> Void)?
 
+    /// `POST /test/local-now` — ⌘⌃X's action (2026-09-28), for the harness.
+    var onTestLocalNow: (() -> Void)?
+
     /// `POST /test/resume-session` `{"session": "<uuid>", "directory": "…"}` —
     /// what ⏎ does on a panel row whose terminal is closed.
     ///
@@ -942,6 +945,11 @@ final class ElementPicker {
         // same reason `/test/replace-wispr` exists one case down.
         case ("POST", "/test/recover"):
             onTestRecover?()
+            respond(conn, 200, ["ok": true])
+
+        // ⌘⌃X — the local model, now (2026-09-28): the key's action, not the key.
+        case ("POST", "/test/local-now"):
+            onTestLocalNow?()
             respond(conn, 200, ["ok": true])
 
         // ⏎ on a closed session's row — see `onTestResumeSession`.
