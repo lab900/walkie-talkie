@@ -3161,6 +3161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Q19 (2026-09-28): his own right ⌥⇧ sentence whose ⌘V the firewall
         // dropped because the relay's row was in flight — pasted at the caret,
         // where Wispr would have put it.
+        // E (lab wave 3): the ghost microphone dismissed — said on the chip.
+        wisprSource.onNotice = { [weak self] text in self?.overlay.flash(text, duration: 6) }
         wisprSource.foreignSentence = { [weak self] text in
             guard let self else { return }
             // B2/TX8b (lab wave 3): nothing landed in TextEdit — say where the caret is.

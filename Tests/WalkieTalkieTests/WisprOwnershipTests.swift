@@ -60,4 +60,48 @@ final class WisprOwnershipTests: XCTestCase {
         XCTAssertTrue(WisprOwnership.rowIsHis(rowid: 11, startedAt: t, floor: 10, relayHadRow: false,
                                               relayClosedAt: t - 1.2, relayCmdVSeen: false, sinceRelease: 4))
     }
+
+    /// B2 (lab wave 3): a noted row of his passes even while older relay rows are held.
+    func testHisNotedRowOutranksHeldRows() {
+        XCTAssertFalse(relays(v(since: t, released: t + 6, held: 3, foreign: 130, now: t + 12)))
+        XCTAssertFalse(relays(v(since: t, released: t + 6, held: 1, foreign: 130, now: t + 30)))
+        XCTAssertTrue(relays(v(since: t, released: t + 6, held: 1, foreign: 0, now: t + 30)))
+    }
+
+    // MARK: B-risk (TX6b): a row the relay's own chord made is not his
+
+    func testARowWithinASecondOfARelayChordIsTheRelays() {
+        let chord = 1_000.4
+        XCTAssertTrue(WisprOwnership.madeByRelayChord(startedAt: 1_000, chords: [chord]))   // same second (truncated)
+        XCTAssertTrue(WisprOwnership.madeByRelayChord(startedAt: 1_001, chords: [chord]))   // 0.6 s later
+        XCTAssertFalse(WisprOwnership.madeByRelayChord(startedAt: 1_002, chords: [chord]))  // his, later
+        XCTAssertFalse(WisprOwnership.madeByRelayChord(startedAt: 999, chords: [chord]))    // before the chord
+        XCTAssertFalse(WisprOwnership.rowIsHis(rowid: 9, startedAt: 1_000, floor: 8, relayHadRow: true,
+                                               relayClosedAt: 990, relayCmdVSeen: true, sinceRelease: 5,
+                                               relayChords: [chord]))
+        XCTAssertTrue(WisprOwnership.rowIsHis(rowid: 9, startedAt: 1_003, floor: 8, relayHadRow: true,
+                                              relayClosedAt: 990, relayCmdVSeen: true, sinceRelease: 5,
+                                              relayChords: [chord]))
+    }
+
+    // MARK: E: the ghost microphone
+
+    func testAMicOpeningAfterAnUnansweredChordIsAGhost() {
+        XCTAssertNotNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                                hisKeysHeld: false, hisChordAt: 0))
+    }
+    func testNotAGhostWhenItIsHisOrTooLateOrTheRelays() {
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                             hisKeysHeld: true, hisChordAt: 0))             // his ptt held
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                             hisKeysHeld: false, hisChordAt: 1_010))        // his chord since
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_030, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                             hisKeysHeld: false, hisChordAt: 0))            // past 25 s
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: true, unansweredAt: 1_000,
+                                             hisKeysHeld: false, hisChordAt: 0))            // the relay's sentence
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: false, relayRecording: false, unansweredAt: 1_000,
+                                             hisKeysHeld: false, hisChordAt: 0))
+        XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 0,
+                                             hisKeysHeld: false, hisChordAt: 0))
+    }
 }

@@ -1146,6 +1146,9 @@ final class WisprFlowSource: DictationSource {
             closeListening("the relay's own stop (Wispr never started)")
             return
         }
+        // B-risk (TX6b): a stop for a sentence Wispr never answered may be read
+        // as a start — a row it opens now is the relay's, not his.
+        if historyRow == nil, startedMode != .scratchpad { WisprOwnership.noteRelayChord() }
         switch startedMode {
         case .scratchpad:
             HotkeyTap.postWisprScratchpad(down: false)
@@ -1453,6 +1456,7 @@ final class WisprFlowSource: DictationSource {
             // Q9: his own chord never ends the relay's sentence — it is Wispr's
             // second sentence, not a stop.
             if !relay, !walkiePosted {
+                hisChordAt = Date().timeIntervalSince1970
                 Log.info("⚡ \(why) — Wispr's own chord (standalone, Q9); the relay's sentence goes on")
                 return
             }
@@ -1465,10 +1469,13 @@ final class WisprFlowSource: DictationSource {
         // The back click's raw chord (`walkiePosted`) is Walkie's gesture, not his
         // Wispr chord — still the relay's plain sentence.
         if !relay, !walkiePosted {
+            hisChordAt = Date().timeIntervalSince1970
             Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (Q9)")
             return
         }
         hotkeys.setWisprRelayOwned(true)
+        // B-risk (TX6b): a row Wispr opens within 1 s of this start is the relay's.
+        WisprOwnership.noteRelayChord()
         // B: this sentence's rows — the floor is the row on top at the chord.
         tailWatch?.invalidate(); tailWatch = nil
         ownedRow = nil
@@ -1556,6 +1563,7 @@ final class WisprFlowSource: DictationSource {
             if HotkeyTap.scratchpadIsHeld { HotkeyTap.postWisprScratchpad(down: false) }
             // Q14: the relay's recording of those seconds is kept and judged.
             let relays = self.relayStarted
+            if relays { self.armGhostWatch() }   // E: a start Wispr never answered
             self.stopMeter(keep: relays)
             self.state.timedOut("no row and no microphone within \(Int(Self.speculativeGrace)) s")
             let why = "Wispr never created a row within \(Int(Self.speculativeGrace)) s of the chord — it ignored it"
@@ -1608,6 +1616,9 @@ final class WisprFlowSource: DictationSource {
     private func closeListening(_ why: String) {
         guard isRecording || speculative else { return }
         if relayStarted, relayClosedWall == 0 { relayClosedWall = Date().timeIntervalSince1970 }
+        // E (lab wave 3): a relay sentence Wispr's microphone never opened for —
+        // its start may still land, late, as a ghost microphone.
+        if relayStarted, !micSeen { armGhostWatch() }
         // **The machine closes here too, and only here.** It used to be told
         // separately at each call site, and the one site that forgot was the
         // CoreAudio edge — so a dictation the relay had settled sat in `warming`
@@ -2576,6 +2587,53 @@ final class WisprFlowSource: DictationSource {
         }
     }
 
+    // MARK: - E: the ghost microphone (lab wave 3, 2026-09-28)
+
+    /// His own last Wispr chord the tap saw (unix time) — his, not a ghost.
+    private var hisChordAt: Double = 0
+    private var unansweredChordAt: Double = 0
+    private var ghostWatch: Timer?
+    /// A chip notice (English), wired to `overlay.flash` by `AppDelegate`.
+    var onNotice: ((String) -> Void)?
+
+    /// **After a relay chord Wispr never answered, watch 25 s for its microphone
+    /// opening by itself** (E, lab wave 3: three times in one night, once held
+    /// > 14 min, blocking every start and the restart gate). No sentence of the
+    /// relay's open, no push-to-talk of his held (right ⌥⇧ `61+60`), no chord of
+    /// his since (`WisprOwnership.ghostMic`) → it is the relay's own start,
+    /// arriving late: dismissed with ⌃Escape, and the chip says so.
+    private func armGhostWatch() {
+        unansweredChordAt = Date().timeIntervalSince1970
+        ghostWatch?.invalidate()
+        let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let now = Date().timeIntervalSince1970
+            guard now - self.unansweredChordAt < Self.ghostWindow else {
+                timer.invalidate(); self.ghostWatch = nil; return
+            }
+            // A sentence of the relay's own is open: its microphone is not a ghost.
+            guard !self.isRecording, !self.speculative else { return }
+            let his = CGEventSource.keyState(.combinedSessionState, key: 61)
+                && CGEventSource.keyState(.combinedSessionState, key: 60)
+            guard let why = WisprOwnership.ghostMic(now: now, micOpen: self.watch.sampleIsRunningInput(),
+                                                    relayRecording: false, unansweredAt: self.unansweredChordAt,
+                                                    hisKeysHeld: his, hisChordAt: self.hisChordAt,
+                                                    window: Self.ghostWindow) else { return }
+            timer.invalidate(); self.ghostWatch = nil
+            self.unansweredChordAt = 0
+            Log.error("👻 \(why) — dismissing it (⌃Escape)")
+            HotkeyTap.postWisprCancel()
+            self.onNotice?("👻 Wispr Flow opened its microphone late for a start it never answered — dismissed")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self else { return }
+                Log.info("👻 the ghost microphone 1.5 s after the dismiss: " + (self.watch.sampleIsRunningInput() ? "STILL OPEN" : "closed"))
+            }
+        }
+        ghostWatch = t
+        RunLoop.main.add(t, forMode: .common)
+    }
+    private static let ghostWindow: Double = 25
+
     /// **Q19 (2026-09-28, Victor's Q7 = A): a dropped ⌘V may be his own
     /// sentence.** Q9 leaves his right ⌥⇧ sentences to Wispr, but while the
     /// relay's row is in flight the firewall cannot tell whose ⌘V it is. If the
@@ -2617,6 +2675,10 @@ final class WisprFlowSource: DictationSource {
         }
         guard Date().timeIntervalSince1970 - top.startedAt < 120 else {
             Log.info("🛡️ the dropped ⌘V is not his: row \(top.rowid) is older than 120 s")
+            return
+        }
+        if WisprOwnership.madeByRelayChord(startedAt: top.startedAt, chords: WisprOwnership.relayChordTimes) {
+            Log.info("🛡️ the dropped ⌘V is not his: row \(top.rowid) opened within 1 s of one of the relay's own chords — the relay's (TX6b)")
             return
         }
         if !relayHadRow, top.startedAt < relayClosedAt.rounded(.down) {
@@ -2728,7 +2790,8 @@ final class WisprFlowSource: DictationSource {
             guard let e = WisprHistory.newest(), e.rowid > self.lastForeignRow,
                   WisprOwnership.rowIsHis(rowid: e.rowid, startedAt: e.startedAt, floor: floor, relayHadRow: hadRow,
                                           relayClosedAt: closed, relayCmdVSeen: self.lastCmdVAt >= sentenceArmedAt,
-                                          sinceRelease: since) else { return }
+                                          sinceRelease: since,
+                                          relayChords: WisprOwnership.relayChordTimes) else { return }
             self.hotkeys.noteForeignWisprRow(e.rowid)
             Log.info(String(format: "🛡️ row %lld (%@) is his, not the relay's (%@), %.1f s into the tail — a Wispr ⌘V passes now (B)",
                             e.rowid, e.status.isEmpty ? "open" : e.status,

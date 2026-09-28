@@ -10,8 +10,18 @@ TW36
 TW37
 TW38
 TW39
-# Wave-3 VM findings (batch 3, second half):
+# Wave-3 VM findings (batch 3, second half): D2 (TW33/TW40), B2 (TX10, TX8b), E ghost mic
+# (TX3, TW20, TX6b), B-risk (TX6b), rig (TW1, TW8a regex, TX8b regex), and the report's re-run list:
 TW40
+TW33
+TW1
+TW4
+TX2
+TX3
+TX6b
+TX10
+TX13
+TN4
 # Existing lab cases whose path batch 3 changed (real Wispr rows, real ⌘V, real WAL):
 TW8a
 TW8b
@@ -22,7 +32,7 @@ TX8a
 TX8b
 #
 # One line for run-phase.sh / harness.py:
-# --only TW35,TW36,TW37,TW38,TW39,TW40,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b
+# --only TW35,TW36,TW37,TW38,TW39,TW40,TW33,TW1,TW4,TX2,TX3,TX6b,TX10,TX13,TN4,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b
 #
 # Finding A, the peak-0 watch (MicRecorder, 2026-09-28 night): TM1/TM2 in cases_audio.py (Loopback =
 # BlackHole 2ch, local engine), plus TW4 and TW34 where A showed (TX2 is already listed above):
