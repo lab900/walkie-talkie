@@ -22,16 +22,58 @@ import SQLite3
 /// Wispr's delivery is deliberately aimed somewhere no tap can see.
 enum WisprFlowDB {
 
-    static let url = FileManager.default.homeDirectoryForCurrentUser
+    static let realURL = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/Wispr Flow/flow.sqlite")
 
+    /// **`WT_WISPR_DB=<path>` — a fake `flow.sqlite` for the desk** (2026-09-28,
+    /// the Wispr-as-engine reviews' H1 / B §4.1). The environment first, then
+    /// `elevenlabs.env`, which is **re-read at most once a second** so the harness
+    /// can switch it for one case and back without a relaunch
+    /// (`evals/plan/fake_wispr_db.py` writes a schema-identical copy). Unset or
+    /// empty = Wispr's own file. Test-only: nothing in the app writes it.
+    static var url: URL { overridePath.map { URL(fileURLWithPath: $0) } ?? realURL }
+
+    /// The override in force, or nil for Wispr's own file — `GET /test/state.wisprLive.db`.
+    static var overridePath: String? {
+        if let env = ProcessInfo.processInfo.environment["WT_WISPR_DB"] { return env.isEmpty ? nil : env }
+        overrideLock.lock(); defer { overrideLock.unlock() }
+        let now = CFAbsoluteTimeGetCurrent()
+        if now - overrideReadAt > 1 {
+            overrideReadAt = now
+            var found: String?
+            if let text = try? String(contentsOf: ElevenLabsSource.configURL, encoding: .utf8) {
+                for line in text.split(separator: "\n") {
+                    let row = line.trimmingCharacters(in: .whitespaces)
+                    guard row.hasPrefix("WT_WISPR_DB=") else { continue }
+                    let v = row.dropFirst("WT_WISPR_DB=".count).trimmingCharacters(in: .whitespaces)
+                    found = v.isEmpty ? nil : v
+                }
+            }
+            if found != overrideCached {
+                Log.info("🧪 wispr db: \(found.map { "WT_WISPR_DB — reading the fake \($0)" } ?? "back on Wispr Flow's own flow.sqlite")")
+            }
+            overrideCached = found
+        }
+        return overrideCached
+    }
+    private static var overrideCached: String?
+    private static var overrideReadAt: CFAbsoluteTime = 0
+    private static let overrideLock = NSLock()
+
     private static var handle: OpaquePointer?
+    /// The path and inode the handle was opened on: a switch of `WT_WISPR_DB`,
+    /// or a file replaced under the same name (the fake recreated, W-B4's
+    /// replaced file), reopens instead of reading a deleted inode for ever.
+    private static var handleKey: (path: String, inode: UInt64)?
     static let lock = NSLock()
 
     /// Caller holds `lock`.
     static func open() -> OpaquePointer? {
-        if let handle { return handle }
-        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let url = self.url
+        let inode = ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.systemFileNumber] as? NSNumber)?.uint64Value
+        if let handle, let key = handleKey, key.path == url.path, key.inode == inode { return handle }
+        if handle != nil { reset() }
+        guard let inode, FileManager.default.fileExists(atPath: url.path) else { return nil }
         var db: OpaquePointer?
         let uri = "file:" + url.path.replacingOccurrences(of: " ", with: "%20") + "?mode=ro"
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI
@@ -42,6 +84,7 @@ enum WisprFlowDB {
         }
         sqlite3_busy_timeout(db, 50)
         handle = db
+        handleKey = (url.path, inode)
         return db
     }
 
@@ -49,6 +92,7 @@ enum WisprFlowDB {
     static func reset() {
         if let handle { sqlite3_close(handle) }
         handle = nil
+        handleKey = nil
     }
 }
 

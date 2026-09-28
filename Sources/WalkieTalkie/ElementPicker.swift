@@ -453,6 +453,10 @@ final class ElementPicker {
     ///   intercept; the two were one call until the adversarial round found the
     ///   relay re-delivering a sentence it had promised only to watch.
     var onTestWisprHandsFree: ((Bool) -> Void)?
+    /// **Wispr as an engine, from a desk** (2026-09-28): `/test/wispr-proc`,
+    /// `/test/wispr-chord`, `/test/modifiers` — route name and body in,
+    /// status and answer out. See `.claude/rules/desk-testing.md`.
+    var onTestWisprHook: ((String, [String: Any]) -> (Int, [String: Any]))?
 
     /// `POST /test/input {"name": "…"}` — point the **system's** default input at
     /// a device, and say what it was before.
@@ -874,6 +878,13 @@ final class ElementPicker {
             let hand = body?["hand"] as? Bool ?? false
             onTestWisprHandsFree?(hand)
             respond(conn, 200, ["ok": true, "posted": "fn ctrl space", "hand": hand])
+
+        // Wispr as an engine: the process, the chord, a held modifier pair.
+        case ("POST", "/test/wispr-proc"), ("POST", "/test/wispr-chord"), ("POST", "/test/modifiers"):
+            let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] ?? [:]
+            guard let hook = onTestWisprHook else { return respond(conn, 503, ["ok": false, "error": "no handler"]) }
+            let (code, answer) = hook(request.path, body)
+            respond(conn, code, answer)
 
         // **The `⌘⇧P` hint, without the loss that summons it.** It is under
         // two seconds long, at a fifth of an opacity, and it appears only at

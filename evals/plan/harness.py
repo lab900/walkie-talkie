@@ -74,6 +74,20 @@ FAULT_ONLY = set("TL11 TL13 TL14 TL32 TR10 TR11 TR12 TR13 TR14".split())
 # What only the real service can answer: the 10-min ceiling's 19 MB upload against URLSession's
 # own 20 s timeout. Real (and under the cap) even with the fake on.
 VENDOR_ONLY = {"TL25"}
+# **The Tart guest** (docs/vm-lab.md): `lab_only` cases run only there. `WT_LAB=1` (run-phase.sh
+# exports it) or the hypervisor's own flag; the host without either SKIPs them.
+def _in_lab():
+    if os.environ.get("WT_LAB") == "1":
+        return True
+    try:
+        return subprocess.run(["sysctl", "-n", "kern.hv_vmm_present"], capture_output=True,
+                              text=True, timeout=3).stdout.strip() == "1"
+    except Exception:
+        return False
+IN_LAB = _in_lab()
+# Extra per-case restores a case module registers (cases_wispr: the fake History DB line, the
+# chord mute); `cleanup()` runs them after every case and at exit, whatever the case did.
+CLEANUPS = []
 RUN = {"credits_before": None, "usage_error": None, "engine0": None, "fake": None, "results": [],
        "credits_after": None}
 
@@ -424,12 +438,15 @@ def credits_left():
     b = RUN["credits_before"]
     return None if b is None else QUOTA - b
 
+def is_eleven(c):
+    return str(c.get("engine") or "").startswith("eleven")
+
 def needs_real(c):
     """The case would spend real ElevenLabs credits."""
-    return bool(c.get("engine")) and c["id"] not in FAULT_ONLY and (not RUN["fake"] or c["id"] in VENDOR_ONLY)
+    return is_eleven(c) and c["id"] not in FAULT_ONLY and (not RUN["fake"] or c["id"] in VENDOR_ONLY)
 
 def routes_fake(c):
-    return bool(RUN["fake"]) and bool(c.get("engine")) and c["id"] not in VENDOR_ONLY
+    return bool(RUN["fake"]) and is_eleven(c) and c["id"] not in VENDOR_ONLY
 
 def cap_blocks(c):
     """The SKIP note when the credit cap stops this case, else None."""
@@ -563,14 +580,18 @@ def eleven_teardown():
 # ---------------------------------------------------------------- the registry
 CASES = []
 
-def case(id, tags=(), expect="", engine=None):
-    """`engine`: the ElevenLabs engine the case needs for its duration (`eleven`｜`eleven-live`);
-    the cases written before 2026-09-27 get it from `ELEVEN_ENGINE`. Tagged `eleven` (+ `live`)."""
+def case(id, tags=(), expect="", engine=None, lab_only=False, pre=None):
+    """`engine`: the engine the case needs for its duration (`eleven`｜`eleven-live`｜`wispr`);
+    the cases written before 2026-09-27 get it from `ELEVEN_ENGINE`. Tagged `eleven` (+ `live`)
+    or `wispr`. `lab_only`: SKIP outside the Tart guest (`IN_LAB`), tagged `lab`. `pre`: a
+    callable answering a SKIP reason (or None), asked before the engine is switched."""
     def deco(fn):
         eng = engine or ELEVEN_ENGINE.get(id)
-        t = set(tags) | ({"eleven"} if eng else set()) | ({"live"} if eng == "eleven-live" else set())
+        el = str(eng or "").startswith("eleven")
+        t = (set(tags) | ({"eleven"} if el else set()) | ({"live"} if eng == "eleven-live" else set())
+             | ({"wispr"} if eng == "wispr" else set()) | ({"lab"} if lab_only else set()))
         CASES.append({"id": id, "fn": fn, "tags": t, "expect": expect, "doc": (fn.__doc__ or "").strip(),
-                      "engine": eng})
+                      "engine": eng, "lab_only": lab_only, "pre": pre})
         return fn
     return deco
 
@@ -588,6 +609,11 @@ def cleanup():
             unbind()
     except Exception:
         pass
+    for fn in CLEANUPS:
+        try:
+            fn()
+        except Exception as e:
+            print(f"  (cleanup {getattr(fn, '__name__', fn)}: {type(e).__name__}: {e})")
 
 def take_lock():
     """`helpers/wispr_loop.py`'s lock, same format: one process drives this Mac at a time
@@ -615,6 +641,17 @@ def run(selected, report_path):
     for c in selected:
         if "gesture" in c["tags"] and not os.environ.get("HANDS_OFF"):
             results.append((c, "SKIP", "needs hands-off", 0)); print(f"  {c['id']}: SKIP (gesture, no hands-off)"); continue
+        why = "needs the Tart guest (lab_only)" if c.get("lab_only") and not IN_LAB else None
+        if not why and c.get("pre"):
+            try:
+                why = c["pre"]()
+            except Exception as e:
+                why = f"precondition failed: {type(e).__name__}: {e}"
+        if why:
+            results.append((c, "SKIP", why, 0)); print(f"  {c['id']}: SKIP {why}")
+            with open(report_path, "w") as f:
+                f.write(render(results, t_start))
+            continue
         capped = cap_blocks(c)
         if capped:
             results.append((c, "SKIP", capped, 0)); print(f"  {c['id']}: SKIP {capped}")
@@ -638,7 +675,7 @@ def run(selected, report_path):
                 RUN["fake"]["state"].scripts = []
                 RUN["fake"]["state"].fault = {}
             verdict, note = c["fn"]()
-            if c.get("engine"):
+            if is_eleven(c):
                 note = f"[{c['engine']} → {'fake Scribe' if routes_fake(c) else 'real ElevenLabs'}] {note}"
         except Exception as e:
             verdict, note = "ERROR", f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=2)}"
@@ -698,7 +735,8 @@ def main():
     sys.modules["harness"] = sys.modules[__name__]
     here = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, here)
-    for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue"):
+    for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue",
+                "cases_wispr"):
         try:
             importlib.import_module(mod)
         except ModuleNotFoundError as e:

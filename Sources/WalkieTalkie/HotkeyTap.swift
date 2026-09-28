@@ -3822,7 +3822,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     /// the app under the caret does with Escape. The Control goes out as a real
     /// `flagsChanged` around the key, exactly as `postWisprHandsFree` sends fn
     /// and Control, and nothing else is left on the wire.
-    static func postWisprCancel() {
+    static func postWisprCancel(ignoringMute: Bool = false) {
+        if !ignoringMute, postMutedTail("⌃Escape") { return }
         DispatchQueue.global().async {
             usleep(settleForOptionsPlus)
             let watched: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
@@ -4256,7 +4257,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         }
     }
 
-    static func postWisprHandsFree() {
+    static func postWisprHandsFree(ignoringMute: Bool = false) {
+        if !ignoringMute, postMutedTail("fn ⌃ Space") { return }
         DispatchQueue.global().async {
             usleep(settleForOptionsPlus)
             let watched: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
@@ -4472,6 +4474,105 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         else if wisprOwnedSince > 0, wisprOwnedReleasedAt == 0 { wisprOwnedReleasedAt = CFAbsoluteTimeGetCurrent() }
         stateLock.unlock()
     }
+    /// `GET /test/state.wisprLive.relayOwned｜relayOwnedUntil` — the window as
+    /// it stands: `until` is the tail's end once released, the ceiling before.
+    func wisprRelayOwnedWindow() -> (active: Bool, until: CFAbsoluteTime?) {
+        stateLock.lock(); defer { stateLock.unlock() }
+        guard wisprOwnedSince > 0 else { return (false, nil) }
+        let until = wisprOwnedReleasedAt == 0 ? wisprOwnedSince + Self.wisprOwnedCeiling
+                                              : min(wisprOwnedReleasedAt + Self.wisprOwnedTail,
+                                                    wisprOwnedSince + Self.wisprOwnedCeiling)
+        return (wisprRelayOwnedLocked(), until)
+    }
+
+    // ── Test hooks for Wispr as an engine (2026-09-28) ───────────────────────
+
+    /// **`POST /test/wispr-chord {"mute": true, "seconds"?}`** — Wispr's chords
+    /// go nowhere: `postWisprHandsFree` / `postWisprCancel` post only their
+    /// **stamped trailing `flagsChanged []`** (on ⌃, never fn — a lone fn edge is
+    /// the Globe key), which is the half W-D1 is about. So a desk run over the
+    /// fake `History` (`WT_WISPR_DB`) drives every relay gesture on Engine =
+    /// Wispr while his real Wispr hears nothing. Self-expiring (default 600 s).
+    private static var chordsMutedUntil: CFAbsoluteTime = 0
+    private static let muteLock = NSLock()
+    static var wisprChordsMuted: Bool {
+        muteLock.lock(); defer { muteLock.unlock() }
+        return CFAbsoluteTimeGetCurrent() < chordsMutedUntil
+    }
+    static func muteWisprChords(for seconds: Double) {
+        muteLock.lock(); chordsMutedUntil = seconds > 0 ? CFAbsoluteTimeGetCurrent() + min(seconds, 3600) : 0; muteLock.unlock()
+    }
+    private static func postMutedTail(_ chord: String) -> Bool {
+        guard wisprChordsMuted else { return false }
+        Log.info("🧪 \(chord) muted by POST /test/wispr-chord — only its stamped trailing flagsChanged [] goes out")
+        DispatchQueue.global().async {
+            let source = CGEventSource(stateID: .hidSystemState)
+            source?.userData = backButtonStamp
+            guard let e = CGEvent(keyboardEventSource: source, virtualKey: VK_CONTROL, keyDown: true) else { return }
+            e.type = .flagsChanged
+            e.flags = []
+            e.post(tap: .cghidEventTap)
+        }
+        return true
+    }
+
+    /// **`POST /test/modifiers {"keys": [54, 61], "holdMs": n, "stamped"?}`**
+    /// (C's hold hook, A's H6): modifier keycodes pressed in order **as if by
+    /// hand** — unstamped `flagsChanged` carrying the device bits, so the
+    /// push-to-talk reader sees the right-hand pair — held `holdMs` (≤ 10 s),
+    /// released in reverse, the last edge leaving `[]`. `keys: []` with
+    /// `stamped: true` posts one stamped `flagsChanged []` (GW6: the tail of
+    /// this app's own chords). Answers at once; the hold runs on its own queue.
+    static func postTestModifiers(keys: [Int], holdMs: Int, stamped: Bool) -> [String: Any] {
+        let codes = keys.map { CGKeyCode(clamping: $0) }
+        let flags = codes.map { modifierFlag(for: $0) }
+        if let bad = zip(keys, flags).first(where: { $0.1 == nil }) {
+            return ["ok": false, "error": "keycode \(bad.0) is not a modifier (54 55 56 58 59 60 61 62 63)"]
+        }
+        let hold = max(0, min(holdMs, 10_000))
+        let source = CGEventSource(stateID: .hidSystemState)
+        if stamped { source?.userData = backButtonStamp }
+        func post(_ key: CGKeyCode, leaving state: CGEventFlags) {
+            guard let e = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true) else { return }
+            e.type = .flagsChanged
+            e.flags = state
+            e.post(tap: .cghidEventTap)
+        }
+        Log.info("🧪 POST /test/modifiers — \(keys.map(String.init).joined(separator: "+"))\(stamped ? " (stamped)" : "") held \(hold) ms")
+        DispatchQueue.global().async {
+            guard !codes.isEmpty else { post(VK_CONTROL, leaving: []); return }
+            var state = CGEventFlags()
+            for (code, flag) in zip(codes, flags) {
+                state = CGEventFlags(rawValue: state.rawValue | flag!.rawValue)
+                post(code, leaving: state)
+                usleep(15_000)
+            }
+            usleep(useconds_t(hold) * 1000)
+            var held = Array(zip(codes, flags))
+            while let (code, _) = held.popLast() {
+                let rest = held.reduce(UInt64(0)) { $0 | $1.1!.rawValue }
+                post(code, leaving: CGEventFlags(rawValue: rest))
+                usleep(15_000)
+            }
+        }
+        return ["ok": true, "keys": keys, "holdMs": hold, "stamped": stamped]
+    }
+
+    /// **Wispr's configured shortcuts, action → chord** (`/engine.wisprShortcuts`,
+    /// C W-C7) — `prefs.user.shortcuts` of its `config.json`, read at call time.
+    static func wisprShortcuts() -> [String: String] {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Wispr Flow/config.json")
+        guard let data = try? Data(contentsOf: url),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let prefs = root["prefs"] as? [String: Any],
+              let user = prefs["user"] as? [String: Any],
+              let shortcuts = user["shortcuts"] as? [String: Any] else { return [:] }
+        var out: [String: String] = [:]
+        for (chord, value) in shortcuts { if let action = value as? String { out[action] = chord } }
+        return out
+    }
+
     /// Under `stateLock`.
     private func wisprRelayOwnedLocked() -> Bool {
         let now = CFAbsoluteTimeGetCurrent()

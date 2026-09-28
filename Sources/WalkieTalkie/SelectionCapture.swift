@@ -119,6 +119,7 @@ enum SelectionCapture {
 
     private static func restoreClipboard(_ pb: NSPasteboard, _ saved: [NSPasteboard.PasteboardType: Data]) {
         pb.clearContents()
+        defer { PasteboardTimeline.noteOwnWrite("selection probe restore") }
         guard !saved.isEmpty else { return }
         pb.declareTypes(Array(saved.keys), owner: nil)
         for (type, data) in saved { pb.setData(data, forType: type) }

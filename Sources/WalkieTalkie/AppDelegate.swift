@@ -1786,6 +1786,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.wisprSource.postStartChord(byHand: hand)
             }
         }
+        // **Wispr as an engine, from a desk** (2026-09-28, the reviews in
+        // `evals/plan/wispr/`): H2 the process, H4 the chord decoupled from the
+        // state (+ `mute`, so a desk run over `WT_WISPR_DB`'s fake rows never
+        // reaches his real Wispr), C/H6 a held right-hand modifier pair.
+        picker.onTestWisprHook = { [weak self] path, body in
+            guard let self else { return (503, ["ok": false, "error": "gone"]) }
+            switch path {
+            case "/test/wispr-proc":
+                return WisprProc.handle(body)
+            case "/test/modifiers":
+                let keys = (body["keys"] as? [NSNumber])?.map { $0.intValue } ?? []
+                let stamped = body["stamped"] as? Bool ?? false
+                guard !keys.isEmpty || stamped else { return (400, ["ok": false, "error": "keys: [54, 61]…, or [] with stamped: true"]) }
+                let out = HotkeyTap.postTestModifiers(keys: keys, holdMs: (body["holdMs"] as? NSNumber)?.intValue ?? 500,
+                                                      stamped: stamped)
+                return (out["ok"] as? Bool == true ? 200 : 400, out)
+            default:   // /test/wispr-chord
+                if let mute = body["mute"] as? Bool {
+                    HotkeyTap.muteWisprChords(for: mute ? ((body["seconds"] as? NSNumber)?.doubleValue ?? 600) : 0)
+                    Log.info("🧪 POST /test/wispr-chord — Wispr's chords \(mute ? "muted" : "live again")")
+                }
+                let post = body["post"] as? String ?? "none"
+                let verb = body["state"] as? String ?? "none"
+                guard ["on", "off", "toggle", "cancel", "none"].contains(post),
+                      ["start", "stop", "cancel", "none"].contains(verb) else {
+                    return (400, ["ok": false, "error": "post: on｜off｜cancel｜none, state: start｜stop｜cancel｜none"])
+                }
+                var out: [String: Any] = [:]
+                DispatchQueue.main.sync { out = self.wisprSource.testChord(post: post, state: verb) }
+                out["ok"] = true
+                return (200, out)
+            }
+        }
         // Async: the pop-up's tracking loop holds main until it closes itself.
         picker.onTestEngineMenu = { [weak self] body in
             DispatchQueue.main.async {
@@ -2564,6 +2597,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           // `StatusItem.micRowsForTest`.
                           "rows": self.status.micRowsForTest()]
             out["whisper"] = self.whisperSource.describe()
+            // Wispr's own shortcut table beside the Q9 flag (C, W-C7): standalone is
+            // coherent only while Wispr's `ptt` is off Walkie's right ⌘⌥ (54+61) —
+            // 61+60 since Q23; without standalone the tap still reads 54+61 as Wispr's.
+            let shortcuts = HotkeyTap.wisprShortcuts()
+            out["wisprShortcuts"] = shortcuts
+            out["wisprStandalone"] = HotkeyTap.wisprStandalone
+            out["wisprPttCoherent"] = shortcuts["ptt"].map { HotkeyTap.wisprStandalone ? $0 != "54+61" : $0 == "54+61" } ?? NSNull()
             out["elevenlabs"] = (self.source === self.elevenLiveSource ? self.elevenLiveSource : self.elevenSource).describe()
             return out
         }
@@ -6294,6 +6334,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["elevenQuota"] = ElevenLabsQuota.shared.describe()
         out["micOpened"] = MicRecorder.lastOpened.map { ["device": $0.device, "rate": $0.rate, "channels": $0.channels, "at": Outbox.iso($0.at)] } ?? NSNull()
         out["whisper"] = whisperSource.describe()
+        // Wispr as an engine (2026-09-28): the relay's belief beside Wispr's truth
+        // (H3), and the clipboard's moves (C) — `desk-testing.md`.
+        out["wisprLive"] = wisprSource.testDescribe()
+        out["pasteboard"] = PasteboardTimeline.describe()
         return out
     }
 
@@ -9538,6 +9582,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        PasteboardTimeline.noteOwnWrite("pasteText")
         Log.info("📋 \(text.count) chars on the clipboard — pasting at the caret"
                  + (pid.map { " (addressed to pid \($0))" } ?? ""))
         // The insertion the ring has been waiting for, said at the ⌘V rather than

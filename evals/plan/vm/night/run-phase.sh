@@ -4,7 +4,7 @@
 name=$1; cap=$2; ids=$3
 N=$HOME/wt-lab/night; mkdir -p "$N"
 cd "$HOME/wt-lab/evals/plan" || exit 9
-export WT_LOOPBACK="BlackHole 2ch" HANDS_OFF=1 WT_COLD_WHISPER=kill WT_ALLOW_SPAWN=1 WT_ALLOW_RELAUNCH=1
+export WT_LAB=1 WT_LOOPBACK="BlackHole 2ch" HANDS_OFF=1 WT_COLD_WHISPER=kill WT_ALLOW_SPAWN=1 WT_ALLOW_RELAUNCH=1
 export PATH="$HOME/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
 echo "start $name cap=${cap}s $(date)" >> "$N/run-$name.log"
 /usr/bin/python3 -u harness.py --only "$ids" --report "$N/report-vm-$name.md" >> "$N/run-$name.log" 2>&1 &

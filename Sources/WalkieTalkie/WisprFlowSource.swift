@@ -1234,6 +1234,65 @@ final class WisprFlowSource: DictationSource {
                     confident: true, relay: false, mode: .off, walkiePosted: true)
     }
 
+    /// **`POST /test/wispr-chord` (H4, 2026-09-28): the chord and the relay's
+    /// belief about it, decoupled.** `post` puts the toggle on the wire without
+    /// touching this source's state (`on`｜`off` are the same fn ⌃ Space — the
+    /// word records the intent; `cancel` = ⌃Escape); `state` moves the state
+    /// without posting (`start` = the relay's own gesture, `stop` = its close,
+    /// `cancel` = `cancel()` with the chord muted). Emulates a lost stop, an
+    /// extra toggle, a Wispr that never heard the start.
+    func testChord(post: String, state stateVerb: String) -> [String: Any] {
+        switch post {
+        case "on", "off", "toggle": HotkeyTap.postWisprHandsFree(ignoringMute: true)
+        case "cancel": HotkeyTap.postWisprCancel(ignoringMute: true)
+        default: break
+        }
+        switch stateVerb {
+        case "start":
+            gestureSeen("POST /test/wispr-chord {state: start}", confident: true, relay: true, mode: .off)
+        case "stop":
+            closeListening("POST /test/wispr-chord {state: stop}")
+        case "cancel":
+            let was = HotkeyTap.wisprChordsMuted
+            HotkeyTap.muteWisprChords(for: 2)
+            cancel()
+            if !was { HotkeyTap.muteWisprChords(for: 0) }
+        default: break
+        }
+        Log.info("🧪 POST /test/wispr-chord — post \(post), state \(stateVerb)")
+        return testDescribe()
+    }
+
+    /// When the tap last reported a Wispr ⌘V (`injected(from:)`), any capture.
+    private var lastCmdVAt: CFAbsoluteTime = 0
+
+    /// **`GET /test/state.wisprLive`** (H3 + C's `sawCmdV` / `wisprRelayOwned`,
+    /// 2026-09-28): the relay's belief beside Wispr's truth, in one read —
+    /// `micOpen` is the same CoreAudio sample the 100 ms poll takes,
+    /// `newestRow*` the row on top of `History` (the fake's under `WT_WISPR_DB`).
+    func testDescribe() -> [String: Any] {
+        let newest = WisprHistory.newest()
+        let owned = hotkeys.wisprRelayOwnedWindow()
+        return ["micOpen": watch.sampleIsRunningInput(),
+                "newestRowId": newest.map { NSNumber(value: $0.rowid) } ?? NSNull(),
+                "newestRowStatus": newest.map { $0.status } ?? NSNull(),
+                "newestRowText": newest.map { $0.text.count } ?? NSNull(),
+                "captureOpen": capturing,
+                "captureRow": historyRow.map { NSNumber(value: $0) } ?? NSNull(),
+                "speculative": speculative,
+                "isRecording": isRecording,
+                "discarding": discardOnArrival,
+                "meterRecording": meter.isRecording,
+                "sawCmdV": capturing ? lastCmdVAt >= armedAt : (lastCmdVAt > 0 && lastCmdVAt >= armedAt),
+                "lastCmdVAt": lastCmdVAt > 0 ? Outbox.iso(Date(timeIntervalSinceReferenceDate: lastCmdVAt)) : NSNull(),
+                "relayOwned": owned.active,
+                "relayOwnedUntil": owned.until.map { Outbox.iso(Date(timeIntervalSinceReferenceDate: $0)) } ?? NSNull(),
+                "wisprPid": Int(Self.wisprMainPid),
+                "pidAtChord": Int(wisprPidAtChord),
+                "chordsMuted": HotkeyTap.wisprChordsMuted,
+                "db": WisprFlowDB.overridePath ?? NSNull()]
+    }
+
     /// `POST /test/wispr {"hotkey": true}` — the speculative ring, one step
     /// earlier than the microphone.
     func simulateHotkey() {
@@ -2304,7 +2363,7 @@ final class WisprFlowSource: DictationSource {
     /// `…/Contents/Resources/swift-helper-app-dist/Wispr Flow.app` as well, so a
     /// check written on either reports Wispr running when only the helper is —
     /// the same trap `open -a "Wispr Flow"` is in *Never reintroduce* for.
-    private static var wisprMainPid: pid_t {
+    static var wisprMainPid: pid_t {
         NSWorkspace.shared.runningApplications.first {
             $0.executableURL?.path == mainExecutable
         }?.processIdentifier ?? 0
@@ -2546,6 +2605,8 @@ final class WisprFlowSource: DictationSource {
     /// Wispr pressed ⌘V. Under the wrap the tap has already eaten it, so the
     /// words are nowhere yet and this is the whole delivery.
     private func injected(from process: String) {
+        // `GET /test/state.wisprLive.sawCmdV` — the ⌘V this capture's firewall caught (W-C8).
+        lastCmdVAt = CFAbsoluteTimeGetCurrent()
         // **The cancelled sentence's ⌘V, arriving after its capture was
         // retired** (2026-09-14). It is keyed by the row it was armed for, and
         // it is checked before `capturing` on purpose: the capture running now

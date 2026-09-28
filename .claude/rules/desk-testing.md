@@ -19,7 +19,7 @@ The whole suite runs weekly **inside the Tart guest** at 02:00 (`tools/wt-night.
 | `POST /bind` | bind the frontmost terminal; 409 if nothing bindable; on the bound target it **unbinds** |
 | `POST /bind {"tty": "ttys004"}` | bind that session — no toggle, flight or flash (the restart's restore) |
 | `POST /unbind` · `GET /target` | let go · current binding (`guarded`: does the shell guard apply) |
-| `GET /engine` | live source, readiness, `wrapMode`·`wrapWhy`·`scratchpadChord`, local model state, `mic` |
+| `GET /engine` | live source, readiness, `wrapMode`·`wrapWhy`·`scratchpadChord`, local model state, `mic`; `wisprShortcuts` (Wispr's `config.json` action → chord, e.g. `ptt: "61+60"`), `wisprStandalone`, `wisprPttCoherent` (standalone ⇒ Wispr's ptt is off 54+61; W-C7) |
 | `POST /test/dictation {"text", "words"?}` | fabricated transcript entering where a real one does; with `words` (`{text,start,end,type}`) `ShotMarker.place` runs for real |
 | `POST /test/dictation/start {"clock"?}` | open a dictation without talking; `clock` installs a wall-clock marker clock (no mic ⇒ no offsets otherwise) |
 | `POST /test/selection {"text"}` | file a highlight via `fileSelection`; 409 outside a dictation |
@@ -28,6 +28,10 @@ The whole suite runs weekly **inside the Tart guest** at 02:00 (`tools/wt-night.
 | `POST /test/replace-wispr {"on"}` | the mode behind the forward button |
 | `POST /test/wispr {"on"}` · `{"hotkey": true}` · `{"historyRoute"}` | fake Wispr's mic edge · fake its start gesture · row as the delivery |
 | `POST /test/wispr-handsfree` · `{"hand": true}` | post the **real** chord (fn ⌃ Space). Plain: `relay: true`, ⌘V swallowed, words delivered. `hand`: as if Victor pressed it. **Installed build only** (`.build/debug` has no Accessibility, `CGEventPost` fails silently) |
+| `WT_WISPR_DB=<path>` (env, or a line in `elevenlabs.env`, re-read ≤ 1 s) | **a fake `flow.sqlite`** (2026-09-28, H1): `WisprHistory`/`WisprNotes` read it instead of Wispr's; reopened on a path or inode change. `evals/plan/fake_wispr_db.py` writes a schema-identical copy and its rows (`insert`/`update`/`finish`: `status`, `asrText`/`formattedText`/`pastedText`, `timestamp`, `speechDuration`, `e2eLatency`); `state.wisprLive.db` names the file in force |
+| `POST /test/wispr-proc {"stop"｜"cont"｜"kill"｜"relaunch": true, "afterMs"?, "forMs"?, "pid"?}` | **Wispr's main process** (H2): SIGSTOP (auto-SIGCONT after `forMs`, default 10 s, ≤ 60 s) · SIGCONT · SIGKILL · kill + `open "/Applications/Wispr Flow.app"` by path; `afterMs` delays it. A `pid` that is not the anchored main executable's → 409; not running → 409 |
+| `POST /test/wispr-chord {"post": "on"｜"off"｜"cancel"｜"none", "state": "start"｜"stop"｜"cancel"｜"none"}` · `{"mute": bool, "seconds"?}` | **the chord and the relay's belief, decoupled** (H4): `post` puts fn ⌃ Space (`cancel`: ⌃Esc) on the wire without touching state; `state` moves `WisprFlowSource` without posting (`start` = the relay's own gesture). `mute` (≤ 600 s default, self-expiring): every Wispr chord the app posts goes out as its stamped trailing `flagsChanged []` only — desk runs over the fake DB never reach his real Wispr. Answers `wisprLive` |
+| `POST /test/modifiers {"keys": [54, 61], "holdMs": n (≤ 10 000), "stamped"?}` | **a modifier pair held as if by hand** (C, H6): unstamped `flagsChanged` with the device bits (right ⌘ 54, right ⌥ 61, right ⇧ 60, right ⌃ 62…), released in reverse to `[]`; `keys: []` + `stamped: true` = one stamped `flagsChanged []` (GW6, the tail of this app's own chords). Non-modifier keycodes → 400. Synthetic input: under `hands-off` |
 | `POST /test/firewall` | run the tap canary; `{"on": false}` lets Wispr's ⌘V through; answers `alive`, `tap` (`alive｜open｜blind｜dead` — `open` = failing open on purpose while main is frozen; `blind` = Secure Input / lock screen hides keys from every tap, `hidden` names the holder), `failingOpen`, `canaryMs`, `healing`. A dead answer starts the self-heal |
 | `POST /test/tap {"kill": true｜"unschedule"｜"invalidate"｜"disable"｜"secure", "seconds"}` | break the tap (source off the run loop · mach port invalidated · `tapEnable(false)` · Secure Input held N s) and run the canary → heal; poll `/test/firewall`. **Keys are blind while anything holds Secure Input** — `/test/gesture` answers `hidden` + `warning` then |
 | `POST /test/key-trace {"on"}` | log every key event + verdict (`passed` / `SWALLOWED by …`), keycode and pid only |
@@ -65,9 +69,20 @@ duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, 
 `correctedSegments`, `corrections`, `correcting`, `committedChars`, `partialChars`, `keyterms`) · `elevenFault` ·
 `elevenCost {total, label, lines}` · `elevenQuota {used, total, remaining, reset, source (subscription｜character-stats), subscriptionStatus, missingUserRead, title, error, fetchedAt}` (null before the first fetch; the Engine list's 🧾 row, 2026-09-28) · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
 since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
-`sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11). **`{"fail": "delay", "delayMs": n}`** is the real
+`sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11) · since 2026-09-28 (Wispr as engine):
+`wisprLive {micOpen (the poll's CoreAudio sample), newestRowId, newestRowStatus, newestRowText (chars), captureOpen,
+captureRow, speculative, isRecording, discarding, meterRecording, sawCmdV (this capture's firewall caught Wispr's ⌘V),
+lastCmdVAt, relayOwned, relayOwnedUntil, wisprPid, pidAtChord, chordsMuted, db}` · `pasteboard {changeCount, events:
+[{changeCount, at, writer: walkie｜other, why?, front, skipped?}]}` (never the text; the 20 Hz sampler starts at the
+first `/test/state`). **`{"fail": "delay", "delayMs": n}`** is the real
 upload made n ms late (Q12's order cases); `delayx2` delays the next two.
 
+- **Wispr as the engine at a desk: `evals/plan/cases_wispr.py`** (TW1–TW21, 2026-09-28, the reviews in
+  `evals/plan/wispr/`). A desk case switches in a fresh fake DB (`# fake-wispr:` marks in `elevenlabs.env`,
+  removed after every case through the harness's `CLEANUPS`), mutes Wispr's chords, points the relay's
+  recorder at the Loopback and drives rows by hand — his real Wispr hears nothing. `lab_only` cases SKIP
+  off the Tart guest (`WT_LAB=1`, set by `run-phase.sh`, or `kern.hv_vmm_present`); every case SKIPs
+  when Wispr is not running. `WT_ALLOW_WISPR_KILL=1` lets TW7(c)/TW15 kill and relaunch his Wispr.
 - **`delivery`** (outbox line and `lastDelivery`): `{via: wispr-cmdv｜wispr-history｜wispr-notes｜
   pasteboard｜local-whisper｜test, kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜
   caret｜spawn:<folder>｜held, at}`. It records, never decides; caret/held/elsewhere write no outbox line.

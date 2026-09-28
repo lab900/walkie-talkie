@@ -1327,6 +1327,7 @@ final class TerminalBinding {
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        PasteboardTimeline.noteOwnWrite("terminal paste")
 
         let previous = NSWorkspace.shared.frontmostApplication
         guard app.activate(options: []) else { return false }
@@ -1356,6 +1357,7 @@ final class TerminalBinding {
     private static func restore(_ text: String, to pasteboard: NSPasteboard) {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        PasteboardTimeline.noteOwnWrite("terminal paste restore")
     }
 
     /// ⌘V into whatever has the caret right now — no activation, no Return.
