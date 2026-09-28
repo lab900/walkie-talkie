@@ -37,8 +37,7 @@ Dead ends (evidence):
 - **No IPC we can join.** The Swift helper `com.electron.wispr-flow.accessibility-mac-app` talks to main over
   stdio unix sockets (fd 0–3). Its 97 message names (`DictationStart`, `PasteText`, `PasteOutcome`,
   `ClipboardChanged`, `MicrophoneHoldersChanged` …) are private.
-- **No notifications.** No `NSDistributedNotificationCenter` names in either binary.
-- **No usable local server.** `EVAL_SERVER=1` starts a local server, but its only route is
+- **No notifications** (no `NSDistributedNotificationCenter` names in either binary). **No usable local server.** `EVAL_SERVER=1` starts a local server, but its only route is
   `/eval/instruct_mode`. `ax-inspect-server.mjs` is a dev dashboard over the same `flow.sqlite`.
 - **No file logs.** `transports.file.level = !app.isPackaged && "silly"`, and `main.log` is deleted at start.
   `~/Library/Logs/Wispr Flow/` is empty.
@@ -46,13 +45,10 @@ Dead ends (evidence):
   the 2026-09-12 journal.
 - **No dictation URL schemes.** The only ones are `wispr-flow://open`, `auth/…`, `billing/…`, `linkedin/…`
   and the three in #4.
-- **Official API.** The Flow API is REST transcription, exclusive access, no desktop events
-  ([quickstart](https://api-docs.wisprflow.ai/quickstart), [platform](https://platform.wisprflow.ai/login),
-  [developers](https://wisprflow.ai/developers)).
-- **Third-party SDK.** The only "SDK" is a reverse-engineered cloud client
-  ([wisprflow-sdk](https://github.com/ThisisShashwat/wisprflow-sdk)).
-- **Release notes.** Nothing on integrations in the 2026 notes
-  ([changelog](https://roadmap.wisprflow.ai/changelog), [what's new](https://wisprflow.ai/whats-new)).
+- **Official API.** REST transcription, exclusive access, no desktop events ([quickstart](https://api-docs.wisprflow.ai/quickstart),
+  [platform](https://platform.wisprflow.ai/login), [developers](https://wisprflow.ai/developers)); the only "SDK" is a
+  reverse-engineered cloud client ([wisprflow-sdk](https://github.com/ThisisShashwat/wisprflow-sdk)).
+- **Release notes.** Nothing on integrations ([changelog](https://roadmap.wisprflow.ai/changelog), [what's new](https://wisprflow.ai/whats-new)).
 
 ## Item 3: the `History` row, from Wispr's own code (`.webpack/main/index.js`)
 
@@ -200,6 +196,4 @@ Readings, most to least likely:
 
    Do **not** try the deep links on the host: they start his real dictation.
 
-Evidence files (scratchpad, not committed): `swift-strings.txt`, `asar/.webpack/main/index.js`
-(offsets: stop path ≈ 4 073 400, start write ≈ 4 171 574, deep links ≈ 8 871 021),
-`asar/.webpack/renderer/hub/index.js` (`MediaManager`).
+Evidence (scratchpad, not committed): `asar/.webpack/main/index.js` (stop path ≈ 4 073 400, start write ≈ 4 171 574, deep links ≈ 8 871 021), `renderer/hub/index.js` (`MediaManager`), helper `strings`.
