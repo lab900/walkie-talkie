@@ -403,6 +403,9 @@ def _eleven_key():
 def eleven_usage():
     """(credits used this calendar month, None) or (None, why). `/v1/user/subscription` answers
     nulls for this key; the character-stats breakdown by model is what the dashboard shows."""
+    try: q = state().get("elevenQuota") or {}   # prefer the app's own reading (its 🧾 row)
+    except Exception: q = {}
+    if isinstance(q.get("used"), int): return q["used"], None
     key = _eleven_key()
     if not key:
         return None, "no ELEVENLABS_API_KEY"
