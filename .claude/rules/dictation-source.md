@@ -172,6 +172,19 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   speech under the floor → Recover (`heardNothing`); < 0.3 s voiced → *No speech was heard* (the only
   time it is said). The row given up on is watched (`watchLateRow`, ≤ 5 min) and held owned
   (`HotkeyTap.holdWisprOwned`): its late ⌘V is dropped and the row only logged — never a second copy.
+- **The capture reads its own row after adoption** (W4, 2026-09-28): `pollHistory` takes
+  `WisprHistory.entry(rowid: historyRow)`, never `newest()` — his own newer row hid the relay's.
+- **Q19 (Victor's Q7 = A): his own right ⌥⇧ sentence ending while the relay's row is in flight is
+  pasted at the caret by the relay.** The firewall drops the ⌘V (it cannot tell whose it is);
+  `claimForeignPaste` finds a newest row **newer than the relay's**, terminal with words, < 120 s old,
+  and hands it to `foreignSentence` → `AppDelegate.pasteText` (clipboard + ⌘V at the caret, Q17).
+- **Q15: a Wispr sentence waits behind a held / paused / edited prompt panel** — its answer goes
+  through `runAnswer` like every engine's (it used to force-send the panel, W10).
+- **Q16: a start while Wispr is still formatting is refused visibly** — flash *⏳ Wispr Flow takes one
+  sentence at a time* (`startDictation`, `onCleanHold`); Wispr does not queue.
+- **A cancelled Wispr sentence keeps the relay's recording for Recover** (W3): `closeListening`
+  keeps the meter WAV even on a cancel, and every `.cancelled` from this source carries it
+  (`endCancelledWithRecording`) — it was deleted (*nothing had been recorded yet*) or orphaned.
 - **Q2/Q24: no 30 s cap while the row is working** — at `captureTimeout` a row still `processing` /
   `raw_transcript` / `recording` re-arms the deadline (log `still processing — waiting on (Q2)`),
   up to `workingCeiling` 300 s. A NULL row with no microphone does not wait (above).

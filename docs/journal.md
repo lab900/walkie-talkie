@@ -13963,3 +13963,32 @@ rămase)."* The row born at 08:00 read `remaining / total / reset`, red only at 
   where it lands. `/test/state.elevenQuota` carries `pace` and `burnRate`.
 - Tests: `ElevenLabsQuotaTests` — on trend at half/half, orange at ×1.2, red at ×1.8, the
   first-day floor, the rolling window whole.
+
+## Wispr as engine: Q14–Q24 shipped, measured at the desk (2026-09-28)
+
+Commits `1bc3bcb` (decisions), `3093344` (Wispr's ptt → `61+60` on the host: `config.json` edited with
+Wispr quit, backup `config.json.bak-20260928-083940`, `shouldAutoLearnWords: false`; the Tart guest
+`wt-lab` the same, over SSH — `tart exec` answered `GRPCConnectionPoolError`), `ec019c8` (Q9 step 2:
+the old adoption path and `WT_WISPR_STANDALONE` deleted), `314f229` (Q17 clipboard, ⌘⇧P gone),
+`252b533` (W1/W6/Q21), `829b494` (Q14/Q20/Q24/W2), and the Q15/Q16/Q18/Q19 commit after this
+section. Desk cases (`evals/plan/cases_wispr.py`: fake `History`, Wispr's chords muted, Loopback
+mic), installed with `./relay-restart.sh --build`, under `hands-off`:
+
+| case | before (`report-wispr-desk.md`, 09:14 — already the W1 build; no pre-fix desk run is on record) | after (`report-wispr-fix1/2/2b/2c.md`) |
+|---|---|---|
+| TW1 right ⌘⌥ held on Engine = Wispr | PASS (predicted BUG by review D before W1) | **PASS** — one sentence (local model, Q21), 2.3–2.4 s listening, no early release |
+| TW2 stamped `flagsChanged []` under the pair | PASS (predicted BUG before W1) | **PASS** |
+| TW5 no row, no mic: chip | BUG — `Listening` | **PASS** — `Opening Wispr Flow...` (Q20; the case now accepts *opening*) |
+| TW7 cancel → Recover | BUG — WAV deleted / orphaned | **PASS** — (a) and (b) recoverable, no orphan; (c) not run (kills his Wispr) |
+| TW13 Wispr sentence vs an edited panel | BUG — panel force-sent | **PASS** — waits its turn (Q15) |
+| TW14 start during Wispr's settle | BUG — log only | **PASS** — flash *⏳ Wispr Flow takes one sentence at a time* (Q16; the case now waits past the 2 s stop dwell, which it used to hit instead) |
+| TW19 engine switch × Wispr state | PASS | PASS |
+| TW22 (new) NULL row, no mic | — | **PASS** — gave up 3.3 s after the stop, 2.3 s voiced → local model → witness, `via: local-fallback` |
+| TW12 two relay Wispr sentences overlapping on an ungated path | BUG | BUG — plan step 3 (row-keyed ownership) is not done |
+| TW21 `markerClock` leak (W23) | SKIP | BUG / SKIP by run (timing) — not in this batch |
+
+Not verified here: Q18 (🔽 → at a shell prompt — needs a real Terminal in front, a lab/Codex check),
+Q19 (his right ⌥⇧ sentence overlapping the relay's — two real Wispr rows, lab only: TW8a/b),
+Q21 with a real voice (desk used the Loopback), the late-row watch after a real Wispr error (HK13 in
+the lab), and the ring for Q20 (it still breathes on the relay's own meter while the chip says
+*Opening*). The lab-only cases (TW3, 4, 6a–d, 8a/b, 9, 10, 11, 16, 17, 20) were not run.

@@ -290,7 +290,7 @@ def tw5():
     post("/test/cancel")
     # Any row but one naming the wait is a claim of a live sentence ("Listening to …",
     # "Prompting to … →", measured 2026-09-28 09:03: the chip said *Prompting to* for 40/40).
-    named = any(re.search(r"warm|waking|starting|waiting for wispr", r, re.I) for r in rows)
+    named = any(re.search(r"warm|waking|starting|waiting for wispr|opening", r, re.I) for r in rows)   # Q20: `Opening Wispr Flow...`
     note = f"{lie}/{n} samples listening while warming with no row; chip rows then: {sorted(rows)[:3]}"
     if lie and rows and not named:
         return "BUG", note
@@ -555,7 +555,9 @@ def tw14():
     log line and nothing on the chip; ElevenLabs would open a queued sentence."""
     db = desk()
     bind_witness()
-    rid = open_sentence(db); time.sleep(0.8)
+    # Past `gestureStopDwellSeconds` (2 s): a 🔼→ inside it is the stop guard's
+    # "only N ms old — not stopping it", not the settle's refusal this case is about.
+    rid = open_sentence(db); time.sleep(2.3)
     close_sentence(db, rid)
     wait_for(lambda: state()["settling"], 3)
     mark = log_mark()
@@ -726,3 +728,34 @@ def tw21():
     if abs(cue - wall) <= 0.15:
         return "BUG", note
     return "FAIL", note
+
+
+# ---------------------------------------------------------------- TW22: W2 + Q14 (2026-09-28)
+@case("TW22", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="a NULL row with no microphone behind it gives up within ~3 s of the close and the relay's own "
+             "recording (≥ 1.5 s voiced) is transcribed by the local model and delivered (Q14), not a 30 s wait")
+def tw22():
+    """W2 / W3 / Q14 (desk): Wispr makes its row at the chord and never opens its microphone (the row
+    stays NULL). The relay records the sentence itself from the gesture (Loopback clip); at the stop
+    the NULL-no-mic ceiling (3 s) ends it and `endWithRecording` hands the WAV to the local model,
+    delivered to the bound witness with `via: local-fallback`. Before 2026-09-28: `Transcribing` for
+    30 s, then *No words came back*, the audio thrown away."""
+    db = desk()
+    bind_witness(); witness_clear()
+    mark = log_mark()
+    rid = open_sentence(db)                     # row NULL, never updated
+    play(CLIP_SPEECH, seconds=6)
+    t_stop = time.time()
+    chord(state_="stop")
+    gave_up = wait_for(lambda: log_has(mark, r"never opened its microphone"), 12, 0.2)
+    dt = time.time() - t_stop
+    delivered = wait_for(lambda: witness_text().strip() != "", 90, 0.5)
+    wait_for(lambda: log_has(mark, r"📦 delivery: "), 10, 0.3)
+    txt = log_since(mark)
+    fell_back = "local model stands in (Q14)" in txt
+    m = re.search(r"📦 delivery: (\S+)", txt)
+    via = m.group(1) if m else None
+    note = (f"gave up {bool(gave_up)} {dt:.1f} s after the stop; fallback line {fell_back}; delivered {bool(delivered)} "
+            f"({len(witness_text())} chars, via {via}); 'No words came back' {'No words came back' in txt}")
+    db.update(rid, status="dismissed")
+    return ("PASS" if gave_up and dt < 8 and fell_back and delivered and via == "local-fallback" else "BUG"), note

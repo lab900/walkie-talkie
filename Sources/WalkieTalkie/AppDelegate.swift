@@ -2808,6 +2808,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard !self.listening, !self.source.isRecording, !self.speculative,
                           (!self.settling && !self.source.phase.isWaitingForWords) || self.queueRefusal() == nil else {
                         Log.info("🧼 right ⌘⌥ while another sentence is open or in flight — left alone")
+                        if self.source === self.wisprSource, self.settling || self.source.phase.isWaitingForWords {
+                            self.overlay.flash("⏳ Wispr Flow takes one sentence at a time", duration: 3)
+                        }
                         return
                     }
                     // **Q21 (2026-09-28): on Engine = Wispr the hold is the local
@@ -3082,7 +3085,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)")
             self.overlay.setOpening(false)
         }
-        wisprSource.didTranscribe = { [weak self] result in self?.deliver(result) }
+        wisprSource.didTranscribe = { [weak self] result in
+            guard let self else { return }
+            // Q15: through the order rule, like every other engine's answer —
+            // behind a held, paused or edited prompt panel, not over it.
+            self.runAnswer(for: self.liveSentence) { self.deliver(result) }
+        }
+        // Q19 (2026-09-28): his own right ⌥⇧ sentence whose ⌘V the firewall
+        // dropped because the relay's row was in flight — pasted at the caret,
+        // where Wispr would have put it.
+        wisprSource.foreignSentence = { [weak self] text in
+            guard let self else { return }
+            Log.info("📍 Wispr's own sentence (\(text.count) chars) arrived while the relay's was in flight — pasted at the caret (Q19)")
+            self.pasteText(text, settles: false)
+            self.pasteHint.pulse(reason: "Wispr's own sentence, pasted by the relay (Q19)")
+        }
         wisprSource.didEnd = { [weak self] end in self?.dictationEnded(end) }
         // **One letter on the chip, saying which recogniser is listening**
         // (2026-09-18) — `Listening(W)...`. Pushed from here because here is the
@@ -4158,6 +4175,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // **A third sentence is refused out loud** (Q12).
                 if why.hasPrefix("two sentences") {
                     overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
+                } else if source === wisprSource {
+                    // Q16 (2026-09-28): Wispr does not queue — said on the chip,
+                    // not only in the log (W9).
+                    overlay.flash("⏳ Wispr Flow takes one sentence at a time", duration: 3)
                 }
                 return
             }
@@ -7235,7 +7256,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Options+'s flags itself and is stamped as this app's.
     private func submitAfterCleanWords() {
         Log.info("⏎ plain dictation ended by 🔽 → — Return after the words")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { HotkeyTap.postReturn() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            // **Q18 (2026-09-28): never a Return at a shell prompt.** The words
+            // land where the caret is when they arrive (Victor's Q6 = C); if that
+            // is a Terminal tab whose foreground job is a shell (or passes the
+            // line to one), the Return would *run* them. Asked at the Return.
+            let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            DispatchQueue.global(qos: .userInitiated).async {
+                if let shell = TerminalBinding.frontTerminalShell(bundleID: front) {
+                    Log.info("⏎ not sent — the Terminal tab in front is at a \(shell) prompt (Q18)")
+                    DispatchQueue.main.async { self?.overlay.flash("⏎ not sent — a shell prompt is in front", duration: 3) }
+                    return
+                }
+                HotkeyTap.postReturn()
+            }
+        }
     }
 
     private static func terminalLine(_ m: Message) -> String {
@@ -10085,7 +10120,9 @@ extension AppDelegate {
             // Behind its own earlier answers, an older sentence still in flight,
             // or a prompt panel on screen (one at a time, in order).
             let older = parkedSentence.flatMap { $0 !== s && !$0.finished ? $0 : nil }
-            let panel = source.queuesSentences && (held != nil || panelsComing > 0)
+            // Q15 (2026-09-28): a Wispr sentence waits behind the panel too — it
+            // used to force-send a held / paused / edited one (W10).
+            let panel = (source.queuesSentences || source === wisprSource) && (held != nil || panelsComing > 0)
             if !s.waiting.isEmpty || older != nil || panel {
                 if s.waiting.isEmpty {
                     Log.info(older.map { "🧾 sentence #\(s.id) landed before #\($0.id) — it waits its turn" }

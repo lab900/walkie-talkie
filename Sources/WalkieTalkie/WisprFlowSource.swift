@@ -251,6 +251,9 @@ final class WisprFlowSource: DictationSource {
     /// 2026-09-28): until then the chip says `Opening Wispr Flow...`, because a
     /// cold Wispr is deaf for 0.3–6 s after the chord (W11).
     var micOpened: (() -> Void)?
+    /// **His own Wispr sentence, whose ⌘V the firewall dropped while the relay's
+    /// row was in flight** (Q19, 2026-09-28) — the words, for the caret.
+    var foreignSentence: ((String) -> Void)?
     /// Whether this sentence ever saw Wispr's microphone open (poll or edge).
     /// A row with no microphone behind it is not a recording (W2).
     private(set) var micSeen = false
@@ -1159,7 +1162,7 @@ final class WisprFlowSource: DictationSource {
             // a row it is only listening to in order to drop it.
             state.reset("cancelled while the words were in flight — the swallow stays armed, nothing is awaited")
             armDiscardClose()
-            didEnd?(.cancelled(audio: nil, duration: 0))
+            endCancelledWithRecording()
             return
         }
         guard isRecording || speculative else { return }
@@ -1530,7 +1533,7 @@ final class WisprFlowSource: DictationSource {
         speculativeDrop?.cancel()
         speculativeDrop = nil
         speculative = false
-        stopMeter(keep: !cancelling)
+        stopMeter(keep: true)   // a cancel keeps it too — Recover (W3, 2026-09-28)
         captureFrom = CFAbsoluteTimeGetCurrent()
         spokenFor = cancelling ? 0 : captureFrom - gestureAt
         Log.info(String(format: "🎙️ the microphone is closed — %@ (%.0f ms of speech)",
@@ -1556,7 +1559,7 @@ final class WisprFlowSource: DictationSource {
         if cancelling {
             cancelling = false
             endCapture(quiet: true)
-            didEnd?(.cancelled(audio: nil, duration: 0))
+            endCancelledWithRecording()
             return
         }
         // The capture was armed at the gesture; what starts here is only its
@@ -1623,7 +1626,7 @@ final class WisprFlowSource: DictationSource {
         guard capturing else { return }
         Log.info("🗑️ ⌃Escape — Wispr Flow's dismiss, pressed by hand while the words were in flight")
         endCapture(quiet: true)
-        didEnd?(.cancelled(audio: nil, duration: 0))
+        endCancelledWithRecording()
     }
 
     /// **The CoreAudio notification — a second witness now, not the witness.**
@@ -2130,7 +2133,10 @@ final class WisprFlowSource: DictationSource {
         // has to be a cross-check or it is a second delivery racing the first.
         if startedMode == .scratchpad, Self.deliverFromNote, Self.noteMayDeliver,
            intercepting, !isRecording, pollNote() { return }
-        guard let e = WisprHistory.newest() else { return }
+        // **After adoption the capture reads its own row, never the newest**
+        // (W4, 2026-09-28): his own right ⌥⇧ sentence makes a newer row, which
+        // used to hide the relay's — its sentence then waited out the timeout.
+        guard let e = historyRow.flatMap({ WisprHistory.entry(rowid: $0) }) ?? WisprHistory.newest() else { return }
 
         // **Adopting the row.** Anything that is not the row that was on top when
         // this was armed, and was created at or after the gesture, is this
@@ -2270,7 +2276,7 @@ final class WisprFlowSource: DictationSource {
             endCapture(quiet: true)
             // A sentence already cancelled has had its ending; a second one
             // would clear the *next* dictation's state from under it.
-            if !wasDiscarding { didEnd?(.cancelled(audio: nil, duration: 0)) }
+            if !wasDiscarding { endCancelledWithRecording() }
             return
         case "empty", "no_audio":
             Log.info(String(format: "wispr history: %@ — %.0f ms after the microphone closed", e.status, took))
@@ -2359,6 +2365,50 @@ final class WisprFlowSource: DictationSource {
         tick()
     }
     private static let lateRowWatch: TimeInterval = 300
+
+    /// **A cancelled Wispr sentence keeps the relay's recording for Recover**
+    /// (W3, 2026-09-28) — it used to be deleted at the close (*nothing had been
+    /// recorded yet*) or orphaned in Caches.
+    private func endCancelledWithRecording() {
+        meterQueue.async { [weak self] in
+            guard let self else { return }
+            let taken = self.recording
+            self.recording = nil
+            DispatchQueue.main.async {
+                self.didEnd?(.cancelled(audio: taken?.url, duration: taken?.duration ?? 0))
+            }
+        }
+    }
+
+    /// **Q19 (2026-09-28, Victor's Q7 = A): a dropped ⌘V may be his own
+    /// sentence.** Q9 leaves his right ⌥⇧ sentences to Wispr, but while the
+    /// relay's row is in flight the firewall cannot tell whose ⌘V it is. If the
+    /// newest row is *newer than the relay's*, terminal with words, and fresh,
+    /// it is his: pasted at the caret, where Wispr would have put it. Polled
+    /// briefly — Wispr's ⌘V and its `formatted` land in no fixed order.
+    private func claimForeignPaste() {
+        guard let own = historyRow else { return }
+        var tries = 0
+        func attempt() {
+            tries += 1
+            guard let e = WisprHistory.newest(), e.rowid > own, e.rowid != lastForeignRow,
+                  Date().timeIntervalSince1970 - e.startedAt < 120 else {
+                if tries < 8 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: attempt) }
+                return
+            }
+            guard WisprState.isTerminal(e.status) else {
+                if tries < 8 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: attempt) }
+                return
+            }
+            let text = e.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            lastForeignRow = e.rowid
+            Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), newer than the relay's \(own) — his own Wispr sentence (Q19)")
+            foreignSentence?(text)
+        }
+        attempt()
+    }
+    private var lastForeignRow: Int64 = 0
 
     /// **Wispr finished the sentence and never said so** (2026-09-22).
     ///
@@ -2694,6 +2744,7 @@ final class WisprFlowSource: DictationSource {
         if hotkeys.wisprFirewallOn {
             Log.info(String(format: "🛡️ ⌘V from %@ dropped — %.0f ms after the microphone closed; the History row delivers",
                             process, (CFAbsoluteTimeGetCurrent() - captureFrom) * 1000))
+            claimForeignPaste()
             return
         }
         // **Taken and dropped.** In Scratchpad mode the words are already the

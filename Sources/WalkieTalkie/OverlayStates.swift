@@ -203,6 +203,7 @@ enum OverlayStates {
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
                 o.setListening(true)
                 o.setOpening(true)
+                o.pinListenWarmth(0.0)   // Wispr has heard nothing yet
                 o.setShotCount(1)
             },
 

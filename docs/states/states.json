@@ -177,6 +177,18 @@
     "alpha" : 0.80000000000000004,
     "group" : "Dictating",
     "height" : 93,
+    "image" : "listening-opening.png",
+    "note" : "**Q20 (2026-09-28, Victor's Q8 = A).** A cold Wispr is deaf for up to six seconds after the chord, and the chip used to say `Listening` over it — the first words went nowhere and nothing said so. It says `Opening Wispr Flow...` until the 100 ms poll or the CoreAudio edge sees Wispr's microphone open (`WisprFlowSource.micOpened`), then the ordinary row. The relay's own recording runs from the gesture regardless, which is what the local fallback (Q14) transcribes if Wispr never hears the sentence.",
+    "shape" : "chip",
+    "slug" : "listening-opening",
+    "title" : "Opening Wispr Flow — its microphone is not open yet",
+    "when" : "A Wispr Flow sentence, from the gesture until Wispr's own microphone opens (0.3–0.7 s warm, 5–6 s cold).",
+    "width" : 308
+  },
+  {
+    "alpha" : 0.80000000000000004,
+    "group" : "Dictating",
+    "height" : 93,
     "image" : "listening-long.png",
     "note" : "**`(2m)` is the one fact the rest of the row cannot carry.** `Listening...` fills in the first three voiced seconds and then never changes again, so from that moment on nothing distinguishes a sentence from a monologue — and a monologue costs real seconds at the other end, since the decode is charged per second of audio and the panel he has to read while Cancel is running is as long as he made it. Victor's ask, 2026-09-09: *\"să pui după toată povestea o paranteză rotundă în care treci numărul de minute\"*. **Nothing under a minute**: `(0m)` would be a readout saying only that a clock exists, an inch from what he is reading, for the length of every ordinary dictation — which is the rent the model id was taken off this row for paying.",
     "shape" : "chip",
@@ -579,7 +591,7 @@
     "slug" : "prompt-long",
     "title" : "A long transcript",
     "when" : "A sentence that does not fit one line — the panel wraps and grows.",
-    "width" : 640
+    "width" : 576
   },
   {
     "alpha" : 1,

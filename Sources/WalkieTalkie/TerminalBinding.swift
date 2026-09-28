@@ -1744,6 +1744,17 @@ final class TerminalBinding {
         return tab.tty
     }
 
+    /// **The Terminal tab in front is at a shell prompt** (Q18, 2026-09-28) —
+    /// the foreground command's name when Terminal.app is frontmost and its
+    /// selected tab's foreground job is a shell or passes the line to one
+    /// (`refusesDelivery`), else nil. A Return there runs what was just pasted.
+    /// Runs `osascript` and `ps` — off the main thread.
+    static func frontTerminalShell(bundleID: String?) -> String? {
+        guard bundleID == "com.apple.Terminal", let tab = frontTerminalTab(),
+              let command = foregroundCommand(onTTY: tab.tty), refusesDelivery(command) else { return nil }
+        return command
+    }
+
     /// Type a prompt into that tab and submit it — the bound terminal's own
     /// delivery (`writeToTerminalApp`: text, a bare Return, and the third Return
     /// when Claude Code asks to review a paste), aimed at a tty instead of the
