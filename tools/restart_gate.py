@@ -42,6 +42,12 @@ and for his hands. One escape stays: a `dictating` flag with no microphone, no
 recogniser and no Wispr sentence behind it for 30 s (the
 `/test/dictation/start` stuck flag of 2026-09-14).
 
+**A harness run holds it too** (2026-09-28 21:26: an install asked for by Victor
+landed between two sentences of a desk run — the relay came back on the run's
+engine, bound to its witness tab, and the run was spoilt). `~/.walkie-talkie/
+wispr-loop.lock` (`pid started`, the one runner lock on this Mac) with a live pid
+keeps the gate closed; a dead pid's lock is ignored.
+
 `wait` polls every second (the cadence, not the gate) and exits 0 when open,
 3 at `--max-wait`, 4 when it refuses. `once` prints one reading as JSON. The
 logic is `Gate`, unit-tested by `evals/test_restart_gate.py` with a fake clock.
@@ -77,6 +83,22 @@ WISPR_BUSY_STATUSES = ("", "raw_transcript", "processing", "recording", "transcr
 #: A relay that has not answered for this long: refuse, never go ahead.
 UNREACHABLE_REFUSE = 60.0
 WISPR_DB = Path.home() / "Library/Application Support/Wispr Flow/flow.sqlite"
+
+
+def runner_lock_reason(text: str | None, alive) -> str | None:
+    """`harness.py`/`wispr_loop.py`'s lock, `pid started`: a reason to wait while
+    the pid lives. `alive(pid) -> bool` is injected for the tests."""
+    if not text:
+        return None
+    parts = text.split(None, 1)
+    try:
+        pid = int(parts[0])
+    except (IndexError, ValueError):
+        return None
+    if not alive(pid):
+        return None
+    since = parts[1].strip() if len(parts) > 1 else "?"
+    return f"a harness run holding the runner lock (pid {pid} since {since})"
 
 
 def parse_iso(value) -> float | None:
@@ -253,6 +275,28 @@ def fetch_state() -> dict | None:
     return None
 
 
+def runner_lock_path() -> Path:
+    return home() / "wispr-loop.lock"
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def runner_lock_live() -> str | None:
+    try:
+        text = runner_lock_path().read_text()
+    except OSError:
+        return None
+    return runner_lock_reason(text, pid_alive)
+
+
 def outbox_mtime() -> float | None:
     try:
         return (home() / "outbox.jsonl").stat().st_mtime
@@ -364,6 +408,8 @@ def cmd_wait(args) -> int:
             print("the app is not running — nothing to wait for")
             return 0
         v, _ = observe_live(gate, now)
+        if (run := runner_lock_live()) and not v.refused:
+            v = Verdict(False, run, v.note)
         if v.note and v.note != noted:
             print(("⛔️ " if v.refused else "⚠️  ") + v.note, flush=True)
             noted = v.note
@@ -393,6 +439,8 @@ def cmd_once(_args) -> int:
     row = wispr_newest_row(state)
     idle = seconds_since_human_input()
     why = (busy_reasons(state) if state else []) + wispr_row_reasons(row, now)
+    if run := runner_lock_live():
+        why.append(run)
     print(json.dumps({"running": app_running(), "answered": state is not None,
                       "busyWhy": why if state else (why or None),
                       "lastDelivery": (state or {}).get("lastDelivery"),

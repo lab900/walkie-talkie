@@ -251,7 +251,10 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   dictation. **His hands do not hold it** (21:20 the same day: *"there should only be 5 seconds
   since the last ended dictation for the walkie deploy to be authorized to happen"*): the 5 s of
   no key/click/scroll added at 18:39 is gone, `lastInputAt` is read for the logs only. The Wispr
-  checks are not in `quitBlockers`: ⌘Q and the Dock tile's click are his own.
+  checks are not in `quitBlockers`: ⌘Q and the Dock tile's click are his own. **A harness run
+  holds the gate too** (21:26 the same day: an install landed between two sentences of a desk run
+  and the relay came back on the run's engine, bound to its witness tab): a live pid in
+  `~/.walkie-talkie/wispr-loop.lock` keeps `wait` closed.
 - **Never swap the bundle under the running app** (2026-09-28). `relay-restart.sh --build` swapped
   it at 19:54:13 and then correctly waited on the gate — and for those seven minutes the running
   app's on-disk bundle no longer matched its code signature: every AppleEvent to Terminal was

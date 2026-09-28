@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from restart_gate import QUIET_AFTER_DELIVERY, Gate, busy_reasons  # noqa: E402
+from restart_gate import QUIET_AFTER_DELIVERY, Gate, busy_reasons, runner_lock_reason  # noqa: E402
 
 T0 = 1_800_000_000.0
 
@@ -222,6 +222,20 @@ class DictatingOnAnyEngineTest(unittest.TestCase):
         self.assertFalse(g.observe(T0, s, wispr_row=row("", T0 - 3)).ready)           # his sentence
         self.assertFalse(g.observe(T0 + 6, s, wispr_row=row("formatted", T0 - 3, finished=T0 + 4)).ready)
         self.assertTrue(g.observe(T0 + 9, s, wispr_row=row("formatted", T0 - 3, finished=T0 + 4)).ready)
+
+
+class RunnerLockTest(unittest.TestCase):
+    """2026-09-28 21:26 — an install landed between two sentences of a desk run."""
+
+    def test_live_runner_holds_the_gate(self):
+        r = runner_lock_reason("96221 2026-09-28T21:20:03\n", alive=lambda pid: pid == 96221)
+        self.assertIn("runner lock", r)
+        self.assertIn("96221", r)
+
+    def test_dead_runner_does_not(self):
+        self.assertIsNone(runner_lock_reason("96221 2026-09-28T21:20:03\n", alive=lambda pid: False))
+        self.assertIsNone(runner_lock_reason("", alive=lambda pid: True))
+        self.assertIsNone(runner_lock_reason("garbage", alive=lambda pid: True))
 
 
 class OldBuildTest(unittest.TestCase):
