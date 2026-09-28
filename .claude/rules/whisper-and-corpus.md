@@ -248,6 +248,12 @@ never include a bare `dji mic`, which is the transmitter's name (`DJI Mic Mini-B
   change, 0.6 s settle, never for the launch baseline, announcing `resolve()` and **not** the system
   default (addons moves the default off the WH on its own, and that must not raise a second tab).
   The look is addons' `BottomTabBanner`, reproduced here because this app may not depend on it.
+- **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should show an overlay on the
+  bottom saying what source/engine it uses. this way I know when it restarted"*) — the same
+  `BottomTab`, **blue** (`MicAnnouncer.startupTint`), 3 s, with `StatusItem.engineBannerTitle`
+  (`☁️ ElevenLabs + Live`, `☁️ Wispr Flow`, `💻 Local (1.5 GB)`), shown once from
+  `applicationDidFinishLaunching` after the engine is restored; never under `RELAY_SHOOT`.
+  `/test/state.startupBanner` holds its words.
 - **`resolve()` is the single answer**, read by `select` (what records), by the chip's mark and by
   the menu's top row. Three readers computing "which microphone" separately is three ways for the
   glyph, the tick and the recording to disagree. → journal: *The chip says which microphone, and the menu picks it (2026-09-19)*

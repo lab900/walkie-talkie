@@ -14261,3 +14261,11 @@ authorized to happen."* `QUIET_AFTER_DELIVERY` 10 → 5 s; the 5 s wait on his l
 queue, caption, Wispr's mic and a row in flight) still holds it. `lastInputAt` stays in `/test/state`
 and in `restart_gate.py once` for the logs. Tests rewritten (30 pass); `relay-restart.sh --quiet`
 defaults to 5.
+
+## 2026-09-28 — the launch tab: which engine this start runs on
+
+Victor: *"when walkie starts up, it should show an overlay on the bottom saying what source/engine it
+uses. this way I know when it restarted."* `MicAnnouncer.announceStartup` reuses the bottom tab of the
+green *Listening 🎤* announcement, in blue, for 3 s, with the Engine row's words
+(`StatusItem.engineBannerTitle`: `☁️ ElevenLabs + Live`, `☁️ ElevenLabs`, `☁️ Wispr Flow`, `💻 Local
+(x GB)`, `⚠️` when keyless). Shown once, after the engine is restored; `/test/state.startupBanner`.

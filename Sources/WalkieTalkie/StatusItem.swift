@@ -1784,6 +1784,17 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// letting it go between dictations. The name goes because it does not —
     /// it is the same string every launch, and `engineTitle` has it in the list
     /// below for the one moment somebody asks.
+    /// The launch tab's words (2026-09-28): the emoji the submenu row wears in
+    /// front of the top-level row's title — `☁️ ElevenLabs + Live`, `💻 Local (1.5 GB)`.
+    func engineBannerTitle(_ id: String) -> String {
+        let emoji: String
+        switch id {
+        case "eleven", "eleven-live", "wispr": emoji = "☁️"
+        default: emoji = "💻"
+        }
+        return emoji + " " + engineShortTitle(id)
+    }
+
     private func engineShortTitle(_ id: String) -> String {
         // ⚠️ rather than the price, because the top-level row is read out of the
         // corner of the eye: what he needs from it there is *the cloud one is

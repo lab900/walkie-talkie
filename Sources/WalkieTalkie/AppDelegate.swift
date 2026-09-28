@@ -1358,6 +1358,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         micId = InputDevice.chosenId
         micAnnouncer.start()
+        // **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should
+        // show an overlay on the bottom saying what source/engine it uses. this way
+        // I know when it restarted"*): the blue tab at the bottom of the screen
+        // under the mouse, with the Engine row's words, 3 s. After `status` is up
+        // and the engine restored, so the words are the menu's.
+        micAnnouncer.announceStartup(engine: status.engineBannerTitle(engineId))
         // **The menu's way into the recording**, and the same call 🔽 ↑ makes —
         // the row and the gesture must not be able to drift apart. It exists for
         // `Start Dictation`'s reason: the gesture lives in a Logi Options+
@@ -6515,6 +6521,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["liveCaption"] = overlay.liveCaption.describe()
         // Gap G7 (2026-09-26): what the plan's assertions could not read.
         out["fallingBack"] = fallingBack
+        // The launch tab's words (2026-09-28) — what the bottom tab said at start.
+        out["startupBanner"] = micAnnouncer.startupText ?? NSNull()
         // ⌘⌃X (2026-09-28): whether the key has a take to hand over, and the row as drawn.
         let localNow = localNowAvailability()
         out["localNow"] = ["available": localNow.available, "why": localNow.why,

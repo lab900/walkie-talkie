@@ -37,6 +37,14 @@ final class MicAnnouncer {
     static let settle: TimeInterval = 0.6
     static let hold: TimeInterval = 2.5
     static let tint = NSColor.systemGreen.withAlphaComponent(0.85)
+    /// **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should
+    /// show an overlay on the bottom saying what source/engine it uses. this way
+    /// I know when it restarted"*) — the same tab, blue so it is not mistaken for
+    /// the microphone's green, up for 3 s with the Engine row's words.
+    static let startupTint = NSColor.systemBlue.withAlphaComponent(0.85)
+    static let startupHold: TimeInterval = 3.0
+    /// What the launch tab said — `GET /test/state.startupBanner`.
+    private(set) var startupText: String?
 
     private let queue = DispatchQueue(label: "ro.victorrentea.wispr-relay.mic-announcer", qos: .utility)
     private var pending: DispatchWorkItem?
@@ -71,6 +79,15 @@ final class MicAnnouncer {
 
     /// The choice file changed (either app's menu). Called from `MicChoice.watch`.
     func choiceChanged() { queue.async { [weak self] in self?.poke() } }
+
+    /// **Say what engine this launch runs on** — main thread, once, right after
+    /// the engine is decided. Never under `RELAY_SHOOT`.
+    func announceStartup(engine text: String) {
+        guard !RelayWindow.shooting else { return }
+        startupText = text
+        Log.info("🚀 up on \(text) — the launch tab")
+        tab.show(text, tint: Self.startupTint, hold: Self.startupHold)
+    }
 
     /// Restart the settle. Runs on `queue`.
     private func poke() {
