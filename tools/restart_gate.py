@@ -79,7 +79,8 @@ QUIET_AFTER_DELIVERY = 5.0
 #: after its gesture (p99 7.1 s, max 13.7 s; a row can stall for ever).
 WISPR_ROW_FRESH = 60.0
 #: `helpers/wispr_loop.py`'s BUSY_STATUSES; `""` is NULL — the row at its gesture.
-WISPR_BUSY_STATUSES = ("", "raw_transcript", "processing", "recording", "transcribing")
+#: `raw_transcript` is FINAL in Wispr's own code (batch 3, 2026-09-28): not busy.
+WISPR_BUSY_STATUSES = ("", "processing", "recording", "transcribing")
 #: A relay that has not answered for this long: refuse, never go ahead.
 UNREACHABLE_REFUSE = 60.0
 WISPR_DB = Path.home() / "Library/Application Support/Wispr Flow/flow.sqlite"

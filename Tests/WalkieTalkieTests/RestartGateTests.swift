@@ -16,7 +16,7 @@ final class RestartGateTests: XCTestCase {
     }
 
     func testAFreshRowStillBeingWorkedOnBlocks() {
-        for status in ["", "processing", "raw_transcript"] {
+        for status in ["", "processing"] {   // raw_transcript is final (batch 3, 2026-09-28)
             let w = RestartGate.WisprReading(rowId: 17893, rowStatus: status, rowStartedAt: now - 20)
             let why = RestartGate.wisprReasons(w, now: now)
             XCTAssertEqual(why.count, 1, status)

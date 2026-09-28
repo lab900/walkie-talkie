@@ -163,10 +163,12 @@ class DictatingOnAnyEngineTest(unittest.TestCase):
         self.assertIn("Wispr Flow's microphone open", v.waiting_for)
 
     def test_wispr_row_processing_20s_old_is_not_safe(self):
-        for status in ("", "processing", "raw_transcript"):
+        for status in ("", "processing"):
             v = Gate().observe(T0, idle(), wispr_row=row(status, T0 - 20))
             self.assertFalse(v.ready, status)
             self.assertIn("Wispr Flow transcribing (row 17893", v.waiting_for)
+        # `raw_transcript` is final in Wispr's own code (batch 3, 2026-09-28): a finished row.
+        self.assertTrue(Gate().observe(T0, idle(), wispr_row=row("raw_transcript", T0 - 20, finished=T0 - 19)).ready)
 
     def test_a_stalled_wispr_row_ages_out_after_a_minute(self):
         self.assertTrue(Gate().observe(T0, idle(), wispr_row=row("", T0 - 61)).ready)

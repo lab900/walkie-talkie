@@ -35,7 +35,7 @@ enum RestartGate {
     /// Statuses that mean Wispr is still working on the row — the same list as
     /// `helpers/wispr_loop.py`'s `BUSY_STATUSES`. `""` is NULL: the row is made
     /// at the gesture with no status.
-    static let wisprBusyStatuses: Set<String> = ["", "raw_transcript", "processing", "recording", "transcribing"]
+    static let wisprBusyStatuses: Set<String> = ["", "processing", "recording", "transcribing"]
 
     /// Wispr Flow's side, read without asking Wispr anything.
     struct WisprReading: Equatable {
