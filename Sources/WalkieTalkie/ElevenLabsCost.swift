@@ -5,8 +5,13 @@ import Foundation
 /// dreptul lui ElevenLabs"*). Seconds of audio, by product, since the day the
 /// counter was born; the money is those seconds at the published rates the
 /// engine rows already quote (`ElevenLabsSource.rate`, `ElevenLabsLive.rate`),
-/// so the row and the invoice can only disagree if the rates do — **if they
+/// so the ledger and the invoice can only disagree if the rates do — **if they
 /// disagree, the invoice is right.** Nothing here is read back from the API.
+///
+/// **Not in the menu any more (2026-09-28)** — Victor: *"scoate $ de după
+/// nume. Îmi ajunge quota consumată."* The 🧾 quota row says what the account
+/// used; this ledger stays for `/test/state.elevenCost`, which the harness's
+/// B-cases read to prove a take was billed.
 ///
 /// Counted at the moment the audio is *sent*: a batch upload that answered 200
 /// (`ElevenLabsSource.transcribe`, final and rolling), and a live session at its
@@ -55,7 +60,7 @@ enum ElevenLabsCost {
         }
     }
 
-    /// Total in dollars, and the lines the tooltip explains it with.
+    /// Total in dollars, and the lines that explain it (`/test/state.elevenCost`).
     static func summary() -> (total: Double, lines: [String]) {
         let d = UserDefaults.standard
         let batch = d.dictionary(forKey: batchKey) as? [String: Double] ?? [:]
@@ -83,7 +88,7 @@ enum ElevenLabsCost {
         return (total, lines)
     }
 
-    /// `$0.07` — what the menu row appends.
+    /// `$0.07` — `/test/state.elevenCost.label` (the menu row carried it until 2026-09-28).
     static var label: String { String(format: "$%.2f", summary().total) }
 
     private static func clock(_ seconds: Double) -> String {

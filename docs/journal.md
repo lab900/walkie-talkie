@@ -13931,6 +13931,7 @@ rămase)."* The row born at 08:00 read `remaining / total / reset`, red only at 
   where it lands. `/test/state.elevenQuota` carries `pace` and `burnRate`.
 - Tests: `ElevenLabsQuotaTests` — on trend at half/half, orange at ×1.2, red at ×1.8, the
   first-day floor, the rolling window whole.
+- **Later the same day the `$x.xx` left the ElevenLabs rows** — *"scoate $ de după nume. Îmi ajunge quota consumată."* The tooltip's `Spent so far:` went with it; `ElevenLabsCost` still counts, for `/test/state.elevenCost`.
 
 ## Wispr as engine: Q14–Q24 shipped, measured at the desk (2026-09-28)
 

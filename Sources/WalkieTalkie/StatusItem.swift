@@ -1488,9 +1488,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // **🧾 What the account has left, under a line of its own** (2026-09-28,
         // moved here from Victor Addons the same morning — *"quota lui 11labs
         // are sens doar in walkie"*). Below the rows he picks from, because it
-        // is a readout, not a choice; beside the `$x.xx` on the ElevenLabs rows
-        // because the two are read together — what this Mac spent, and what
-        // the plan has left. `remaining / total / reset`, red once ≤ 0.
+        // is a readout, not a choice. Since 2026-09-28 it is the only money in
+        // the list — the `$x.xx` the ElevenLabs rows carried went (*"îmi ajunge
+        // quota consumată"*). `used / total / reset`, coloured by the trend.
         engineSubmenu.addItem(.separator())
         let quota = NSMenuItem(title: "", action: #selector(quotaClicked), keyEquivalent: "")
         quota.target = self
@@ -1654,10 +1654,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // right now* belongs in the list he picks from.
         let keyless = elevenReady?() == true ? "" : " ⚠️"
         switch id {
-        // **The running bill on both ElevenLabs rows** (2026-09-26) — one
-        // account, one number; the tooltip has the breakdown.
-        case "eleven-live": return "☁️ ElevenLabs + Live" + keyless + "   " + ElevenLabsCost.label
-        case "eleven": return "☁️ ElevenLabs" + keyless + "   " + ElevenLabsCost.label
+        // **No `$x.xx` after the name since 2026-09-28** — Victor: *"în
+        // submeniul ElevenLabs, scoate $ de după nume. Îmi ajunge quota
+        // consumată."* The 🧾 row at the foot of the list says what the
+        // account has used; `ElevenLabsCost` still counts, for
+        // `/test/state.elevenCost` only.
+        case "eleven-live": return "☁️ ElevenLabs + Live" + keyless
+        case "eleven": return "☁️ ElevenLabs" + keyless
         case "wispr": return "☁️ Wispr Flow"
         default: return engineLoading ? "💻 Local ⏳" : "💻 Local"
         }
@@ -1676,11 +1679,11 @@ final class StatusItem: NSObject, NSMenuDelegate {
                         + "at every committed segment \(ElevenLabsSource.model) corrects them",
                     "Sent text: ElevenLabs \(ElevenLabsSource.model) — \(ElevenLabsSource.rate), "
                         + "from the recording",
-                    "Audio leaves this Mac", key].compactMap { $0 } + ["", "Spent so far:"] + ElevenLabsCost.summary().lines)
+                    "Audio leaves this Mac", key].compactMap { $0 })
                 .joined(separator: "\n")
         case "eleven":
             return (["ElevenLabs \(ElevenLabsSource.model) — \(ElevenLabsSource.rate)",
-                    "Audio leaves this Mac", key].compactMap { $0 } + ["", "Spent so far:"] + ElevenLabsCost.summary().lines)
+                    "Audio leaves this Mac", key].compactMap { $0 })
                 .joined(separator: "\n")
         case "wispr":
             return "Wispr Flow — its own microphone; its paste is blocked and the relay delivers the words"

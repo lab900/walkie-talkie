@@ -216,9 +216,12 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   `user_read`; the key answered `401 missing_permissions` on 2026-09-28), else used =
   `/v1/usage/character-stats` over the last 30 days and total = `WT_ELEVEN_QUOTA` (10 000). The
   reset date is never invented. Off main, cached 5 min, refreshed on menu open and every 30 min;
-  lands in `.common` so an open list repaints. It answers what the *account* has left;
-  `ElevenLabsCost`'s `$x.xx` on the rows is what *this Mac* sent. `GET /test/state.elevenQuota`;
+  lands in `.common` so an open list repaints. `GET /test/state.elevenQuota`;
   photographed with `POST /test/engine-menu {"appearance"}`.
+- **No `$x.xx` on the ElevenLabs rows since 2026-09-28** — *"scoate $ de după nume. Îmi ajunge
+  quota consumată."* Rows are `☁️ ElevenLabs + Live` / `☁️ ElevenLabs` (+ ` ⚠️` keyless); the
+  tooltip lost its `Spent so far:` block with it. `ElevenLabsCost` still counts, read only by
+  `/test/state.elevenCost` (harness B-cases).
 
 ## The Microphone row (2026-09-19)
 
