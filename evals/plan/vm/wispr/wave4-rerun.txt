@@ -1,0 +1,23 @@
+# Wispr as engine — wave 4: the cases the next VM run must add (2026-09-28, night)
+#
+# Batch 3 (evals/plan/wispr/integration-surfaces.md, "Recommended change to WisprFlowSource" 1–4):
+# terminal statuses, the dead-row verdict + 40 s ceiling, the WAL watch, the pasteboard at the
+# dropped ⌘V. One id per line; `--only` takes exact ids or globs, comma-separated.
+#
+# New desk cases (fake History; in the lab they also run, over the real Wispr's process checks):
+TW35
+TW36
+TW37
+TW38
+TW39
+# Existing lab cases whose path batch 3 changed (real Wispr rows, real ⌘V, real WAL):
+TW8a
+TW8b
+TW12
+TW20
+TX2
+TX8a
+TX8b
+#
+# One line for run-phase.sh / harness.py:
+# --only TW35,TW36,TW37,TW38,TW39,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b

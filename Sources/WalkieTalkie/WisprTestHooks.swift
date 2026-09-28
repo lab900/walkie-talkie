@@ -94,8 +94,17 @@ enum PasteboardTimeline {
     /// Right after a write of this app's own, with the reason.
     static func noteOwnWrite(_ why: String) {
         let count = NSPasteboard.general.changeCount
-        lock.lock(); own[count] = why; ownWriteAt = Date(); lock.unlock()
+        lock.lock(); own[count] = why; ownWriteAt = Date(); ownCount = count; lock.unlock()
     }
+
+    /// **The change count of this app's last own write** — a clipboard still at
+    /// it holds the relay's sentence (Q17), not Wispr's promised item
+    /// (`WisprFlowSource.claimForeignPaste`, batch 3). -1 before any write.
+    static var lastOwnCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return ownCount
+    }
+    private static var ownCount = -1
 
     /// **The last clipboard write of this app's own** — an insert, to the
     /// restart gate (`lastInsertAt`, 2026-09-28).

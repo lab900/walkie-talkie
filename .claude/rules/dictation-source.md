@@ -166,19 +166,28 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   measures it on every dictation. Swallow the `keyUp` with the `keyDown`; leave ⌘ alone.
 - **`History` row = completion signal** (`WisprHistory`, `flow.sqlite`, read-only, `mode=ro`, one
   query). One row per dictation, created at the gesture (357 ms) with `status = ''`. `beginCapture`
-  takes the newest row **only if its `startedAt` is this dictation's**; polls every 150 ms. Text:
-  `pastedText` or `formattedText`. `e2eLatency` p50 2.2 s / p99 7.1 s / max 13.7 s.
+  takes the newest row **only if its `startedAt` is this dictation's**. Text: `pastedText` or
+  `formattedText`. `e2eLatency` p50 2.2 s / p99 7.1 s / max 13.7 s.
+- **The readers wake on Wispr's commits, not a timer** (batch 3, 2026-09-28): `WisprHistoryWatch`
+  = kqueue on `flow.sqlite-wal` + the main file (re-armed on delete/rename, path or inode change),
+  a second look 40 ms after each event (WAL frames land before the `-shm` index), passes ≥ 25 ms
+  apart, a 1 s safety tick; `pollHistory`, the retired-discard and discard-close watches subscribe.
+  `WisprHistory.read` runs its query only when `PRAGMA data_version` moved (cache per handle
+  generation). Clocked rules ask `wake(after:)`. Measured: 0.6 ms from commit to read (unit test).
+  `wisprLive.historyWake` / `rowSeen`.
 - **Statuses live in one place:** `WisprState.intermediateStatuses` (`""`, `recording`,
-  `raw_transcript`, `processing`) / `terminalStatuses` (`formatted`, `extension_paste`,
-  `extension_other`, `dismissed`, `empty`, `no_audio`, `error`). Unknown → terminal + `Log.error`.
-- **`raw_transcript` with words in it is finished** — Wispr never flips it (21 rows / 30 days).
-  `rawTextSettled` reads it as `formatted` after `rawTextGrace` 0.8 s of stillness, for the switch
-  only. Text columns normally appear in the same tick as the terminal status (`tools/wispr-row-watch.py`).
-- **A row with nothing in it stops being progress after 8 s** (`silenceCeiling`) → *"No speech was
-  heard"*; `asrText` exists to tell *thinking* from *heard nothing*.
+  `processing`) / `terminalStatuses` (`formatted`, `extension_paste`, `extension_other`, `dismissed`,
+  `empty`, `no_audio`, `error`, and since batch 3 `raw_transcript`, `fallback`,
+  `verification_failed`, `timeout`) / `pasteableStatuses` (Wispr's own: `formatted`,
+  `raw_transcript`, `verification_failed`, `extension_paste`, `fallback` + `extension_other`).
+  Unknown → terminal + `Log.error`.
+- **`raw_transcript` is final** (batch 3, 2026-09-28, from Wispr's code: written only by the final
+  update — formatter unfinished or the OpenAI fallback). With words → delivered at once
+  (`rawTextSettled` and its 0.8 s grace are deleted); **a pasteable status with no words** →
+  `endWithRecording` at once (Q14), not the 8 s `silenceCeiling` (deleted).
 - **A Wispr failure falls back on the relay's own recording (Q14, 2026-09-28).** The meter records
   from the **gesture** (`startMeter` in `gestureSeen`), not from Wispr's confirmation. Every failure —
-  `error`/unknown status, `empty`/`no_audio`, an empty `raw_transcript` past `silenceCeiling`, a NULL
+  `error`/unknown status, `empty`/`no_audio`, a pasteable final row with no words, a dead row, a NULL
   row with **no microphone ever seen** 3 s after the close (`nullNoMicCeiling`, W2), no row at all by
   `speculativeGrace`, the capture timeout, Wispr quitting — goes through `endWithRecording`: ≥ 1.5 s
   voiced (`ElevenLabsSource.fallbackVoicedFloor`) → `.failed(audio:)` → `AppDelegate.fallBackToLocal`
@@ -191,6 +200,8 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   WAV to `~/.walkie-talkie/kept-takes/`. `MicRecorder` restarts its tap on
   `AVAudioEngineConfigurationChange` and after 1 s with no buffer (`🔁 mic:` lines). The row given up on is watched (`watchLateRow`, ≤ 5 min) and held owned
   (`HotkeyTap.holdWisprOwned`): its late ⌘V is dropped and the row only logged — never a second copy.
+  **A dead row is let go at once** (batch 3): it produces no ⌘V, and a 5-min hold made every Wispr
+  ⌘V the relay's.
 - **The capture reads its own row after adoption** (W4, 2026-09-28): `pollHistory` takes
   `WisprHistory.entry(rowid: historyRow)`, never `newest()` — his own newer row hid the relay's.
 - **Q19 (Victor's Q7 = A): his own right ⌥⇧ sentence ending while the relay's row is in flight is
@@ -199,7 +210,11 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   and hands it to `foreignSentence` → `AppDelegate.pasteText` (clipboard + ⌘V at the caret, Q17).
   **Only a row that existed at the drop** (wave 3): a row made after it is a later sentence whose own
   ⌘V may still pass the tap — claiming it would paste it twice. `lastForeignRow` (also set when the
-  tap passes a row) keeps any row from being pasted by both.
+  tap passes a row) keeps any row from being pasted by both. **The pasteboard, once, as the last
+  resort** (batch 3): the row is read first; with no words in it at the drop, `pasteboardString()` is
+  read then (off main — Wispr's delayed-render item, gone at its restore 500 ms later), refused while
+  the clipboard is still the relay's own last write (`PasteboardTimeline.lastOwnCount`), and pasted
+  only if the row's words do not come within the claim's 5 s. `POST /test/wispr-paste {"dryClaim"}`.
 - **Q15: a Wispr sentence waits behind a held / paused / edited prompt panel** — its answer goes
   through `runAnswer` like every engine's (it used to force-send the panel, W10).
 - **Q16: a start while Wispr is still formatting is refused visibly** — flash *⏳ Wispr Flow takes one
@@ -207,9 +222,14 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
 - **A cancelled Wispr sentence keeps the relay's recording for Recover** (W3): `closeListening`
   keeps the meter WAV even on a cancel, and every `.cancelled` from this source carries it
   (`endCancelledWithRecording`) — it was deleted (*nothing had been recorded yet*) or orphaned.
-- **Q2/Q24: no 30 s cap while the row is working** — at `captureTimeout` a row still `processing` /
-  `raw_transcript` / `recording` re-arms the deadline (log `still processing — waiting on (Q2)`),
-  up to `workingCeiling` 300 s. A NULL row with no microphone does not wait (above).
+- **Q2/Q24, bounded by a dead-row verdict** (batch 3, 2026-09-28 — the blind *wait while
+  `processing`, ≤ 300 s* is gone): `WisprState.deadRow` (pure, `WisprRowLifeTests`) ends the
+  sentence on the commit that shows it — NULL/`processing` with a **newer rowid** (superseded; Wispr
+  never finalizes it), **another Wispr pid** than at adoption, still open **1 s after the relay's own
+  ⌃Escape** (`relayDismissedAt`: the cancel during the settle; ⌘⌃X while recording), **NULL with no
+  `duration` 3 s after the close** and Wispr's mic shut (the stop path never ran). What is left
+  `processing` may still finish: `captureTimeout` 30 s, then waits on to `workingCeiling` **40 s**
+  from the close (Wispr's e2e p99 4.4 s, max 36 s). A NULL row with no microphone gives up at 3 s (W2).
 - **`Opening Wispr Flow...` until Wispr's microphone opens** (Q20): `micOpened` (poll or edge, once
   per sentence, `micSeen`) → `RelayWindow.setOpening(false)`; shot `listening-opening`. The ring is
   not yet told (it still breathes on the relay's own meter) — open item.

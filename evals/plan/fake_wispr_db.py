@@ -11,7 +11,11 @@ then shows up in the fake too — W-B4).
 Rows are written the way Wispr writes them (B §1): created at the gesture with `status` NULL,
 `timestamp` text `YYYY-MM-DD HH:MM:SS.mmm +00:00` (UTC), then rewritten in place — `processing`,
 then a terminal status with `asrText`/`formattedText`/`pastedText`/`e2eLatency` in the same
-write. Rollback journal (not WAL): the app's `mode=ro` reader cannot create a `-shm`.
+write. Rollback journal by default: the app's `mode=ro` reader cannot create a `-shm`.
+`create(wal=True)` (batch 3, 2026-09-28) is Wispr's own journal mode: a holder connection stays
+open for the file's life (so the `-wal`/`-shm` persist, as under a running Wispr, and the
+read-only reader can use them) until `close()` — the only way a desk case reaches the relay's
+`flow.sqlite-wal` watch.
 
     fake_wispr_db.py create PATH [--from-real]
     fake_wispr_db.py insert PATH [--status S] [--asr T] [--formatted T] [--pasted T]
@@ -76,18 +80,35 @@ class FakeWisprDB:
     def __init__(self, path):
         self.path = path
 
-    def create(self, from_real=False):
-        """A fresh file (any old one and its journal removed): the schema, no rows."""
+    holder = None
+
+    def create(self, from_real=False, wal=False):
+        """A fresh file (any old one and its journal removed): the schema, no rows. `wal`: WAL
+        mode, held open by `self.holder` until `close()`."""
+        self.close()
         for p in (self.path, self.path + "-journal", self.path + "-wal", self.path + "-shm"):
             if os.path.exists(p):
                 os.remove(p)
         os.makedirs(os.path.dirname(os.path.abspath(self.path)), exist_ok=True)
         ddl = (real_schema() if from_real else None) or (SCHEMA + "\n" + NOTES_SCHEMA)
         c = self._c()
-        c.execute("pragma journal_mode=delete")
+        c.execute("pragma journal_mode=%s" % ("wal" if wal else "delete"))
         c.executescript(ddl)
-        c.commit(); c.close()
+        c.commit()
+        if wal:
+            self.holder = c
+        else:
+            c.close()
         return self
+
+    def close(self):
+        """Let go of the WAL holder (the `-wal` is checkpointed and removed, as at Wispr's quit)."""
+        if self.holder is not None:
+            try:
+                self.holder.close()
+            except Exception:
+                pass
+            self.holder = None
 
     def _c(self):
         return sqlite3.connect(self.path, timeout=2)
@@ -164,6 +185,15 @@ def _selftest():
         ca = [x[1] for x in a.execute("pragma table_info(History)")]
         cb = [x[1] for x in b.execute("pragma table_info(History)")]
         print("schema vs the real file:", "identical" if ca == cb else "DIFFERS: %s" % sorted(set(ca) ^ set(cb)))
+    w = FakeWisprDB(os.path.join(d, "wal.sqlite")).create(wal=True)
+    rw = w.insert(at="now")
+    assert os.path.exists(w.path + "-wal"), "the holder keeps the WAL"
+    c = sqlite3.connect("file:" + w.path.replace(" ", "%20") + "?mode=ro", uri=True)
+    v0 = c.execute("pragma data_version").fetchone()[0]
+    w.update(rw, status="processing")
+    assert c.execute("select status from History where rowid = ?", (rw,)).fetchone()[0] == "processing"
+    assert c.execute("pragma data_version").fetchone()[0] != v0
+    c.close(); w.close()
     print("selftest ok —", db.path)
 
 

@@ -1857,6 +1857,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return WisprProc.handle(body)
             case "/test/wispr-paste":
                 // B (2026-09-28): a Wispr ⌘V through the firewall's decision (HK4).
+                // `dryClaim` (batch 3): the Q19 claim decides and logs, pastes nothing, for 10 s.
+                if body["dryClaim"] as? Bool == true {
+                    self.wisprSource.foreignClaimDryUntil = CFAbsoluteTimeGetCurrent() + 10
+                }
                 var out = self.hotkeys.simulateWisprPaste()
                 out["ok"] = true
                 return (200, out)

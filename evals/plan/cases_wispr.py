@@ -88,10 +88,13 @@ def _env_block(lines):
 
 DESK = {"db": None}
 
-def desk(engine_wispr=True):
+def desk(engine_wispr=True, wal=False):
     """Fresh fake History, the app reading it, Wispr's chords muted, the relay's recorder on the
-    Loopback, Engine = Wispr. Returns the FakeWisprDB."""
-    db = fw.FakeWisprDB(FAKE_DB).create()
+    Loopback, Engine = Wispr. Returns the FakeWisprDB. `wal`: Wispr's own journal mode (a holder
+    connection keeps `flow.sqlite-wal` alive until `desk_off`) — the relay's WAL watch sees it."""
+    if DESK.get("db"):
+        DESK["db"].close()
+    db = fw.FakeWisprDB(FAKE_DB).create(wal=wal)
     DESK["db"] = db
     _env_block(["WT_WISPR_DB=" + FAKE_DB])
     post("/test/wispr-chord", {"mute": True, "seconds": 300})
@@ -115,6 +118,8 @@ def desk_off():
             if live.get("captureOpen") and live.get("newestRowId"):
                 db.update(live["newestRowId"], status="dismissed")
                 wait_for(lambda: not state()["wisprLive"]["captureOpen"], 8, 0.3)
+        if db:
+            db.close()
         DESK["db"] = None
         _env_block(None)
         s = state()
@@ -986,3 +991,203 @@ def tw34():
                      f"restarts {r['restarts'] or 0}; 'No speech' {r['nospeech']}")
         bad |= r["voiced"] < 1.5 or r["deaf"] or r["nospeech"]
     return ("BUG" if bad else "PASS"), " | ".join(lines)
+
+
+# ---------------------------------------------------------------- TW35–TW39: batch 3 (2026-09-28, night)
+# `evals/plan/wispr/integration-surfaces.md`, "Recommended change to WisprFlowSource" 1–4.
+
+def _ended(t0, timeout):
+    """Seconds from t0 until the capture let go (None: it did not within `timeout`)."""
+    return (time.time() - t0) if wait_for(lambda: not live()["captureOpen"], timeout, 0.05) else None
+
+@case("TW35", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="raw_transcript with no words ends the sentence at once (Q14 path, not an 8 s wait); "
+             "`fallback` with words is delivered at once from the row (it used to be an unknown status → failure)")
+def tw35():
+    """Batch 3 item 1. Wispr's own code writes `raw_transcript`, `fallback`, `verification_failed`,
+    `timeout` only in its final update; `WisprState` read `raw_transcript` as progress (8 s
+    `silenceCeiling` when empty, 0.8 s `rawTextGrace` with words) and did not know `fallback` at all
+    (→ the unknown-status failure: Wispr's words thrown away, the local model instead). Desk: (a)
+    sentence A, row → `processing` → `raw_transcript` with every text column empty: the capture must
+    let go within ~1 s, through `endWithRecording` (Recover — the Loopback is silent); (b) sentence
+    B, row → `fallback` with words: delivered to the witness, `via: wispr-history`, at once."""
+    db = desk()
+    bind_witness(); witness_clear()
+    mark = log_mark()
+    ra = open_sentence(db); time.sleep(0.5)
+    chord(state_="stop"); db.update(ra, status="processing", duration=1.5); time.sleep(0.3)
+    t0 = time.time(); db.update(ra, status="raw_transcript", asr="", formatted="", pasted="", e2e=300.0)
+    da = _ended(t0, 10)
+    wait_for(lambda: not state()["busy"], 15, 0.2)
+    txt_a = log_since(mark)
+    a_line = re.search(r"raw_transcript with no words[^\n]*", txt_a)
+    time.sleep(2.2)                                     # past the 2 s stop dwell
+    m2 = log_mark()
+    rb = open_sentence(db); time.sleep(0.5)
+    chord(state_="stop"); db.update(rb, status="processing", duration=1.5); time.sleep(0.3)
+    t1 = time.time(); db.finish(rb, "tw thirty five fallback words", status="fallback")
+    db_ = _ended(t1, 10)
+    got = wait_for(lambda: "thirty five fallback" in witness_text(), 10, 0.1)
+    wait_for(lambda: log_has(m2, r"📦 delivery: "), 10, 0.2)
+    txt_b = log_since(m2)
+    via = re.search(r"📦 delivery: (\S+)", txt_b)
+    unknown = re.search(r"wispr history: fallback — ", txt_b) is not None
+    note = (f"(a) raw_transcript empty: capture let go {('%.2f s' % da) if da is not None else 'NOT within 10 s'} after the "
+            f"write, line {bool(a_line)}; (b) fallback: let go {('%.2f s' % db_) if db_ is not None else 'NOT'}, "
+            f"witness {bool(got)}, via {via.group(1) if via else None}, unknown-status line {unknown}")
+    ok = da is not None and da < 1.5 and a_line and db_ is not None and db_ < 1.5 and got \
+        and via and via.group(1) == "wispr-history" and not unknown
+    return ("PASS" if ok else "BUG"), note
+
+@case("TW36", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="the relay's row still `processing` when a newer row appears (his own dictation) is dead at once: "
+             "the sentence ends through Q14 within ~1 s, no 'waiting on (Q2)', and Wispr's ⌘V is not held for 5 min")
+def tw36():
+    """Batch 3 item 2(a). Wispr keeps one live dictation: a newer row means the relay's was superseded
+    and Wispr abandons it (*"Skipping finalization — dictation was superseded while transcribing"*) —
+    it stays `processing` for ever. Q24 waited on it (≤ 300 s), then `watchLateRow` held every Wispr
+    ⌘V as the relay's for 5 more minutes. Desk: relay sentence A, row `processing`; 1 s later his row
+    B (NULL). Asserts the capture lets go ≤ 1.5 s after B, the dead-row line, the late-row hold let go
+    (`the row the relay gave up on is dead`), and a ⌘V through the firewall's decision afterwards is
+    not held (`/test/wispr-paste`: no 'a row the relay gave up on is still being watched')."""
+    db = desk()
+    mark = log_mark()
+    ra = open_sentence(db); time.sleep(0.5)
+    chord(state_="stop"); db.update(ra, status="processing", duration=1.5)
+    time.sleep(1.0)
+    t0 = time.time(); rb = db.insert(at=time.time())
+    d = _ended(t0, 10)
+    wait_for(lambda: log_has(mark, r"its hold on Wispr's ⌘V is let go"), 5, 0.1)
+    wait_for(lambda: not state()["busy"], 15, 0.2)
+    txt = log_since(mark)
+    dead = re.search(r"row %d is still processing and row %d is newer[^\n]*" % (ra, rb), txt)
+    let_go = "its hold on Wispr's ⌘V is let go" in txt
+    q2 = "waiting on" in txt
+    time.sleep(1.8)                                    # past the relay's 1.5 s paste wait in the tail
+    v = post("/test/wispr-paste", {"dryClaim": True})[1]
+    held = "still being watched" in (v.get("why") or "")
+    note = (f"capture let go {('%.2f s' % d) if d is not None else 'NOT within 10 s'} after the newer row; dead line {bool(dead)}; "
+            f"late-row hold let go {let_go}; Q2 wait {q2}; a later ⌘V: {v.get('verdict')} ({v.get('why')})")
+    db.update(rb, status="dismissed")
+    ok = d is not None and d < 1.5 and dead and let_go and not q2 and not held
+    return ("PASS" if ok else "BUG"), note
+
+@case("TW37", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="a cancel during the settle (the relay's own ⌃Escape) with the row still `processing`: "
+             "the discard capture closes ~1 s after the dismiss, not at the 30 s capture timeout")
+def tw37():
+    """Batch 3 item 2(c). Wispr abandons a dictation dismissed during processing — the row stays
+    `processing`. The cancel keeps the swallow armed until Wispr is done (`discardOnArrival`), and
+    'done' never came: the capture stood 30 s (`captureTimeout`). Desk: sentence A stopped, row
+    `processing`, `POST /test/cancel` 0.3 s later (chords muted: the ⌃Escape is its stamped tail only);
+    the capture must close 1.0–2.0 s after the cancel, with the dead-row line naming the dismiss."""
+    db = desk()
+    mark = log_mark()
+    ra = open_sentence(db); time.sleep(0.5)
+    chord(state_="stop"); db.update(ra, status="processing", duration=1.5)
+    time.sleep(0.3)
+    t0 = time.time(); post("/test/cancel")
+    d = _ended(t0, 35)
+    txt = log_since(mark)
+    line = re.search(r"still processing [\d.]+ s after the relay's dismiss[^\n]*", txt)
+    note = f"discard capture closed {('%.2f s' % d) if d is not None else 'NOT within 35 s'} after the cancel; line {bool(line)}"
+    db.update(ra, status="dismissed")
+    return ("PASS" if d is not None and 0.9 <= d < 2.5 and line else "BUG"), note
+
+@case("TW38", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="WAL watch: every row change the capture reads is seen ≤ 50 ms after the fake's commit "
+             "(Wispr's journal mode), woken by `flow.sqlite-wal`, not the 1 s tick")
+def tw38():
+    """Batch 3 item 3. The row readers woke on a 150 ms timer (a row seen 75 ms late on average,
+    the timer running whether or not Wispr wrote). Now a kqueue source on `flow.sqlite-wal` (+ the
+    main file) wakes them, gated by `PRAGMA data_version`, with a 1 s safety tick. Desk: the fake in
+    **WAL mode** (a holder connection, as under a running Wispr); two relay sentences, each: insert
+    (adoption), `processing`, `formatted` — six commits. Per commit, `wisprLive.rowSeen.epoch` (the
+    reader's wall clock) minus the harness's time just before the commit."""
+    db = desk(wal=True)
+    bind_witness(); witness_clear()
+    lat, wake0 = [], live().get("historyWake") or {}
+    def seen(rid, status, t):
+        ok = wait_for(lambda: (live().get("rowSeen") or {}).get("rowid") == rid
+                      and (live().get("rowSeen") or {}).get("status") == status, 3, 0.02)
+        if ok:
+            lat.append(((live()["rowSeen"]["epoch"]) - t) * 1000)
+        return ok
+    watching = None
+    for i in (1, 2):
+        chord(state_="start")
+        wait_for(lambda: state()["listening"], 3)
+        watching = (live().get("historyWake") or {}).get("watching")
+        t = time.time(); rid = db.insert(at=time.time()); seen(rid, "", t)
+        time.sleep(0.4)
+        chord(state_="stop")
+        time.sleep(0.2)
+        t = time.time(); db.update(rid, status="processing", duration=1.5); seen(rid, "processing", t)
+        time.sleep(0.2)
+        # `formatted` ends the capture in the same pass that sees it: rowSeen is set first.
+        t = time.time(); db.finish(rid, "tw thirty eight sentence %d" % i); seen(rid, "formatted", t)
+        wait_for(lambda: "sentence %d" % i in witness_text(), 10, 0.1)
+        wait_for(lambda: not state()["busy"], 15, 0.2)
+        time.sleep(2.2)
+    wake1 = live().get("historyWake") or {}
+    ev = wake1.get("events", 0) - wake0.get("events", 0)
+    lat_s = ", ".join("%.0f" % x for x in lat)
+    note = (f"{len(lat)}/6 changes seen; latency ms [{lat_s}] (max {max(lat) if lat else -1:.0f}); watching {watching}; "
+            f"file events +{ev}, queries {wake1.get('queries')}, cache hits {wake1.get('cacheHits')}")
+    ok = len(lat) == 6 and max(lat) <= 50 and watching and "flow.sqlite-wal" in watching and ev > 0
+    return ("PASS" if ok else "BUG"), note
+
+@case("TW39", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="a ⌘V dropped in the relay's tail while his newer row is still NULL: the pasteboard is read once "
+             "and kept; the row's words win if they come, the pasteboard's only if they do not; never pasted twice")
+def tw39():
+    """Batch 3 item 4 (dry claim: nothing reaches his caret). Wispr pastes *before* its final write, so
+    at the dropped ⌘V his row is often still NULL/`processing` while its promised pasteboard item is
+    there — gone at Wispr's restore 500 ms later. Desk, twice after a relay sentence A delivered (the
+    tail's first 1.5 s, so the ⌘V is dropped and claimed): (a) his row B NULL, the clipboard set to
+    `PB-A`, the ⌘V, then B finished with other words 0.3 s later → the claim pastes **the row's**
+    words; (b) his row C NULL for good, clipboard `PB-C` → after the claim's 5 s, **the pasteboard's**;
+    then C finished and a second ⌘V → nothing pasted a second time. His clipboard text is put back."""
+    db = desk()
+    bind_witness(); witness_clear()
+    saved = subprocess.run(["pbpaste"], capture_output=True).stdout
+    def pb(text):
+        subprocess.run(["pbcopy"], input=text.encode())
+    def claim_after(ra_text, prepare):
+        ra = open_sentence(db); time.sleep(0.5)
+        close_sentence(db, ra, text=ra_text)
+        wait_for(lambda: ra_text in witness_text(), 15, 0.1)
+        wait_for(lambda: not live()["captureOpen"], 5, 0.05)
+        rid = db.insert(at=time.time())
+        board = prepare(rid)
+        v = post("/test/wispr-paste", {"dryClaim": True})[1]
+        return rid, board, v
+    try:
+        mark = log_mark()
+        rb, _, va = claim_after("tw thirty nine relay a", lambda rid: pb("PB-A pasteboard words"))
+        time.sleep(0.3)
+        db.finish(rb, "row b words of his own")
+        wait_for(lambda: (live().get("lastForeignClaim") or {}).get("row") == rb, 6, 0.1)
+        ca = live().get("lastForeignClaim") or {}
+        wait_for(lambda: not state()["busy"], 15, 0.2)
+        time.sleep(2.2)
+        rc, _, vc = claim_after("tw thirty nine relay c", lambda rid: pb("PB-C pasteboard words"))
+        wait_for(lambda: (live().get("lastForeignClaim") or {}).get("row") == rc, 8, 0.1)
+        cc = live().get("lastForeignClaim") or {}
+        db.finish(rc, "row c words, too late")
+        time.sleep(0.5)
+        v2 = post("/test/wispr-paste", {"dryClaim": True})[1]
+        time.sleep(1.5)
+        txt = log_since(mark)
+        claims_c = len(re.findall(r"dry claim[^\n]*row %d's" % rc, txt))
+        read_once = len(re.findall(r"the pasteboard read once", txt))
+    finally:
+        subprocess.run(["pbcopy"], input=saved)
+    note = (f"(a) ⌘V {va.get('verdict')}; claim row {ca.get('row')} from {ca.get('source')} ({ca.get('chars')} chars); "
+            f"(b) ⌘V {vc.get('verdict')}; claim row {cc.get('row')} from {cc.get('source')} ({cc.get('chars')} chars); "
+            f"second ⌘V {v2.get('verdict')}; dry claims of C {claims_c}; pasteboard reads {read_once}")
+    ok = (va.get("verdict") == "dropped" and ca.get("row") == rb and str(ca.get("source", "")).startswith("the row")
+          and ca.get("chars") == len("row b words of his own")
+          and vc.get("verdict") == "dropped" and cc.get("row") == rc and str(cc.get("source", "")).startswith("the pasteboard")
+          and cc.get("chars") == len("PB-C pasteboard words") and claims_c == 1 and read_once == 2)
+    return ("PASS" if ok else "BUG"), note

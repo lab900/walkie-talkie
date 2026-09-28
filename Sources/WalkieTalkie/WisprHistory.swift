@@ -66,6 +66,10 @@ enum WisprHistory {
         let language: String
         /// Unix time of the gesture that opened it — the row is created then.
         let startedAt: TimeInterval
+        /// **`duration`, nil while NULL** (batch 3, 2026-09-28): Wispr's stop
+        /// path writes it with `processing`, so a NULL row with no duration
+        /// long after the close is a stop that never ran (`WisprState.deadRow`).
+        var duration: Double? = nil
     }
 
     /// The same file `WisprNotes` reads. Kept here as well because every rule
@@ -100,34 +104,65 @@ enum WisprHistory {
         read("from History where rowid = \(rowid) limit 1")
     }
 
+    /// **The answers since the last commit anyone made** (batch 3, 2026-09-28).
+    /// The row readers wake on every write to the WAL now (`WisprHistoryWatch`)
+    /// and most of those commits are not `History`'s — so the query runs only
+    /// when `PRAGMA data_version` moved; otherwise the last answer to the same
+    /// question stands. Keyed by the handle's generation: a version is only
+    /// comparable on the connection that answered it.
+    private static var cache: [String: Entry?] = [:]
+    private static var cacheVersion: (generation: UInt64, version: Int64)?
+    /// How many reads ran the query vs. answered from the cache — `wisprLive.historyReads`.
+    private(set) static var queries = 0
+    private(set) static var cacheHits = 0
+
     /// The one query, with the column list stated once: two readers that select
     /// different columns in the same order are a bug waiting for a schema change.
     private static func read(_ tail: String) -> Entry? {
         lock.lock(); defer { lock.unlock() }
         guard let db = WisprFlowDB.open() else { return nil }
+        if let v = WisprFlowDB.dataVersion(db) {
+            let key = (WisprFlowDB.generation, v)
+            if let c = cacheVersion, c == key {
+                if let hit = cache[tail] { cacheHits += 1; return hit }
+            } else {
+                cache.removeAll(keepingCapacity: true)
+                cacheVersion = key
+            }
+        } else {
+            cacheVersion = nil
+        }
+        queries += 1
         let sql = """
             select rowid, coalesce(status, ''), coalesce(pastedText, ''), coalesce(formattedText, ''),
                    coalesce(e2eLatency, 0), coalesce(app, ''), coalesce(micDevice, ''),
                    coalesce(language, ''), coalesce(strftime('%s', timestamp), '0'),
-                   coalesce(asrText, '')
+                   coalesce(asrText, ''), duration
             \(tail)
             """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK, let stmt else {
             Log.error("wispr history: \(String(cString: sqlite3_errmsg(db)))")
             WisprFlowDB.reset()
+            cacheVersion = nil
             return nil
         }
         defer { sqlite3_finalize(stmt) }
-        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        guard sqlite3_step(stmt) == SQLITE_ROW else {
+            if cacheVersion != nil, cache.count < 64 { cache[tail] = .some(nil) }
+            return nil
+        }
         func text(_ i: Int32) -> String {
             sqlite3_column_text(stmt, i).map { String(cString: $0) } ?? ""
         }
-        return Entry(rowid: sqlite3_column_int64(stmt, 0), status: text(1), asrText: text(9),
-                     pastedText: text(2),
-                     formattedText: text(3), e2eLatency: sqlite3_column_double(stmt, 4),
-                     app: text(5), micDevice: text(6), language: text(7),
-                     startedAt: Double(text(8)) ?? 0)
+        let entry = Entry(rowid: sqlite3_column_int64(stmt, 0), status: text(1), asrText: text(9),
+                          pastedText: text(2),
+                          formattedText: text(3), e2eLatency: sqlite3_column_double(stmt, 4),
+                          app: text(5), micDevice: text(6), language: text(7),
+                          startedAt: Double(text(8)) ?? 0,
+                          duration: sqlite3_column_type(stmt, 10) == SQLITE_NULL ? nil : sqlite3_column_double(stmt, 10))
+        if cacheVersion != nil, cache.count < 64 { cache[tail] = .some(entry) }
+        return entry
     }
 
 }

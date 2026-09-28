@@ -85,6 +85,7 @@ enum WisprFlowDB {
         sqlite3_busy_timeout(db, 50)
         handle = db
         handleKey = (url.path, inode)
+        generation &+= 1
         return db
     }
 
@@ -93,6 +94,24 @@ enum WisprFlowDB {
         if let handle { sqlite3_close(handle) }
         handle = nil
         handleKey = nil
+    }
+
+    /// **Bumped at every open** — a `data_version` is only comparable on the
+    /// connection that answered it (batch 3, 2026-09-28: `WisprHistory`'s cache).
+    private(set) static var generation: UInt64 = 0
+
+    /// **`PRAGMA data_version` on the relay's own handle** (batch 3,
+    /// 2026-09-28): it moves when *any other* connection committed since the
+    /// last ask — Wispr, or the fake's writer — and it is one cheap read, no
+    /// table touched. It says only *someone committed*, so it gates a query and
+    /// is never an event (`integration-surfaces.md`, item 3). Caller holds
+    /// `lock`; nil on an error.
+    static func dataVersion(_ db: OpaquePointer) -> Int64? {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "pragma data_version", -1, &stmt, nil) == SQLITE_OK, let stmt else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return sqlite3_column_int64(stmt, 0)
     }
 }
 

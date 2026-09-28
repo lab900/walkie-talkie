@@ -529,7 +529,7 @@ final class WisprFlowSource: DictationSource {
     /// **When the ⌃Escape dismiss went out for a cancel during the settle.**
     /// The clock the early close is measured from — see `armDiscardClose`.
     private var dismissedAt: CFAbsoluteTime = 0
-    private var discardCloseTimer: Timer?
+    private static let discardCloseKey = "discard-close"
 
     /// **The row of a cancelled sentence whose capture a new gesture superseded**
     /// (2026-09-14).
@@ -545,7 +545,8 @@ final class WisprFlowSource: DictationSource {
     private var retiredDiscardRow: Int64?
     private var retiredDiscardUntil: CFAbsoluteTime = 0
     private var retiredDiscardTerminalAt: CFAbsoluteTime = 0
-    private var retiredDiscardTimer: Timer?
+    /// Wispr's pid when the retired row was adopted (batch 3's dead-row rule).
+    private var retiredDiscardPid: pid_t = 0
     /// Five seconds, against Wispr's own p99 of 7.1 s counted from the *chord* —
     /// this is counted from a row that is already being transcribed, and the
     /// claim is let go earlier than this on every ordinary run (the row goes
@@ -585,16 +586,27 @@ final class WisprFlowSource: DictationSource {
     /// Whether the note path has already dealt with the Scratchpad window, so
     /// `endCapture` does not tap the chord a second time behind it.
     private var scratchpadWindowHandled = false
-    private var historyPoll: Timer?
+    /// **What wakes the row readers** (batch 3, 2026-09-28): Wispr's commits to
+    /// `flow.sqlite-wal`, gated by `PRAGMA data_version`, with a 1 s safety tick —
+    /// the 150 ms `historyPoll` timer (and the retired-discard and discard-close
+    /// timers beside it) are gone. `WisprHistoryWatch`.
+    private let historyWatch = WisprHistoryWatch()
+    private static let captureWatchKey = "capture"
+    private func stopHistoryPoll() { historyWatch.unsubscribe(Self.captureWatchKey) }
     /// When the row said `formatted`, so the ⌘V that normally follows gets
     /// `pasteGrace` to arrive before the text is taken from the row instead.
     private var historyFormattedAt: CFAbsoluteTime = 0
-    /// When a `raw_transcript` row was first seen **with the words already in
-    /// it**, so `rawTextSettled` can tell a row that has stopped there from one
-    /// that is passing through.
-    private var rawTextSeenAt: CFAbsoluteTime = 0
-    private static let historyTick: TimeInterval = 0.15
     private static let pasteGrace: TimeInterval = 1.0
+    /// **When the relay itself posted ⌃Escape at the adopted row** — the cancel
+    /// during the settle (batch 3's dead-row rule: still `processing` 1 s later,
+    /// Wispr has abandoned it). 0 = no dismiss of the relay's own; ⌘⌃X in flight
+    /// posts none (Wispr is left to finish).
+    private var relayDismissedAt: CFAbsoluteTime = 0
+    /// Wispr's main pid when the row was adopted (batch 3's dead-row rule).
+    private var pidAtAdoption: pid_t = 0
+    /// `wisprLive.rowSeen` — the last (row, status) the capture's reader saw
+    /// change, and when (wall clock): the desk measures the watch with it.
+    private var rowSeen: (rowid: Int64, status: String, at: Date)?
 
     /// **The row is the delivery, not the fallback** — off by default, and the
     /// shape the wrap is heading for (Victor, 2026-09-13, evening).
@@ -1164,6 +1176,11 @@ final class WisprFlowSource: DictationSource {
             // finished with it and not before.
             discardOnArrival = true
             dismissedAt = CFAbsoluteTimeGetCurrent()
+            // Batch 3: the relay's own dismiss — a row still open 1 s on is dead
+            // (Wispr abandons a dictation dismissed during processing), so the
+            // swallow is not held for `captureTimeout` on it.
+            relayDismissedAt = dismissedAt
+            historyWatch.wake(after: WisprState.dismissGrace + 0.05)
             Log.info("🗑️ cancelled while the words were in flight — the swallow stays armed until Wispr is done, and the words are dropped")
             HotkeyTap.postWisprCancel()
             // **And nothing is being waited for any more** (2026-09-14). The
@@ -1365,6 +1382,13 @@ final class WisprFlowSource: DictationSource {
                 "wisprPid": Int(Self.wisprMainPid),
                 "pidAtChord": Int(wisprPidAtChord),
                 "chordsMuted": HotkeyTap.wisprChordsMuted,
+                // Batch 3 (2026-09-28): what woke the row readers, and when the
+                // capture's reader saw its row change (wall clock, ms).
+                "historyWake": historyWatch.describe(),
+                "rowSeen": rowSeen.map { ["rowid": NSNumber(value: $0.rowid), "status": $0.status,
+                                          "at": Outbox.iso($0.at), "epoch": $0.at.timeIntervalSince1970] as [String: Any] } ?? NSNull(),
+                "lastForeignRow": lastForeignRow,
+                "lastForeignClaim": lastForeignClaim ?? NSNull(),
                 "db": WisprFlowDB.overridePath ?? NSNull()]
     }
 
@@ -1628,7 +1652,9 @@ final class WisprFlowSource: DictationSource {
                 // dismiss is dropped, never a second copy.
                 let row = historyRow
                 endCapture(quiet: true)
-                endWithRecording(DictationEnd.localForced, row: row, forced: true)
+                // Batch 3: ⌃Escape went out just now — a row still open 1 s on is dead.
+                endWithRecording(DictationEnd.localForced, row: row, forced: true,
+                                 dismissedAt: Date().timeIntervalSince1970)
                 return
             }
             endCapture(quiet: true)
@@ -1639,6 +1665,9 @@ final class WisprFlowSource: DictationSource {
         // deadline, because *how long may the words take* is counted from the
         // last word and not from the first.
         armCaptureDeadline()
+        // Batch 3: the NULL rules (W2, the dead-row verdict) are clocks, not
+        // commits — a pass at their instant rather than at the next safety tick.
+        historyWatch.wake(after: WisprState.nullStopCeiling + 0.05)
         syncInputPoll()
     }
 
@@ -2017,7 +2046,8 @@ final class WisprFlowSource: DictationSource {
         priorRowWasOpen = prior.map { !WisprState.isTerminal($0.status) } ?? false
         historyRow = nil
         historyFormattedAt = 0
-        rawTextSeenAt = 0
+        relayDismissedAt = 0
+        pidAtAdoption = 0
         // **The note as it stood before he started talking**, so a Scratchpad
         // that is appended to rather than added to is still recognisable.
         scratchpadWindowHandled = false
@@ -2030,20 +2060,19 @@ final class WisprFlowSource: DictationSource {
             priorNoteStamp = 0
             priorNoteText = nil
         }
-        historyPoll?.invalidate()
-        let h = Timer(timeInterval: Self.historyTick, repeats: true) { [weak self] _ in self?.pollHistory() }
-        historyPoll = h
-        RunLoop.main.add(h, forMode: .common)
+        // Batch 3 (2026-09-28): woken by Wispr's commits, not a 150 ms timer.
+        historyWatch.subscribe(Self.captureWatchKey) { [weak self] in self?.pollHistory() }
+        historyWatch.wake(after: 0)
     }
 
     /// **How long the words may take, counted from the last one.** The capture
     /// window opened at the gesture; this is the 30 s it is allowed to stand
     /// after the microphone shuts.
-    private func armCaptureDeadline() {
+    private func armCaptureDeadline(after seconds: TimeInterval = captureTimeout) {
         captureDeadline?.cancel()
         let giveUp = DispatchWorkItem { [weak self] in self?.captureExpired() }
         captureDeadline = giveUp
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.captureTimeout, execute: giveUp)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: giveUp)
     }
 
     /// **A capture whose row is not terminal belongs to a sentence still in
@@ -2082,6 +2111,7 @@ final class WisprFlowSource: DictationSource {
     /// sentence Victor threw away, and that key belongs to nobody.
     private func retireDiscardedCapture() {
         retiredDiscardRow = historyRow
+        retiredDiscardPid = pidAtAdoption
         retiredDiscardUntil = CFAbsoluteTimeGetCurrent() + Self.retiredDiscardCeiling
         retiredDiscardTerminalAt = 0
         Log.info("🗑️ a new gesture supersedes the cancelled sentence — its capture is retired now"
@@ -2099,15 +2129,14 @@ final class WisprFlowSource: DictationSource {
 
     /// The claim is let go on the row's own evidence: terminal, plus the
     /// `pasteGrace` in which the ⌘V that follows `formatted` would have arrived.
+    private static let retiredWatchKey = "retired-discard"
+
     private func armRetiredDiscardWatch() {
-        retiredDiscardTimer?.invalidate()
-        retiredDiscardTimer = nil
+        historyWatch.unsubscribe(Self.retiredWatchKey)
         guard retiredDiscardRow != nil else { return }
-        let t = Timer(timeInterval: Self.historyTick, repeats: true) { [weak self] _ in
-            self?.pollRetiredDiscard()
-        }
-        retiredDiscardTimer = t
-        RunLoop.main.add(t, forMode: .common)
+        // Batch 3: on Wispr's commits (`WisprHistoryWatch`), plus the ceiling's own wake.
+        historyWatch.subscribe(Self.retiredWatchKey) { [weak self] in self?.pollRetiredDiscard() }
+        historyWatch.wake(after: Self.retiredDiscardCeiling + 0.05)
     }
 
     private func pollRetiredDiscard() {
@@ -2118,9 +2147,20 @@ final class WisprFlowSource: DictationSource {
         }
         // **Asked about the row itself**, not about the newest one: by now the
         // next dictation has a row of its own on top of it.
-        guard let e = WisprHistory.entry(rowid: row), WisprState.isTerminal(e.status) else { return }
+        guard let e = WisprHistory.entry(rowid: row) else { return }
+        guard WisprState.isTerminal(e.status) else {
+            // Batch 3: a row Wispr will never finish produces no ⌘V either.
+            if let dead = WisprState.deadRow(.init(rowid: row, status: e.status, duration: e.duration,
+                                                   newestRowid: WisprHistory.newest()?.rowid ?? row,
+                                                   pidNow: Self.wisprMainPid, pidAtAdoption: retiredDiscardPid,
+                                                   closedAt: lastStopAt, now: now)) {
+                letRetiredDiscardGo(dead)
+            }
+            return
+        }
         if retiredDiscardTerminalAt == 0 {
             retiredDiscardTerminalAt = now
+            historyWatch.wake(after: Self.pasteGrace + 0.02)
             return
         }
         guard now - retiredDiscardTerminalAt >= Self.pasteGrace else { return }
@@ -2128,8 +2168,7 @@ final class WisprFlowSource: DictationSource {
     }
 
     private func letRetiredDiscardGo(_ why: String) {
-        retiredDiscardTimer?.invalidate()
-        retiredDiscardTimer = nil
+        historyWatch.unsubscribe(Self.retiredWatchKey)
         retiredDiscardTerminalAt = 0
         guard retiredDiscardRow != nil else { return }
         retiredDiscardRow = nil
@@ -2154,12 +2193,9 @@ final class WisprFlowSource: DictationSource {
     /// second ask re-opens what the first shut.
     private func armDiscardClose() {
         guard startedMode == .scratchpad else { return }
-        discardCloseTimer?.invalidate()
-        let t = Timer(timeInterval: Self.historyTick, repeats: true) { [weak self] _ in
-            self?.pollDiscardClose()
-        }
-        discardCloseTimer = t
-        RunLoop.main.add(t, forMode: .common)
+        // Batch 3: on Wispr's commits, plus a wake at the grace's end.
+        historyWatch.subscribe(Self.discardCloseKey) { [weak self] in self?.pollDiscardClose() }
+        historyWatch.wake(after: Self.pasteGrace + 0.02)
     }
 
     private func pollDiscardClose() {
@@ -2181,8 +2217,7 @@ final class WisprFlowSource: DictationSource {
     }
 
     private func endDiscardClose() {
-        discardCloseTimer?.invalidate()
-        discardCloseTimer = nil
+        historyWatch.unsubscribe(Self.discardCloseKey)
     }
 
     private func status(of row: Int64) -> String {
@@ -2245,6 +2280,7 @@ final class WisprFlowSource: DictationSource {
             let isNew = e.rowid != priorRow || priorRowWasOpen
             guard isNew, e.startedAt >= openedAt - 2 else { return }
             historyRow = e.rowid
+            pidAtAdoption = pid
             if relayStarted { ownedRow = e.rowid }
             namedMic = ""
             Log.info(String(format: "wispr history: row %d is this dictation's — %.0f ms after the chord (%@)",
@@ -2271,17 +2307,15 @@ final class WisprFlowSource: DictationSource {
         if armedAt >= state.chordAt, !discardOnArrival { state.sawRow(e.rowid, status: e.status) }
 
         let took = (CFAbsoluteTimeGetCurrent() - captureFrom) * 1000
-        // **A `raw_transcript` row that carries the words is read as
-        // `formatted`** (2026-09-22) — see `rawTextSettled`. Only the switch is
-        // told; the status the state machine and the log carry stays Wispr's own
-        // word for it, because the row really did stop at `raw_transcript` and
-        // that is the fact worth keeping in the file.
-        switch rawTextSettled(e, took: took) ? "formatted" : e.status {
-        // **Intermediate, and they are progress rather than silence.** `""` is
-        // the row as created at the gesture; `raw_transcript` and `processing`
-        // were first seen on 2026-09-13 and were unknown to this switch that day,
-        // so a settle sat out its whole timeout on a sentence that was arriving.
-        // Bounded by `captureTimeout` and by nothing else.
+        // `wisprLive.rowSeen`: when the reader saw this row change (the desk
+        // measures the WAL watch's latency against its own write with it).
+        if rowSeen?.rowid != e.rowid || rowSeen?.status != e.status {
+            rowSeen = (e.rowid, e.status, Date())
+        }
+        switch e.status {
+        // **Intermediate, and they are progress rather than silence** — `""`
+        // (NULL, the row as created at the gesture) and `processing` (after the
+        // stop). Bounded by the dead-row verdict below and by `workingCeiling`.
         // **W2 (2026-09-28): a row with no microphone behind it is not a
         // recording.** Wispr sometimes takes the chord, writes its row and never
         // opens the microphone (100 NULL rows in September); the relay waited
@@ -2294,25 +2328,47 @@ final class WisprFlowSource: DictationSource {
             if !wasDiscarding { endWithRecording("Wispr Flow never opened its microphone", row: row) }
             return
         case let s where WisprState.intermediateStatuses.contains(s):
-            // **…and one of them is not progress at all.** Two seconds of
-            // digital silence left row 12814 in `raw_transcript` with `asrText`,
-            // `formattedText` and `pastedText` all empty, **for ever** — Wispr
-            // never made it terminal — and the relay sat out its whole 30 s
-            // capture before saying `No words came back` (adversarial round 2,
-            // Attack 12). A row with nothing in it after `silenceCeiling` is
-            // Wispr having heard nothing, which is a different sentence to show
-            // him and a much earlier one.
-            guard !isRecording, s == "raw_transcript",
-                  e.asrText.isEmpty, e.formattedText.isEmpty, e.pastedText.isEmpty,
-                  took >= Self.silenceCeiling * 1000 else { return }
-            Log.info(String(format: "wispr history: %@ with nothing in it %.0f s after the microphone closed — Wispr heard no speech",
-                            s, took / 1000))
+            // **Batch 3 (2026-09-28): a row Wispr will never finish is dead now,
+            // not at 30 s — nor, under Q24, never.** Superseded by a newer row,
+            // another Wispr pid, still open 1 s after the relay's own dismiss, or
+            // NULL with no `duration` 3 s after the close (`WisprState.deadRow`,
+            // from Wispr's own code). The relay's recording stands in (Q14).
+            guard !isRecording, !speculative else { return }
+            let closed = Date().timeIntervalSince1970 - (CFAbsoluteTimeGetCurrent() - captureFrom)
+            let facts = WisprState.RowFacts(
+                rowid: e.rowid, status: s, duration: e.duration,
+                newestRowid: WisprHistory.newest()?.rowid ?? e.rowid,
+                pidNow: pid, pidAtAdoption: pidAtAdoption,
+                dismissedAt: relayDismissedAt > 0
+                    ? Date().timeIntervalSince1970 - (CFAbsoluteTimeGetCurrent() - relayDismissedAt) : 0,
+                closedAt: closed,
+                // Asked only when the rest of the NULL rule already holds: one CoreAudio read.
+                wisprMicOpen: s.isEmpty && e.duration == nil && took > WisprState.nullStopCeiling * 1000
+                    ? watch.sampleIsRunningInput() : false,
+                now: Date().timeIntervalSince1970)
+            guard let dead = WisprState.deadRow(facts) else { return }
+            Log.error(String(format: "wispr history: %@ — the sentence ends now, %.1f s after the close (batch 3)", dead, took / 1000))
             let row = e.rowid
             endCapture(quiet: true)
-            if !wasDiscarding { endWithRecording("Wispr Flow returned no words", row: row) }
+            if !wasDiscarding { endWithRecording("Wispr Flow will not finish row \(row)", row: row, dismissedAt: facts.dismissedAt) }
             return
 
-        case "formatted", "extension_paste", "extension_other":
+        case let s where WisprState.pasteableStatuses.contains(s)
+                && e.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && startedMode != .scratchpad && intercepting:
+            // **Batch 3 (2026-09-28): a final row with no words is `empty`, not
+            // a wait.** `raw_transcript` was read as progress and an empty one
+            // sat out `silenceCeiling` (8 s); a `formatted` with no text went
+            // out as *No words detected*. Both are Wispr having heard nothing:
+            // the relay's own recording stands in (Q14) — local model or Recover.
+            Log.info(String(format: "wispr history: %@ with no words %.0f ms after the microphone closed — Wispr heard nothing; the relay's recording stands in (Q14)",
+                            s, took))
+            let row = e.rowid
+            endCapture(quiet: true)
+            if !wasDiscarding { endWithRecording("Wispr Flow reported \(s) with no words", row: row) }
+            return
+
+        case let s where WisprState.pasteableStatuses.contains(s):
             // **A dictation the relay did not start is over here and nothing
             // else happens.** It was Wispr's from the chord; the row is how the
             // ring and the chip find out it is finished, and `.silent("")` is
@@ -2365,6 +2421,7 @@ final class WisprFlowSource: DictationSource {
                 historyFormattedAt = CFAbsoluteTimeGetCurrent()
                 Log.info(String(format: "wispr history: %@ %.0f ms after the microphone closed (Wispr's own e2e %.0f ms) — giving the ⌘V %.1f s",
                                 e.status, took, e.e2eLatency, Self.pasteGrace))
+                historyWatch.wake(after: Self.pasteGrace + 0.02)
                 return
             }
             guard CFAbsoluteTimeGetCurrent() - historyFormattedAt >= Self.pasteGrace else { return }
@@ -2395,11 +2452,6 @@ final class WisprFlowSource: DictationSource {
         }
     }
 
-    /// **How long a row with nothing in it may be called progress**, counted
-    /// from the microphone's close. Eight seconds is Wispr's own p99 and the
-    /// same number the settle gives up on, so nothing that was going to arrive
-    /// is cut off by it.
-    private static let silenceCeiling: TimeInterval = 8
     /// **A NULL row with no microphone ever seen gives up after this**, counted
     /// from the close (W2; Q2 keeps it fast). A real sentence's row leaves NULL
     /// within ~0.5 s of the close (`processing`); 3 s is six times that.
@@ -2420,7 +2472,10 @@ final class WisprFlowSource: DictationSource {
     /// time that is said (the meter agrees). The row it gave up on is watched,
     /// owned, until it goes terminal, so a late row is logged and its ⌘V
     /// dropped — never a second delivery (Q2).
-    private func endWithRecording(_ why: String, row: Int64?, forced: Bool = false) {
+    private func endWithRecording(_ why: String, row: Int64?, forced: Bool = false, dismissedAt: Double = 0) {
+        // Read now, on main: the next sentence's gesture moves them.
+        let pid = pidAtAdoption
+        let closed = lastStopAt > 0 ? Date().timeIntervalSince1970 - (CFAbsoluteTimeGetCurrent() - lastStopAt) : 0
         meterQueue.async { [weak self] in
             guard let self else { return }
             let taken = self.recording
@@ -2428,7 +2483,7 @@ final class WisprFlowSource: DictationSource {
             let voiced = self.recordingVoiced
             let recHealth = self.recordingHealth
             DispatchQueue.main.async {
-                if let row { self.watchLateRow(row) }
+                if let row { self.watchLateRow(row, pid: pid, closedAt: closed, dismissedAt: dismissedAt) }
                 guard let taken, FileManager.default.fileExists(atPath: taken.url.path) else {
                     Log.error("wispr: \(why) — and the relay has no recording of it")
                     self.didEnd?(.silent(why))
@@ -2458,14 +2513,35 @@ final class WisprFlowSource: DictationSource {
 
     /// **The row the relay gave up on stays owned until Wispr finishes it**
     /// (Q2/Q14): its ⌘V is dropped by the firewall and the row is only logged.
-    private func watchLateRow(_ row: Int64) {
+    ///
+    /// **Batch 3 (2026-09-28): a dead row is let go at once.** A row Wispr will
+    /// never finish (`WisprState.deadRow`: superseded, another pid, still open
+    /// 1 s after the relay's dismiss, NULL with no duration 3 s after the close)
+    /// produces no ⌘V; held for the whole `lateRowWatch` it made every Wispr ⌘V
+    /// the relay's (`WisprOwnership.verdict`, `rowsHeld`) for five minutes.
+    private func watchLateRow(_ row: Int64, pid: pid_t = 0, closedAt: Double = 0, dismissedAt: Double = 0) {
         hotkeys.holdWisprOwned(true)
         let until = Date().addingTimeInterval(Self.lateRowWatch)
         func tick() {
-            if let e = WisprHistory.entry(rowid: row), WisprState.isTerminal(e.status) {
-                Log.info("wispr history: late row \(row) came back \(e.status) (\(e.text.count) chars) after the relay had given up on it — only logged, never a second delivery (Q2)")
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteGrace) { self.hotkeys.holdWisprOwned(false) }
-                return
+            if let e = WisprHistory.entry(rowid: row) {
+                if WisprState.isTerminal(e.status) {
+                    Log.info("wispr history: late row \(row) came back \(e.status) (\(e.text.count) chars) after the relay had given up on it — only logged, never a second delivery (Q2)")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteGrace) { self.hotkeys.holdWisprOwned(false) }
+                    return
+                }
+                let now = Date().timeIntervalSince1970
+                let nullLong = e.status.isEmpty && e.duration == nil && closedAt > 0
+                    && now - closedAt > WisprState.nullStopCeiling
+                if let dead = WisprState.deadRow(.init(rowid: row, status: e.status, duration: e.duration,
+                                                       newestRowid: WisprHistory.newest()?.rowid ?? row,
+                                                       pidNow: Self.wisprMainPid, pidAtAdoption: pid,
+                                                       dismissedAt: dismissedAt, closedAt: closedAt,
+                                                       wisprMicOpen: nullLong ? watch.sampleIsRunningInput() : false,
+                                                       now: now)) {
+                    Log.info("wispr history: the row the relay gave up on is dead — \(dead); its hold on Wispr's ⌘V is let go (batch 3)")
+                    hotkeys.holdWisprOwned(false)
+                    return
+                }
             }
             guard Date() < until else { hotkeys.holdWisprOwned(false); return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { tick() }
@@ -2494,6 +2570,18 @@ final class WisprFlowSource: DictationSource {
     /// newest row is *newer than the relay's*, terminal with words, and fresh,
     /// it is his: pasted at the caret, where Wispr would have put it. Polled
     /// briefly — Wispr's ⌘V and its `formatted` land in no fixed order.
+    ///
+    /// **Batch 3 (2026-09-28): the pasteboard, once, as the last resort.** The
+    /// row is read first, at the drop. Wispr pastes *before* its final write
+    /// (p50 74 ms, p90 135 ms, max 1 s), so the row is often still NULL /
+    /// `processing` then — while Wispr's own item is on the pasteboard, a
+    /// delayed-render promise that is gone at its restore 500 ms later. So when
+    /// the row has no words at the drop, `pasteboardString()` is read **then,
+    /// once** (off main: the read runs Wispr's provider), and kept: the row's
+    /// words still win if they arrive within the claim's 5 s; the pasteboard's
+    /// are pasted only if they do not. Refused when the clipboard is still at
+    /// the relay's own last write (Q17's sentence, not Wispr's). Whatever is
+    /// pasted marks the row (`lastForeignRow`): never twice.
     private func claimForeignPaste(floor: Int64? = nil, relayHadRow: Bool = true, relayClosedAt: Double = 0) {
         guard let own = floor ?? historyRow ?? priorRow else {
             Log.info("🛡️ the dropped ⌘V: the relay has no row yet to tell his from — nothing claimed")
@@ -2524,29 +2612,69 @@ final class WisprFlowSource: DictationSource {
             return
         }
         let candidate = top.rowid
+        let dry = CFAbsoluteTimeGetCurrent() < foreignClaimDryUntil
+        func paste(_ text: String, from source: String, status: String) {
+            guard candidate > lastForeignRow else { return }
+            lastForeignRow = candidate
+            Log.info("🛡️ the dropped ⌘V is row \(candidate) (\(status)), newer than the relay's \(own) — his own Wispr sentence (Q19), \(text.count) chars from \(source)")
+            if dry {
+                lastForeignClaim = ["row": candidate, "source": source, "chars": text.count, "at": Outbox.iso(Date())]
+                Log.info("🧪 dry claim (POST /test/wispr-paste {dryClaim}) — row \(candidate)'s \(text.count) chars from \(source) NOT pasted")
+                return
+            }
+            foreignSentence?(text)
+        }
+        let atDrop = WisprHistory.entry(rowid: candidate)
+        let rowText = atDrop.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
+        if let e = atDrop, WisprState.isTerminal(e.status), !rowText.isEmpty {
+            return paste(rowText, from: "the row", status: e.status)
+        }
+        // The row has no words yet: Wispr's promised item is on the pasteboard
+        // now and only now. One read, off main, kept for the end of the claim.
+        var board: String?
+        var boardRead = false
+        let ownCount = PasteboardTimeline.lastOwnCount
+        DispatchQueue.global(qos: .userInitiated).async {
+            let count = NSPasteboard.general.changeCount
+            let text = count == ownCount ? nil : Self.pasteboardString()
+            DispatchQueue.main.async {
+                board = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+                boardRead = true
+                Log.info("🛡️ the dropped ⌘V: row \(candidate) has no words yet — the pasteboard read once: "
+                         + (count == ownCount ? "still the relay's own write (Q17), not used"
+                            : "\(board?.count ?? 0) chars kept as the last resort"))
+            }
+        }
         var tries = 0
         func attempt() {
             tries += 1
-            guard let e = WisprHistory.entry(rowid: candidate), WisprState.isTerminal(e.status) else {
-                if tries < Self.claimTries {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.claimTick, execute: attempt)
-                } else {
-                    Log.error("🛡️ the dropped ⌘V is his row \(candidate), still unfinished after \(String(format: "%.0f", Double(tries) * Self.claimTick)) s — left in Wispr's History (⌘⌃W pastes it)")
+            if let e = WisprHistory.entry(rowid: candidate), WisprState.isTerminal(e.status) {
+                let text = e.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty { return paste(text, from: "the row", status: e.status) }
+                if boardRead, let b = board, !b.isEmpty {
+                    return paste(b, from: "the pasteboard (row \(e.status) with no words)", status: e.status)
                 }
+                if boardRead || tries >= Self.claimTries {
+                    Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), his — and empty: nothing to paste")
+                    return
+                }
+            }
+            if tries < Self.claimTries {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.claimTick, execute: attempt)
                 return
             }
-            guard e.rowid > lastForeignRow else { return }
-            let text = e.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else {
-                Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), his — and empty: nothing to paste")
-                return
+            if let b = board, !b.isEmpty {
+                return paste(b, from: "the pasteboard (the row still unfinished after \(String(format: "%.0f", Double(tries) * Self.claimTick)) s)", status: "unfinished")
             }
-            lastForeignRow = e.rowid
-            Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), newer than the relay's \(own) — his own Wispr sentence (Q19)")
-            foreignSentence?(text)
+            Log.error("🛡️ the dropped ⌘V is his row \(candidate), still unfinished after \(String(format: "%.0f", Double(tries) * Self.claimTick)) s — left in Wispr's History (⌘⌃W pastes it)")
         }
         attempt()
     }
+    /// **`POST /test/wispr-paste {"dryClaim": true}`** (batch 3): for 10 s the
+    /// claim decides and logs but pastes nothing — the desk has no caret to
+    /// spare. `wisprLive.lastForeignClaim` says what it would have pasted.
+    var foreignClaimDryUntil: CFAbsoluteTime = 0
+    private(set) var lastForeignClaim: [String: Any]?
     /// Wispr's ⌘V and its `formatted` land in no fixed order, and under load the
     /// row lags by seconds: 5 s of looking.
     private static let claimTries = 20
@@ -2601,57 +2729,11 @@ final class WisprFlowSource: DictationSource {
     }
     private var lastForeignRow: Int64 = 0
 
-    /// **Wispr finished the sentence and never said so** (2026-09-22).
-    ///
-    /// A row that stops at `raw_transcript` with `asrText`, `pastedText`,
-    /// `formattedText` *and* `e2eLatency` all written is a **finished**
-    /// dictation wearing an unfinished label. Wispr never comes back to it:
-    /// 21 such rows in the 30 days to 2026-09-22, the oldest still
-    /// `raw_transcript` months later — and **five of them that one evening**,
-    /// rows 16739/16750/16752/16755 and the 18:29 one, 300–780 characters
-    /// apiece.
-    ///
-    /// Until this, the relay called it progress and waited: the whole 30 s of
-    /// `captureTimeout`, the ring lit the whole time, and then it delivered
-    /// **whatever was on the pasteboard** — *1 character* into a spawned
-    /// session at 18:24 and *25* at the caret at 18:27, for two sentences of
-    /// 779 and 434 characters that were sitting complete in the row. That
-    /// second half is fixed in `captureExpired`; this is the first, and it is
-    /// the one that makes the sentence arrive **on time** rather than at all.
-    ///
-    /// **Why this cannot take an unfinished row's text.** The ordinary path
-    /// never passes through here: measured with `tools/wispr-row-watch.py` on
-    /// the evening it was written, a row goes `∅` → `processing` → `formatted`
-    /// and **all three text columns appear in the same tick as the terminal
-    /// status** — there is no moment when a row that is still working carries
-    /// words. Every `raw_transcript` in the relay's own log arrived *after*
-    /// `processing`, which is to say the status went backwards and stayed
-    /// there. `rawTextGrace` is the belt to that braces: the columns must have
-    /// held still for it, so a Wispr that one day writes them a tick early
-    /// still gets to finish the flip.
-    private func rawTextSettled(_ e: WisprHistory.Entry, took: Double) -> Bool {
-        guard !isRecording, e.status == "raw_transcript",
-              !e.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            rawTextSeenAt = 0
-            return false
-        }
-        if rawTextSeenAt == 0 {
-            rawTextSeenAt = CFAbsoluteTimeGetCurrent()
-            Log.info(String(format: "wispr history: raw_transcript already carries %d chars %.0f ms after the microphone closed — giving the formatting pass %.1f s",
-                            e.text.count, took, Self.rawTextGrace))
-            return false
-        }
-        guard CFAbsoluteTimeGetCurrent() - rawTextSeenAt >= Self.rawTextGrace else { return false }
-        Log.info(String(format: "wispr history: still raw_transcript %.1f s on, and the row is complete (Wispr's own e2e %.0f ms) — Wispr never labelled it; taking it as finished",
-                        (CFAbsoluteTimeGetCurrent() - rawTextSeenAt), e.e2eLatency))
-        return true
-    }
+    // `rawTextSettled` (2026-09-22) read a `raw_transcript` row with words in
+    // it as `formatted` after 0.8 s of stillness. Batch 3 (2026-09-28) deleted
+    // it: Wispr writes `raw_transcript` only in its final update
+    // (`integration-surfaces.md`, item 3), so it is terminal — delivered at once.
 
-    /// How long the words must sit unchanged in a `raw_transcript` row before it
-    /// is read as finished. Short on purpose: what it is protecting against has
-    /// never been observed, and what it delays is a sentence Victor is waiting
-    /// for — it used to cost him thirty seconds and the wrong text.
-    private static let rawTextGrace: TimeInterval = 0.8
 
     /// **Wispr Flow's own process, matched on the anchored executable path.**
     ///
@@ -2741,8 +2823,7 @@ final class WisprFlowSource: DictationSource {
             Log.error(String(format: "wispr history: %@ with no text — waiting for the Scratchpad note instead", e.status))
             return
         }
-        historyPoll?.invalidate()
-        historyPoll = nil
+        stopHistoryPoll()
         scratchpadWindowHandled = true
         // Everything the cross-check needs, before `endCapture` clears it.
         let priorId = priorNoteId
@@ -2843,8 +2924,7 @@ final class WisprFlowSource: DictationSource {
         // the relay's own 70 characters were appended to the Scratchpad and the
         // TextEdit document Victor was looking at stayed empty. The words are
         // already read; the window goes first and the caret gets them after.
-        historyPoll?.invalidate()
-        historyPoll = nil
+        stopHistoryPoll()
         scratchpadWindowHandled = true
         WisprScratchpad.closeWhenItAppears { [weak self] appeared, closed in
             guard let self, self.capturing else { return WisprScratchpad.endWatch() }
@@ -3026,17 +3106,21 @@ final class WisprFlowSource: DictationSource {
             return
         }
         // **Q2 (2026-09-28, Victor: A): while Wispr's row is still being worked
-        // on, the relay waits — no 30 s cap.** Wispr's own fallback ASR finishes
+        // on, the relay waits past 30 s.** Wispr's own fallback ASR finishes
         // at 24–36 s and its `error` lands at ~33 s; giving up at 30 s dropped
-        // those sentences (W12). A NULL row with no microphone behind it gave up
-        // long ago (`nullNoMicCeiling`); `processing` / `raw_transcript` /
-        // `recording` keep the capture, re-armed, up to `workingCeiling`.
+        // those sentences (W12). **Batch 3 (2026-09-28): no longer blind** —
+        // a row Wispr will never finish is called dead by `pollHistory` on the
+        // commit that shows it (`WisprState.deadRow`), so what is still
+        // `processing` / `recording` here may still finish, and it gets up to
+        // `workingCeiling` (40 s from the close; Wispr's e2e max is 36 s).
         if let row = historyRow {
             let st = status(of: row)
             let working = !st.isEmpty && WisprState.intermediateStatuses.contains(st)
-            if working, CFAbsoluteTimeGetCurrent() - captureFrom < Self.workingCeiling {
-                Log.info("wispr: \(Int(Self.captureTimeout)) s and row \(row) is still \(st) — Wispr is still working on it; waiting on (Q2)")
-                armCaptureDeadline()
+            let elapsed = CFAbsoluteTimeGetCurrent() - captureFrom
+            if working, elapsed < Self.workingCeiling {
+                Log.info(String(format: "wispr: %.0f s and row %lld is still %@ — Wispr may still finish it; waiting on to %.0f s (Q2, batch 3)",
+                                elapsed, row, st, Self.workingCeiling))
+                armCaptureDeadline(after: Self.workingCeiling - elapsed)
                 return
             }
         }
@@ -3048,9 +3132,10 @@ final class WisprFlowSource: DictationSource {
         endCapture(quiet: true)
         endWithRecording("Wispr Flow returned no words (\(waiting))", row: row)
     }
-    /// The longest a row still `processing` is waited for (Q2) — a net, not a
-    /// verdict: Wispr's own budget is ~36 s; five minutes is a Wispr that hung.
-    private static let workingCeiling: CFAbsoluteTime = 300
+    /// The longest a row still `processing` is waited for (Q2), counted from
+    /// the close — a net behind the dead-row verdict: Wispr's e2e p99 is 4.4 s,
+    /// its max 36 s (`integration-surfaces.md`). 300 s until batch 3.
+    private static let workingCeiling: CFAbsoluteTime = 40
 
     /// - Parameter via: the route, in the one word `outbox.jsonl` and
     ///   `GET /test/state` record it under. `reason` above is prose for the log;
@@ -3138,8 +3223,7 @@ final class WisprFlowSource: DictationSource {
         clipboardWatch?.invalidate()
         clipboardWatch = nil
         clipboardMoved = nil
-        historyPoll?.invalidate()
-        historyPoll = nil
+        stopHistoryPoll()
         // **Kept past the capture**, because *has Wispr started anything since*
         // is asked after it — see `lateOpenEdge`.
         if let row = historyRow { lastRow = row }

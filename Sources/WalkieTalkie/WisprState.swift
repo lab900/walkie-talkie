@@ -121,21 +121,100 @@ final class WisprState {
 
     /// **The statuses that are not an answer** — Wispr is still working.
     ///
-    /// `""` is the row as created at the gesture; `raw_transcript` and
-    /// `processing` were seen on the wire for the first time on 2026-09-13 and
-    /// were unknown to the code that day, so a settle sat out its whole timeout
-    /// on them. They are *progress*, and progress is the opposite of a reason to
-    /// give up.
-    static let intermediateStatuses: Set<String> = ["", "recording", "raw_transcript", "processing"]
+    /// `""` is the row as created at the gesture (NULL: the stop path has not
+    /// run), `processing` the row after the stop, with its audio and `duration`.
+    ///
+    /// **`raw_transcript` is not here since 2026-09-28 (batch 3).** It was
+    /// listed as progress from 2026-09-13; Wispr's own code
+    /// (`evals/plan/wispr/integration-surfaces.md`, item 3) writes it only in
+    /// the *final* update — the formatter did not finish, or the OpenAI
+    /// fallback answered — and lists it in its own *pasteable* and *ok* sets.
+    /// Read as progress it cost a 0.8 s grace with words in it
+    /// (`rawTextSettled`, deleted) and 8 s without (`silenceCeiling`).
+    static let intermediateStatuses: Set<String> = ["", "recording", "processing"]
 
     /// **The statuses that end a dictation**, and what each means.
     ///
     /// `formatted` is the ordinary one and carries `pastedText`;
     /// `extension_paste` / `extension_other` are the same thing from Wispr's
     /// browser extension. `dismissed` is his ⌃Escape, `empty` / `no_audio` a
-    /// sentence with nothing in it, `error` Wispr's own failure.
+    /// sentence with nothing in it, `error` Wispr's own failure. Batch 3
+    /// (2026-09-28), from Wispr's own code: `raw_transcript`, `fallback`,
+    /// `verification_failed`, `timeout`.
     static let terminalStatuses: Set<String> =
-        ["formatted", "extension_paste", "extension_other", "dismissed", "empty", "no_audio", "error"]
+        ["formatted", "extension_paste", "extension_other", "dismissed", "empty", "no_audio", "error",
+         "raw_transcript", "fallback", "verification_failed", "timeout"]
+
+    /// **The terminal statuses whose text is the sentence** — Wispr's own
+    /// *pasteable* set `[Formatted, RawTranscript, VerificationFailed,
+    /// ExtensionPaste, Fallback]`, plus `extension_other`, which the relay has
+    /// always delivered. One of these **with no text** is a sentence Wispr
+    /// heard nothing in: it ends as a failure at once (Q14: the relay's own
+    /// recording stands in), never as a wait.
+    static let pasteableStatuses: Set<String> =
+        ["formatted", "raw_transcript", "verification_failed", "extension_paste", "fallback", "extension_other"]
+
+    /// **What the relay knows about a row it is waiting on** — the inputs of
+    /// `deadRow`, all read by the caller (no SQLite, no clock here).
+    struct RowFacts {
+        var rowid: Int64
+        var status: String
+        /// `History.duration`: written by Wispr's stop path, nil while NULL.
+        var duration: Double?
+        /// The newest rowid in `History` now.
+        var newestRowid: Int64
+        /// Wispr's main pid now (0 = not seen) and when the row was adopted.
+        var pidNow: Int32 = 0
+        var pidAtAdoption: Int32 = 0
+        /// When the relay posted its own dismiss (⌃Escape) for this row; 0 = never.
+        var dismissedAt: Double = 0
+        /// When the relay's microphone closed for this sentence; 0 = still open.
+        var closedAt: Double = 0
+        /// Wispr's microphone open now (the CoreAudio sample).
+        var wisprMicOpen = false
+        var now: Double
+    }
+
+    /// **A row Wispr will never finish** (batch 3, 2026-09-28), or nil while it
+    /// still may. From Wispr's own code (`integration-surfaces.md`, item 3):
+    ///
+    /// - one live dictation at a time: a NULL / `processing` row with a newer
+    ///   row above it was superseded (*"Skipping finalization — dictation was
+    ///   superseded while transcribing"*) and stays as it is for ever;
+    /// - a different Wispr process never heard of it;
+    /// - a dismiss during processing abandons the result — still open 1 s after
+    ///   the relay's own ⌃Escape, it is dead (and a dismiss under 0.5 s of audio
+    ///   writes nothing at all, so NULL stays NULL);
+    /// - NULL means the stop path never ran: 3 s after the close, with no
+    ///   `duration` and Wispr's microphone shut, it is not going to.
+    ///
+    /// Replaces Q24's blind *wait while `processing`, up to 300 s*: what is
+    /// left waiting is a row that can still finish, and `workingCeiling` (40 s,
+    /// Wispr's max e2e is 36 s) bounds even that.
+    static func deadRow(_ f: RowFacts) -> String? {
+        guard !isTerminal(f.status) else { return nil }
+        let open = f.status.isEmpty || f.status == "processing"
+        let shown = f.status.isEmpty ? "NULL" : f.status
+        if f.pidAtAdoption != 0, f.pidNow != 0, f.pidNow != f.pidAtAdoption {
+            return "Wispr Flow is pid \(f.pidNow) now; row \(f.rowid) belongs to pid \(f.pidAtAdoption)"
+        }
+        if open, f.closedAt > 0, f.newestRowid > f.rowid {
+            return "row \(f.rowid) is still \(shown) and row \(f.newestRowid) is newer — Wispr never finishes a superseded dictation"
+        }
+        if open, f.dismissedAt > 0, f.now - f.dismissedAt >= dismissGrace {
+            return String(format: "row %lld is still %@ %.1f s after the relay's dismiss — Wispr abandons a dismissed dictation",
+                          f.rowid, shown, f.now - f.dismissedAt)
+        }
+        if f.status.isEmpty, f.duration == nil, f.closedAt > 0, f.now - f.closedAt > nullStopCeiling, !f.wisprMicOpen {
+            return String(format: "row %lld is still NULL with no duration %.1f s after the close — Wispr's stop path never ran",
+                          f.rowid, f.now - f.closedAt)
+        }
+        return nil
+    }
+    /// Still open this long after the relay's own dismiss → dead.
+    static let dismissGrace: Double = 1
+    /// Still NULL this long after the close → the stop path never ran.
+    static let nullStopCeiling: Double = 3
 
     /// A status nobody has seen before ends the dictation rather than hanging
     /// it, which is what the code did before there was a machine — but it says
