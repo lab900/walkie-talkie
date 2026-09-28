@@ -679,9 +679,21 @@ final class WisprFlowSource: DictationSource {
         }
         // B: a row whose ⌘V the tap let through is pasted by Wispr — never again by us.
         hotkeys.onForeignPastePassed = { [weak self] row in
+            // TX8b (lab wave 3): his ⌘V passed and nothing landed in TextEdit —
+            // where did it go? The front app and the clipboard at the pass
+            // (the count only, never the text), and whether Wispr's restore moved it.
             DispatchQueue.main.async {
                 guard let self else { return }
+                // Read here, not on the tap thread: the count is an IPC round trip.
+                let count = NSPasteboard.general.changeCount
                 self.lastForeignRow = max(self.lastForeignRow, row)
+                let front = NSWorkspace.shared.frontmostApplication
+                let own = PasteboardTimeline.lastOwnCount
+                Log.info("🛡️ his ⌘V passed (row \(row)) — front: \(front?.bundleIdentifier ?? "?") pid \(front?.processIdentifier ?? 0); clipboard #\(count)" + (count == own ? " = the relay's own last write (Q17) — NOT Wispr's item" : " (the relay's own last write #\(own))"))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                    let now = NSPasteboard.general.changeCount
+                    Log.info("🛡️ 0.7 s after his passed ⌘V: clipboard #\(now)" + (now == count ? " — unchanged (no restore by Wispr)" : " — moved (Wispr's restore)"))
+                }
             }
         }
     }

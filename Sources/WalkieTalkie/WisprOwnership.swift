@@ -30,7 +30,16 @@ enum WisprOwnership {
     ///   - foreignRow: a newer row the tail watch judged not the relay's (0 = none).
     static func verdict(now: Double, since: Double, releasedAt: Double, rowsHeld: Int,
                         foreignRow: Int64, tail: Double, ceiling: Double) -> Verdict {
-        if rowsHeld > 0 { return .relays("a row the relay gave up on is still being watched") }
+        // **B2 (lab wave 3, 2026-09-28): his noted row outranks the rows the
+        // relay still holds.** TX10 5/5: three NULL rows held for 5 min each
+        // made every ⌘V of his "the relay's", in the tail and past it. Wispr
+        // finalizes only its newest dictation, a held row is always older than
+        // his noted one (a relay gesture resets the note), so it can no longer
+        // paste — the ⌘V is his.
+        if rowsHeld > 0 {
+            if foreignRow > 0 { return .passes("row \(foreignRow) is newer than the relay's — his own sentence (the rows the relay still holds are older, and Wispr finishes only its newest)") }
+            return .relays("a row the relay gave up on is still being watched")
+        }
         guard since > 0, now - since < ceiling else { return .passes("no relay sentence near (Q9)") }
         if releasedAt == 0 { return .relays("the relay's sentence is in flight") }
         guard now - releasedAt < tail else { return .passes("past the relay's tail (Q9)") }

@@ -894,7 +894,7 @@ def tx8b():
         r_w, r_c = copies(wt, ref_r), copies(te, ref_r, avoid=ref_h)
         h_c, h_w = copies(te, ref_h), copies(wt, ref_h)
         note = ("relay: witness %.1f, TextEdit %.1f · his: TextEdit %.1f, witness %.1f · Q19 line %s · drop line %s; %s"
-                % (r_w, r_c, h_c, h_w, "(Q19)" in txt, "dropped" in txt, _fmt(o)))
+                % (r_w, r_c, h_c, h_w, re.search(r"\((?:B, )?Q19\)", txt) is not None, "dropped" in txt, _fmt(o)))
         if h_w > 0 or r_c > 0:
             return "FAIL", "crossed: " + note
         if o["up"] or r_w > 1.4 or h_c > 1.4:

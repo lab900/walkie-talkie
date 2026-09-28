@@ -3163,7 +3163,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // where Wispr would have put it.
         wisprSource.foreignSentence = { [weak self] text in
             guard let self else { return }
-            Log.info("📍 Wispr's own sentence (\(text.count) chars) arrived while the relay's was in flight — pasted at the caret (Q19)")
+            // B2/TX8b (lab wave 3): nothing landed in TextEdit — say where the caret is.
+            let front = NSWorkspace.shared.frontmostApplication
+            Log.info("📍 Wispr's own sentence (\(text.count) chars) arrived while the relay's was in flight — pasted at the caret (Q19); front: \(front?.bundleIdentifier ?? "?") pid \(front?.processIdentifier ?? 0)")
             self.pasteText(text, settles: false)
             self.pasteHint.pulse(reason: "Wispr's own sentence, pasted by the relay (Q19)")
         }

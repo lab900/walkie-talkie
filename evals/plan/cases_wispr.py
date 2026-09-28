@@ -190,12 +190,16 @@ def tw1():
     quiet = re.search(r"dictation cancelled via (?!POST /test/cancel)([^\n]*)", txt)
     up = [t for t, l in seen if l]
     lasted = (up[-1] - up[0]) if up else 0
+    # Lab wave 3: measured from the moment listening began (Wispr's row can lag the press by
+    # ~0.8 s), not against a fixed bar — a hold that stays one sentence never drops back.
+    dropped_back = bool(up) and any(not l for t, l in seen if t > up[0])
     note = f"held seen {held}; listening from {up[0] if up else '-'} s for {lasted:.1f} s; " \
            f"release line before the case's cancel {early}; other cancel: {quiet.group(1)[:60] if quiet else None}"
     if not held:
         return "FAIL", "the tap never saw the pair — " + note
-    if early or lasted < 2.2:   # sampled 0.1 s apart from ~0.3 s to 2.6 s: 2.3 is the ceiling, not a floor
-        return "BUG", note
+    if early or dropped_back or not up:
+        return "BUG", note + f"; dropped back to not-listening {dropped_back}"
+    note += f"; listening from {up[0]} s to the end of sampling, never dropped"
     return "PASS", note
 
 @case("TW2", tags=("gesture", "desk", "unit"), pre=lambda: None if "wisprLive" in state() else "no Wispr hooks in this build",
@@ -462,7 +466,8 @@ def _tw8(delay, after_delivery=False):
     time.sleep(6)
     txt = log_since(m2)
     rescued = "🛡️ ⌘V from" in txt and "dropped" in txt
-    passed = "its own sentence (standalone, Q9)" in txt
+    # Lab wave 3: inside the tail the pass line says "(B, Q19)", not "(standalone, Q9)".
+    passed = re.search(r"⌘V from Wispr Flow passed — [^\n]*\((?:standalone, Q9|B, Q19)\)", txt) is not None
     extra = outbox_count() - n0
     note = f"outbox +{extra} (the relay's sentence is 1); rescue/drop line {rescued}; Wispr's own paste passed {passed}"
     return ("PASS" if passed and not rescued and extra <= 1 else "BUG"), note

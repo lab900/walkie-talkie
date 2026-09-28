@@ -29,9 +29,9 @@ final class WisprOwnershipTests: XCTestCase {
         XCTAssertFalse(relays(v(since: t, released: t + 5, now: t + 16)))
     }
 
-    func testAHeldRowStillDropsEvenWithHisRow() {
+    func testAHeldRowStillDropsWithNoRowOfHis() {
         // The relay's given-up row can still paste late: dropped, and the claim asks the rows.
-        XCTAssertTrue(relays(v(since: t, released: t + 5, held: 1, foreign: 42, now: t + 8)))
+        XCTAssertTrue(relays(v(since: t, released: t + 5, held: 1, foreign: 0, now: t + 8)))
     }
 
     func testNeverOwnedPasses() {
