@@ -471,7 +471,7 @@
     "slug" : "paste-again",
     "title" : "Re-paste — ⌘V, after every sentence",
     "when" : "Five seconds after every delivered sentence (caret, bound terminal, new session, a held sentence's release) and after a cancelled prompt. Never after a cancelled dictation.",
-    "width" : 158
+    "width" : 218
   },
   {
     "alpha" : 0.80000000000000004,
