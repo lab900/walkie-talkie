@@ -7,7 +7,7 @@ paths:
 
 # Destinations and the outbox
 
-Rules for where a dictation goes and when it is written: the held prompt, the outbox line, the unbound hold (`awaitingBind`), the home folder, ⌘⌃P, the send flight and the prompt panel's keys. Full history and reasoning: docs/journal.md — see the sections named after each rule below.
+Rules for where a dictation goes and when it is written: the held prompt, the outbox line, the unbound hold (`awaitingBind`), the home folder, the clipboard, the send flight and the prompt panel's keys. Full history and reasoning: docs/journal.md — see the sections named after each rule below.
 
 ## When the outbox is written
 
@@ -37,7 +37,7 @@ Rules for where a dictation goes and when it is written: the held prompt, the ou
 
 - **Nothing bound at the close → held, never the caret** (Victor's Q1, 2026-09-26: *"bind to send memory"*). `latchedAtCaret = pasteMode`; the unbound caret clause (`!isBound && !spawnPending && spawnPickInFlight == nil`) is gone, and so is the halo's `listening && !isBound` caret clause. The caret is the forward click / F7 (`pasteMode`), the back click's clean sentence, and a sentence **Wispr's own chord** opened with nothing bound (`noteHandStartedAtCaret` sets `pasteMode` — holding it would take Wispr away from every app while the relay is unbound). 🔼 → over a clean sentence takes it to the terminal (`cleanRedirected`; TG13). The chip counts what waits: `📨 N waiting — bind to send`. → journal: *Fixes to the test plan's findings, batch 2*
 - **`awaitingBind` is a queue, delivered in order** (Victor's Q3, 2026-09-26: *both are kept*). It held one sentence until then and a second replaced the first silently (TD2). `releaseAwaitingBind` commits every held sentence oldest first; the serial delivery queue keeps the typing order. → journal: *Fixes to the test plan's findings, batch 1*
-- **Five minutes per sentence**, the same net as `Recover Cancelled Dictation`. On expiry the chip says `⏳ held dictation expired — ⌘⌃P to paste it`; the alternative is a sentence he believes is still on its way. → journal: *`awaitingBind`: one sentence, five minutes*
+- **Five minutes per sentence**, the same net as `Recover Cancelled Dictation`. On expiry the chip says `⏳ held dictation expired — ⌘V to paste it`; the alternative is a sentence he believes is still on its way. → journal: *`awaitingBind`: one sentence, five minutes*
 - **Release it from `showBound`, deliberate or not.** Every route into a binding passes through it (⌘⌃B, the chords, `POST /bind`, the restart's restore, a spawned window adopting itself). Unlike the spawn and caret take-backs, the poll cannot produce a binding out of nothing, so it can never be the call that releases this. → journal: *`awaitingBind`: one sentence, five minutes*
 - **The chip says `⏳ bind to send — ⌘⌃B` while he talks**, in the destination row, naming the *gesture*; it comes down the moment a bind lands. → journal: *`awaitingBind`: one sentence, five minutes*
 - **`syncLocalCapture`'s cost is outside this app.** With **Mouse Gestures: Wheel** the wheel is the relay's for as long as the relay runs — middle-click stops opening links in Chrome and closing tabs in VS Code (*"folosesc middle click sa inchid de ex taburi chrome/vsc"*). In the default mode it costs nothing. The line to put back to `isBound` is one, named in `syncLocalCapture`'s own comment. The unbound double-click branch at the bottom of `HotkeyTap`'s middle-button chain is unreachable now and is left standing for the flip back. → journal: *The one gate whose price is outside this app*
@@ -101,11 +101,27 @@ tokens where he made them (2026-09-19)*.
 - **`IDEBridge` reads both registries** (`~/.wispr-relay/ide/` and `~/.walkie-talkie/ide/`): an extension host keeps the code loaded when its window opened, and a window not yet reloaded would fall back to a blind paste. → journal: *The rename, and the two places the old name survives*
 - **The bundle id stays `ro.victorrentea.wispr-relay`** (with it the Caches path and queue labels): macOS keys Accessibility, Screen Recording and the microphone to it. → journal: *The rename, and the two places the old name survives*
 
-## ⌘⌃P pastes the last envelope
+## The clipboard holds the finished sentence (Q17, 2026-09-28)
 
-- **Paste the whole `terminalLine`, recorded at `commit`** (since 2026-09-04): `📸 ×2 0:38`, the quoted selection, the picked selectors and the frame paths — byte for byte what the session received, since `commit` records `terminalLine(m)`, the same call `deliverToTerminal` and `spawnClaude` make. Where this lands is overwhelmingly another agent, and the screenshots are the half that cannot be retyped. → journal: *⌘⌃P pastes the last dictation*
-- **Recorded at `commit`, so a cancelled prompt does not overwrite the last thing that went out**, and an edit is folded in. Replace Wispr pastes the words: that mode builds no envelope. → journal: *⌘⌃P pastes the last dictation*
-- **The clipboard is not restored afterwards** — unlike `TerminalBinding`'s blind paste, here he asked for it. Silent on success; `⚠️ nothing dictated yet` is the one thing said aloud. From the menu the ⌘V waits a beat for AppKit to give the caret back. → journal: *⌘⌃P pastes the last dictation*
+Victor: *"întotdeauna la finalul dictării cu walkie-talkie să rămână în clipboard ce s-a dictat …
+scriem în clipboard la final promptul sau dictarea curată, indiferent ce și cum."* → journal:
+*Wispr as engine: decisions Q14–Q23*.
+
+- **At the end of every dictation the final text is written to the pasteboard** — whatever the
+  engine (Wispr, ElevenLabs, local, the local fallback) and wherever it went (bound terminal, spawn,
+  caret, a held sentence at its release, a panel sent after an edit): the **prompt envelope**
+  (`terminalLine`, byte for byte what the agent received) for a relay sentence, **the clean words**
+  for a plain one (the back click, right ⌘⌥ held). One call site at the end of delivery, never
+  per destination.
+- **The previous clipboard is never restored.** The sentence is always one ⌘V away; that is the
+  feature (W5 argued the other way and was overruled).
+- **Wispr's own clipboard dance comes after ours** (W8: Wispr writes its text ~30 ms before
+  `formatted` and restores the old clipboard ~250 ms later, even when its ⌘V is dropped), so on a
+  Wispr sentence the write is re-asserted once Wispr's restore has passed.
+- **⌘⇧P is gone** (and ⌘⌃P before it). Nothing re-pastes: ⌘V does. The chip's row after a delivery
+  names **⌘V** (`PasteHint`). Do not bring a re-paste key back — the clipboard holds the sentence.
+- **A cancelled sentence writes nothing** — there is no finished text; *Recover Cancelled
+  Dictation* is that case's door.
 
 ## The held prompt
 

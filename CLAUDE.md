@@ -69,8 +69,11 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
 
 ## Gestures, in one screen
 
-- **Keys:** ⌘⌃B bind (again = unbind), ⌘⌃D dictate, ⌘⇧P re-paste the last envelope (falls back to
-  the outbox after a restart). All swallowed. ⌘⌃⌥D belongs to Victor Addons.
+- **Keys:** ⌘⌃B bind (again = unbind), ⌘⌃D dictate. Both swallowed. ⌘⌃⌥D belongs to Victor Addons.
+  Right ⌘⌥ held = Walkie's clean dictation (`54+61`); right ⌥⇧ held = **Wispr's own** ptt (`61+60`,
+  Q23), left alone.
+- **The clipboard always holds the finished sentence** (Q17, 2026-09-28): the envelope for a prompt,
+  the clean words for a plain one, whatever the engine or destination; never restored. ⌘V re-pastes.
 - **Side buttons** (Options+ → ⌃⌥⌘F3…F12, duplicated in `HotkeyTap`, must not drift;
   `evals/test_gesture_spec.py` is the spec): 🔼 = prompt at the caret (full envelope); 🔼 → at the
   bound terminal; 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; 🔽 = plain
@@ -83,6 +86,7 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
 ## Never reintroduce
 
 - **Pause** — Disconnect is the hand-back; `holdsForBind` is never a menu tick.
+- **⌘⇧P re-paste** (or any re-paste key) — the clipboard holds the sentence instead (Q17, 2026-09-28).
 - **Wispr's DB as a recogniser**, **`copy_last_text` by default**, **focus-stealing as the Wispr
   wrap**, **revoking Wispr's Accessibility**, **`open -a "Wispr Flow"`** — why: `dictation-source.md`.
 - **Bracketed paste for terminal delivery** — Claude Code wraps it in `<pasted_content>` and the

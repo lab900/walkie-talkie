@@ -27,6 +27,8 @@ The journal contradicts itself over time, because it was written as things chang
 - *`awaitingBind`: one sentence, five minutes* — superseded 2026-09-26 by Victor's Q3: a queue, every held sentence delivered in order on the next bind, five minutes each (*Fixes to the test plan's findings, batch 1*)
 - *The fail-open* (2026-09-24, `MainStallGate`: wall clock, a 0.5 s beat, judged only when an event came by, a trace line per event, the canary handed through) — superseded 2026-09-26 by *Fixes to the test plan's findings, batch 4* §1: uptime, a 0.1 s beat, a 10 Hz watchdog, the real stall length, the canary seen while open, the app's own chords dropped
 - *F10's re-fire guard, scoped to F10 only* (2026-09-16/18) — superseded 2026-09-26 by batch 4 §2: every flick has the 0.6 s window
+- *`PasteHint` after every delivered sentence* (2026-09-23) and **⌘⇧P** itself (2026-09-19) — superseded 2026-09-28 by Q17: the clipboard always holds the finished sentence (envelope or clean words), ⌘⇧P is gone, the chip's row after a delivery says ⌘V (*Wispr as engine: decisions Q14–Q23*)
+- Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
 - *The beacon is gone* (2026-09-11) — `RecordingBeacon.swift` is deleted; the halo is up for every dictation
@@ -13824,3 +13826,64 @@ night run / next morning should find in `relay.log` after a lid-open onto the lo
 then within ~2 s of the unlock `tap heal (wake): alive again after N s, 0 rebuild(s)` (and a
 `canary (unlock)` line). A `still dead — rebuild` line **with keys visible** after a wake would mean a
 second, different cause, and the ladder then shows whether a rebuild fixes it.
+
+## Wispr as engine: decisions Q14–Q23 (2026-09-28)
+
+`evals/plan/wispr/README.md` (merged findings W1–W23 of the four adversarial reads, the 16-step
+*fix now* plan) ended with eleven questions, numbered Q1–Q11 there. Journal numbers go on from
+Q13; the README's number is in brackets. Victor's answer, verbatim:
+
+> *"q1 a q2 nu inteleg. q3 a q4 a q5 b. De fapt, pentru simplitate mi-aș dori ca întotdeauna la
+> finalul dictării cu walkie-talkie să rămână în clipboard ce s-a dictat. În felul ăsta renunțăm
+> și la command shift P ăla. Punem pentru moment Ctrl V în tooltip și scriem în clipboard la final
+> promptul sau dictarea curată, indiferent ce și cum. q6C q7a q8a q9a q10a q11b dar muta tu cu
+> codex"*
+
+- **Q14 (README Q1) = A — a Wispr failure with real speech falls back to the local model.** For
+  every Wispr sentence the relay records its own WAV (`startMeter`). On any Wispr failure —
+  `error`, `no_audio`, an empty row, the 30 s timeout, Wispr quitting, no answer to the chord —
+  that WAV goes to `fallBackToLocal` **if it holds ≥ 1.5 s voiced** (the Q8/Q13 floor, the same
+  meter), delivered to the latched destination, `via: local-fallback`, the pictures with the text;
+  under the floor it is staged for *Recover*. Wispr's row is then marked consumed, so a late row
+  cannot deliver the sentence a second time. *No speech was heard* is said only when the meter
+  agrees.
+- **README Q2 — pending.** *"q2 nu inteleg"* — re-explained to him the same morning (Wispr's own
+  fallback ASR finishes at 24–36 s, its `error` at ~33 s; the relay gives up at 30 s and the late
+  row is logged as *already delivered*). Until he answers, `captureTimeout` stays **30 s** and a
+  late row is dropped as today (W12). With Q14 in place the 30 s timeout is itself a failure
+  path, so the relay's own WAV now covers most of what W12 lost.
+- **Q15 (README Q3) = A — a Wispr sentence waits behind a held / paused / edited prompt panel**
+  (Q12's rule: panels one at a time, in order), instead of force-sending it (W10).
+- **Q16 (README Q4) = A — a start while Wispr is still formatting the previous sentence is refused
+  visibly**, with a flash (*Wispr Flow takes one sentence at a time*), not a log line (W9). Wispr does
+  not queue like ElevenLabs.
+- **Q17 (README Q5) = B, and more — NEW RULE: the clipboard always holds the finished sentence.**
+  At the end of **every** dictation, whatever the engine and wherever it went, the relay writes
+  the final text to the pasteboard: the prompt envelope (`terminalLine`, what the agent got) for a
+  relay sentence, the clean words for a plain one. The previous clipboard is **not** restored —
+  that was W5's complaint, and he chose the opposite: the sentence is always one ⌘V away. With
+  that, **⌘⇧P is removed** (*"renunțăm și la command shift P ăla"*) — the key, and the chip's
+  `📋 Re-paste ⌘⇧P` row; the row that stays after a delivery names **⌘V** (he said *Ctrl V*; on
+  this Mac the paste is ⌘V, *"pentru moment"*). Supersedes the 2026-09-22/23 `PasteHint` (⌘⇧P) and
+  confirms, for every destination now, the 2026-09-04 *the clipboard is not restored* of ⌘⌃P.
+- **Q18 (README Q6) = C — the caret sentence lands where the caret is when the words arrive** (as
+  Wispr itself does; no latch of the front app). **But 🔽 → never presses Return at a shell
+  prompt**: if the app in front at the Return is a Terminal whose focused tab is a shell at its
+  prompt, the words are pasted and the Return is not sent (the shell guard, now on the caret path
+  too).
+- **Q19 (README Q7) = A — his own right ⌥⇧ sentence that ends while the relay's Wispr row is still
+  in flight is pasted at the caret by the relay**, exactly where Wispr would have pasted it (W4's
+  residual overlap), instead of being swallowed by the firewall.
+- **Q20 (README Q8) = A — the chip says `Opening…`, the ring does not breathe, until Wispr's
+  microphone is really open** (W11: cold Wispr is deaf for 0.3–6 s while the chip said Listening).
+- **Q21 (README Q9) = A — on Engine = Wispr, a right ⌘⌥ hold uses the local model**, not Wispr
+  (the relay no longer posts fn ⌃ Space under a held ⌘⌥, so W1 cannot cancel it). Answered
+  unconditionally, without waiting for TW1.
+- **Q22 (README Q10) = A — Wispr's auto-learn is switched off** (`shouldAutoLearnWords: false` in
+  its `config.json`): 3001 `dictated_text_not_found` rows in September, learning from the wrong
+  textbox.
+- **Q23 (README Q11) = B — Wispr's push-to-talk moves off right ⌘⇧** (which right-hand ⌘⇧P / ⌘⇧T /
+  ⌘⇧4 kept starting). *"dar muta tu cu codex"*: moved by editing its `config.json` with Wispr quit
+  (no GUI needed, so no Codex), to **right ⌥ + right ⇧ = `61+60`**. The relay's own right ⌘⌥
+  stays `54+61`. Every `54+60` / `54+61` that meant Wispr's ptt (tables, rules, `docs/vm-wispr.md`,
+  `WISPR_PTT_KEYS`, the teacher runbook) follows.
