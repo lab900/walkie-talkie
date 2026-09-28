@@ -149,7 +149,15 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   relay did not start: `gestureSeen(relay: false)` and a mic edge nobody asked for return early (no
   ring, no capture, no delivery), his chord never closes the relay's own sentence, and the tap lets
   Wispr's ⌘V through unless the relay owns a Wispr sentence (`setWisprRelayOwned`: from the relay's
-  gesture to its machine's idle + 10 s, ceiling 11 min) or a capture is armed. Wispr's ptt is
+  gesture to its machine's idle + 10 s, ceiling 11 min) or a capture is armed. **The 10 s tail is
+  row-aware (B, 2026-09-28 wave 3 — it ate 8/8 of his sentences in the lab):** at idle
+  `startTailWatch` reads the newest row every 0.2 s; one newer than the relay's floor (its adopted
+  row, or the row on top at its chord; with no adopted row also started after the relay's close),
+  once the relay's own ⌘V was seen or 1.5 s passed (`WisprOwnership.rowIsHis`), goes to
+  `HotkeyTap.noteForeignWisprRow` and his ⌘V **passes** (`⌘V from Wispr Flow passed — row N is
+  newer than the relay's…`). A ⌘V still dropped with no capture open asks the rows
+  (`claimForeignPaste(floor:)`): his row → pasted at the caret (Q19), the relay's → *the relay's own
+  late ⌘V*, logged — never *nothing delivered* in silence. Pure half + tests: `WisprOwnership`. Wispr's ptt is
   `61+60` (right ⌥⇧, Q23); `GET /engine.wisprPttCoherent` is false if it is ever `54+61` again.
 
 ## Catching Wispr's words
@@ -184,6 +192,9 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   pasted at the caret by the relay.** The firewall drops the ⌘V (it cannot tell whose it is);
   `claimForeignPaste` finds a newest row **newer than the relay's**, terminal with words, < 120 s old,
   and hands it to `foreignSentence` → `AppDelegate.pasteText` (clipboard + ⌘V at the caret, Q17).
+  **Only a row that existed at the drop** (wave 3): a row made after it is a later sentence whose own
+  ⌘V may still pass the tap — claiming it would paste it twice. `lastForeignRow` (also set when the
+  tap passes a row) keeps any row from being pasted by both.
 - **Q15: a Wispr sentence waits behind a held / paused / edited prompt panel** — its answer goes
   through `runAnswer` like every engine's (it used to force-send the panel, W10).
 - **Q16: a start while Wispr is still formatting is refused visibly** — flash *⏳ Wispr Flow takes one

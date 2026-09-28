@@ -1855,6 +1855,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch path {
             case "/test/wispr-proc":
                 return WisprProc.handle(body)
+            case "/test/wispr-paste":
+                // B (2026-09-28): a Wispr ⌘V through the firewall's decision (HK4).
+                var out = self.hotkeys.simulateWisprPaste()
+                out["ok"] = true
+                return (200, out)
             case "/test/modifiers":
                 let keys = (body["keys"] as? [NSNumber])?.map { $0.intValue } ?? []
                 let stamped = body["stamped"] as? Bool ?? false

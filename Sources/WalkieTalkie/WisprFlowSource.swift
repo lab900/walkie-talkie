@@ -640,7 +640,11 @@ final class WisprFlowSource: DictationSource {
             guard let self else { return }
             // Q9: the relay's own Wispr sentence is over — its ⌘V tail runs out
             // in `HotkeyTap.wisprOwnedTail`.
-            if next == .idle { self.hotkeys.setWisprRelayOwned(false) }
+            if next == .idle {
+                self.hotkeys.setWisprRelayOwned(false)
+                // B (2026-09-28): the tail is row-aware — see `startTailWatch`.
+                self.startTailWatch()
+            }
             self.syncInputPoll()
             if previous.isListening != next.isListening {
                 self.hearingChanged?(next.isListening)
@@ -658,6 +662,13 @@ final class WisprFlowSource: DictationSource {
         }
         hotkeys.onInjectedPaste = { [weak self] from in
             DispatchQueue.main.async { self?.injected(from: from) }
+        }
+        // B: a row whose ⌘V the tap let through is pasted by Wispr — never again by us.
+        hotkeys.onForeignPastePassed = { [weak self] row in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.lastForeignRow = max(self.lastForeignRow, row)
+            }
         }
     }
 
@@ -1345,6 +1356,10 @@ final class WisprFlowSource: DictationSource {
                 "lastCmdVAt": lastCmdVAt > 0 ? Outbox.iso(Date(timeIntervalSinceReferenceDate: lastCmdVAt)) : NSNull(),
                 "relayOwned": owned.active,
                 "relayOwnedUntil": owned.until.map { Outbox.iso(Date(timeIntervalSinceReferenceDate: $0)) } ?? NSNull(),
+                "ownedRow": ownedRow.map { NSNumber(value: $0) } ?? NSNull(),
+                "ownedFloor": ownedFloor,
+                "foreignRow": hotkeys.wisprForeignRowNoted,
+                "tailWatch": tailWatch != nil,
                 "wisprPid": Int(Self.wisprMainPid),
                 "pidAtChord": Int(wisprPidAtChord),
                 "chordsMuted": HotkeyTap.wisprChordsMuted,
@@ -1416,6 +1431,12 @@ final class WisprFlowSource: DictationSource {
             return
         }
         hotkeys.setWisprRelayOwned(true)
+        // B: this sentence's rows — the floor is the row on top at the chord.
+        tailWatch?.invalidate(); tailWatch = nil
+        ownedRow = nil
+        ownedFloor = WisprHistory.newest()?.rowid ?? 0
+        relayClosedWall = 0
+        tailArmed = true
         micSeen = false
         speculative = true
         // **The relay's own recording starts at the gesture** (Q14, 2026-09-28),
@@ -1548,6 +1569,7 @@ final class WisprFlowSource: DictationSource {
     /// heard and starts being waited for.
     private func closeListening(_ why: String) {
         guard isRecording || speculative else { return }
+        if relayStarted, relayClosedWall == 0 { relayClosedWall = Date().timeIntervalSince1970 }
         // **The machine closes here too, and only here.** It used to be told
         // separately at each call site, and the one site that forgot was the
         // CoreAudio edge — so a dictation the relay had settled sat in `warming`
@@ -2195,6 +2217,7 @@ final class WisprFlowSource: DictationSource {
             let isNew = e.rowid != priorRow || priorRowWasOpen
             guard isNew, e.startedAt >= openedAt - 2 else { return }
             historyRow = e.rowid
+            if relayStarted { ownedRow = e.rowid }
             namedMic = ""
             Log.info(String(format: "wispr history: row %d is this dictation's — %.0f ms after the chord (%@)",
                             e.rowid, (CFAbsoluteTimeGetCurrent() - armedAt) * 1000,
@@ -2436,27 +2459,110 @@ final class WisprFlowSource: DictationSource {
     /// newest row is *newer than the relay's*, terminal with words, and fresh,
     /// it is his: pasted at the caret, where Wispr would have put it. Polled
     /// briefly — Wispr's ⌘V and its `formatted` land in no fixed order.
-    private func claimForeignPaste() {
-        guard let own = historyRow else { return }
+    private func claimForeignPaste(floor: Int64? = nil, relayHadRow: Bool = true, relayClosedAt: Double = 0) {
+        guard let own = floor ?? historyRow ?? priorRow else {
+            Log.info("🛡️ the dropped ⌘V: the relay has no row yet to tell his from — nothing claimed")
+            return
+        }
+        // **Only a row that already exists can be the one this ⌘V pastes** —
+        // Wispr creates the row at the gesture, long before its paste. A row
+        // made *after* the drop is a later sentence whose own ⌘V is still to
+        // come (and may pass the tap): claiming it here would paste it twice.
+        guard let top = WisprHistory.newest() else {
+            Log.info("🛡️ the dropped ⌘V: History could not be read — nothing claimed")
+            return
+        }
+        guard top.rowid > own else {
+            Log.info("🛡️ the dropped ⌘V is not his: the newest row \(top.rowid) is the relay's or older (floor \(own)) — the relay's own late ⌘V, nothing of his lost")
+            return
+        }
+        guard top.rowid > lastForeignRow else {
+            Log.info("🛡️ the dropped ⌘V is not his to paste: row \(top.rowid) was already pasted (by Wispr through the tap, or by the relay)")
+            return
+        }
+        guard Date().timeIntervalSince1970 - top.startedAt < 120 else {
+            Log.info("🛡️ the dropped ⌘V is not his: row \(top.rowid) is older than 120 s")
+            return
+        }
+        if !relayHadRow, top.startedAt < relayClosedAt.rounded(.down) {
+            Log.info("🛡️ the dropped ⌘V is not his: row \(top.rowid) started before the relay's sentence closed — it may be the relay's own, created late (Q2 logs it)")
+            return
+        }
+        let candidate = top.rowid
         var tries = 0
         func attempt() {
             tries += 1
-            guard let e = WisprHistory.newest(), e.rowid > own, e.rowid != lastForeignRow,
-                  Date().timeIntervalSince1970 - e.startedAt < 120 else {
-                if tries < 8 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: attempt) }
+            guard let e = WisprHistory.entry(rowid: candidate), WisprState.isTerminal(e.status) else {
+                if tries < Self.claimTries {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Self.claimTick, execute: attempt)
+                } else {
+                    Log.error("🛡️ the dropped ⌘V is his row \(candidate), still unfinished after \(String(format: "%.0f", Double(tries) * Self.claimTick)) s — left in Wispr's History (⌘⌃W pastes it)")
+                }
                 return
             }
-            guard WisprState.isTerminal(e.status) else {
-                if tries < 8 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: attempt) }
-                return
-            }
+            guard e.rowid > lastForeignRow else { return }
             let text = e.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return }
+            guard !text.isEmpty else {
+                Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), his — and empty: nothing to paste")
+                return
+            }
             lastForeignRow = e.rowid
             Log.info("🛡️ the dropped ⌘V is row \(e.rowid) (\(e.status)), newer than the relay's \(own) — his own Wispr sentence (Q19)")
             foreignSentence?(text)
         }
         attempt()
+    }
+    /// Wispr's ⌘V and its `formatted` land in no fixed order, and under load the
+    /// row lags by seconds: 5 s of looking.
+    private static let claimTries = 20
+    private static let claimTick: TimeInterval = 0.25
+
+    // MARK: - B: the tail watch (lab wave 2, 2026-09-28)
+
+    /// This relay sentence's adopted row, and the row on top at its chord.
+    private var ownedRow: Int64?
+    private var ownedFloor: Int64 = 0
+    /// Unix time the relay's sentence closed (its stop), 0 while open.
+    private var relayClosedWall: Double = 0
+    /// Set at the relay's gesture, spent by the idle transition that follows.
+    private var tailArmed = false
+    private var tailWatch: Timer?
+    /// The last relay sentence's rows, kept for a ⌘V dropped after it (`injected`).
+    private var tailFloor: (floor: Int64, hadRow: Bool, closedAt: Double)?
+    private static let tailWatchFor: TimeInterval = 10.5
+
+    /// **After the relay's sentence goes idle, watch for his newer row** (B).
+    /// The firewall's 10 s tail drops Wispr's ⌘V as the relay's late paste; the
+    /// moment the newest row is his (`WisprOwnership.rowIsHis`), the tap is told
+    /// and his ⌘V passes — Wispr pastes it at the caret, as Q9 says.
+    private func startTailWatch() {
+        guard tailArmed else { return }
+        tailArmed = false
+        tailWatch?.invalidate()
+        let floor = max(ownedRow ?? 0, ownedFloor)
+        let hadRow = ownedRow != nil
+        let closed = relayClosedWall > 0 ? relayClosedWall : Date().timeIntervalSince1970
+        tailFloor = (floor, hadRow, closed)
+        let released = CFAbsoluteTimeGetCurrent()
+        let sentenceArmedAt = armedAt
+        let t = Timer(timeInterval: 0.2, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let since = CFAbsoluteTimeGetCurrent() - released
+            guard since < Self.tailWatchFor else { timer.invalidate(); self.tailWatch = nil; return }
+            // A row the relay already pasted for him (a claim) must not pass the tap too.
+            guard let e = WisprHistory.newest(), e.rowid > self.lastForeignRow,
+                  WisprOwnership.rowIsHis(rowid: e.rowid, startedAt: e.startedAt, floor: floor, relayHadRow: hadRow,
+                                          relayClosedAt: closed, relayCmdVSeen: self.lastCmdVAt >= sentenceArmedAt,
+                                          sinceRelease: since) else { return }
+            self.hotkeys.noteForeignWisprRow(e.rowid)
+            Log.info(String(format: "🛡️ row %lld (%@) is his, not the relay's (%@), %.1f s into the tail — a Wispr ⌘V passes now (B)",
+                            e.rowid, e.status.isEmpty ? "open" : e.status,
+                            hadRow ? "its row \(floor)" : "it had no row; newest at its chord \(floor)", since))
+            timer.invalidate()
+            self.tailWatch = nil
+        }
+        tailWatch = t
+        RunLoop.main.add(t, forMode: .common)
     }
     private var lastForeignRow: Int64 = 0
 
@@ -2778,7 +2884,17 @@ final class WisprFlowSource: DictationSource {
             // one dropped here fell inside the relay-owned tail. The unclaimed-
             // paste rescue (`rescueFromRow`) went with Q9 step 2 (2026-09-28): it
             // had no freshness check and could deliver an hours-old row (W17).
-            Log.info("🛡️ ⌘V from \(process) with no capture open — not the relay's; nothing delivered")
+            // **B (lab wave 2, 2026-09-28): never dropped silently.** The tap
+            // drops a ⌘V here only inside the relay's tail or while a row it
+            // gave up on is watched; whose it was is asked of the rows — his
+            // newer row is pasted at the caret (Q19), the relay's own late ⌘V is
+            // said to be the relay's.
+            guard let tail = tailFloor else {
+                Log.info("🛡️ ⌘V from \(process) with no capture open and no relay sentence to compare its row with — nothing delivered")
+                return
+            }
+            Log.info("🛡️ ⌘V from \(process) with no capture open — asking the rows whose it is (the relay's floor is row \(tail.floor))")
+            claimForeignPaste(floor: tail.floor, relayHadRow: tail.hadRow, relayClosedAt: tail.closedAt)
             return
         }
         if discardOnArrival {

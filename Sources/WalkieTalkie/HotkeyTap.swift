@@ -3067,14 +3067,19 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 let armed = injectionArmed
                 let swallows = injectionSwallows
                 let firewall = wisprFirewall
-                let relayOwned = wisprRelayOwnedLocked()
+                let ownership = wisprOwnershipLocked()
+                let foreign = wisprForeignRow
                 stateLock.unlock()
+                var relayOwned = true
+                var passWhy = ""
+                if case .passes(let why) = ownership { relayOwned = false; passWhy = why }
                 if armed, type == .keyDown { probeInjected(pid: pid, code: code, flags: event.flags) }
                 if code == Self.VK_V, event.flags.contains(.maskCommand), isWispr(pid),
                    !relayOwned, !armed {
                     // **Q9: Wispr's own sentence pastes where the caret is** —
-                    // not dropped, not reported, not delivered.
-                    if type == .keyDown { Log.info("🛡️ ⌘V from Wispr Flow passed — its own sentence (standalone, Q9)") }
+                    // not dropped, not reported, not delivered. **B (2026-09-28):
+                    // in the relay's tail too, once a newer row of his is seen.**
+                    if type == .keyDown { logWisprPastePassed(why: passWhy, foreign: foreign) }
                 } else if code == Self.VK_V, event.flags.contains(.maskCommand), isWispr(pid) {
                     if type == .keyDown {
                         let who = processName(pid)
@@ -4457,7 +4462,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
 
     func setWisprRelayOwned(_ owned: Bool) {
         stateLock.lock()
-        if owned { wisprOwnedSince = CFAbsoluteTimeGetCurrent(); wisprOwnedReleasedAt = 0 }
+        if owned { wisprOwnedSince = CFAbsoluteTimeGetCurrent(); wisprOwnedReleasedAt = 0; wisprForeignRow = 0 }
         else if wisprOwnedSince > 0, wisprOwnedReleasedAt == 0 { wisprOwnedReleasedAt = CFAbsoluteTimeGetCurrent() }
         stateLock.unlock()
     }
@@ -4562,10 +4567,64 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
 
     /// Under `stateLock`.
     private func wisprRelayOwnedLocked() -> Bool {
-        if wisprRowsHeld > 0 { return true }
-        let now = CFAbsoluteTimeGetCurrent()
-        guard wisprOwnedSince > 0, now - wisprOwnedSince < Self.wisprOwnedCeiling else { return false }
-        return wisprOwnedReleasedAt == 0 || now - wisprOwnedReleasedAt < Self.wisprOwnedTail
+        if case .relays = wisprOwnershipLocked() { return true }
+        return false
+    }
+    /// Under `stateLock` — the row-aware tail (B, `WisprOwnership`).
+    private func wisprOwnershipLocked() -> WisprOwnership.Verdict {
+        WisprOwnership.verdict(now: CFAbsoluteTimeGetCurrent(), since: wisprOwnedSince,
+                               releasedAt: wisprOwnedReleasedAt, rowsHeld: wisprRowsHeld,
+                               foreignRow: wisprForeignRow, tail: Self.wisprOwnedTail,
+                               ceiling: Self.wisprOwnedCeiling)
+    }
+
+    /// **B (lab wave 2, 2026-09-28): a newer row that is not the relay's ends
+    /// the tail.** `WisprFlowSource`'s tail watch reads the newest `History` row
+    /// after the relay's sentence goes idle and names it here when it is his
+    /// (`WisprOwnership.rowIsHis`); from then on a Wispr ⌘V in the tail passes
+    /// (Q9 / Q19) instead of being dropped as the relay's. Reset at the next
+    /// relay gesture. `stateLock`.
+    private var wisprForeignRow: Int64 = 0
+    func noteForeignWisprRow(_ row: Int64) {
+        stateLock.lock(); if wisprForeignRow == 0 { wisprForeignRow = row }; stateLock.unlock()
+    }
+    var wisprForeignRowNoted: Int64 {
+        stateLock.lock(); defer { stateLock.unlock() }; return wisprForeignRow
+    }
+    /// A Wispr ⌘V passed because of `wisprForeignRow` — that row is pasted by
+    /// Wispr itself, so nothing may paste it a second time (`claimForeignPaste`).
+    var onForeignPastePassed: ((Int64) -> Void)?
+
+    /// **`POST /test/wispr-paste`** — a Wispr ⌘V through the firewall's own
+    /// decision, without a key on the wire (a desk has no Wispr pid to post
+    /// from). Passes: logged and reported as the tap does. Dropped: handed to
+    /// `onInjectedPaste` exactly as the tap hands it.
+    func simulateWisprPaste() -> [String: Any] {
+        stateLock.lock()
+        let armed = injectionArmed
+        let firewall = wisprFirewall
+        let verdict = wisprOwnershipLocked()
+        let foreign = wisprForeignRow
+        stateLock.unlock()
+        switch verdict {
+        case .passes(let why) where !armed:
+            logWisprPastePassed(why: why, foreign: foreign)
+            return ["verdict": "passed", "why": why]
+        case .passes(let why), .relays(let why):
+            let reason = armed ? "a capture is armed" : why
+            DispatchQueue.global().async { [weak self] in self?.onInjectedPaste?("Wispr Flow (POST /test/wispr-paste)") }
+            return ["verdict": firewall ? "dropped" : "not-dropped (firewall off)", "why": reason]
+        }
+    }
+
+    /// The pass line, and the pass callback when it was his row in the tail.
+    private func logWisprPastePassed(why: String, foreign: Int64) {
+        if foreign > 0, why.hasPrefix("row ") {
+            Log.info("🛡️ ⌘V from Wispr Flow passed — \(why), inside the relay's tail (B, Q19)")
+            onForeignPastePassed?(foreign)
+        } else {
+            Log.info("🛡️ ⌘V from Wispr Flow passed — its own sentence (standalone, Q9)")
+        }
     }
 
     // ── The Wispr firewall ───────────────────────────────────────────────────
