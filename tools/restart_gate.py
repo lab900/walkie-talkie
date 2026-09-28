@@ -289,12 +289,30 @@ def pid_alive(pid: int) -> bool:
         return True
 
 
+def ancestors() -> set[int]:
+    """This process's parents up to launchd — the harness's own restart (TX13,
+    2026-09-28 wave 3) must not wait on the harness's own lock."""
+    out, pid = set(), os.getpid()
+    for _ in range(64):
+        try:
+            ppid = int(subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)],
+                                      capture_output=True, text=True).stdout.strip() or 0)
+        except ValueError:
+            break
+        if ppid <= 1:
+            break
+        out.add(ppid)
+        pid = ppid
+    return out
+
+
 def runner_lock_live() -> str | None:
     try:
         text = runner_lock_path().read_text()
     except OSError:
         return None
-    return runner_lock_reason(text, pid_alive)
+    mine = ancestors()
+    return runner_lock_reason(text, lambda pid: pid not in mine and pid_alive(pid))
 
 
 def outbox_mtime() -> float | None:
