@@ -1873,7 +1873,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let y = (body["y"] as? NSNumber)?.doubleValue ?? Double(frame.maxY - 40)
                 let secs = min(max((body["seconds"] as? NSNumber)?.doubleValue ?? 3, 0.5), 10)
                 self?.status.popEngineMenuForTest(appearance: body["appearance"] as? String,
-                                                  seconds: secs, at: NSPoint(x: x, y: y))
+                                                  seconds: secs, at: NSPoint(x: x, y: y),
+                                                  main: (body["menu"] as? String) == "main")
             }
         }
         picker.onTestPasteHint = { [weak self] in
@@ -2624,6 +2625,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                       // so a test can assert the pick landed
                                       // without matching a display name.
                                       "engine": self.engineId,
+                                      // The Engine list's Wispr row, as the
+                                      // menu would build it now
+                                      // (`WT_WISPR_ENGINE`, 2026-09-28).
+                                      "wisprRowShown": self.status.wisprRowShown,
                                       "ready": self.source.isReady,
                                       "wrapWispr": self.wisprSource.wrapWispr,
                                       // **And how**, not only whether — a wrap

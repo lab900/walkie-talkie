@@ -14051,3 +14051,7 @@ should be without pan, sudden. no animation"*.
   until 17:00"*); still to run after 17:00.
 - GIF (top and bottom strips stacked, 28 s): `scratchpad/caption-two-lines.gif` in session
   45081fa6.
+
+## Wispr Flow's Engine row behind a switch (2026-09-28)
+
+- Victor: *"once you're convinced [by the VM tests], restore Wispr Flow as a transcription engine"* — the verdict is not in, so the row hidden on 2026-09-25 (*"ascunde pt moment wispr flow"*) returns last in the list only under `WT_WISPR_ENGINE=1` (env → `elevenlabs.env`, re-read per menu build; `GET /engine.wisprRowShown`); the restore is flipping `StatusItem.wisprEngineDefault`. Same pass: the `Halo 𝓯𝔁 when…` row is now just `𝓯𝔁` (*"no ellipses, no other words, just the FX stylish font"*).

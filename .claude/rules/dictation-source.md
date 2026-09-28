@@ -379,6 +379,7 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 | variable | effect |
 |---|---|
 | `WT_SOURCE=whisper｜eleven｜wispr` | engine for one run (the menu writes `dictationSource`) |
+| `WT_WISPR_ENGINE=1` | Wispr Flow back as a row of the Engine list, last (2026-09-28, **pending the lab verdict** — off by default, the restore is `StatusItem.wisprEngineDefault`): env → `elevenlabs.env`, re-read at every menu build; `GET /engine.wisprRowShown` says whether the row is there. `POST /engine {"id":"wispr"}` picks it either way |
 | `WT_WISPR_FIREWALL=0` | let Wispr's ⌘V through (`POST /test/firewall {"on": false}`) |
 | `ELEVENLABS_API_KEY` · `WT_ELEVEN_MODEL=scribe_v2` · `WT_ELEVEN_LANG=ro` · `WT_ELEVEN_LIVE_LANGS=ro,en` | key; model (default `scribe_v1`); pinned language (off); the live caption's language set (default `ro,en`) |
 | `WT_WRAP_WISPR=0` · `WT_WRAP_MODE=scratchpad｜sink｜off` | wrap off / forced mode (`POST /test/wrap-mode`) |

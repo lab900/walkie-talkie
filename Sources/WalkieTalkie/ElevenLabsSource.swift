@@ -172,6 +172,14 @@ final class ElevenLabsSource: DictationSource {
         return config[key]
     }
 
+    /// One value of `elevenlabs.env`, the file re-read first — for a switch
+    /// the menu reads at every build (`StatusItem.wisprEngineSwitch`), so an
+    /// edit to the file shows at the next open without a restart.
+    static func freshValue(_ key: String) -> String? {
+        loadConfig()
+        return config[key]
+    }
+
     private static func loadConfig() {
         config = [:]
         guard let text = try? String(contentsOf: configURL, encoding: .utf8) else { return }

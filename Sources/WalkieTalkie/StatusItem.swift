@@ -594,7 +594,10 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// bold script 𝓯 (U+1D4EF) and bold fraktur 𝔁 (U+1D501). Unicode rather than
     /// an attributed title, because `title` is rewritten from `applyHaloRow` and
     /// a font run would have to be rebuilt with it every time.
-    static let haloFx = "Halo 𝓯𝔁"
+    /// **Just `𝓯𝔁` since 2026-09-28** — Victor: *"instead of Halo FX, let's say
+    /// FX. No ellipses, no other words, just the FX stylish font"*. The
+    /// `sparkles` icon beside it says what kind of effect.
+    static let haloFx = "𝓯𝔁"
     private let haloItem = NSMenuItem(title: StatusItem.haloFx, action: nil, keyEquivalent: "")
     private let haloSubmenu = NSMenu()
 
@@ -624,7 +627,10 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // Victor) — `At caret: Tunnel`, `Bounded: Tendrils`. No readout on the
         // parent any more: the four are four answers, and the one shared answer
         // it used to print has not been the case since each destination got its own.
-        haloItem.title = "\(Self.haloFx) when…"
+        // **Since 2026-09-28 the row is `𝓯𝔁` alone** — no `Halo`, no `when…`
+        // (*"no ellipses, no other words"*); the rows under it still read
+        // `At caret: Tunnel`.
+        haloItem.title = Self.haloFx
         haloSubmenu.removeAllItems()
         haloSubmenu.autoenablesItems = false
         for (destination, pick) in zip(HaloDestination.allCases, picks) {
@@ -1473,7 +1479,12 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // its firewall stay whole, `POST /engine {"id":"wispr"}` still picks
         // it, and the row comes back only while it *is* the engine, so the tick
         // is never missing from the list.
-        let ids = ["eleven-live", "eleven", "whisper"] + (engineId == "wispr" ? ["wispr"] : [])
+        //
+        // **`WT_WISPR_ENGINE=1` puts it back, last, where it was** (2026-09-28,
+        // pending the lab verdict) — Victor: *"once you're convinced, restore
+        // Wispr Flow as a transcription engine"*. The VM runs decide; the
+        // restore is then a one-line flip of `wisprEngineDefault`.
+        let ids = Self.engineRowIds(wisprSwitch: Self.wisprEngineSwitch, current: engineId)
         for id in ids {
             let row = NSMenuItem(title: engineTitle(id),
                                  action: #selector(enginePicked(_:)), keyEquivalent: "")
@@ -1498,6 +1509,41 @@ final class StatusItem: NSObject, NSMenuDelegate {
         quotaRow = quota
         applyQuotaRow()
         engineSubmenu.addItem(quota)
+    }
+
+    /// **Whether the list offers Wispr Flow as a row of its own** — hidden since
+    /// 2026-09-25 (*"ascunde pt moment wispr flow"*), back behind
+    /// `WT_WISPR_ENGINE=1` since 2026-09-28 while the VM lab decides whether its
+    /// words are caught as surely as the other engines'. Off by default: the
+    /// flip, once the verdict is in, is this one constant.
+    static let wisprEngineDefault = false
+
+    /// `WT_WISPR_ENGINE` — the environment, then `elevenlabs.env` **re-read on
+    /// every call**, so the menu built next shows what the file says now, the
+    /// way the ⚠️ follows the key. `1` shows the row, `0` hides it, absent is
+    /// `wisprEngineDefault`.
+    static var wisprEngineSwitch: Bool {
+        let raw = ProcessInfo.processInfo.environment["WT_WISPR_ENGINE"]
+            ?? ElevenLabsSource.freshValue("WT_WISPR_ENGINE")
+        switch raw?.lowercased() {
+        case "1", "true", "on", "yes": return true
+        case "0", "false", "off", "no": return false
+        default: return wisprEngineDefault
+        }
+    }
+
+    /// The Engine list's ids, top to bottom. Wispr Flow is last — its place
+    /// before it was hidden — when the switch is on, or while it *is* the engine
+    /// (a `POST /engine {"id":"wispr"}` from the harness), so the tick is never
+    /// missing from the list.
+    static func engineRowIds(wisprSwitch: Bool, current: String) -> [String] {
+        ["eleven-live", "eleven", "whisper"] + (wisprSwitch || current == "wispr" ? ["wispr"] : [])
+    }
+
+    /// `GET /engine.wisprRowShown` — the Wispr row is in the list he would see
+    /// if he opened the menu now.
+    var wisprRowShown: Bool {
+        Self.engineRowIds(wisprSwitch: Self.wisprEngineSwitch, current: engineId).contains("wispr")
     }
 
     /// The 🧾 row, rebuilt with the list and repainted in place when a fetch lands.
@@ -1536,11 +1582,20 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// without flipping his desktop; a copy of the rows is what AppKit draws
     /// under the arrow, row for row. The close is armed before the pop-up,
     /// because the tracking loop does not drain the main queue.
-    func popEngineMenuForTest(appearance: String?, seconds: TimeInterval, at point: NSPoint) {
+    /// `main` (`{"menu": "main"}`, 2026-09-28) pops the whole top-level menu the
+    /// same way, refreshed as `menuWillOpen` would — for a row renamed there
+    /// (`𝓯𝔁`) to be reviewed in both themes too.
+    func popEngineMenuForTest(appearance: String?, seconds: TimeInterval, at point: NSPoint,
+                              main: Bool = false) {
         applyEngineRow()
+        var source = engineSubmenu
+        if main, let menu = item.menu {
+            menuWillOpen(menu)
+            source = menu
+        }
         let copy = NSMenu()
         copy.autoenablesItems = false
-        for row in engineSubmenu.items { copy.addItem(row.copy() as! NSMenuItem) }
+        for row in source.items { copy.addItem(row.copy() as! NSMenuItem) }
         if let appearance {
             copy.appearance = NSAppearance(named: appearance == "light" ? .aqua : .darkAqua)
         }

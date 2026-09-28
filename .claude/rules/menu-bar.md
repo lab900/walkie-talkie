@@ -65,7 +65,7 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
 | `Engine: <what is listening>` | `waveform` | `>` — a two-row submenu |
 | `Mic: <glyph> <device>` (`Microphone` until 2026-09-22, shortened for width) | `mic` | `>` — automatic + the six devices; the same six rows Victor Addons shows, and the same shared preference file |
 | `Gestures: Logi` / `: Wheel` (`Mouse Gestures` until 2026-09-22) | `computermouse` | `>` — a two-row submenu |
-| `Halo 𝓯𝔁[: <effect>]` (plain `fx` until 2026-09-22; destination rows `Prompt at caret` / `Prompt to bounded` / `Prompt to new Claude` / `Plain dictation`, pre-process `Bass (kick per syllable)` → `Syllable beat`) | `sparkles` | `>` — the lightning ring, a line, the ported effects, the presets (greyed `— engine not bundled` until `butterchurn.min.js` is in `assets/milkdrop/`), then a row per destination with the same list, then `Engine: projectM｜Web` and `Pre-process: <chain>` (`Fx engine` / `Fx voice` until 2026-09-22 — *"doar «projectM», că deja știu cine e"*, and the parentheses shortened so the open list fits at the right edge of the screen) |
+| `𝓯𝔁` (`Halo 𝓯𝔁 when…` until 2026-09-28 — *"no ellipses, no other words, just the FX stylish font"*; plain `Halo fx` until 2026-09-22; destination rows `Prompt at caret` / `Prompt to bounded` / `Prompt to new Claude` / `Plain dictation`, pre-process `Bass (kick per syllable)` → `Syllable beat`) | `sparkles` | `>` — the lightning ring, a line, the ported effects, the presets (greyed `— engine not bundled` until `butterchurn.min.js` is in `assets/milkdrop/`), then a row per destination with the same list, then `Engine: projectM｜Web` and `Pre-process: <chain>` (`Fx engine` / `Fx voice` until 2026-09-22 — *"doar «projectM», că deja știu cine e"*, and the parentheses shortened so the open list fits at the right edge of the screen) |
 | `Autosend` | the same pair — a `checkmark` when on, **nothing** when off | |
 | `Prompt Log` | 📜 | |
 | `Victor's Walkie Talkie (<build>)` | ℹ️ | | |
@@ -164,6 +164,13 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   picks. **Wispr Flow is hidden "for the moment"**: its row shows only while it *is* the engine, so
   the tick is never missing; `POST /engine {"id":"wispr"}` still picks it. Ids: `eleven-live`,
   `eleven`, `whisper`, `wispr`. → journal: *ElevenLabs + Live: the words beside the pointer (2026-09-25)*
+- **`WT_WISPR_ENGINE=1` brings the `☁️ Wispr Flow` row back, last** (2026-09-28, **pending the lab
+  verdict**) — Victor: *"once you're convinced [by the VM tests], restore Wispr Flow as a
+  transcription engine"*. Env → `elevenlabs.env`, re-read at every menu build
+  (`StatusItem.wisprEngineSwitch`); absent, the list is exactly the 2026-09-25 one. The restore is
+  flipping `StatusItem.wisprEngineDefault` to `true`. `GET /engine.wisprRowShown` answers whether
+  the row is in the list now (switch on, or Wispr is the engine).
+  → journal: *Wispr Flow's Engine row behind a switch (2026-09-28)*
 
 - **It replaced `Replace WisprFlow`, and that row is gone from the menu.** A checkbox named after
   another app reads as *that app: yes or no* (*"nu mai trebuie să fie un checkbox «Wispr» sau nu,

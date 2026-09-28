@@ -479,6 +479,7 @@ final class ElementPicker {
     var onTestPasteHint: (() -> Void)?
     /// `POST /test/engine-menu {"appearance": "light"|"dark", "seconds", "x", "y"}` — the Engine
     /// list popped up on its own so the 🧾 quota row can be photographed; closes itself.
+    /// `"menu": "main"` pops the whole top-level menu instead (2026-09-28).
     var onTestEngineMenu: (([String: Any]) -> Void)?
     /// `POST /test/live-caption` `{"text": "…", "partial": "…"?, "gentle": bool?}` — the subtitle
     /// band's words as if the live recogniser had just heard them; `{"on": false}` closes the band;
