@@ -69,6 +69,33 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   (`forcedTakes`); uploading → `Upload.abandonedAt`, the call finishes and is only logged. Wispr:
   recording → ⌃Escape + `endWithRecording(forced:)`; settling → `discardOnArrival` without the
   dismiss. The local engine answers false. → `mouse-gestures.md`, *⌘⌃X*
+- **Auto fallback to local (p98) — ⌘⌃X pressed by the clock** (2026-09-28, 22:25, default ON,
+  `AutoLocal.isOn`, Engine submenu checkbox). Victor: *"I don't think I will ever have the patience
+  to wait for 36 seconds … The goal is that ElevenLabs or Wispr Flow should fall back to local in a
+  few seconds in practice."* **His patience is a few seconds** — design every wait for that.
+  At every close of a relay sentence on a cloud engine (`armAutoLocal`, only when
+  `DecodeRate.activeEngine` is the source's own key — a Wispr sentence his own chord opened files
+  `wispr-flow` under any engine and is never armed) the budget is
+  **`DecodeRate.budget`: the engine's p98 for that audio length, clamped to [1.5 s, 0.3 × audio + 1 s]**
+  — Theil–Sen line over the newest 100 warm samples of that engine × the 0.98 quantile of their
+  residual ratios (bounds 1…6); under 20 samples the engine's prior × 3. Logged:
+  `⏱ budget X s (p98 of N samples on <engine>, cap C s)`. `syncLocalNow`'s 0.1 s tick counts it
+  down and at zero, **only while the words are out** (never while a microphone is open, never on
+  the local engine, never twice) calls `transcribeLocallyNow(from: "auto p98")` with
+  `autoLocalHandOver` set → `fallBackToLocal` → **`via: local-auto`**, flash `💻 Local — <engine>
+  over budget (X s)`; the engine's late answer is only logged, as after the key. Words landing
+  first log `⏱ <engine> answered N s after the close — inside its X s budget`. `eleven-live` files
+  under `elevenlabs` (the delivered words are the same batch upload). **The fake Scribe's answers
+  file under `elevenlabs-test`** (any `WT_ELEVEN_BATCH_URL`) so desk runs never teach the real line.
+  While ON and the engine is not local, the local weights are kept up (`keepLocalWarm`: launch +2 s,
+  every engine pick, the checkbox; log `💻 local model warm for the auto fallback — X GB resident`).
+- **A Wispr sentence never waits for Wispr Flow to start** (same evening — *"10 s startup time is
+  killing"*): with the checkbox ON, a `startDictation` on Engine = Wispr while Wispr is not running,
+  or was launched by the relay under `AutoLocal.wisprStartupGrace` (12 s) ago, borrows the local
+  model for that one sentence (Q21's `borrowEngine`: the relay's own microphone, decoded at the
+  close, `via: local-whisper`), flashes `💻 Local — Wispr Flow is starting`, and launches Wispr in
+  the background (`NSWorkspace.openApplication` on the bundle path, `activates = false`, at most
+  once per 30 s). `POST /test/local-auto {"wisprDown", "fakeLaunch"}` fakes both halves.
 - **`engine(named:)` is one table read by the launch pick and the menu pick; anything unrecognised is
   the default**, never a named engine, so a typo cannot pick a recogniser.
 - **`setEngine`** nils the old source's callbacks, assigns `source`, writes `dictationSource`, re-runs

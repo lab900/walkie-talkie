@@ -1875,7 +1875,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         var emojiRowsWidth: CGFloat = 0
         // Written before it is measured, for the selection row's reason below.
         if heldCount > 0 { heldInfo.stringValue = Self.heldText(heldCount) }
-        if let loading = localNow { localNowInfo.stringValue = Self.localNowText(loading: loading) }
+        if let text = localNowShown { localNowInfo.stringValue = text }
         for (on, label) in [(kamikaze, kamikazeInfo), (localNow != nil, localNowInfo), (pasteHint, pasteInfo),
                             (heldCount > 0, heldInfo)] where on {
             label.sizeToFit()
@@ -4186,22 +4186,27 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// The `💻 Local now  ⌘⌃X` row — nil when down, else whether it says
     /// `(loading)`; see `localNowRow`.
     private(set) var localNow: Bool?
+    /// The row's words as drawn — `Local now  ⌘⌃X`, or the auto fallback's
+    /// countdown `Local in 2.1 s  ⌘⌃X` (2026-09-28, `AutoLocal.rowText`).
+    private var localNowShown: String?
 
-    func setLocalNow(_ on: Bool, loading: Bool = false) {
+    func setLocalNow(_ on: Bool, loading: Bool = false, countdown: TimeInterval? = nil) {
         let next: Bool? = on ? loading : nil
-        guard next != localNow else { return }
+        let text = on ? AutoLocal.rowText(countdown: countdown, loading: loading, keys: Self.localNowKeys) : nil
+        guard next != localNow || text != localNowShown else { return }
         localNow = next
+        localNowShown = text
         layoutContent()
         refreshOpacity()
     }
 
     static let localNowKeys = "⌘⌃X"
     static func localNowText(loading: Bool) -> String {
-        "Local now\(loading ? " (loading)" : "")  \(localNowKeys)"
+        AutoLocal.rowText(countdown: nil, loading: loading, keys: localNowKeys)
     }
 
     /// For `GET /test/state` — the row as drawn, or nil.
-    var localNowRowText: String? { localNow.map { Self.localNowText(loading: $0) } }
+    var localNowRowText: String? { localNowShown }
 
     /// How many sentences wait for a bind — see `heldRow`. Zero takes the row down.
     private(set) var heldCount = 0

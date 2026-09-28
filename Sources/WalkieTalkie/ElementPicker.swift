@@ -502,6 +502,11 @@ final class ElementPicker {
     /// `POST /test/local-now` — ⌘⌃X's action (2026-09-28), for the harness.
     var onTestLocalNow: (() -> Void)?
 
+    /// `POST /test/local-auto {"on"?, "wisprDown"?, "fakeLaunch"?}` — the auto
+    /// fallback's checkbox and its Wispr fakes (2026-09-28); answers
+    /// `state.localAuto`. Run on the main queue.
+    var onTestLocalAuto: (([String: Any]) -> [String: Any])?
+
     /// `POST /test/resume-session` `{"session": "<uuid>", "directory": "…"}` —
     /// what ⏎ does on a panel row whose terminal is closed.
     ///
@@ -952,6 +957,16 @@ final class ElementPicker {
         case ("POST", "/test/local-now"):
             onTestLocalNow?()
             respond(conn, 200, ["ok": true])
+
+        // The auto fallback to local (p98), 2026-09-28: the checkbox, `wisprDown`
+        // (Wispr Flow read as not running at a start), `fakeLaunch` (its launch
+        // logged, not executed).
+        case ("POST", "/test/local-auto"):
+            let body = ((try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]) ?? [:]
+            guard let handler = onTestLocalAuto else { return respond(conn, 503, ["error": "no handler"]) }
+            var answer: [String: Any] = [:]
+            DispatchQueue.main.sync { answer = handler(body) }
+            respond(conn, 200, ["ok": true].merging(answer) { _, new in new })
 
         // ⏎ on a closed session's row — see `onTestResumeSession`.
         case ("POST", "/test/resume-session"):

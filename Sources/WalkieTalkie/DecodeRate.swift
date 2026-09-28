@@ -109,6 +109,9 @@ enum DecodeRate {
     static let whisperLocal = "whisper-local"
     static let elevenLabs = "elevenlabs"
     static let wisprFlow = "wispr-flow"
+    /// ElevenLabs answered by a stand-in (`WT_ELEVEN_BATCH_URL`, the harness's
+    /// fake Scribe) — filed apart so it never teaches the real line (2026-09-28).
+    static let elevenLabsTest = "elevenlabs-test"
 
     /// What an engine costs before it has taught this file anything. The local
     /// model's is the old fallback; the other two are read off `relay.log`
@@ -418,8 +421,125 @@ enum DecodeRate {
     /// `bounds` for a recogniser across a network.
     private static let hostedBounds = 0.002...5.0
     /// Samples kept in memory, across every engine — enough for each one's
-    /// `window` even when they interleave.
-    private static let kept = 600
+    /// `window` even when they interleave, **and for the auto fallback's
+    /// `budgetWindow`** (2026-09-28): at 600 the last lines held 450 Wispr
+    /// samples and only 94 ElevenLabs ones. 2000 lines is ~300 kB.
+    private static let kept = 2000
+
+    // MARK: - The auto fallback's budget (2026-09-28)
+
+    /// **How long a sentence may wait on a cloud engine before this Mac takes
+    /// it** — `AppDelegate`'s auto fallback. Victor, 2026-09-28 22:25: *"I don't
+    /// think I will ever have the patience to wait for 36 seconds. I will
+    /// probably hit ⌘⌃X … gate the Wispr engine to its p98 … Allowing a p99
+    /// time based on the clip duration. The goal is that ElevenLabs or Wispr
+    /// Flow should fall back to local in a few seconds in practice."*
+    ///
+    /// **The engine's own p98 for this length, clamped.** The line is the same
+    /// Theil–Sen fit the chip's bar uses, over the newest `budgetWindow` warm
+    /// samples of that engine (a p98 needs more than the bar's fifty — at 50 it
+    /// is the second-largest sample); the tail is the 0.98 quantile of the
+    /// window's residual *ratios* against that line (decode / line), the
+    /// same shape as `headroom`, one quantile further out. Ratios rather than
+    /// seconds because a hosted engine's round trip is mostly fixed and a line
+    /// through it carries that; a plain decode/audio ratio promised a 2 s
+    /// sentence nothing. Under `budgetMinimumSamples` the engine's `prior` line
+    /// times `priorTail` stands in.
+    ///
+    /// Then **`[budgetFloor, budgetCapSlope × audio + budgetCapIntercept]`**:
+    /// the floor so a jittery network is not a fallback on every short
+    /// sentence, the cap (0.3 × audio + 1 s — his *"p99 time based on the clip
+    /// duration"*) so a window with a stall in it cannot promise him half a
+    /// minute. The floor wins over the cap for a clip under 1.7 s.
+    ///
+    /// Replayed over `decode-rate.jsonl` on 2026-09-28 (100 newest warm samples):
+    /// ElevenLabs 0.49 + 0.058 × a, tail × 3.04 → 5 s 2.4 s, 15 s 4.2 s, 30 s
+    /// 6.8 s (2 of 100 answers would have been over it); Wispr 0.54 + 0.026 × a,
+    /// tail × 2.96 → 2.0 s, 2.8 s, 4.0 s (3 of 100). `eleven-live` files under
+    /// `elevenLabs` — its delivered words are the same batch upload.
+    struct Budget {
+        /// The clamped budget, seconds after the close.
+        let seconds: TimeInterval
+        /// The unclamped p98 for this audio length.
+        let p98: TimeInterval
+        /// Samples it was read from; 0 = the prior.
+        let samples: Int
+        /// `budgetCapSlope × audio + budgetCapIntercept`.
+        let cap: TimeInterval
+        let engine: String
+        let audio: TimeInterval
+
+        var fromPrior: Bool { samples < DecodeRate.budgetMinimumSamples }
+
+        /// The line `AppDelegate` logs at every close.
+        var logLine: String {
+            String(format: "⏱ budget %.1f s (p98 of %d samples on %@%@, cap %.1f s) — unclamped %.1f s, floor %.1f s, %.1f s of audio",
+                   seconds, samples, engine, fromPrior ? " — too few, the prior × 3" : "",
+                   cap, p98, DecodeRate.budgetFloor, audio)
+        }
+    }
+
+    static let budgetWindow = 100
+    static let budgetMinimumSamples = 20
+    static let budgetQuantile = 0.98
+    /// What the prior line is multiplied by when there are too few samples —
+    /// the tails measured on 2026-09-28 were × 2.4–3.0.
+    static let priorTail = 3.0
+    /// The tail factor's own bounds: never a discount, never a window with a
+    /// repetition loop in it turning into a minute.
+    static let tailBounds = 1.0...6.0
+    static let budgetFloor: TimeInterval = 1.5
+    static let budgetCapSlope = 0.3
+    static let budgetCapIntercept: TimeInterval = 1.0
+
+    /// The budget for `audio` seconds on `engine` (default: the one in flight).
+    static func budget(for audio: TimeInterval, engine: String? = nil) -> Budget {
+        let e = engine ?? activeEngine
+        lock.lock()
+        let window = budgetWindow(of: samples, engine: e)
+        lock.unlock()
+        return budget(window: window, prior: prior(for: e), audio: audio, engine: e)
+    }
+
+    /// The input: the engine's warm samples, newest `budgetWindow`.
+    static func budgetWindow(of all: [Sample], engine: String) -> [Sample] {
+        Array(all.filter { !$0.cold && $0.engineKey == engine }.suffix(budgetWindow))
+    }
+
+    /// The pure half — `AutoLocalBudgetTests`.
+    static func budget(window: [Sample], prior: Prior, audio: TimeInterval, engine: String) -> Budget {
+        let a = max(0, audio)
+        let p98: TimeInterval
+        if window.count < budgetMinimumSamples {
+            p98 = (prior.intercept + prior.slope * a) * priorTail
+        } else {
+            let line = theilSen(window)
+            let tail = clamp(quantile(window.map { $0.decode / max(0.05, line.intercept + line.slope * $0.audio) },
+                                      budgetQuantile), to: tailBounds)
+            p98 = (line.intercept + line.slope * a) * tail
+        }
+        let cap = budgetCapSlope * a + budgetCapIntercept
+        return Budget(seconds: max(budgetFloor, min(cap, p98)), p98: p98, samples: window.count,
+                      cap: cap, engine: engine, audio: a)
+    }
+
+    /// `fit`'s line without its headroom — the median of the pairwise slopes
+    /// (pairs under `minimumGap` apart left out), the intercept the median
+    /// residual, both inside `fit`'s bounds.
+    private static func theilSen(_ window: [Sample]) -> (intercept: Double, slope: Double) {
+        var slopes: [Double] = []
+        slopes.reserveCapacity(window.count * (window.count - 1) / 2)
+        for i in 0..<window.count {
+            for j in (i + 1)..<window.count {
+                let dx = window[j].audio - window[i].audio
+                guard abs(dx) >= minimumGap else { continue }
+                slopes.append((window[j].decode - window[i].decode) / dx)
+            }
+        }
+        let slope = slopes.isEmpty ? 0 : clamp(quantile(slopes, 0.5), to: slopeBounds)
+        let intercept = clamp(quantile(window.map { $0.decode - slope * $0.audio }, 0.5), to: interceptBounds)
+        return (intercept, slope)
+    }
 
     /// The helper went away; the next decode is cold again.
     static func engineStopped() {

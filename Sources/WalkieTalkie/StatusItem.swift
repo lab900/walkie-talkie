@@ -426,6 +426,10 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// back with whatever is actually running afterwards.
     var onPickEngine: ((String) -> Void)?
 
+    /// **`Auto fallback to local (p98)`** (2026-09-28) — the checkbox under the
+    /// engines; the new value. `AutoLocal.isOn` is the truth, read at every build.
+    var onToggleAutoLocal: ((Bool) -> Void)?
+
     // MARK: - Microphone (2026-09-19)
 
     /// **`Microphone: 🎙️ Elgato Wave XLR`, with the four devices under the
@@ -1512,6 +1516,22 @@ final class StatusItem: NSObject, NSMenuDelegate {
             row.image = id == engineId ? Self.symbolIcon("checkmark") : Self.blankIcon
             engineSubmenu.addItem(row)
         }
+        // **⏱ Auto fallback to local (p98)** (2026-09-28, Victor: *"Auto fallback
+        // to local model should be a checkbox in the Engine submenu"*) — a switch
+        // about the engines, so under them, between two lines; the tick drawn as
+        // every other switch here draws it.
+        engineSubmenu.addItem(.separator())
+        let auto = NSMenuItem(title: AutoLocal.menuTitle, action: #selector(autoLocalClicked), keyEquivalent: "")
+        auto.target = self
+        auto.image = AutoLocal.isOn ? Self.symbolIcon("checkmark") : Self.blankIcon
+        let ram = whisperFootprint?().map { String(format: "%.1f GB", Double($0) / 1_073_741_824) }
+        auto.toolTip = "When ElevenLabs or Wispr Flow takes longer than its p98 for the sentence's length "
+            + "(at least 1.5 s, at most 0.3 × the audio + 1 s), this Mac transcribes it — as ⌘⌃X does.\n"
+            + "A Wispr sentence started while Wispr Flow is not running goes to this Mac at once.\n"
+            + "Keeps the local model loaded while another engine is picked"
+            + (ram.map { " (\($0) now)" } ?? "") + "."
+        autoLocalRow = auto
+        engineSubmenu.addItem(auto)
         // **🧾 What the account has left, under a line of its own** (2026-09-28,
         // moved here from Victor Addons the same morning — *"quota lui 11labs
         // are sens doar in walkie"*). Below the rows he picks from, because it
@@ -1564,6 +1584,17 @@ final class StatusItem: NSObject, NSMenuDelegate {
 
     /// The 🧾 row, rebuilt with the list and repainted in place when a fetch lands.
     private var quotaRow: NSMenuItem?
+
+    /// The ⏱ checkbox row, repainted when the switch moves from elsewhere (`POST /test/local-auto`).
+    private var autoLocalRow: NSMenuItem?
+
+    func refreshAutoLocal() {
+        autoLocalRow?.image = AutoLocal.isOn ? Self.symbolIcon("checkmark") : Self.blankIcon
+    }
+
+    @objc private func autoLocalClicked() {
+        onToggleAutoLocal?(!AutoLocal.isOn)
+    }
 
     private func applyQuotaRow() {
         guard let row = quotaRow else { return }

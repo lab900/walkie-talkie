@@ -14352,3 +14352,63 @@ The refuse-for-5-s-after-launch fallback is **not** built. It waits for that ans
 - WAL-watch wake instead of the 150 ms poll;
 - reading the promised pasteboard at the dropped ⌘V;
 - the `wispr-flow://` deep links (VM only).
+
+## Auto fallback to local (p98): ⌘⌃X pressed by the clock (2026-09-28, 22:25)
+
+Victor, dictated: *"I don't think I will ever have the patience to wait for 36 seconds. I will
+probably hit ⌘⌃X and use the local model fallback. Plus, 10 s startup time is killing. … gate the
+Wispr engine to its p98 (e.g. under 30 % of dictation time) then see the local fallback in action.
+(Auto fallback to local model should be a checkbox in the Engine submenu.) Allowing a p99 time
+based on the clip duration. The goal is that ElevenLabs or Wispr Flow should fall back to local in
+a few seconds in practice."*
+
+**Memory-worthy: Victor's patience is a few seconds.** Not the 30 s of Wispr's capture timeout, not
+the 20 s of Scribe's request timeout, not Q24's uncapped wait on a `processing` row: a sentence that
+has not landed a few seconds after the close is one he takes back by hand. Every wait this app
+makes him watch is designed for that number from now on.
+
+**The budget** (`DecodeRate.budget`, pure half tested by `AutoLocalBudgetTests`): the engine's own
+p98 for this audio length, then clamped to **[1.5 s, 0.3 × audio + 1 s]**. The p98 is the Theil–Sen
+line over the engine's newest **100** warm samples (the chip's bar reads 50 — a p98 of 50 is the
+second-largest sample) times the **0.98 quantile of the residual ratios** decode / line (bounds
+1…6), the same shape as the bar's 0.80 `headroom`. Ratios over a line, not decode/audio: a hosted
+engine's cost is mostly a fixed round trip, and a pure ratio promised a 2 s sentence nothing. Under
+20 samples the engine's prior × 3. `kept` 600 → 2000 lines in memory: at 600 the tail held 450
+Wispr samples and only 94 ElevenLabs ones.
+
+Replayed on his `decode-rate.jsonl` (2 010 lines) the evening it shipped:
+
+| engine (samples) | line | tail × | 5 s | 15 s | 30 s | over it, of the 100 |
+|---|---|---|---|---|---|---|
+| ElevenLabs (`eleven`, `eleven-live`) | 0.49 + 0.058 × a | 3.04 | **2.4 s** | **4.2 s** | **6.8 s** | 2 |
+| Wispr Flow | 0.54 + 0.026 × a | 2.96 | **2.0 s** | **2.8 s** | **4.0 s** | 3 |
+| cap (0.3 × a + 1) | | | 2.5 s | 5.5 s | 10.0 s | |
+
+`eleven-live` has no line of its own: its delivered words are the same batch upload, filed under
+`elevenlabs`. Over all 165 ElevenLabs samples (a 600 s take, a 48 s answer) the tail is × 5.7 and
+the cap would decide at every length — which is why the window is the newest 100, not the file.
+**The fake Scribe's answers were being filed as ElevenLabs'** (every desk run since 2026-09-27):
+they now file under `elevenlabs-test` whenever `WT_ELEVEN_BATCH_URL` is set.
+
+What ships:
+
+- **At every close** of a relay sentence on a cloud engine (`armAutoLocal`, only when
+  `DecodeRate.activeEngine` is the source's own key): `⏱ budget X s (p98 of N samples on <engine>,
+  cap C s) — unclamped …`. The ⌘⌃X row counts down, `💻 Local in 2.1 s  ⌘⌃X`, still from one second
+  into the wait (this morning's rule); `syncLocalNow`'s tick is 0.1 s.
+- **At zero, with the words still out**: `transcribeLocallyNow(from: "auto p98")` — exactly the
+  key — with `autoLocalHandOver` set, so `fallBackToLocal` says **`via: local-auto`**; flash
+  `💻 Local — <engine> over budget (X s)`. The late answer is only logged (Scribe's abandoned upload,
+  Wispr's `discardOnArrival`). Never while a microphone is open, never on the local engine, never
+  twice. Words first: `⏱ <engine> answered N s after the close — inside its X s budget`.
+- **Checkbox** `Auto fallback to local (p98)` in the Engine submenu, `UserDefaults`
+  `autoLocalFallback`, **default ON**; OFF is the behaviour before. ON keeps the local weights up
+  while another engine is picked (launch + 2 s, engine pick, the checkbox), and logs the RAM.
+- **Wispr is never waited for** (*"10 s startup time is killing"*): a start on Engine = Wispr with
+  Wispr Flow not running, or launched by the relay under 12 s ago, borrows the local model for that
+  sentence (Q21's `borrowEngine` — the relay's own microphone, decoded at the close), flashes
+  `💻 Local — Wispr Flow is starting`, and launches Wispr in the background
+  (`NSWorkspace.openApplication`, bundle path, not activated, once per 30 s).
+- `POST /test/local-auto {"on", "wisprDown", "fakeLaunch"}`, `state.localAuto`; cases TA1–TA5
+  (`evals/plan/cases_localauto.py`); states page `transcribing-local-auto`,
+  `transcribing-local-auto-fired`, `listening-wispr-starting`.

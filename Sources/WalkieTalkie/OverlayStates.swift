@@ -376,6 +376,37 @@ enum OverlayStates {
                 o.setLocalNow(true, loading: true)
             },
 
+            Shot(slug: "transcribing-local-auto", group: "Dictating", title: "The auto fallback's countdown",
+                 when: "Waiting on ElevenLabs or Wispr Flow with *Auto fallback to local (p98)* on (the default), from one second into the wait.",
+                 note: "**The deadline, written where he is looking** (2026-09-28, 22:25). Victor: *\"I don't think I will ever have the patience to wait for 36 seconds … The goal is that ElevenLabs or Wispr Flow should fall back to local in a few seconds in practice.\"* The ⌘⌃X row counts down to the sentence's budget — the engine's own p98 for that length (`DecodeRate.budget`), never under 1.5 s, never over 0.3 × the audio + 1 s — and at zero this Mac takes the take exactly as the key would. The key still works before it. Off in the Engine submenu, the row is `Local now` again.",
+                 shape: "chip", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setTranscribing(true)
+                o.setShotCount(1)
+                o.pinTranscribeWarmth(0.55)
+                o.setLocalNow(true, countdown: 2.1)
+            },
+
+            Shot(slug: "transcribing-local-auto-fired", group: "Dictating", title: "Over budget — this Mac takes it",
+                 when: "The budget ran out with the words still out: the take went to the local model (`via: local-auto`).",
+                 note: "Said once, as a flash, because it is an event rather than a state: the engine's answer, if it still comes, is only logged — never a second copy. The engine and the budget it missed are in the words, so a fallback on every sentence would be noticed from the chip alone.",
+                 shape: "flash", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setTranscribing(true)
+                o.setShotCount(1)
+                o.pinTranscribeWarmth(0.3)
+                o.flash(AutoLocal.overBudgetFlash(engine: "ElevenLabs", budget: 4.2), duration: 60)
+            },
+
+            Shot(slug: "listening-wispr-starting", group: "Dictating", title: "Wispr Flow is not up — this Mac listens",
+                 when: "A sentence started on Engine = Wispr Flow while Wispr is not running, or was launched by the relay under 12 s ago (auto fallback on).",
+                 note: "Victor: *\"10 s startup time is killing\"*. The relay records on its own microphone and the local model has the words at the close; Wispr Flow is launched in the background for the next sentence.",
+                 shape: "flash", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setListening(true)
+                o.flash(AutoLocal.wisprStartingFlash, duration: 60)
+            },
+
             Shot(slug: "transcribing-overdue", group: "Dictating", title: "Waiting, and past the estimate",
                  when: "Past 150% of the decode `DecodeRate` promised — the bar has been full for half as long again.",
                  note: "The bar says *past my own estimate* by arriving full and staying there, and that was enough while the only thing past the estimate was a slow decode. It stopped being enough on 2026-09-22, the evening Wispr began leaving finished sentences labelled `raw_transcript` and the row sat out thirty seconds: a full bar and a lost sentence look exactly alike. Said once, at a threshold, rather than counted out — and it is the only thing on this row that is not the bar, which is why it is appended after the word instead of joining it.",

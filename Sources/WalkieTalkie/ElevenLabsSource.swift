@@ -575,8 +575,15 @@ final class ElevenLabsSource: DictationSource {
             // against the local model's curve since the day it became the
             // engine. From the close, not from the upload: the stop's
             // audio-queue hop is part of the wait he watches.
+            // **Not the fake's** (2026-09-28): a desk run's answers against
+            // `WT_ELEVEN_BATCH_URL` are filed under their own key, so the
+            // harness never teaches the real ElevenLabs line — nor the auto
+            // fallback's p98 budget, which reads the same window.
+            let batchOverridden = (ProcessInfo.processInfo.environment["WT_ELEVEN_BATCH_URL"]
+                                   ?? Self.config["WT_ELEVEN_BATCH_URL"]) != nil
             DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(stoppedAt ?? startedAt),
-                              engine: DecodeRate.elevenLabs, chars: r.text.count)
+                              engine: batchOverridden ? DecodeRate.elevenLabsTest : DecodeRate.elevenLabs,
+                              chars: r.text.count)
             self.didTranscribe?(DictationResult(
                 text: r.text, language: r.language, audio: wav, duration: duration,
                 engine: "elevenlabs", warning: Self.warning(for: r), delivery: .route,

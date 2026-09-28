@@ -214,6 +214,14 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   fallback, deliberately, because an engine that can run but cannot be picked is the one state
   where the chip and the menu disagree.
 
+- **`Auto fallback to local (p98)` — a checkbox under the engine rows, between two separators
+  (2026-09-28, 22:25)** — Victor: *"Auto fallback to local model should be a checkbox in the Engine
+  submenu."* `UserDefaults` `autoLocalFallback` (`AutoLocal.isOn`), **default ON**; the tick drawn
+  like every other switch here (`checkmark` / `blankIcon` image, never `NSMenuItem.state`), read
+  from the defaults at every build and repainted by `refreshAutoLocal()` when `POST /test/local-auto`
+  moves it. The tooltip says what it does and the local model's RAM now (`whisperFootprint`, the
+  Engine row's own number). ON keeps the local weights up while another engine is picked. OFF is
+  the behaviour before that evening. → `dictation-source.md`, *Auto fallback to local (p98)*
 - **🧾 The account's quota is the last row of the list, under a separator (2026-09-28)** —
   `🧾 ElevenLabs −33 / 10k / ?` = remaining / total in k / reset `Mon d`, **red** once remaining
   ≤ 0; words, sources and the `user_read` hint on the tooltip; click → elevenlabs.io (API keys
