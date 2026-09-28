@@ -357,12 +357,12 @@
     "alpha" : 0.80000000000000004,
     "group" : "Dictating",
     "height" : 117,
-    "image" : "listening-local-now.png",
-    "note" : "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. It goes when the words land.",
+    "image" : "transcribing-local-now.png",
+    "note" : "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. The key works from the first sample; the row waits a second into the transcription (*\"only displayed after 1 s after starting the transcribing\"*), so a fast engine never shows it. It goes when the words land.",
     "shape" : "chip",
-    "slug" : "listening-local-now",
+    "slug" : "transcribing-local-now",
     "title" : "⌘⌃X — the local model, now",
-    "when" : "While a sentence records on ElevenLabs (or Wispr Flow), and while its words are on their way back.",
+    "when" : "From one second into the wait for ElevenLabs (or Wispr Flow) — never while the microphone is open.",
     "width" : 308
   },
   {
@@ -615,7 +615,7 @@
     "slug" : "prompt-long",
     "title" : "A long transcript",
     "when" : "A sentence that does not fit one line — the panel wraps and grows.",
-    "width" : 640
+    "width" : 576
   },
   {
     "alpha" : 1,
