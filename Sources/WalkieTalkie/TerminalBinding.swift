@@ -1610,6 +1610,11 @@ final class TerminalBinding {
     /// the keyboard is *left in*, not the key's own bit.
     private static func tap(key: CGKeyCode, command: Bool) {
         let source = CGEventSource(stateID: .combinedSessionState)
+        // **Stamped** (W1, 2026-09-28): the tap's right ⌘⌥ reader read this
+        // paste's ⌘-up as his release when a caret sentence landed under the
+        // next held pair. The stamp tells the tap it is ours; the trailing
+        // event leaves whatever his hands still hold (`heldModifierFlags`).
+        source?.userData = HotkeyTap.backButtonStamp
         let down = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: true)
         let up = CGEvent(keyboardEventSource: source, virtualKey: key, keyDown: false)
 
@@ -1627,7 +1632,7 @@ final class TerminalBinding {
         }
         down?.post(tap: .cghidEventTap)
         up?.post(tap: .cghidEventTap)
-        if command { modifier(VK_COMMAND, leaving: []) }
+        if command { modifier(VK_COMMAND, leaving: HotkeyTap.heldModifierFlags()) }
     }
 
     private static let VK_COMMAND: CGKeyCode = 0x37

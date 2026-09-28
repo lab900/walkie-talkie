@@ -722,6 +722,15 @@ final class WisprFlowSource: DictationSource {
     func start() -> String? {
         guard !isRecording else { return nil }
         guard isReady else { return "Wispr Flow is not running" }
+        // **W6 (2026-09-28): ask Wispr before toggling it.** The chord is a
+        // toggle: posted over a Wispr that is already recording (his own right
+        // ⌥⇧ sentence, a ghost left by a missed stop) it *stops* that one and
+        // starts nothing. A microphone of Wispr's open while the relay has none
+        // is not the relay's.
+        if !HotkeyTap.wisprChordsMuted, watch.sampleIsRunningInput() {
+            Log.error("wispr: start refused — Wispr Flow's microphone is already open (not the relay's sentence)")
+            return "Wispr Flow is already listening — one engine at a time"
+        }
         // **A stand-down is not a verdict.** If the window that would not close
         // is closed now — Victor clicked the menu row, Wispr was restarted — the
         // precondition holds again and there is no reason to go on using the
@@ -1072,6 +1081,16 @@ final class WisprFlowSource: DictationSource {
             Log.info(String(format: "🔀 holding the stop for %.0f ms of his voice still in the bridge",
                             drain * 1000))
             DispatchQueue.main.asyncAfter(deadline: .now() + drain) { [weak self] in self?.stop() }
+            return
+        }
+        // **W6: a stop over a Wispr that never took the start posts nothing.**
+        // No row, no microphone, well past the 357 ms a row takes: Wispr did not
+        // hear the start chord, and a second toggle now would *start* a ghost
+        // recording of the room.
+        if !isRecording, speculative, historyRow == nil, !watch.sampleIsRunningInput(),
+           CFAbsoluteTimeGetCurrent() - gestureAt > 1.0, startedMode != .scratchpad {
+            Log.info("wispr: stop without a chord — Wispr never took the start (no row, no microphone)")
+            closeListening("the relay's own stop (Wispr never started)")
             return
         }
         switch startedMode {

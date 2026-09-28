@@ -130,6 +130,11 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   open** (its own lock, never `stateLock`): `POST /test/firewall` answers `alive: true, tap: "open"`,
   not `alive: false` (TG26). **Not fixed:** a session button stuck down keeps the gate open for as long
   as it is stuck (R24, the 7 h middle button) — the close waits for no button down, by design.
+- **Ask Wispr before toggling it** (W6, 2026-09-28): `WisprFlowSource.start()` refuses (*one engine
+  at a time*) while Wispr's microphone is open and the relay has none; `stop()` posts no chord for a
+  sentence Wispr never took (no row, no microphone, > 1 s after the gesture) — a second toggle there
+  would start a ghost recording. `AppDelegate.startDictation`'s *Wispr Flow is listening* refusal now
+  asks on Engine = Wispr too (his right ⌥⇧ sentence never sets `isRecording`).
 - **No unclaimed-paste rescue** (Q9 step 2, 2026-09-28): `rescueFromRow` is deleted — it had no
   freshness check (W17). `WT_WISPR_FIREWALL=0` for one run.
 - **Q9: Wispr's own sentences are Wispr's alone — always** (batch 6 built it behind

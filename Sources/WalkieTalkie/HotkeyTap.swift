@@ -637,7 +637,7 @@ final class HotkeyTap {
             guard let clear = CGEvent(keyboardEventSource: source,
                                       virtualKey: Self.VK_COMMAND, keyDown: true) else { return }
             clear.type = .flagsChanged
-            clear.flags = []
+            clear.flags = Self.heldModifierFlags()
             clear.post(tap: .cghidEventTap)
             Log.info("⌨️ Wispr's ⌘V released with ⌘ still stamped on it — the flag has been put back down")
         }
@@ -2886,8 +2886,16 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             // ⌘ and the **right** ⌥: `.maskCommand` alone would fire on every ⌘ in
             // the session. `NX_DEVICERCMDKEYMASK` / `NX_DEVICERALTKEYMASK`.
             let pair = (raw & Self.deviceRightCommand) != 0 && (raw & Self.deviceRightOption) != 0
-            if pair != cleanPairDown {
+            // **W1 (2026-09-28): this app's own modifier events are not his
+            // hands.** Every chord the app posts ends with a stamped
+            // `flagsChanged` (fn ⌃ Space's tail, the caret ⌘V's ⌘-up, the ⌘C
+            // probe's, Wispr's ⌘-clear); read here it was the pair's release
+            // ~0.25 s into a hold — the sentence cancelled as "too short". Only
+            // unstamped events move the pair.
+            let ownPost = event.getIntegerValueField(.eventSourceUserData) == Self.backButtonStamp
+            if !ownPost, pair != cleanPairDown {
                 cleanPairDown = pair
+                Self.notePairHeld(pair)
                 // **The pair is Walkie's alone, whatever the Engine** (Q9, and its
                 // step 2 on 2026-09-28): Wispr listens on right ⌥⇧ (`61+60`).
                 stateLock.lock()
@@ -4177,7 +4185,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 up.post(tap: .cghidEventTap)
             }
             modifier(Self.VK_CONTROL, leaving: .maskCommand)
-            modifier(Self.VK_COMMAND, leaving: [])
+            modifier(Self.VK_COMMAND, leaving: heldModifierFlags())
         }
     }
 
@@ -4216,7 +4224,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 up.post(tap: .cghidEventTap)
             }
             modifier(VK_CONTROL, leaving: .maskSecondaryFn)
-            modifier(VK_FN, leaving: [])
+            modifier(VK_FN, leaving: heldModifierFlags())
         }
     }
 
@@ -4702,6 +4710,24 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     /// on `.maskCommand` instead would start it on every ⌘⌥ in the day.
     private static let deviceRightCommand: UInt64 = 0x000010
     private static let deviceRightOption: UInt64 = 0x000040
+
+    /// **What his hands are holding, as far as the tap has seen** (W1,
+    /// 2026-09-28) — the right ⌘⌥ pair, from unstamped events only. The
+    /// trailing `flagsChanged` of every chord this app posts leaves the session
+    /// in *this* state instead of `[]`, so a paste or a Wispr chord posted
+    /// while he holds the pair does not tell the front app (or Wispr) that he
+    /// let go. `[]` otherwise — the stale-⌘ rule (`area-crop.md`) unchanged.
+    private static let heldLock = NSLock()
+    private static var pairHeldByHand = false
+    fileprivate static func notePairHeld(_ on: Bool) {
+        heldLock.lock(); pairHeldByHand = on; heldLock.unlock()
+    }
+    static func heldModifierFlags() -> CGEventFlags {
+        heldLock.lock(); defer { heldLock.unlock() }
+        guard pairHeldByHand else { return [] }
+        return CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | CGEventFlags.maskAlternate.rawValue
+                                      | deviceRightCommand | deviceRightOption)
+    }
 
     /// **V**, for the paste another app posts — see `onInjectedPaste`.
     private static let VK_V:       CGKeyCode = 9

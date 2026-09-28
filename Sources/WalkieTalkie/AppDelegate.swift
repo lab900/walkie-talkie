@@ -445,6 +445,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// actually running afterwards either way, so a refused pick cannot leave a
     /// tick beside an engine that is not listening.
     private func setEngine(_ id: String) {
+        // A pick of his own ends a borrow (Q21): what he picked is what stays.
+        if borrowedFrom != nil {
+            borrowedFrom = nil
+            borrowReturn?.invalidate(); borrowReturn = nil
+        }
         let next = engine(named: id)
         guard next !== source else { return }
         guard !listening, !settling, !speculative, !source.isRecording else {
@@ -497,6 +502,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             overlay.flash("🎙️ \(source.name)", duration: 2.5)
         }
+    }
+
+    /// **One sentence on another engine, without changing the Engine** (Q21,
+    /// 2026-09-28): right ⌘⌥ held with Engine = Wispr is the local model's. The
+    /// swap is `setEngine`'s, minus the defaults, the menu tick and the flash;
+    /// the engine he picked comes back as soon as nothing is open or in flight
+    /// (`returnBorrowedEngine`, polled every 0.5 s). `GET /engine` says what is
+    /// live, `borrowedFrom` in `/test/state` says it is a borrow.
+    private var borrowedFrom: DictationSource?
+    private var borrowReturn: Timer?
+    private func borrowEngine(_ next: DictationSource, for why: String) {
+        guard borrowedFrom == nil, next !== source,
+              !listening, !settling, !speculative, !source.isRecording else { return }
+        swapSource(to: next)
+        borrowedFrom = wisprSource
+        Log.info("🔁 \(next.name) for this sentence — \(why); the Engine stays Wispr Flow")
+        borrowReturn?.invalidate()
+        let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.returnBorrowedEngine(nil) }
+        RunLoop.main.add(t, forMode: .common)
+        borrowReturn = t
+    }
+    private func returnBorrowedEngine(_ why: String?) {
+        guard let back = borrowedFrom else { borrowReturn?.invalidate(); borrowReturn = nil; return }
+        guard why != nil || (!listening && !settling && !speculative && !source.isRecording
+                             && !fallingBack && !source.phase.isWaitingForWords && source.answersPending == 0
+                             && held == nil && !liveInFlight) else { return }
+        borrowReturn?.invalidate(); borrowReturn = nil
+        borrowedFrom = nil
+        swapSource(to: back)
+        Log.info("🔁 back on \(back.name) — \(why ?? "the borrowed sentence is over")")
+    }
+    private func swapSource(to next: DictationSource) {
+        source.didMaybeBegin = nil
+        source.didBegin = nil
+        source.didStopListening = nil
+        source.didTranscribe = nil
+        source.didEnd = nil
+        source.didHearLive = nil
+        source.didOpenLive = nil
+        source = next
+        wireDictationSource()
     }
 
     /// **The dictation is over but the words have not landed yet.**
@@ -2764,9 +2810,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         Log.info("🧼 right ⌘⌥ while another sentence is open or in flight — left alone")
                         return
                     }
+                    // **Q21 (2026-09-28): on Engine = Wispr the hold is the local
+                    // model's** — the relay no longer posts fn ⌃ Space under a
+                    // held ⌘⌥ (W1), and Wispr stays free for his right ⌥⇧.
+                    if self.source === self.wisprSource { self.borrowEngine(self.whisperSource, for: "right ⌘⌥ held on Engine = Wispr (Q21)") }
                     Log.info("🧼 a plain dictation (right ⌘⌥ held) on \(self.source.name) — clean words at the caret, nothing added")
                     self.cleanHoldAt = CFAbsoluteTimeGetCurrent()
                     self.startDictation(paste: true, clean: true)
+                    if !self.listening, !self.speculative, !self.source.isRecording { self.returnBorrowedEngine("the start was refused") }
                 case .release, .shortcut:
                     guard self.cleanHoldAt > 0 else { return }
                     let held = CFAbsoluteTimeGetCurrent() - self.cleanHoldAt
@@ -4119,7 +4170,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // as the Engine its own `isRecording` is the better answer — it is the
         // state machine with four witnesses behind it — and three CoreAudio
         // reads on the way into every dictation buy nothing there.
-        if source !== wisprSource, wisprMic.sampleIsRunningInput() {
+        // **Since 2026-09-28 (W6) asked on Engine = Wispr too**: under Q9 his own
+        // right ⌥⇧ sentence never sets `isRecording`, so this is the only thing
+        // that stops ⌘⌃D / 🔼 posting the hands-free toggle into it.
+        if !source.isRecording, wisprMic.sampleIsRunningInput() {
             Log.error("dictate gesture refused — Wispr Flow's microphone is already open")
             overlay.flash("⚠️ Wispr Flow is listening — one engine at a time", duration: 5)
             return
@@ -6265,6 +6319,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["historyRow"] = wisprSource.historyRow.map { NSNumber(value: $0) } ?? NSNull()
         out["firewall"] = hotkeys.wisprFirewallOn
         out["wisprStandalone"] = true   // Q9 — always, since step 2 (2026-09-28); the flag is gone
+        // Q21: the engine a right ⌘⌥ hold borrowed from (null when none).
+        out["borrowedFrom"] = borrowedFrom?.name ?? NSNull()
         out["tapAlive"] = hotkeys.lastCanary.map { $0.alive } ?? NSNull()
         out["tapFailingOpen"] = hotkeys.lastCanary.map { $0.failingOpen } ?? NSNull()
         // The held prompt panel (test-plan gap G5): {held, verb, deadline, text, …}.
