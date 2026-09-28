@@ -92,4 +92,11 @@ final class FrontTabTests: XCTestCase {
         XCTAssertLessThan(took, 4, "killed near the timeout, not after the sleep")
         XCTAssertTrue(outcome.reason.contains("timed out"))
     }
+
+    func testThisProcessHasAStartTimeInThePast() {
+        let started = TB.processStartDate()
+        XCTAssertNotNil(started)
+        XCTAssertLessThanOrEqual(started!, Date())
+        XCTAssertGreaterThan(started!, Date().addingTimeInterval(-86_400))
+    }
 }

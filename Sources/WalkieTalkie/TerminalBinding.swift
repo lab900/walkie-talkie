@@ -445,9 +445,10 @@ final class TerminalBinding {
     private func bindTerminalApp(fallbackName: String, bundleID: String, pid: pid_t) -> Target? {
         let answer = Self.frontTerminalTab(pid: pid, verbose: true)
         guard let front = answer.tab else {
-            let why = answer.failure ?? "no answer"
+            let replaced = Self.bundleReplacedNote()
+            let why = (answer.failure ?? "no answer") + (replaced.map { " — \($0)" } ?? "")
             Log.error("bind: Terminal.app would not name its front tab's tty — \(why)")
-            noteBindFailure(why)
+            noteBindFailure(replaced == nil ? answer.failure : "bundle replaced on disk — restart pending")
             return nil
         }
         return terminalTarget(tty: front.tty, title: front.title,
@@ -2295,11 +2296,38 @@ final class TerminalBinding {
         switch outcome {
         case .ok: break
         case .timedOut:
-            Log.error("osascript timed out after \(ms) ms — killed (Terminal hung?): \(firstLine(of: script))")
+            Log.error("osascript timed out after \(ms) ms — killed (Terminal hung?): \(firstLine(of: script))"
+                      + (bundleReplacedNote().map { " — \($0)" } ?? ""))
         default:
-            Log.error("osascript failed after \(ms) ms — \(outcome.reason) — script: \(firstLine(of: script))")
+            Log.error("osascript failed after \(ms) ms — \(outcome.reason) — script: \(firstLine(of: script))"
+                      + (bundleReplacedNote().map { " — \($0)" } ?? ""))
         }
         return outcome
+    }
+
+    /// **The bundle on disk was replaced under this process** (2026-09-28): its
+    /// executable is newer than the process. That was the whole 19:55 incident —
+    /// `relay-restart.sh --build` swapped the bundle at 19:54:13 under a process
+    /// launched at 18:39, and macOS then refused it AppleEvents to Terminal *and*
+    /// the microphone until the relaunch at 20:01:04. A failure in that state says
+    /// so, since no fix inside the app can help it. Nil when not the case.
+    static func bundleReplacedNote() -> String? {
+        guard let started = processStartDate(),
+              let exe = Bundle.main.executableURL,
+              let modified = (try? FileManager.default.attributesOfItem(atPath: exe.path))?[.modificationDate] as? Date,
+              modified > started.addingTimeInterval(1) else { return nil }
+        return "the bundle on disk was replaced under this process — restart pending"
+    }
+
+    /// When this process started, from the kernel (`kp_proc.p_starttime`).
+    static func processStartDate(pid: pid_t = getpid()) -> Date? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0, size > 0 else { return nil }
+        let tv = info.kp_proc.p_starttime
+        guard tv.tv_sec > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(tv.tv_sec) + TimeInterval(tv.tv_usec) / 1_000_000)
     }
 
     private static func osascript(_ script: String) -> String? {
