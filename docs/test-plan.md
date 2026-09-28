@@ -527,6 +527,8 @@ longer span; **B5** menu row shows `$x.xx` growing by (live s × 0.39 × 1.2 + b
 41. [R] Engine switch during a bank → accepted; dictation opens on the new engine when the poll fires.
 42. [R] 🔽 click with Wispr quit → does ⌃Space switch the macOS input source (`AppleSelectedInputSources` before/after).
 
+**TS1–TS6 — Wispr soak, lab only** (`evals/plan/cases_wispr_soak.py`, 2026-09-28): rates over many real Wispr sentences in the Tart guest, PASS only above a threshold, the numbers always in the evidence (+ `WORK/soak-TSn-*.json`) — TS1 30 relay sentences EN/RO (delivered ≥ 95 %, 0 silent losses; fallback rate, p50/p90 close→landed) · TS2 20 standalone `61+60` into TextEdit (≥ 95 % at the caret, 0 into the terminal) · TS3 20 mixed, seeded, 1–6 s gaps (≥ 90 % routed right, 0 misroutes / silent / stuck > 60 s) · TS4 10 min idle, ghost mic sampled every 30 s, then one sentence (row ≤ 12 s, delivered) · TS5 10 sentences 5 s after a Wispr relaunch (delivered ≥ 80 %; W11 head loss, ghost mic) · TS6 10 over a preset clipboard (Q17: 0 violations). Each case ≤ 25 min wall clock (`WT_SOAK_CAP_MIN`), `PARTIAL n/N` past it.
+
 ## 8. Order of work
 
 1. ~~Close G1 + G3 + G4 + G7~~ — done 2026-09-26 morning (G7 minus two fields). Real audio goes
