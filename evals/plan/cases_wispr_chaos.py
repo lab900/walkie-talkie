@@ -525,7 +525,8 @@ def tx2():
         t_rel = time.time()
         opened_at = None
         while time.time() - t_rel < 30:
-            lv = live()
+            # Lab wave 2: `/test/state` answered once without `wisprLive` mid-relaunch.
+            lv = state().get("wisprLive") or {}
             if lv.get("micOpen") and not lv.get("captureOpen") and opened_at is None:
                 opened_at = time.time() - t_rel
             time.sleep(1.0)
@@ -790,7 +791,10 @@ def tx7():
         time.sleep(5)
         o = _after(ctx, mark, ref)
         reps = o["copies"] or 0.0
-        cap = re.search(r"ceiling|nothing came back within", log_since(mark))
+        # Lab wave 2: a bare `ceiling` matched the decode-rate line (`ceiling × 1.19`). The cap
+        # lines are the relay giving up on the row: the capture timeout, the NULL-no-mic ceiling.
+        cap = re.search(r"nothing came back within|Wispr Flow returned no words|never opened its microphone"
+                        r"|the NULL-no-mic ceiling|captureTimeout", log_since(mark))
         note = "%s; stop→end %.1f s; repetitions %.1f/6; cap line %s" % (_fmt(o), dt, reps, bool(cap))
         if o["up"] or not o["pidSame"]:
             return "FAIL", note
@@ -1256,12 +1260,19 @@ def tx13():
         if not ok:
             return "BUG", "the relay would not let go of a capture on a frozen Wispr (Q24 has no cap): busy %s; %s" % (
                 w, "; ".join(steps))
-        if state().get("recoverable"):
+        # Lab wave 2: the gate held on `audio staged for Recover` — the WAV is staged a beat
+        # after the cancel, so wait for it, deliver it, and wait until nothing is staged.
+        for _ in range(3):
+            if not wait_for(lambda: state().get("recoverable"), 8, 0.3):
+                break
             m = log_mark()
             post("/test/recover")
-            wait_for(lambda: log_has(m, r"📦 delivery:|No speech|no speech|No words"), 60, 0.5)
+            wait_for(lambda: log_has(m, r"📦 delivery:|No speech|no speech|No words|recovered"), 60, 0.5)
             steps.append("Recover → %s" % (_deliveries(m) or "nothing"))
             _quiet(20)
+            wait_for(lambda: not state().get("recoverable"), 15, 0.5)
+        if state().get("recoverable"):
+            steps.append("Recover still staged: %s" % state().get("recoverable"))
         pre_copies = copies(witness_text(), old_only) if old_only else 0.0
         p = subprocess.run(["./relay-restart.sh", "--max-wait", "120", "--quiet", "3"], cwd=REPO,
                            capture_output=True, text=True, timeout=240)

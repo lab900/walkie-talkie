@@ -383,7 +383,11 @@ def _watch(rec, snap, mark, t_close, dest, te0=None, sampler=None):
     last = s.get("lastDelivery") or {}
     via = deliveries[-1][0] if deliveries else (last.get("via") if last != snap["last"] else None)
     to = deliveries[-1][1] if deliveries else (last.get("to") if last != snap["last"] else None)
-    refusal = re.search(r"dictate gesture refused — ([^\n]*)", txt)
+    # Lab wave 2 (2026-09-28): TS1 #13/#14 were refusals on the chip (`🚫 start refused — …`,
+    # flashed `⏳ …`) counted *silent* because only the W6 wording was matched. Any of the
+    # relay's refusal lines is loud; so is the C pair's `nothing was recording`.
+    refusal = re.search(r"(?:dictate gesture refused|🚫 start refused|🎙️ ⬅️ [^\n]* refused|start refused) — ([^\n]*)"
+                        r"|(nothing was recording[^\n]*)", txt)
     loud = (s.get("lastFailure") != snap["fail"]) or \
            ((s.get("recoverable") or {}).get("path") not in (None, snap["recov"])) or bool(refusal)
     still = [k for k, v in (("isRecording", s.get("isRecording")), ("capturing", s.get("capturing")),
@@ -396,7 +400,7 @@ def _watch(rec, snap, mark, t_close, dest, te0=None, sampler=None):
         "landed": bool(landed_text.strip()), "text": landed_text.strip()[:400],
         "closeToLanded": round(t_land - t_close, 2) if t_land else None,
         "via": via, "to": to, "outbox": _outbox_n() - snap["outbox"],
-        "loud": loud, "why": (refusal.group(1) if refusal else (s.get("lastFailure") or {}).get("why") if loud else None),
+        "loud": loud, "why": ((refusal.group(1) or refusal.group(2)) if refusal else (s.get("lastFailure") or {}).get("why") if loud else None),
         "noWords": "No words came back" in txt, "stuck": stuck, "stillUp": still, "maxBusy": round(max_busy, 1),
     })
     if stuck:

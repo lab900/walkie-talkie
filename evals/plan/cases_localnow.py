@@ -12,6 +12,7 @@ harness default), the witness tab bound — the rig of `cases_audio`.
     TN3  pressed at rest → one flash, nothing else
 """
 import time
+import re
 from harness import *
 from cases_audio import pre, rig, start, stop, when, last_delivery, settle_out, on_inject, not_inject, _quiet
 
@@ -130,3 +131,49 @@ def tn3():
     ok = (flashed and said and not ln.get("available") and ln.get("row") is None
           and not s["listening"] and not s["settling"] and not last_delivery(t0))
     return ("PASS" if ok else "FAIL"), note
+
+
+@case("TN4", ("audio", "gesture"), engine="eleven",
+      expect="Scribe 401 → the local model decodes sentence A (45 s); a new sentence B 1 s into that decode parks A "
+             "(D, wave 3): both delivered, A first, no 'which is over — dropped'")
+def tn4():
+    """D (lab wave 2, 2 silent losses on Wispr): a sentence whose local fallback was still decoding was
+    closed when the next one opened, and its answer dropped. Here on ElevenLabs (fake Scribe, `fail: 401`
+    once): A = CLIP_SPEECH → 401 → local fallback; B started 1 s after the fallback line, a short clip,
+    Scribe answers it. Both land in the witness, in spoken order."""
+    why = pre(("eleven",))
+    if why: return "SKIP", why
+    with rig():
+        n0 = outbox_count()
+        post("/test/eleven", {"fail": "401"})
+        m = start()
+        if not on_inject(m):
+            stop(); return not_inject(m)
+        time.sleep(0.4)
+        # A long clip (45 s): a warm model decodes at ~0.08×, so A's decode lasts ~3–4 s.
+        play(CLIP_EN_LONG, seconds=45)
+        stop()
+        t_fb = when(m, r"transcribing the .*s recording on this Mac instead", 20)
+        if not t_fb:
+            return "FAIL", "no local fallback after the 401"
+        time.sleep(max(0.0, 1.0 - (time.time() - t_fb)))
+        m2 = log_mark()
+        gesture("forward-right")
+        opened = wait_for(lambda: log_has(m2, r"mic: recording through"), 8)
+        parked = log_has(m2, r"goes on transcribing behind the next one")
+        time.sleep(0.4)
+        play(CLIP_EN)
+        stop()
+        def new_deliveries():
+            k = outbox_count() - n0
+            return [l for l in (outbox_tail(k) if k > 0 else []) if l.get("delivery")]
+        wait_for(lambda: len(new_deliveries()) >= 2, 90, 0.5)
+        settle_out(60)
+        txt = log_since(m)
+        vias = [l["delivery"].get("via") for l in new_deliveries()]
+        dropped = "which is over — dropped" in txt
+        refused = re.search(r"🚫 start refused", log_since(m2)) is not None
+        note = (f"B opened {bool(opened)}; A parked {parked}; B refused {refused}; "
+                f"deliveries in order {vias}; 'which is over — dropped' {dropped}; witness {len(witness_text())} chars")
+        ok = opened and parked and not dropped and len(vias) == 2 and vias[0] == "local-fallback"
+        return ("PASS" if ok else "FAIL"), note

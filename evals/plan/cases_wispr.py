@@ -805,3 +805,184 @@ def tw22():
             f"({len(witness_text())} chars, via {via}); 'No words came back' {'No words came back' in txt}")
     db.update(rid, status="dismissed")
     return ("PASS" if gave_up and dt < 8 and fell_back and delivered and via == "local-fallback" else "BUG"), note
+
+
+# ---------------------------------------------------------------- TW32: B, the row-aware tail (2026-09-28, wave 3)
+@case("TW32", tags=("desk",), engine="wispr", pre=needs_desk,
+      expect="in the relay's 10 s tail: a Wispr ⌘V with no newer row is the relay's (dropped, said so); "
+             "once his newer row exists, his ⌘V passes (B / Q19) — never dropped silently")
+def tw32():
+    """B (lab wave 2, 8/8 of his sentences eaten): the firewall's tail after a relay sentence went
+    idle was a clock. Desk: relay sentence A on the fake row, delivered; a ⌘V through the firewall's
+    decision (`POST /test/wispr-paste`, no key on the wire) at +0.5 s → the relay's own late paste
+    (dropped, the claim says so, nothing pasted); then his row F (newer, `formatted`) and a second
+    ⌘V inside the tail → **passed** (Wispr pastes it itself). Nothing is pasted at his caret here:
+    the pass is a verdict only (no key exists), the drop's claim finds no row of his."""
+    db = desk()
+    bind_witness(); witness_clear()
+    mark = log_mark()
+    ra = open_sentence(db); time.sleep(0.8)
+    close_sentence(db, ra, text="tw thirty two relay sentence")
+    wait_for(lambda: "thirty two relay" in witness_text(), 15, 0.3)
+    idle = wait_for(lambda: not live()["captureOpen"] and live()["relayOwned"], 10, 0.1)
+    time.sleep(0.5)
+    own = post("/test/wispr-paste", {})[1]
+    time.sleep(0.2)
+    rf = db.insert(at=time.time()); time.sleep(0.6)
+    db.finish(rf, "his own sentence in the tail")
+    noted = wait_for(lambda: live().get("foreignRow") == rf, 4, 0.1)
+    lv = live()
+    his = post("/test/wispr-paste", {})[1]
+    wait_for(lambda: log_has(mark, r"the dropped ⌘V is not his"), 3, 0.1)
+    txt = log_since(mark)
+    in_tail = lv["relayOwned"] is False and lv["relayOwnedUntil"] is not None
+    relay_said = re.search(r"the relay's own late ⌘V", txt) is not None
+    passed_line = re.search(r"⌘V from Wispr Flow passed — row \d+ is newer than the relay's", txt) is not None
+    note = (f"idle {bool(idle)}; relay's tail ⌘V {own.get('verdict')} ({own.get('why')}); said relay's own {relay_said}; "
+            f"his row {rf} noted {bool(noted)}; his ⌘V {his.get('verdict')} ({his.get('why')}); pass line {passed_line}; "
+            f"still inside the tail window {in_tail}")
+    ok = own.get("verdict") == "dropped" and relay_said and noted and his.get("verdict") == "passed" and passed_line
+    return ("PASS" if ok else "BUG"), note
+
+
+# ---------------------------------------------------------------- TW33: D, a fallback in flight is parked (wave 3)
+@case("TW33", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="sentence A's Wispr row never moves → Q14 local fallback; 🔼→ B 1 s into that decode: A is parked, "
+             "not closed; both in the witness, A first; no 'which is over — dropped'")
+def tw33():
+    """D (lab wave 2: TS1 #11 and #20, 948 chars lost silently). `dictationBegan` closed a live sentence
+    whose Q14 local decode was still out, and the decode's answer was dropped. Desk: A = NULL row + the
+    clip on the Loopback → the NULL-no-mic ceiling → the local model (TW22's path); 1 s after the fallback
+    line, 🔼→ B (the real gesture → `startDictation`), a fake row finished with words."""
+    db = desk()
+    bind_witness(); witness_clear()
+    mark = log_mark()
+    # A opened by the real gesture (🔼→ → `startDictation`, as in the lab), its row NULL for good.
+    gesture("forward-right")
+    if not wait_for(lambda: state()["listening"], 4):
+        return "FAIL", "A did not open"
+    ra = db.insert(at=time.time())
+    wait_for(lambda: live()["captureRow"] == ra, 3)
+    time.sleep(2.3)                                     # past the 2 s stop dwell
+    # 45 s of speech: a warm local model decodes 10 s in 0.8 s (0.077×), so A's decode has to be
+    # long enough (~3–4 s) for B to open inside it.
+    play(CLIP_EN_LONG, seconds=45)
+    gesture("forward-right")
+    fb = wait_for(lambda: log_has(mark, r"the local model stands in \(Q14\)"), 15, 0.1)
+    if not fb:
+        db.update(ra, status="dismissed")
+        return "FAIL", "A never fell back to the local model"
+    time.sleep(0.5)
+    m2 = log_mark()
+    gesture("forward-right")
+    opened = wait_for(lambda: state()["listening"], 4)
+    if not opened:
+        wait_for(lambda: len(witness_text().strip()) > 20, 60, 0.5)
+        wait_for(lambda: not state()["busy"], 60, 0.5)
+        txt = log_since(mark)
+        loud = re.search(r"🚫 start refused[^\n]*still being transcribed locally[^\n]*", log_since(m2))
+        dropped = "which is over — dropped" in txt
+        db.update(ra, status="dismissed")
+        note = (f"B not opened; refusal {loud.group(0)[:120] if loud else None}; A in the witness "
+                f"{len(witness_text().strip())} chars; 'dropped' {dropped}")
+        ok = loud is not None and not dropped and len(witness_text().strip()) > 20
+        return ("PASS" if ok else "BUG"), note + (" (D's second option: refused out loud, A delivered)" if ok else "")
+    rb = db.insert(at=time.time())
+    adopted = wait_for(lambda: live()["captureRow"] == rb, 3)
+    time.sleep(2.3)                                     # past the 2 s stop dwell
+    gesture("forward-right")
+    db.update(rb, status="processing", speech=1.5); time.sleep(0.3)
+    db.finish(rb, "tw thirty three sentence bee")
+    wait_for(lambda: "sentence bee" in witness_text() and len(witness_text()) > 60, 90, 0.5)
+    wait_for(lambda: not state()["busy"], 60, 0.5)
+    got = witness_text()
+    txt = log_since(mark)
+    ib = got.find("sentence bee")
+    a_len = len(got[:ib].strip()) if ib >= 0 else len(got.strip())
+    parked = "goes on transcribing behind the next one" in log_since(m2)
+    dropped = "which is over — dropped" in txt
+    refused = re.search(r"🚫 start refused[^\n]*", log_since(m2))
+    note = (f"B opened {bool(opened)} (row adopted {bool(adopted)}); A parked {parked}; B refused "
+            f"{refused.group(0)[:90] if refused else False}; A {a_len} chars before B at {ib}; 'dropped' {dropped}")
+    db.update(ra, status="dismissed")
+    return ("PASS" if opened and parked and not dropped and ib > 0 and a_len > 20 else "BUG"), note
+
+
+# ---------------------------------------------------------------- TW34: A, the relay's recorder right after a Wispr launch (wave 3)
+KEEP_MARK = "# keep-takes: written by evals/plan/cases_wispr.py TW34, removed after it"
+
+def _keep_takes(on):
+    """`WT_KEEP_TAKES=1` in `elevenlabs.env` between two marks (every relay Wispr take copied to
+    ~/.walkie-talkie/kept-takes/ before any delete); removed with `on=False`."""
+    try:
+        cur = open(ELEVEN_ENV, encoding="utf-8").read().splitlines()
+        mode = os.stat(ELEVEN_ENV).st_mode & 0o777
+    except FileNotFoundError:
+        cur, mode = [], 0o600
+    keep, inside = [], False
+    for l in cur:
+        if l.startswith(KEEP_MARK):
+            inside = not l.endswith("(end)")
+            continue
+        if not inside:
+            keep.append(l)
+    if on:
+        keep += [KEEP_MARK, "WT_KEEP_TAKES=1", KEEP_MARK + " (end)"]
+    tmp = ELEVEN_ENV + ".keep-tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(keep) + ("\n" if keep else ""))
+    os.chmod(tmp, mode)
+    os.replace(tmp, ELEVEN_ENV)
+
+CLEANUPS.append(lambda: _keep_takes(False))
+
+@case("TW34", tags=("desk", "audio", "cold"), engine="wispr",
+      pre=lambda: needs_desk() or (None if KILL_OK else "relaunches his Wispr: WT_ALLOW_WISPR_KILL=1 or the lab"),
+      expect="a relay sentence opened +1/+3/+5 s after a Wispr relaunch records the clip (≥ 1.5 s voiced, "
+             "never DEAF, never 'No speech was heard'); any mid-take device change restarts the tap, logged")
+def tw34():
+    """A (lab wave 2: 4× `0.0 s voiced` within ~5 s of a Wispr launch, BlackHole itself not silent).
+    Desk rig (fake History, chords muted, recorder on the Loopback): relaunch the real Wispr, wait for
+    the new pid, then at +1 / +3 / +5 s open a relay Wispr sentence with no row (nothing is adopted —
+    the relay's own recording is the whole point), play CLIP_SPEECH 6 s, stop. Reads per take the
+    `wispr meter:` health line (buffers, peak, tap restarts, device), `micOpened`, any `🔁 mic:` line;
+    the WAVs are kept (`WT_KEEP_TAKES=1`)."""
+    db = desk()
+    _keep_takes(True)
+    bind_witness(); witness_clear()
+    rows = []
+    for d in (1.0, 3.0, 5.0):
+        old = wispr_pid()
+        post("/test/wispr-proc", {"relaunch": True})
+        if not wait_for(lambda: wispr_pid() and wispr_pid() != old, 30, 0.1):
+            rows.append(f"+{d:.0f}s: Wispr did not come back"); continue
+        t_new = time.time()
+        time.sleep(max(0.0, d - (time.time() - t_new)))
+        mark = log_mark()
+        chord(state_="start")
+        wait_for(lambda: state()["listening"], 3)
+        play(CLIP_SPEECH, seconds=6)
+        chord(state_="stop")
+        wait_for(lambda: log_has(mark, r"wispr meter: "), 15, 0.2)
+        wait_for(lambda: not state()["busy"], 90, 0.5)
+        txt = log_since(mark)
+        m = re.search(r"wispr meter: ([\d.]+) s voiced — ([^\n]*)", txt)
+        voiced = float(m.group(1)) if m else -1.0
+        health = m.group(2) if m else "no meter line"
+        restarts = re.findall(r"🔁 mic: ([^\n]*)", txt)
+        mo = state().get("micOpened") or {}
+        nospeech = "No speech was heard" in txt
+        deaf = "DEAF" in health
+        rows.append({"d": d, "voiced": voiced, "health": health, "restarts": restarts, "nospeech": nospeech,
+                     "deaf": deaf, "micOpened": f"{mo.get('device')} {mo.get('rate')} Hz × {mo.get('channels')}"})
+        time.sleep(2)
+    _keep_takes(False)
+    lines = []
+    bad = False
+    for r in rows:
+        if isinstance(r, str):
+            lines.append(r); bad = True; continue
+        lines.append(f"+{r['d']:.0f}s: {r['voiced']:.1f} s voiced ({r['health']}); opened {r['micOpened']}; "
+                     f"restarts {r['restarts'] or 0}; 'No speech' {r['nospeech']}")
+        bad |= r["voiced"] < 1.5 or r["deaf"] or r["nospeech"]
+    return ("BUG" if bad else "PASS"), " | ".join(lines)

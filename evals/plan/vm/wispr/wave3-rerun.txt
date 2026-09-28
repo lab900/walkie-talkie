@@ -1,0 +1,34 @@
+# Wispr as engine — lab wave 3: the cases the night VM run must re-run (2026-09-28)
+#
+# After the wave-3 fixes (B row-aware tail, D fallback parked, A recorder health + tap restart +
+# deaf/quiet takes kept for Recover, C refused-start pair, W19 spawn flags + anchored isReady) and
+# the case fixes (soak refusal regex, TX7 cap regex, TX13 Recover drain, TX2 wisprLive).
+# One id per line; `--only` takes exact ids or globs, comma-separated (NOT a prefix: `TX` alone
+# matches nothing — wave 2's empty X phase). Run on a quiet host (wave 2's S phase ran at load 100–172).
+#
+# From report-wave2-2026-09-28.md, "Then re-run on a quiet host":
+TW4
+TW8a
+TX8a
+TX8b
+TX9
+TX10
+TS1
+TS2
+TS3
+TX13
+# The report's other open items, each with a fix in this wave:
+TW8b
+TW11
+TW15
+TW20
+TX2
+TX7
+# New in wave 3 (desk-first; the lab has the real Wispr and BlackHole):
+TW32
+TW33
+TW34
+TN4
+#
+# One line for run-phase.sh / harness.py:
+# --only TW4,TW8a,TX8a,TX8b,TX9,TX10,TS1,TS2,TS3,TX13,TW8b,TW11,TW15,TW20,TX2,TX7,TW32,TW33,TW34,TN4
