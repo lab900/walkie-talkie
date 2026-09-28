@@ -287,11 +287,12 @@ def tw5():
             lie += 1
             rows.update(r for r in s["chip"] if r)
         time.sleep(0.05)
-    chord(state_="cancel")
-    claims = any(re.search(r"listening", r, re.I) for r in rows)
+    post("/test/cancel")
+    # Any row but one naming the wait is a claim of a live sentence ("Listening to …",
+    # "Prompting to … →", measured 2026-09-28 09:03: the chip said *Prompting to* for 40/40).
     named = any(re.search(r"warm|waking|starting|waiting for wispr", r, re.I) for r in rows)
     note = f"{lie}/{n} samples listening while warming with no row; chip rows then: {sorted(rows)[:3]}"
-    if lie and claims and not named:
+    if lie and rows and not named:
         return "BUG", note
     return "PASS", note
 
@@ -349,9 +350,11 @@ def tw7():
     parts, bugs = [], 0
     # (a)
     n0, mark = wav_count(), log_mark()
-    open_sentence(db); time.sleep(1.5)
+    rid = open_sentence(db); time.sleep(1.5)
     post("/test/cancel"); wait_for(lambda: not state()["listening"], 3); time.sleep(1.0)
     s, txt = state(), log_since(mark)
+    db.update(rid, status="dismissed")                  # Wispr's answer to the ⌃Esc: the capture lets go
+    wait_for(lambda: not live()["captureOpen"], 8, 0.3)
     a_bug = not s["recoverable"] or "nothing had been recorded" in txt
     bugs += a_bug
     parts.append(f"(a) recoverable {bool(s['recoverable'])}, 'nothing had been recorded' {'nothing had been recorded' in txt}, wav {n0}→{wav_count()}")
