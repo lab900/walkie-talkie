@@ -373,7 +373,8 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
 
 ## `PasteHint` — after every delivered sentence (2026-09-22, widened 2026-09-23; **⌘V since 2026-09-28**)
 
-**Q17 (2026-09-28): the row says `📋 On the clipboard  ⌘V`** (`PasteHint.label` / `keys`). ⌘⇧P is
+**Q17 (2026-09-28): the row says `📋 Re-paste  ⌘V`** (`PasteHint.label` / `keys`; was `Re-paste ⌘⇧P`
+until 2026-09-28, `On the clipboard ⌘V` for a few hours, `Re-paste ⌘V` since). ⌘⇧P is
 removed — the key in `HotkeyTap`, the menu row's chord — because the clipboard now always holds the
 finished sentence (`AppDelegate.holdOnClipboard`, `destinations-and-outbox.md`). A cancelled prompt
 puts its envelope on the clipboard too, so its hint is still true. Everything below about *when*

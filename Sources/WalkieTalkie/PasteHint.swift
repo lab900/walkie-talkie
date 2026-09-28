@@ -87,8 +87,9 @@ final class PasteHint {
     /// sentence, so the paste is the system's own key and ⌘⇧P is gone. Victor:
     /// *"Punem pentru moment Ctrl V în tooltip"* — ⌘V on this Mac.
     static let keys = "⌘V"
-    /// The row's words: the sentence is on the clipboard, ⌘V puts it anywhere.
-    static let label = "On the clipboard"
+    /// The row's words: the sentence is on the clipboard, ⌘V pastes it again.
+    /// `Re-paste` since 2026-09-28 (it said `On the clipboard` for a few hours).
+    static let label = "Re-paste"
 
     /// **Up for this long, counted from the last keystroke.** His *"trei
     /// secunde"* of the morning, raised to 5 the same evening: *"let it be 5

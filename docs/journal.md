@@ -13867,6 +13867,8 @@ Q13; the README's number is in brackets. Victor's answer, verbatim:
   `📋 Re-paste ⌘⇧P` row; the row that stays after a delivery names **⌘V** (he said *Ctrl V*; on
   this Mac the paste is ⌘V, *"pentru moment"*). Supersedes the 2026-09-22/23 `PasteHint` (⌘⇧P) and
   confirms, for every destination now, the 2026-09-04 *the clipboard is not restored* of ⌘⌃P.
+  *Later the same day:* the row read `📋 On the clipboard ⌘V` for a few hours, then Victor had it
+  say **`📋 Re-paste ⌘V`** (`PasteHint.label`; the keys stay ⌘V).
 - **Q18 (README Q6) = C — the caret sentence lands where the caret is when the words arrive** (as
   Wispr itself does; no latch of the front app). **But 🔽 → never presses Return at a shell
   prompt**: if the app in front at the Return is a Terminal whose focused tab is a shell at its

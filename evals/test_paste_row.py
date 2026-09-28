@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """**The paste reminder is an ordinary chip row, drawn like `☠️ Kamikaze`.**
 
-Since 2026-09-28 (Q17) it says `📋 On the clipboard ⌘V` — the clipboard always
-holds the finished sentence and ⌘⇧P is gone; until then `📋 Re-paste ⌘⇧P`.
+Since 2026-09-28 (Q17) it says `📋 Re-paste ⌘V` — the clipboard always holds
+the finished sentence and ⌘⇧P is gone (it was `📋 Re-paste ⌘⇧P` until
+2026-09-28, `📋 On the clipboard ⌘V` for a few hours, `📋 Re-paste ⌘V` since).
 
 Victor, 2026-09-23: *"It looks like now it has a border around it, with a
 different font, which is wrong. I just want you to display yet another row in
@@ -133,7 +134,7 @@ def main(argv: list[str]) -> int:
         for problem in problems:
             print(f"  ✗ {problem}")
         return 1
-    print("✓ `📋 On the clipboard ⌘V` is built, laid out and inked exactly like `☠️ Kamikaze`")
+    print("✓ `📋 Re-paste ⌘V` is built, laid out and inked exactly like `☠️ Kamikaze`")
     return 0
 
 
