@@ -921,9 +921,17 @@ final class ElevenLabsSource: DictationSource {
             Log.info("🧪 ElevenLabs attempt \(attempt + 1): injected \(f.describe())")
             // **`delay`: the real call, late** (Q12's order case — the first
             // sentence's words land after the second's).
+            // The request is built — and the WAV read — **now**, as a real upload
+            // reads it before its first byte goes out (2026-09-28): re-entering
+            // `transcribe` after the delay read a WAV the sentence had since
+            // delivered and deleted (⌘⌃X's TN2), and spent a second use of the
+            // fault on the same upload (`delayx2` delayed A twice, B never).
             if f.kind == "delay" {
                 DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(f.delayMs)) {
-                    transcribe(wav: wav, key: key, attempt: attempt, purpose: purpose, upload: upload, done)
+                    if upload?.isCancelled == true { return }
+                    let task = URLSession.shared.dataTask(with: req) { data, response, error in settle(data, response, error) }
+                    if let upload, !upload.adopt(task) { return }
+                    task.resume()
                 }
                 return
             }

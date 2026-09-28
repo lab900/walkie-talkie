@@ -100,7 +100,7 @@
 <header class="page">
   <h1>Every state of the overlay</h1>
   <p class="sub">
-    All 53 states the Walkie&nbsp;Talkie chip and panel can be in — what each one
+    All 55 states the Walkie&nbsp;Talkie chip and panel can be in — what each one
     is, and the moment it is on screen. The pictures are the real views drawing
     themselves, not mockups.
   </p>
@@ -447,6 +447,26 @@
         <p class="note">The one row left in which Victor is waiting on the app — <code>preparing</code>, the model coming up, was the other, and it stopped existing once the weights started loading at launch instead of at the first gesture. It used to be a flash, which put it at the foot of a panel while the thing it replaced sat at the top. The seconds it used to count down came off on 2026-09-08 — the filling word says the same estimate, and a number ticking toward zero is a deadline to watch.</p>
         <code class="slug">transcribing</code>
       </section>
+      <section class="card" id="listening-local-now">
+        <header>
+          <h3>⌘⌃X — the local model, now</h3>
+          <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">308×117 pt</span></div>
+        </header>
+        <div class="shot"><img src="states/listening-local-now.png" width="308" height="117" style="opacity:0.8" alt="⌘⌃X — the local model, now"></div>
+        <p class="when">While a sentence records on ElevenLabs (or Wispr Flow), and while its words are on their way back.</p>
+        <p class="note"><strong>The quick exit, written where he is looking</strong> (2026-09-28). Victor: <em>&quot;I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip&quot;</em>. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like <code>📋 Re-paste ⌘V</code>: an emoji, the words, the keys. It goes when the words land.</p>
+        <code class="slug">listening-local-now</code>
+      </section>
+      <section class="card" id="transcribing-local-now-loading">
+        <header>
+          <h3>⌘⌃X while the local model is cold</h3>
+          <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">308×117 pt</span></div>
+        </header>
+        <div class="shot"><img src="states/transcribing-local-now-loading.png" width="308" height="117" style="opacity:0.8" alt="⌘⌃X while the local model is cold"></div>
+        <p class="when">Waiting on ElevenLabs with the local weights not loaded (a cold start, or the helper restarted).</p>
+        <p class="note"><code>(loading)</code> says the key will not answer at once — not that it will not work. Pressed now, the WAV waits for the weights (up to 90 s, the fallback&#x27;s own window) and the words go where the sentence was going.</p>
+        <code class="slug">transcribing-local-now-loading</code>
+      </section>
       <section class="card" id="transcribing-overdue">
         <header>
           <h3>Waiting, and past the estimate</h3>
@@ -523,9 +543,9 @@
       <section class="card" id="paste-again">
         <header>
           <h3>Re-paste — ⌘V, after every sentence</h3>
-          <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">218×46 pt</span></div>
+          <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">158×46 pt</span></div>
         </header>
-        <div class="shot"><img src="states/paste-again.png" width="218" height="46" style="opacity:0.8" alt="Re-paste — ⌘V, after every sentence"></div>
+        <div class="shot"><img src="states/paste-again.png" width="158" height="46" style="opacity:0.8" alt="Re-paste — ⌘V, after every sentence"></div>
         <p class="when">Five seconds after every delivered sentence (caret, bound terminal, new session, a held sentence&#x27;s release) and after a cancelled prompt. Never after a cancelled dictation.</p>
         <p class="note"><strong>Q17 (2026-09-28): the clipboard always holds the finished sentence</strong> — the envelope for a prompt, the clean words for a plain one — so the row says <code>Re-paste</code> and <code>⌘V</code>; ⌘⇧P is gone (it was <code>Re-paste ⌘⇧P</code> until 2026-09-28, <code>On the clipboard ⌘V</code> for a few hours, <code>Re-paste ⌘V</code> since). <strong>An ordinary row</strong>, built like <code>☠️ Kamikaze</code>: 📋, the words, then the keys in the chip&#x27;s own face. It was a keycap in a window of its own until 2026-09-23 — a white outline round the keys in another font — and Victor read the border and the font as wrong. Unbound, it is the chip&#x27;s only row, which is what puts the chip beside the pointer.</p>
         <code class="slug">paste-again</code>
@@ -646,9 +666,9 @@
       <section class="card" id="prompt-long">
         <header>
           <h3>A long transcript</h3>
-          <div class="tags"><span class="tag tag-panel" title="top-left of the screen, blurred, full opacity, ✕ on hover">panel</span><span class="tag">alpha 1.00</span><span class="tag">576×136 pt</span></div>
+          <div class="tags"><span class="tag tag-panel" title="top-left of the screen, blurred, full opacity, ✕ on hover">panel</span><span class="tag">alpha 1.00</span><span class="tag">640×136 pt</span></div>
         </header>
-        <div class="shot"><img src="states/prompt-long.png" width="576" height="136" style="opacity:1" alt="A long transcript"></div>
+        <div class="shot"><img src="states/prompt-long.png" width="640" height="136" style="opacity:1" alt="A long transcript"></div>
         <p class="when">A sentence that does not fit one line — the panel wraps and grows.</p>
         <p class="note">Width is capped at a third of the screen and the height at what is left of it; the transcript row is measured by asking the label, not by a parallel calculation, because any disagreement is a sentence that silently stops.</p>
         <code class="slug">prompt-long</code>
@@ -685,7 +705,7 @@
       </section>
     </div>
 <footer>
-  Generated from <code>OverlayStates.swift</code> · repo at f513266 · 28 Sep 2026 · built 28 Sep 2026, 11:12
+  Generated from <code>OverlayStates.swift</code> · repo at  · built 28 Sep 2026, 20:05
 </footer>
 <button class="toggle" onclick="document.body.classList.toggle('light')">Backdrop: dark / light</button>
 </body>

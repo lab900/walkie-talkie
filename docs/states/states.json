@@ -356,6 +356,30 @@
   {
     "alpha" : 0.80000000000000004,
     "group" : "Dictating",
+    "height" : 117,
+    "image" : "listening-local-now.png",
+    "note" : "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. It goes when the words land.",
+    "shape" : "chip",
+    "slug" : "listening-local-now",
+    "title" : "⌘⌃X — the local model, now",
+    "when" : "While a sentence records on ElevenLabs (or Wispr Flow), and while its words are on their way back.",
+    "width" : 308
+  },
+  {
+    "alpha" : 0.80000000000000004,
+    "group" : "Dictating",
+    "height" : 117,
+    "image" : "transcribing-local-now-loading.png",
+    "note" : "`(loading)` says the key will not answer at once — not that it will not work. Pressed now, the WAV waits for the weights (up to 90 s, the fallback's own window) and the words go where the sentence was going.",
+    "shape" : "chip",
+    "slug" : "transcribing-local-now-loading",
+    "title" : "⌘⌃X while the local model is cold",
+    "when" : "Waiting on ElevenLabs with the local weights not loaded (a cold start, or the helper restarted).",
+    "width" : 308
+  },
+  {
+    "alpha" : 0.80000000000000004,
+    "group" : "Dictating",
     "height" : 93,
     "image" : "transcribing-overdue.png",
     "note" : "The bar says *past my own estimate* by arriving full and staying there, and that was enough while the only thing past the estimate was a slow decode. It stopped being enough on 2026-09-22, the evening Wispr began leaving finished sentences labelled `raw_transcript` and the row sat out thirty seconds: a full bar and a lost sentence look exactly alike. Said once, at a threshold, rather than counted out — and it is the only thing on this row that is not the bar, which is why it is appended after the word instead of joining it.",
@@ -447,7 +471,7 @@
     "slug" : "paste-again",
     "title" : "Re-paste — ⌘V, after every sentence",
     "when" : "Five seconds after every delivered sentence (caret, bound terminal, new session, a held sentence's release) and after a cancelled prompt. Never after a cancelled dictation.",
-    "width" : 218
+    "width" : 158
   },
   {
     "alpha" : 0.80000000000000004,
@@ -591,7 +615,7 @@
     "slug" : "prompt-long",
     "title" : "A long transcript",
     "when" : "A sentence that does not fit one line — the panel wraps and grows.",
-    "width" : 576
+    "width" : 640
   },
   {
     "alpha" : 1,

@@ -14120,6 +14120,19 @@ chip's `💻 Local now  ⌘⌃X` row (`(loading)` while the weights are down) is
 to hand over; the menu has **Transcribe Locally Now** with ⌘⌃X in its shortcut column.
 `POST /test/local-now`, `state.localNow`, harness cases TN1–TN3 (`evals/plan/cases_localnow.py`).
 
+Measured at the desk, 20:05, fake Scribe, `CLIP_SPEECH` through the Loopback, model warm:
+
+| case | result |
+|---|---|
+| TN1 pressed at 14.7 s of recording | PASS — `via: local-forced` 3.5 s after the press; no upload (fake batch 0 → 0, `elevenCost` unchanged); row `Local now  ⌘⌃X` while recording, gone after |
+| TN2 pressed 1.5 s into a 20 s-late Scribe | PASS — words 0.9 s after the press, delivered 3.3 s after it; one outbox line |
+| TN3 at rest | PASS — flash `Nothing to transcribe locally`, nothing else |
+
+TN2's late answer first came back *failed*: the `delay` fault re-entered `transcribe` after its
+wait and read a WAV the delivered sentence had already deleted — a real upload reads it before its
+first byte. The fault now builds the request first and only delays the send, which also makes
+`delayx2` delay two uploads instead of one upload twice (TQ2's intent).
+
 ## A restart waits for every engine and for his hands (2026-09-28)
 
 Victor, 18:39: *"someone just restarted the walkie while I was dictating. that should never

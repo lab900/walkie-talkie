@@ -96,7 +96,8 @@ def tn2():
         dt = (t_words or time.time()) - t_press
         dd = (t_seen or time.time()) - t_press
         # The delayed call answers ~20 s after the upload began; give it room, then look.
-        late = when(m, r"ElevenLabs (answered|failed) [\d.]+ s after ⌘⌃X", 40, 0.5)
+        # Answered, not failed: the fake Scribe has the WAV (read before the delay) and says something.
+        late = when(m, r"ElevenLabs answered [\d.]+ s after ⌘⌃X .* \d+ chars, only logged", 40, 0.5)
         settle_out(60)
         n1 = outbox_count()
         d_last = last_delivery(t0)
