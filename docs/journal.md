@@ -14269,3 +14269,9 @@ uses. this way I know when it restarted."* `MicAnnouncer.announceStartup` reuses
 green *Listening 🎤* announcement, in blue, for 3 s, with the Engine row's words
 (`StatusItem.engineBannerTitle`: `☁️ ElevenLabs + Live`, `☁️ ElevenLabs`, `☁️ Wispr Flow`, `💻 Local
 (x GB)`, `⚠️` when keyless). Shown once, after the engine is restored; `/test/state.startupBanner`.
+
+## 2026-09-28 — the menu bar icon is always the ringed device
+
+Victor: *"change the menu icon so the icon is always the walkie-talkie with a yellow circle around
+it."* `StatusItem.refreshGlyph` no longer switches to the bare device when unbound; the disc
+(`walkie-bound.png`) is the icon at every state. Bound/unbound is read from the chip and the menu rows.

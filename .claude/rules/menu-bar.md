@@ -471,3 +471,9 @@ ridicat"*), `Dictate to New Claude`, `Mic`, `Record Screen` / `Stop Recording Sc
 Tendrils at the caret, Tunnel bound, Sparks into a new claude, **Mosaic for Wispr's microphone —
 whoever routes the words** (`AppDelegate.wisprMicSentence`; behind the firewall `foreignMic`
 alone read a 🔽 → sentence as bound).
+
+- **The menu bar icon is always the device in its orange-yellow disc** (2026-09-28, Victor:
+  *"change the menu icon so the icon is always the walkie-talkie with a yellow circle around
+  it"*) — `StatusItem.boundIcon` at every state; the bare `walkie-idle` no longer means unbound
+  there (the chip's `📍 Unbound` row and the Bind row do). `⏳` beside it still means the engine is
+  loading.

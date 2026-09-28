@@ -885,7 +885,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // full icon, ring and all. So "is it pointed at a terminal?" is answered
         // by the ring appearing round something already in that spot, which is a
         // faster read than a glyph swap and needs no colour vocabulary.
-        item.button?.image = Self.idleIcon
+        item.button?.image = Self.boundIcon
         item.button?.imagePosition = .imageLeading
         item.button?.title = ""
 
@@ -1859,7 +1859,11 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // have a recogniser to reach. ⏸️ used to share this slot; there is no
         // pause any more.
         let badge = engineLoading ? "⏳" : ""
-        let icon = isBound ? Self.boundIcon : Self.idleIcon
+        // **Always the device in its ring** (2026-09-28, Victor: *"change the menu
+        // icon so the icon is always the walkie-talkie with a yellow circle around
+        // it"*). The bare device meant *unbound* from 2026-08-28 to today; the
+        // chip's `📍 Unbound` row and the menu's Bind row say that now.
+        let icon = Self.boundIcon
         item.button?.image = icon
         item.button?.title = badge
         // The same picture and badge, repeated on the displays macOS will not put
@@ -1994,7 +1998,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         return image
     }()
 
-    private static let idleIcon = loadIcon("walkie-idle")
+    /// The device in its orange-yellow disc, at every state (2026-09-28).
+    /// `walkie-idle.png` (the bare device) stays in the bundle for the overlay's
+    /// chip glyphs; the menu bar no longer uses it.
     private static let boundIcon = loadIcon("walkie-bound")
 
     private static func loadIcon(_ name: String) -> NSImage? {
