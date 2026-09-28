@@ -354,9 +354,10 @@ _B_TTY = [None]
 def witness_b_close():
     """Kill the tab's `cat` first — Terminal will not close a window with a running process."""
     if _B_TTY[0]:
-        kill_tty(_B_TTY[0])
+        close_tty_tab(_B_TTY[0])
         _B_TTY[0] = None
-    osa('tell application "Terminal" to close (every window whose name contains "wt-witness-b") saving no')
+    else:
+        close_tabs_named("wt-witness-b")
 
 
 # ================================================================ the cases

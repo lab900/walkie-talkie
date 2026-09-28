@@ -269,16 +269,17 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
   and a local answer with no words both; `.silent("")` is only a take under 0.35 s. **No local
   fallback for `heardNothing`**: Whisper on 3 s of silence answered `www.clu.com.br` and it was
   delivered (TL16, first try). → journal: *Fixes to the test plan's findings, batch 1*
-- **Except with real speech (Q8, 2026-09-26 batch 6):** a Scribe `""` on a take with **≥ 2 s voiced**
-  (`MicRecorder.voicedSeconds`, read at the close in `ElevenLabsSource.stop`,
-  `fallbackVoicedFloor`) is an ordinary `.failed` → the local model stands in. Under 2 s stays
+- **Except with real speech (Q8, 2026-09-26 batch 6):** a Scribe `""` on a take with **≥ 1.5 s voiced**
+  (2.0 until Q13, 2026-09-27; `MicRecorder.voicedSeconds`, read at the close in `ElevenLabsSource.stop`,
+  `fallbackVoicedFloor`) is an ordinary `.failed` → the local model stands in. Under it stays
   `heardNothing` (WAV kept, banner, nothing delivered).
 - **The same floor on every Scribe failure (2026-09-27, batch 7):** 401/quota, 429, 5xx, timeout,
-  transport, a key gone mid-sentence — `ElevenLabsSource.finishWithFailure` ends a take under 2 s
-  voiced as `heardNothing` (the cause stays in the log line), so it never reaches `fallBackToLocal`.
+  transport, a key gone mid-sentence — `ElevenLabsSource.finishWithFailure` ends a take under the
+  floor as `heardNothing` (the cause stays in the log line), so it never reaches `fallBackToLocal`.
   With the quota out (27 Sep) every silent take became a local decode otherwise. **Short real
-  sentences fall under it:** the 3.5 s `CLIP_EN` measures 1.1–1.9 s voiced (1365-frame buffers each
-  drop a tail hop), so fallback cases play `CLIP_SPEECH` (12 s, ~3.5 s voiced). TL16.
+  sentences fell under 2 s:** the 3.5 s `CLIP_EN` measured 1.1–1.9 s voiced because 1365-frame
+  buffers each dropped a tail the meter never saw — hence Q13 (floor 1.5 s, the meter carries the
+  tail, `whisper-and-corpus.md`). Fallback cases still play `CLIP_SPEECH` (12 s). TL16.
 - **Unmeasured:** `languageFloor = 0.5`, `scribe_v1` vs `v2`. `tools/eleven-test.sh [wav | --corpus n]`.
 
 ## Markers: where a picture was taken

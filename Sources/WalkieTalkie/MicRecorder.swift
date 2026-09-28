@@ -23,15 +23,150 @@ import CoreAudio
 /// **One 64 ms hop of the meter, kept per take** (2026-09-27, for `VoiceAffect`).
 ///
 /// `t` is seconds from the top of the WAV — the ruler `TimedWord.start` is on —
-/// taken from `writtenFrames`, not from a hop count (the meter drops the tail of
-/// each buffer that does not fill a hop, so a count would drift). `rms` is the
+/// taken from `writtenFrames`, not from a hop count (a marker spliced into the
+/// file moves every later hop, and a count would not see it). `rms` is the
 /// same int16 RMS the voiced bar is judged on, `voiced` is that verdict.
 struct MeterHop: Equatable {
     let t: Float
     let rms: Float
     let voiced: Bool
-    /// `MicRecorder.voicedHop` frames at 16 kHz.
-    static let seconds: TimeInterval = 1024.0 / 16000.0
+    /// `VoicedMeter.hop` frames at 16 kHz.
+    static let seconds: TimeInterval = Double(VoicedMeter.hop) / VoicedMeter.rate
+}
+
+/// **The voiced-seconds meter's arithmetic, on its own** (2026-09-27, Q13) —
+/// fixed 1024-frame (64 ms) windows over the converted 16 kHz mono int16 stream,
+/// RMS against an adaptive noise floor. `MicRecorder` owns one under its `lock`
+/// and feeds it every converted buffer; nothing here locks, and the only audio
+/// it keeps is the < 1024-sample carry.
+///
+/// **The windows run over the stream, not over each buffer.** Until Q13 every
+/// buffer was cut into whole windows and its remainder thrown away, and the
+/// remainder is not small: Loopback hands the tap 4096 frames at 48 kHz, which
+/// convert to **1365** at 16 kHz — one window and 341 frames dropped, a quarter
+/// of the audio never metered. A ten-word 3.5 s clip counted 1.1–1.9 s voiced
+/// and fell under Q8's 2 s floor. Now the remainder is carried into the next
+/// buffer, every sample is judged exactly once, and `flush()` judges the last
+/// partial window at the close — which is what `evals/voiced-seconds.py` always
+/// did, since it runs the windows over a whole file.
+struct VoicedMeter {
+    /// The window, in frames of the 16 kHz output — 64 ms. Fixed rather than
+    /// "one converted buffer", because a buffer's length depends on the input
+    /// device's rate and the constants below were calibrated at this hop over
+    /// the whole corpus (`evals/voiced-seconds.py`).
+    static let hop = 1024
+    static let rate = 16000.0
+    /// How far over the floor a window has to sit to count as speech. 9 dB is
+    /// wide enough that room tone, a fan and the receiver's hiss never reach it,
+    /// and narrow enough to catch the tail of a quiet word.
+    static let overFloor: Float = 9
+    /// And an absolute floor under that, for the case the adaptive one cannot
+    /// see: a recording that is *entirely* room tone has a noise floor equal to
+    /// its own content, and every window would clear a purely relative bar.
+    static let absoluteFloor: Float = 180
+
+    /// What one `feed` or `flush` found.
+    struct Fed {
+        /// Voiced seconds in the windows this call completed.
+        var seconds: TimeInterval = 0
+        /// One per *full* window completed — a `MeterHop` is 64 ms by contract
+        /// (`VoiceAffect` counts them), so `flush()`'s partial window adds its
+        /// seconds but no hop.
+        var hops: [MeterHop] = []
+        /// The loudest completed window's distance over its bar, in dB (−∞
+        /// when none completed) — the beacon's `level` is read off it.
+        var loudestOver: Float = -.infinity
+        var spoke: Bool { seconds > 0 }
+    }
+
+    /// The noise floor this recording is being judged against, tracked rather
+    /// than fixed.
+    ///
+    /// A fixed threshold cannot work here and the reason is already written down
+    /// in `InputDevice`: measured on the same room, the DJI receiver peaks at
+    /// 16552 where the built-in microphone manages 855. One number would call
+    /// the built-in silent all day or the receiver's room tone speech.
+    ///
+    /// So: instant attack downwards, slow release upwards — the floor drops to
+    /// any quiet window at once and climbs back at 2% a window, which is the
+    /// standard cheap noise tracker and is what makes it settle into the gaps
+    /// between his words rather than into his words. Seeded on the first window,
+    /// which is the one place a recording is guaranteed not to have started
+    /// mid-syllable.
+    private(set) var noiseFloor: Float = -1
+    /// The samples at the end of the last buffer that did not fill a window.
+    private var carry: [Int16] = []
+    /// Where `carry[0]` sits in the file, in frames — its hop's `t`.
+    private var carryAt: Double = 0
+
+    init() { carry.reserveCapacity(Self.hop) }
+
+    /// Per recording: a floor carried over from the last sentence would be a
+    /// floor for a room, a microphone and a distance from it that may all have
+    /// changed since — and a carry from it is audio of another take.
+    mutating func reset() {
+        noiseFloor = -1
+        carry.removeAll(keepingCapacity: true)
+        carryAt = 0
+    }
+
+    /// Judges every window this buffer completes — the carried remainder of the
+    /// last buffer topped up first — and carries its own remainder on.
+    /// - Parameter base: where `samples[0]` sits in the file, in frames.
+    mutating func feed(_ samples: UnsafeBufferPointer<Int16>, at base: Double) -> Fed {
+        let hop = Self.hop, n = samples.count
+        var fed = Fed()
+        fed.hops.reserveCapacity((carry.count + n) / hop)
+        var i = 0
+        if !carry.isEmpty {
+            i = min(hop - carry.count, n)
+            carry.append(contentsOf: UnsafeBufferPointer(rebasing: samples[0..<i]))
+            guard carry.count == hop else { return fed }
+            let window = carry.withUnsafeBufferPointer { judge($0) }
+            record(window, at: carryAt, frames: hop, into: &fed)
+            carry.removeAll(keepingCapacity: true)
+        }
+        while i + hop <= n {
+            let window = judge(UnsafeBufferPointer(rebasing: samples[i..<(i + hop)]))
+            record(window, at: base + Double(i), frames: hop, into: &fed)
+            i += hop
+        }
+        if i < n {
+            carry.append(contentsOf: UnsafeBufferPointer(rebasing: samples[i..<n]))
+            carryAt = base + Double(i)
+        }
+        return fed
+    }
+
+    /// Judges the last partial window, at the close: its RMS over the samples
+    /// it has, its seconds at their true length. No hop (see `Fed.hops`).
+    mutating func flush() -> Fed {
+        var fed = Fed()
+        guard !carry.isEmpty else { return fed }
+        let frames = carry.count
+        let window = carry.withUnsafeBufferPointer { judge($0) }
+        record(window, at: carryAt, frames: frames, into: &fed)
+        fed.hops.removeAll()
+        carry.removeAll(keepingCapacity: true)
+        return fed
+    }
+
+    private mutating func judge(_ s: UnsafeBufferPointer<Int16>) -> (rms: Float, bar: Float) {
+        var sum: Float = 0
+        for v in s { let f = Float(v); sum += f * f }
+        let rms = (sum / Float(s.count)).squareRoot() + 1e-6
+        if noiseFloor < 0 || rms < noiseFloor { noiseFloor = rms }      // instant attack
+        else { noiseFloor += (rms - noiseFloor) * 0.02 }                // slow release
+        let bar = max(Self.absoluteFloor, noiseFloor * pow(10, Self.overFloor / 20))
+        return (rms, bar)
+    }
+
+    private func record(_ w: (rms: Float, bar: Float), at frame: Double, frames: Int, into fed: inout Fed) {
+        let voiced = w.rms > w.bar
+        if voiced { fed.seconds += Double(frames) / Self.rate }
+        fed.hops.append(MeterHop(t: Float(frame / Self.rate), rms: w.rms, voiced: voiced))
+        fed.loudestOver = max(fed.loudestOver, 20 * log10(w.rms / w.bar))
+    }
 }
 
 final class MicRecorder {
@@ -296,34 +431,10 @@ final class MicRecorder {
     /// duration rather than a per-buffer coefficient.
     private static let levelFallSeconds: Float = 3
 
-    /// The noise floor this recording is being judged against, tracked rather
-    /// than fixed.
-    ///
-    /// A fixed threshold cannot work here and the reason is already written down
-    /// in `InputDevice`: measured on the same room, the DJI receiver peaks at
-    /// 16552 where the built-in microphone manages 855. One number would call
-    /// the built-in silent all day or the receiver's room tone speech.
-    ///
-    /// So: instant attack downwards, slow release upwards — the floor drops to
-    /// any quiet buffer at once and climbs back at 2% a buffer, which is the
-    /// standard cheap noise tracker and is what makes it settle into the gaps
-    /// between his words rather than into his words. Seeded on the first buffer,
-    /// which is the one place a recording is guaranteed not to have started
-    /// mid-syllable.
-    private var noiseFloor: Float = -1
-    /// How far over the floor a buffer has to sit to count as speech. 9 dB is
-    /// wide enough that room tone, a fan and the receiver's hiss never reach it,
-    /// and narrow enough to catch the tail of a quiet word.
-    private static let voicedOverFloor: Float = 9
-    /// And an absolute floor under that, for the case the adaptive one cannot
-    /// see: a recording that is *entirely* room tone has a noise floor equal to
-    /// its own content, and every buffer would clear a purely relative bar.
-    private static let voicedAbsoluteFloor: Float = 180
-    /// The window the meter runs on, in frames of the 16 kHz output — 64ms.
-    /// Fixed rather than "one converted buffer", because a buffer's length
-    /// depends on the input device's rate and the constants above were
-    /// calibrated at this hop over the whole corpus.
-    private static let voicedHop = 1024
+    /// The meter's arithmetic — windows, carry, adaptive floor (`VoicedMeter`).
+    /// Written only on the audio thread under `lock`, reset at `start`, flushed
+    /// in `close()` after the tap is gone.
+    private var windows = VoicedMeter()
 
     /// Asks for the microphone **once, up front**, rather than at the first
     /// press: the grant dialog is modal and takes a few seconds of hunting in
@@ -484,7 +595,7 @@ final class MicRecorder {
         hopLock.lock(); hops.removeAll(keepingCapacity: true); hopLock.unlock()
         quiet = 0
         live = 0
-        noiseFloor = -1
+        windows.reset()
         writtenFrames = 0
         lastAppendAt = nil
         isRecording = true
@@ -659,6 +770,10 @@ final class MicRecorder {
         file = nil
         converter = nil
         outputFormat = nil
+        // **The last partial window, now that no buffer can follow it**
+        // (2026-09-27, Q13): the tap is gone, so the carry is final. Before the
+        // readers — `voicedSeconds` is read right after `stop()` returns.
+        voiced += windows.flush().seconds
 
         // The wall clock plus whatever was spliced in: the file is longer than
         // the sentence took, and every reader of this number — the corpus row,
@@ -749,53 +864,33 @@ final class MicRecorder {
     ///
     /// Measured on the converted buffer rather than the input one so it sees the
     /// same 16 kHz mono int16 the model and the corpus see — which is also what
-    /// makes the constants above transferable from the corpus replay that set
-    /// them (`evals/voiced-seconds.py`).
+    /// makes `VoicedMeter`'s constants transferable from the corpus replay that
+    /// set them (`evals/voiced-seconds.py`).
     private func meter(_ buffer: AVAudioPCMBuffer) {
         guard let samples = buffer.int16ChannelData?[0] else { return }
-        let hop = Self.voicedHop
         let count = Int(buffer.frameLength)
-        guard count >= hop else { return }
+        guard count > 0 else { return }
 
-        var seconds: TimeInterval = 0
-        // The buffer's loudest hop, not its average: a buffer is a fifth of a
-        // second at most and a syllable inside it should light the beacon whole.
-        var loudest: Float = 0
-        // Any voiced hop anywhere in this buffer restarts the quiet clock. Per
-        // buffer rather than per hop because the whole buffer is at most a fifth
-        // of a second, which is far below the two seconds anything downstream
+        // **Every buffer is metered, whatever its length** (2026-09-27, Q13): the
+        // windows run over the stream and carry the remainder into the next
+        // call (`VoicedMeter`). The loudest window, not the average: a syllable
+        // inside a buffer should light the beacon whole. Any voiced window
+        // restarts the quiet clock — per buffer, because a buffer is at most a
+        // fifth of a second, far below the two seconds anything downstream
         // cares about.
-        var spoke = false
         lock.lock()
-        var floor = noiseFloor
         // Where this buffer starts in the file: `append` advanced `writtenFrames`
         // past it (and past any splice in front of it) just before calling here.
         let base = Double(writtenFrames) - Double(count)
-        var series: [MeterHop] = []
-        series.reserveCapacity(count / hop)
-        for start in stride(from: 0, through: count - hop, by: hop) {
-            var sum: Float = 0
-            for i in start..<(start + hop) {
-                let s = Float(samples[i])
-                sum += s * s
-            }
-            let rms = (sum / Float(hop)).squareRoot() + 1e-6
-            if floor < 0 || rms < floor { floor = rms }        // instant attack
-            else { floor += (rms - floor) * 0.02 }             // slow release
-            let bar = max(Self.voicedAbsoluteFloor, floor * pow(10, Self.voicedOverFloor / 20))
-            if rms > bar { seconds += Double(hop) / 16000; spoke = true }
-            series.append(MeterHop(t: Float((base + Double(start)) / 16000), rms: rms, voiced: rms > bar))
-            let over = 20 * log10(rms / bar)
-            loudest = max(loudest, min(1, max(0, over / Self.levelRange)))
-        }
-        noiseFloor = floor
-        voiced += seconds
+        let fed = windows.feed(UnsafeBufferPointer(start: samples, count: count), at: base)
+        voiced += fed.seconds
         hopLock.lock()
-        if hops.count < Self.hopCap { hops.append(contentsOf: series.prefix(Self.hopCap - hops.count)) }
+        if hops.count < Self.hopCap { hops.append(contentsOf: fed.hops.prefix(Self.hopCap - hops.count)) }
         hopLock.unlock()
-        quiet = spoke ? 0 : quiet + Double(count) / 16000
+        quiet = fed.spoke ? 0 : quiet + Double(count) / 16000
         // Up instantly, down at a fixed rate — measured against the audio's own
         // clock, not against however many buffers the device chose to send.
+        let loudest = min(1, max(0, fed.loudestOver / Self.levelRange))
         let dt = Float(count) / 16000
         live = max(loudest, live - dt / Self.levelFallSeconds)
         // The samples themselves, for the halo effects — see `recentSamples`.

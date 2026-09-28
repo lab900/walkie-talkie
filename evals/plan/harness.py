@@ -18,10 +18,11 @@ CORPUS = os.path.expanduser("~/.walkie-talkie/voice-corpus")
 CLIP_EN = CORPUS + "/2026-09-18/21-05-35-11l735.wav"      # 3.5 s, "If I dictate now, how good is this dictation, I wonder?"
 CLIP_EN_LONG = CORPUS + "/2026-09-18/23-59-48-11l129.wav" # 157 s EN
 # **Real speech above Q8's floor** (2026-09-27, batch 7): the local model stands in for a failed
-# Scribe upload only with ≥ 2 s voiced (`ElevenLabsSource.fallbackVoicedFloor`, now on every
-# failure). CLIP_EN measures 1.1–1.9 s voiced on the relay's meter (1365-frame buffers through the
-# Loopback drop each buffer's tail hop), so a fallback case on it would end `heardNothing`. The
-# first 12 s of CLIP_EN_LONG measure ~3.5 s — the clip every "fallback delivers" case plays.
+# Scribe upload only with ≥ 1.5 s voiced (`ElevenLabsSource.fallbackVoicedFloor`, on every
+# failure; 2.0 until Q13, 2026-09-27). CLIP_EN measured 1.1–1.9 s voiced until Q13, because
+# 1365-frame Loopback buffers each dropped a tail the meter never saw; the meter carries the tail
+# since (`VoicedMeter`). The first 12 s of CLIP_EN_LONG measure ~3.5 s — the clip every "fallback
+# delivers" case plays, kept so those cases do not ride on a clip near the floor.
 CLIP_SPEECH_SECONDS = 12
 def _speech_clip():
     out = os.path.join(os.environ.get("WT_WORK", "/tmp/wt-plan"), "speech12.wav")
@@ -204,12 +205,68 @@ def kill_tty(tty):
                 pass
     time.sleep(0.3)
 
+def _tab_state(dev):
+    """'busy', 'idle' or 'gone' — the Terminal tab on that tty, asked by tty, never by name."""
+    r = osa('tell application "Terminal"',
+            'repeat with w in windows',
+            'try',
+            'repeat with t in tabs of w',
+            f'if tty of t is "{dev}" then return (busy of t) as text',
+            'end repeat',
+            'end try',
+            'end repeat',
+            'return "gone"',
+            'end tell')
+    return {"true": "busy", "false": "idle"}.get(r, "gone")
+
+def close_tty_tab(tty):
+    """Close the harness's own tab on `tty` **without ever raising Terminal's "Terminate?" sheet**
+    (2026-09-27). Kill everything on the tty, wait up to 5 s for the tab's `busy` to go false, and
+    only then close its window — by tty, never by name. A tab still busy is left open and logged:
+    a close on it raises the sheet, and the sheet is a dialog on Victor's screen that outlives the
+    run (he found several on 2026-09-27, the by-name close of `wt-witness*` having fired on tabs
+    whose `cat` had not died yet). Returns 'closed', 'gone' or 'busy'."""
+    if not tty:
+        return "gone"
+    dev = "/dev/" + tty.replace("/dev/", "")
+    kill_tty(tty)
+    t0, st = time.time(), _tab_state(dev)
+    while st == "busy" and time.time() - t0 < 5:
+        time.sleep(0.2)
+        st = _tab_state(dev)
+    if st == "busy":
+        print(f"  ⚠️ tab {dev} still busy 5 s after the kill — left open, not closed "
+              "(closing it would raise Terminal's Terminate? sheet)", flush=True)
+        return "busy"
+    if st == "idle":
+        osa('tell application "Terminal"',
+            'repeat with w in windows',
+            'try',
+            'repeat with t in tabs of w',
+            f'if tty of t is "{dev}" then',
+            'close w saving no',
+            'return "closed"',
+            'end if',
+            'end repeat',
+            'end try',
+            'end repeat',
+            'end tell')
+        return "closed"
+    return "gone"
+
+def close_tabs_named(name):
+    """Every tab in a window whose title contains `name`, each through `close_tty_tab` — for an
+    orphan whose tty the run no longer knows. `name` is always a `wt-witness*` title."""
+    out = osa(f'tell application "Terminal" to get tty of every tab of (every window whose name contains "{name}")')
+    for dev in sorted(set(re.findall(r"/dev/ttys\d+", out))):
+        close_tty_tab(dev)
+
 def witness_close():
     """Kill the tab's `cat` first: a window with a running process makes Terminal ask
-    "terminate?" and the close silently does nothing (18 orphan windows on 2026-09-26)."""
+    "terminate?" and the close silently does nothing (18 orphan windows on 2026-09-26) —
+    and since 2026-09-27 the close waits for the tab to be idle (`close_tty_tab`)."""
     if WITNESS["tty"]:
-        kill_tty(WITNESS["tty"])
-        osa('tell application "Terminal" to close (every window whose name contains "wt-witness") saving no')
+        close_tty_tab(WITNESS["tty"])
         WITNESS["tty"] = None
 
 def bind_witness():
@@ -392,7 +449,11 @@ def main():
         elif args[i] == "--list":
             for c in CASES: print(c["id"], sorted(c["tags"]), "—", c["doc"].splitlines()[0] if c["doc"] else "")
             return
-        else: i += 1
+        elif args[i] in ("-h", "--help"):
+            print(__doc__); return
+        # An unknown flag used to be skipped, so `harness.py --help` ran all 146 cases (2026-09-27,
+        # 11:50: piped into `head`, it died of SIGPIPE mid-case and left the relay `listening`).
+        else: raise SystemExit(f"unknown argument {args[i]!r}\n\n{__doc__}")
     # `--only TD2,LC*`: an exact id, or a glob (`TD2*`, `T[LD]*`).
     def picked(cid, pats): return any(cid == p or fnmatch.fnmatch(cid, p) for p in pats)
     sel = [c for c in CASES if (not only or picked(c["id"], only)) and not (skip and picked(c["id"], skip))]
@@ -402,6 +463,7 @@ def main():
     finally:
         cleanup()
         witness_close()
+        close_tabs_named("wt-witness")   # any orphan a case left, through the same kill → idle → close
         release_lock()
 
 if __name__ == "__main__":

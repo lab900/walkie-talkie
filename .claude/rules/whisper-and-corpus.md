@@ -361,9 +361,16 @@ never include a bare `dji mic`, which is the transmitter's name (`DJI Mic Mini-B
   an adaptive noise floor, 9 dB over it to count as speech, absolute floor 180 underneath. Constants
   come from the corpus replay `evals/voiced-seconds.py` and transfer only because the meter sees the
   same audio. → journal: *The meter*
+- **The windows run over the stream, not over each buffer** (2026-09-27, Q13 — `VoicedMeter`).
+  Loopback's 4096 frames at 48 kHz convert to **1365**: cut per buffer, 341 frames of every call were
+  never metered (a quarter of the audio; `CLIP_EN`, 3.5 s, counted 1.1–1.9 s voiced). The remainder
+  is carried into the next `append` under the same single `lock` take, and `close()` flushes the last
+  partial window (seconds at its true length, **no `MeterHop`** — a hop is 64 ms by contract) after
+  `removeTap`/`engine.stop()`, before `stop()` returns. The corpus replay was never affected: it
+  windows whole files. `Tests/WalkieTalkieTests/VoicedMeterTests.swift` is the spec.
 - **The meter also keeps the take hop by hop** (`meterHops`, 2026-09-27, for `VoiceAffect`): one
-  `MeterHop {t, rms, voiced}` per 64 ms hop, `t` from `writtenFrames` (not a hop count — the tail of
-  each buffer is not metered), own `hopLock`, ≤ 12 000 hops, reset at `start`, kept after `stop`.
+  `MeterHop {t, rms, voiced}` per 64 ms hop, `t` from `writtenFrames` (not a hop count — a spliced
+  marker shifts every later hop), own `hopLock`, ≤ 12 000 hops, reset at `start`, kept after `stop`.
   Read at the close on the queue that closed the take, like `voicedSeconds`. → `dictation-source.md`
 - **Adaptive, because one threshold cannot serve both microphones** (DJI peaks 16552, built-in
   855). Instant attack down, 2 % release up. The absolute floor catches a recording that is

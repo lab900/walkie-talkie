@@ -422,7 +422,13 @@ final class ElevenLabsSource: DictationSource {
     /// **Q8's floor** (2026-09-26): an empty Scribe answer goes to the local
     /// model only when the meter counted at least this much voiced audio in the
     /// take (`MicRecorder.voicedSeconds`); below it the WAV waits for Recover.
-    static let fallbackVoicedFloor: TimeInterval = 2.0
+    ///
+    /// **1.5 s since Q13** (2026-09-27, 09:20, Victor: *"Q13: mergem pe
+    /// recomandarea ta."*), down from 2.0 — together with the meter no longer
+    /// dropping the tail of every buffer (`VoicedMeter`): a ten-word 3.5 s
+    /// clip counted 1.1–1.9 s through Loopback's 1365-frame buffers and was
+    /// refused the fallback.
+    static let fallbackVoicedFloor: TimeInterval = 1.5
 
     func stop() {
         guard isRecording else { return }
@@ -524,7 +530,7 @@ final class ElevenLabsSource: DictationSource {
                 Log.error("\(why) — asking the local model")
                 self.didEnd?(.failed(why: why, audio: wav, duration: duration))
             } else {
-                Log.error(String(format: "ElevenLabs returned no words (%.1f s voiced, under %.0f s) — the audio is kept for Recover",
+                Log.error(String(format: "ElevenLabs returned no words (%.1f s voiced, under %.1f s) — the audio is kept for Recover",
                                  voiced, Self.fallbackVoicedFloor))
                 self.didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
             }
@@ -627,7 +633,7 @@ final class ElevenLabsSource: DictationSource {
                                    voiced: TimeInterval) {
         settlePhase(.done("error"))
         guard voiced >= Self.fallbackVoicedFloor else {
-            Log.error(String(format: "ElevenLabs: %@ — only %.1f s voiced (under %.0f s): no local fallback, the audio is kept for Recover",
+            Log.error(String(format: "ElevenLabs: %@ — only %.1f s voiced (under %.1f s): no local fallback, the audio is kept for Recover",
                              why, voiced, Self.fallbackVoicedFloor))
             didEnd?(.failed(why: DictationEnd.heardNothing, audio: wav, duration: duration))
             return

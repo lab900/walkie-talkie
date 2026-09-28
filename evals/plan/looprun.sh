@@ -35,5 +35,16 @@ for i in $(seq 1 240); do curl -s $B/test/state | /usr/bin/grep -q '"busy":false
 echo "---- log"; /usr/bin/tail -c +$((MARK+1)) $LOG | /usr/bin/grep -aE "live caption|live correction|elevenlabs:|delivery|returned no words|words landed|401|injected|↪️|standing in|fall|whisper helper|local whisper" | LC_ALL=C /usr/bin/cut -c1-230
 echo "---- witness"; /usr/bin/tail -c 400 $S/witness.txt 2>/dev/null; echo
 post /unbind >/dev/null; post /test/mic '{"device":null}' >/dev/null
-osascript -e 'tell application "Terminal" to close (every window whose name contains "wt-witness")' 2>/dev/null
+# Close the witness without Terminal's "Terminate?" sheet (2026-09-27): kill what runs on its tty,
+# wait up to 5 s for the tab to go idle, close it by tty; a tab still busy is left and said so.
+WDEV=$TTY
+for p in $(ps -t ${WDEV#/dev/} -o pid=,comm= | /usr/bin/awk '$2 !~ /login/ {print $1}'); do kill -9 $p 2>/dev/null; done
+tabstate(){ osascript -e 'tell application "Terminal"' -e 'repeat with w in windows' -e 'try' -e 'repeat with t in tabs of w' \
+  -e "if tty of t is \"$WDEV\" then return (busy of t) as text" -e 'end repeat' -e 'end try' -e 'end repeat' -e 'return "gone"' -e 'end tell'; }
+for i in $(seq 1 25); do [[ $(tabstate) == true ]] || break; sleep 0.2; done
+case $(tabstate) in
+  true) echo "⚠️ witness $WDEV still busy 5 s after the kill — left open (a close would raise Terminate?)";;
+  false) osascript -e 'tell application "Terminal"' -e 'repeat with w in windows' -e 'try' -e 'repeat with t in tabs of w' \
+           -e "if tty of t is \"$WDEV\" then" -e 'close w saving no' -e 'return' -e 'end if' -e 'end repeat' -e 'end try' -e 'end repeat' -e 'end tell' >/dev/null;;
+esac
 defaults read ro.victorrentea.wispr-relay elevenCostBatchSeconds 2>/dev/null; defaults read ro.victorrentea.wispr-relay elevenCostLiveSeconds

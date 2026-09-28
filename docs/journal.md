@@ -13700,3 +13700,49 @@ path, and `MicRecorder`'s meter must stop dropping the partial window at the end
 (measured: a ~10-word 3.5 s clip counted 1.1–1.9 s voiced offline, 1.5 s live, because 1365-frame
 Loopback buffers leave a remainder every call) — carry the remainder into the next buffer so the
 voiced seconds are within ~0.1 s of the truth. Next fix.
+
+### Q13, shipped: `VoicedMeter` carries the tail, the floor is 1.5 s
+
+- **The meter is a struct now, `VoicedMeter`** (in `MicRecorder.swift`): 1024-frame windows over the
+  *stream*, the < 1024-sample remainder of each buffer carried into the next `append`, the last
+  partial window flushed in `close()` after `removeTap`/`engine.stop()` and before `stop()` returns
+  (its seconds count at their true length; it adds **no** `MeterHop`, since a hop is 64 ms by contract
+  and `VoiceAffect` counts them). `MicRecorder` owns it under `lock`, taken once per `meter` call as
+  before — no new lock, nothing held across an engine call. Full windows judge exactly as before:
+  same RMS, same floor tracker, same `t` from `writtenFrames`. Buffers under 1024 frames used to skip
+  the meter entirely (the take and the halo's samples too); they are metered like any other now.
+- **`fallbackVoicedFloor` 2.0 → 1.5 s**, and the two log lines print it as `%.1f` (with `%.0f`, 1.5
+  would have been logged as *under 2 s*).
+- **The spec is `Tests/WalkieTalkieTests/VoicedMeterTests.swift`:** a synthetic signal (bursts of a
+  220 Hz tone at ~−20 dBFS in room tone, 2.048 s true voiced) fed in 1365- and 1024-frame buffers is
+  within 0.1 s (exact, in fact); the hop series is identical for buffers of 333, 1024, 1365 and the
+  whole stream; a voiced partial tail counts at its length. Mutation-checked: with the carry dropped
+  the 1365 case reads **1.73 s** of 2.05 and four assertions fail.
+- **`evals/voiced-seconds.py` is unaffected** — it windows whole files, which is what the meter does
+  now. Replayed offline on `CLIP_EN`: whole-stream **1.92 s** (the file), **1.86 s** as `looprun.sh`
+  plays it (48 kHz, peak 0.5, 0.5 s pads, back to 16 kHz); the old per-1365-buffer cut **1.15 / 1.34 s**.
+- **Live, `CLIP_EN` through "🧪 WT Inject"** (`micOpened` 🧪 WT Inject 48000 × 2): **1.9 s voiced**
+  on the new build (11:56:43, the 401 → *(1.9 s voiced)* → local fallback delivered *"If I dictate now,
+  how good is this dictation, I wonder."*), against **1.5 s** on the old one this morning (09:13:29,
+  *only 1.5 s voiced (under 2 s)*). One sample each: the take on the old build before the rebuild did
+  not open the microphone, and two more takes on 2026-09-28 07:08 found the tap canary down (*the tap
+  did NOT see its own event*) after someone else's restart — no F10 reached the app.
+- **The "≥ 2.5 s" expected for that clip was wrong, not the meter.** The clip is 3.5 s long, but the
+  meter's own truth on it, over the whole file, is 1.9 s: the 1.1–1.9 s spread was the old cut, and
+  its top was already the whole-file figure. It clears 1.5 s by 0.4 s; it would still not clear 2.0.
+- **`report-fix8.md`, ElevenLabs at 0 credits (every upload a 401 → exactly the floor's path):**
+  TL13 PASS (retry, fallback 0.82 s after stop), TL14 PASS (20.0 s, fallback), TL16 PASS (silence →
+  no fallback, audio kept, nothing delivered), TR13 PASS (empty answer on speech → local fallback).
+
+### The harness closes its tabs without the "Terminate?" sheet (2026-09-27)
+
+Victor found Terminal windows left with a *Terminate?* dialog after harness runs. The by-name close
+(`close (every window whose name contains "wt-witness")`) fired on tabs whose `cat` had not died yet,
+and a close on a busy tab raises the sheet. `harness.close_tty_tab(tty)` kills everything on the tty,
+waits up to 5 s for the tab's `busy` to go false, and only then closes its window **by tty**; a tab
+still busy is left open and logged. `close_tabs_named` sweeps orphans through it (also at the end of
+every run); `witness_close`, `cases_delivery.close_tab`, `witness_b_close`, TR24's cleanup and
+`looprun.sh` all go through the same kill → idle → close. Also: `harness.py --help` used to run **all
+146 cases** (unknown flags were skipped) — at 11:50 one piped into `head` died of SIGPIPE mid-case and
+left the relay `listening` and bound to a dead witness. `-h/--help` prints the docstring; any other
+unknown flag exits.

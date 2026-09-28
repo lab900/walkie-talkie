@@ -81,40 +81,13 @@ def open_tab(name, command):
     time.sleep(0.8)
     return tty.replace("/dev/", "")
 
-def _kill_tty(tty):
-    """Every process on that tty (the tab's own programs); the root-owned `login` refuses, fine."""
-    if not tty:
-        return
-    out = subprocess.run(["ps", "-t", tty.replace("/dev/", ""), "-o", "pid="],
-                         capture_output=True, text=True).stdout
-    pids = [int(x) for x in out.split() if x.isdigit() and int(x) != os.getpid()]
-    for sig in (signal.SIGHUP, signal.SIGKILL):
-        for p in pids:
-            try:
-                os.kill(p, sig)
-            except (ProcessLookupError, PermissionError):
-                pass
-        time.sleep(0.3)
-
 def close_tab(tty=None, name=None):
-    """Kill what runs in it (so Terminal does not ask), then close the window by tty or name."""
+    """By tty when it is known, else every tab titled `name` — both through `close_tty_tab`
+    (kill, wait for idle, close; a busy tab is left and logged, never met with the sheet)."""
     if tty:
-        _kill_tty(tty)
-        dev = "/dev/" + tty.replace("/dev/", "")
-        osa('tell application "Terminal"',
-            'repeat with w in windows',
-            'try',
-            'repeat with t in tabs of w',
-            f'if tty of t is "{dev}" then',
-            'close w',
-            'return "closed"',
-            'end if',
-            'end repeat',
-            'end try',
-            'end repeat',
-            'end tell')
-    if name:
-        osa(f'tell application "Terminal" to close (every window whose name contains "{name}") saving no')
+        close_tty_tab(tty)
+    elif name:
+        close_tabs_named(name)
 
 def open_b():
     open(WITNESS_B, "w").close()

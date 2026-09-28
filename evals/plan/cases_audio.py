@@ -340,7 +340,7 @@ def tl14():
 
 @case("TL16", ("audio", "gesture"),
       expect="3 s of silence → 'returned no words', the WAV kept for Recover, nothing delivered (fixed 2026-09-26, "
-             "§3.8: an empty answer is `.failed(heardNothing)` with the audio, no local fallback — Q8: under 2 s voiced; "
+             "§3.8: an empty answer is `.failed(heardNothing)` with the audio, no local fallback — Q8: under 1.5 s voiced (Q13); "
              "batch 7: the same on ANY Scribe failure, so a 401/quota on silence is not decoded either; "
              "the BUG branch is the old loss)")
 def tl16():
@@ -578,7 +578,7 @@ def tr12():
 
 
 @case("TR13", ("audio", "gesture"),
-      expect="empty Scribe answer on 20 s of speech → (Q8, batch 6) ≥ 2 s voiced, so the local model stands in and "
+      expect="empty Scribe answer on 20 s of speech → (Q8, batch 6) ≥ 1.5 s voiced (Q13), so the local model stands in and "
              "delivers it; before batch 6: WAV staged, Recover returns it")
 def tr13():
     """An empty answer must not cost the recording."""
@@ -593,7 +593,7 @@ def tr13():
         delivered(m, 120)
         settle_out(60)
         empty = log_has(m, r"returned no words")
-        # Q8 (2026-09-26, batch 6): with ≥ 2 s voiced the empty answer goes to the local model.
+        # Q8 (2026-09-26, batch 6): with ≥ 1.5 s voiced (Q13, 2026-09-27) the empty answer goes to the local model.
         d0 = last_delivery(t00)
         if empty and d0 and "local" in d0.get("via", "") and log_has(m, r"of voiced speech — asking the local model"):
             return "PASS", f"'returned no words' on speech → local fallback delivered via {d0.get('via')} (Q8)"
@@ -752,10 +752,8 @@ def tr24():
             d = last_delivery(t0) or {}
             a, b = witness_text(), open(fb, errors="replace").read()
     finally:
-        # Kill the tab's `cat` first — Terminal will not close a window with a running process.
-        if ttyb:
-            _quiet(kill_tty, ttyb)
-        _quiet(osa, 'tell application "Terminal" to close (every window whose name contains "wt-witness-b") saving no')
+        # Kill, wait for idle, close by tty — never the Terminate? sheet (`close_tty_tab`).
+        _quiet(close_tty_tab, ttyb) if ttyb else _quiet(close_tabs_named, "wt-witness-b")
     inA, inB = "dictat" in a.lower(), "dictat" in b.lower()
     note = f"A ({WITNESS['tty']}) {len(a)} chars, B ({ttyb}) {len(b)} chars, delivery to {d.get('to')}"
     if inA and not inB: return "PASS", note
