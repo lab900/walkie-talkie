@@ -342,6 +342,11 @@ final class ElementPicker {
     /// now* rather than *does the app think so*. See `HotkeyTap.proveAlive`.
     var onTestFirewall: ((Bool?) -> [String: Any])?
 
+    /// `POST /test/tap` `{"kill": "unschedule"｜"invalidate"｜"disable"｜"secure", "seconds": 8}`
+    /// (`true` = `unschedule`) — break the event tap the way a wake or a lock
+    /// screen would, then let the self-heal run. See `HotkeyTap.breakTapForTest`.
+    var onTestTap: ((String, Double) -> [String: Any])?
+
     /// `POST /test/wispr-state/simulate` `{"steps": [...]}` — run a scripted
     /// sequence of inputs through a **fresh** `WisprState` and answer with the
     /// transitions it made.
@@ -1110,6 +1115,12 @@ final class ElementPicker {
         case ("POST", "/test/firewall"):
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
             respond(conn, 200, ["ok": true].merging(onTestFirewall?(body?["on"] as? Bool) ?? [:]) { _, new in new })
+
+        case ("POST", "/test/tap"):
+            let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
+            let kill = (body?["kill"] as? String) ?? ((body?["kill"] as? Bool) == true ? "unschedule" : "")
+            guard !kill.isEmpty else { return respond(conn, 400, ["ok": false, "error": "give {\"kill\": true｜\"unschedule\"｜\"invalidate\"｜\"disable\"｜\"secure\"}"]) }
+            respond(conn, 200, ["ok": true].merging(onTestTap?(kill, body?["seconds"] as? Double ?? 8) ?? [:]) { _, new in new })
 
         case ("POST", "/test/wrap-mode"):
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]

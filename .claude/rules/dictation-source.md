@@ -108,6 +108,15 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
 - **The canary is not optional** — a re-signed tap can report enabled and be inert, and
   `build-app.sh` re-signs every build. `HotkeyTap.proveAlive` posts a stamped bare V key-up at launch
   and after wake (0.9–3.8 ms); a miss flashes for 20 s. `POST /test/firewall` runs one.
+- **A missed canary is *blind* before it is *dead*** (2026-09-28): while **any** process holds Secure
+  Event Input — the lock screen (raised at display dim), any focused password field, suspected also
+  Terminal with a tab in `icanon -echo` (a witness running `stty -echo; cat`) — macOS shows keys to no
+  tap (the session's `kCGSSessionSecureInputPID` names the frontmost app, not the caller): the canary,
+  every ⌃⌥⌘F gesture and Wispr's ⌘V go unseen, `enabled=true`. That was the 07:06 → 07:14 "dead tap"
+  of 09-26 and 09-28 (unlocked 07:13:54, alive 07:14:02). `HotkeyTap.keyboardHidden()` names it;
+  the heal waits (2 s poll, no event), re-checks at unlock / screens wake / session active; only a
+  miss with keys visible rebuilds the tap (`rebuildTap`: invalidate + new `tapCreate`, at once then
+  2/5/10/30 s). `tap: "blind"` + `hidden` on `/test/firewall`; `POST /test/tap {"kill"}` breaks it.
 - **A frozen app swallows nothing** (`MainStallGate`, 2026-09-24, after a 32-min deadlock ate a
   61-word sentence): main thread beats every **0.1 s** (0.5 until 2026-09-26); silent 3 s → the tap
   passes every event until it beats and no mouse button is down, and samples into
@@ -349,6 +358,7 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 | `WT_MARKER_TIMESTAMPS=0` · `WT_SHOT_MARKERS=1` · `WT_MARKER_DEVICE` | timestamp markers off / spoken on / device |
 | `WT_VOICE_AFFECT=0` · `WT_VOICE_TENSE=1` | `[?]` marks + `[voice: hesitant]` off (default on) / the energy half of `[voice: tense]` on (default off); env → `elevenlabs.env` → `voiceAffect` / `voiceTense` defaults |
 | `WT_WISPR_COPY_FALLBACK=1` | re-enable `copy_last_text` — see below |
+| `WT_ELEVEN_LIVE_URL` · `WT_ELEVEN_BATCH_URL` | the realtime socket / batch upload somewhere else (2026-09-27): env → `elevenlabs.env`, read at every engine pick; the harness points them at `evals/plan/fake_scribe.py` (`desk-testing.md`). Default `wss://api.elevenlabs.io/v1/speech-to-text/realtime` · `https://api.elevenlabs.io/v1/speech-to-text` |
 
 ## Do not
 

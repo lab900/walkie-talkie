@@ -1564,9 +1564,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // `tap` is the verdict in one word (2026-09-26, TG26): `open` is a
             // live tap failing open on purpose while main is frozen — not dead.
             let open = self.hotkeys.lastCanary?.failingOpen ?? false
-            return ["firewall": self.hotkeys.wisprFirewallOn, "alive": alive,
-                    "failingOpen": open, "tap": open ? "open" : alive ? "alive" : "dead",
+            // `blind` (2026-09-28): unseen because Secure Input / the lock
+            // screen hides every key from every tap — not a dead tap.
+            let hidden = alive ? nil : self.hotkeys.lastCanaryBlindness
+            var out: [String: Any] = ["firewall": self.hotkeys.wisprFirewallOn, "alive": alive,
+                    "failingOpen": open, "tap": open ? "open" : alive ? "alive" : hidden != nil ? "blind" : "dead",
                     "canaryMs": self.hotkeys.lastCanary?.ms ?? -1]
+            if let hidden { out["hidden"] = hidden }
+            // A harness polling this route sees the heal start too.
+            if !alive && !open {
+                DispatchQueue.main.async {
+                    if !self.tapHealing { self.healTap("POST /test/firewall", attempt: 0, since: Date()) }
+                }
+            }
+            if self.tapHealing { out["healing"] = true }
+            return out
+        }
+        picker.onTestTap = { [weak self] kill, seconds in
+            guard let self else { return ["ok": false, "error": "gone"] }
+            var out = self.hotkeys.breakTapForTest(kill, seconds: seconds)
+            // The self-heal runs as it would after a wake: the canary first.
+            if kill != "secure" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.canary("POST /test/tap \(kill)") }
+                out["heal"] = "canary in 0.2 s, then rebuild with back-off; poll POST /test/firewall"
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.canary("POST /test/tap secure") }
+            }
+            return out
         }
         picker.onTestWrapMode = { [weak self] mode in
             guard let self else { return ["ok": false, "error": "gone"] }
@@ -2407,7 +2431,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         picker.onTestGestureNames = hotkeys.gestureNames
         picker.onTestGesture = { [weak self] name in
             guard let posted = self?.hotkeys.postGesture(name) else { return nil }
-            return ["posted": posted.label, "gesture": name, "what": posted.what]
+            var out: [String: Any] = ["posted": posted.label, "gesture": name, "what": posted.what]
+            // A chord posted while Secure Input / the lock screen hides keys
+            // reaches no tap (2026-09-28: the 07:07 posts that "started nothing").
+            if let hidden = HotkeyTap.keyboardHidden() { out["hidden"] = hidden; out["warning"] = "keys are hidden from every event tap — this chord will not be seen" }
+            return out
         }
         // **Everything an assertion needs, read on the main thread.** The chip's
         // rows and the halo's state are AppKit's, and this closure runs on the
@@ -2540,6 +2568,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { self?.canary("wake") }
+            }
+            // **And whenever the keyboard can have come back** (2026-09-28): the
+            // screens waking, the session becoming active again, the lock screen
+            // going away. The 07:06 "dead tap" was a lock screen hiding every
+            // key from every tap until 07:13:54 — see `HotkeyTap.keyboardHidden`.
+            for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+                NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] n in
+                    let why = n.name == NSWorkspace.screensDidWakeNotification ? "screens woke" : "session active"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { self?.canary(why) }
+                }
+            }
+            DistributedNotificationCenter.default().addObserver(
+                forName: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { self?.canary("unlock") }
             }
         }
         // **And who macOS thinks is asking.** On 2026-09-21 the app went entirely
@@ -2798,11 +2840,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `DictationSource` for why that is the whole point.
     /// See `HotkeyTap.proveAlive`. The verdict goes to the log either way and to
     /// the overlay only when it is bad.
+    ///
+    /// **A dead verdict is acted on, not only reported** (2026-09-28). Two
+    /// answers: *blind* — Secure Input or the lock screen hides every key from
+    /// every tap (`HotkeyTap.keyboardHidden`); nothing to rebuild, so the app
+    /// watches for that to end (every 2 s, no synthetic event) and asks again.
+    /// *Dead* — no such reason: the tap is torn down and created afresh
+    /// (`rebuildTap`) and the canary re-run, backing off 2 / 5 / 10 / 30 s and
+    /// then every 30 s, each attempt logged. One heal at a time.
     private func canary(_ why: String) {
+        guard !tapHealing else { Log.info("🛡️ canary (\(why)): a heal is already running — it re-checks on its own"); return }
         hotkeys.proveAlive(why) { [weak self] alive in
             guard !alive else { return }
+            DispatchQueue.main.async { self?.healTap(why, attempt: 0, since: Date()) }
+        }
+    }
+
+    private var tapHealing = false
+    private static let tapHealBackoff: [Double] = [2, 5, 10, 30]
+
+    private func healTap(_ why: String, attempt: Int, since: Date) {
+        tapHealing = true
+        if let hidden = HotkeyTap.keyboardHidden() {
+            if attempt == 0 || attempt % 30 == 0 {
+                Log.info("🛡️ tap heal (\(why)): waiting — \(hidden); re-checking every 2 s, no event posted")
+            }
+            // A password prompt in some app is his to see: the gestures and the
+            // firewall are off until it lets go. The lock screen is not — nobody
+            // is typing into a document behind it.
+            if attempt == 0, let holder = HotkeyTap.secureInputHolderName(), holder != "loginwindow" {
+                overlay.flash("⌨️ Secure Input is on (\(holder) is in front) — the gestures and the Wispr firewall are blind until it ends", duration: 12)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.healTap(why, attempt: attempt + 1, since: since) }
+            return
+        }
+        // Keys are visible (again). Ask once more before touching anything:
+        // the end of a lock is the common way out, and the tap is fine then.
+        let rebuildNo = attempt < 0 ? -attempt : 0
+        if rebuildNo > 0 { hotkeys.rebuildTap("\(why), attempt \(rebuildNo)") }
+        hotkeys.proveAlive(rebuildNo > 0 ? "after rebuild \(rebuildNo)" : "\(why), keys visible") { [weak self] alive in
             DispatchQueue.main.async {
-                self?.overlay.flash("⚠️ the event tap is dead (\(why)) — Wispr's ⌘V would reach your document; relaunch Walkie Talkie", duration: 20)
+                guard let self else { return }
+                if alive {
+                    self.tapHealing = false
+                    Log.info(String(format: "🛡️ tap heal (%@): alive again after %.1f s, %d rebuild(s)", why, Date().timeIntervalSince(since), rebuildNo))
+                    return
+                }
+                if HotkeyTap.keyboardHidden() != nil {
+                    self.healTap(why, attempt: 0, since: since)
+                    return
+                }
+                // The first rebuild at once; then 2 / 5 / 10 / 30 s, and 30 s on.
+                let next = rebuildNo + 1
+                let delay = rebuildNo == 0 ? 0 : Self.tapHealBackoff[min(rebuildNo - 1, Self.tapHealBackoff.count - 1)]
+                Log.error(String(format: "🛡️ tap heal (%@): still dead — rebuild %d in %.0f s", why, next, delay))
+                if rebuildNo == 1 {
+                    self.overlay.flash("⚠️ the event tap is dead (\(why)) — rebuilding it; Wispr's ⌘V would reach your document meanwhile", duration: 20)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.healTap(why, attempt: -next, since: since)
+                }
             }
         }
     }

@@ -13746,3 +13746,81 @@ every run); `witness_close`, `cases_delivery.close_tab`, `witness_b_close`, TR24
 146 cases** (unknown flags were skipped) — at 11:50 one piped into `head` died of SIGPIPE mid-case and
 left the relay `listening` and bound to a dead witness. `-h/--help` prints the docstring; any other
 unknown flag exits.
+
+## The 07:06 "dead tap" was a lock screen: blind, not dead (2026-09-28)
+
+Incident #25, seen twice: 2026-09-26 07:06:11 (wake canary: *the tap did NOT see its own event —
+enabled=true*; two `/test/gesture` F10 at 07:13 started nothing; alive 07:14:31) and 2026-09-28
+(wake canary **alive** at 07:03:03; relaunch at 07:06:02; launch canary dead at 07:06:06, then
+`POST /test/firewall` `tap:"dead"` every 30 s; alive 07:14:02, no restart). The same app, the same
+tap object, came back on its own both times — so it was never a stale tap.
+
+**What the system logs say (09-28, `pmset -g log` + `log show`, loginwindow / WindowServer):**
+
+| time | event |
+|---|---|
+| 07:03:00 | lid open, display on — canary alive 07:03:03 |
+| 07:05:59 | display dims → `LWScreenLock startScreenLock: kLWLockFromDisplayDim`, shield window raised, lock UI with its secure password field |
+| 07:06:02–07:13:31 | relaunch; every canary unseen, `enabled=true`; the four F10 posts at 07:07–07:08 each logged by loginwindow as `startUnlock … kLWUnlockFromUserActive` — they went to the lock screen |
+| 07:13:43 | `caffeinate -u` turns the display on → password prompt |
+| 07:13:54 | `securityd … is unlocked` — Victor typed his password |
+| 07:14:02 | the next canary: alive, 0.9 ms |
+
+On 09-26 the lid opened at 07:06:08 onto the lock screen (canary 3 s later, dead) and the tap was
+alive by 07:14:31. **Root cause: while any process holds Secure Event Input, macOS shows keyboard
+events to no event tap.** The canary is a key-up, Options+'s gestures are ⌃⌥⌘F key chords, Wispr's
+paste is a ⌘V — all hidden, `CGEventTapIsEnabled` still true. Behind the lock screen none of it
+reaches a document either (the keys go to loginwindow), so the firewall being "down" there cost
+nothing; the only real harm was the false alarm and agents testing into a locked screen.
+
+**Reproduced this morning without a lid, twice over:**
+1. At 07:20 while the harness ran, `IsSecureEventInputEnabled()` was **true** (the session's
+   `kCGSSessionSecureInputPID` named Terminal, frontmost) and `POST /test/firewall` answered
+   `tap:"dead"`. By 07:23 it had gone false. **Who** turned it on is not proven: the session names
+   the frontmost app, not the caller (measured: a CLI that called `EnableSecureEventInput` was
+   reported as Terminal; this app's own call was reported as Chrome, then Terminal). Suspect: the
+   harness witness tabs run `stty -echo; exec cat` (`icanon -echo`, which Terminal may read as a
+   password prompt). If so, a gesture case run while that tab is focused is blind. Left to the
+   harness's owner (`harness.py`, `cases_*.py` are not this change's files); `/test/gesture` now
+   answers `hidden` + `warning` when that happens, so a run can tell.
+2. `POST /test/tap {"kill": "secure"}` holds Secure Input in the app itself — see *Measured* below.
+
+**The fix** (`HotkeyTap.keyboardHidden`, `rebuildTap`, `AppDelegate.healTap`):
+- A missed canary is classified first: **blind** (screen locked, or Secure Input on — the holder is
+  named from `kCGSSessionSecureInputPID`) or **dead** (keys should be visible). Blind logs one line,
+  polls every 2 s with no synthetic event, and re-runs the canary when it ends; a holder other than
+  loginwindow flashes `⌨️ Secure Input is on (<front app> is in front) — the gestures and the Wispr firewall are blind`.
+- Dead → the tap is **torn down and created afresh** (`tapEnable(false)`, `CFMachPortInvalidate`,
+  source off the run loop, a new `CGEvent.tapCreate` on the same tap thread / run loop), canary again;
+  first rebuild at once, then 2 / 5 / 10 / 30 s and every 30 s, each attempt logged; the 20 s flash
+  only once a rebuild has failed. One heal at a time.
+- Re-checked also on `screensDidWake`, `sessionDidBecomeActive` and `com.apple.screenIsUnlocked`
+  (besides launch and `didWake`). `POST /test/firewall` answers `tap:"blind"` + `hidden`, starts the heal
+  on a dead answer, and says `healing`; `POST /test/gesture` answers `hidden` + `warning` when its
+  chord cannot be seen. `POST /test/tap {"kill"}` breaks the tap four ways (below).
+- Unchanged: the fail-open (`MainStallGate`), the canary under `canaryLock`, the stale-⌘ rule; the
+  tap mask is the same mask; `evals/test_gesture_spec.py` and `evals/test_stale_modifier.py` pass,
+  60 XCTests pass.
+
+### Measured (installed build, 07:26–07:38, under `hands-off`; runner lock free at 07:26, held at 07:38)
+
+| break (`POST /test/tap`) | what the log said | back |
+|---|---|---|
+| `unschedule` (source off the run loop, `enabled=true`, the reported symptom) | dead → re-check dead → `rebuild 1 in 0 s` → alive 3.0 / 0.3 ms | **1.1 s**, 1 rebuild (twice) |
+| `invalidate` (mach port) | dead, `enabled=false` → rebuild 1 → alive 3.5 ms | **1.1 s** |
+| `disable` (`tapEnable(false)`) | the system's own *disabled by user input* event → re-enabled in `handle`; canary alive 3.1 ms | at once, no heal |
+| `secure` 6 s | `blind` — *keys are hidden from every event tap*, poll, no rebuild; after OFF: alive 1.8 / 2.6 ms | **6.8 s** = the 6 s hold + ≤ 2 s poll, 0 rebuilds |
+
+After each heal `POST /test/gesture forward-left` (⌃⌥⌘F11) was traced `SWALLOWED by 🔼 ← ⌃⌥⌘F11` and
+twice cancelled a dictation another agent's `/test/gesture forward-right` had just opened (07:26:59, 07:27:07 — an overlap the lock would have prevented); during the Secure Input hold the same post
+answered `hidden` + `warning` and nothing was seen. `test_gesture_spec.py`, `test_stale_modifier.py`
+and the 60 XCTests pass.
+
+**Verified only at the next real wake / lock:** that `keyboardHidden()` answers for loginwindow's
+lock screen (`CGSSessionScreenIsLocked` or `IsSecureEventInputEnabled`) — expected, because the
+reproduction used the same mechanism, but the lock screen's own flag was not observed. What the
+night run / next morning should find in `relay.log` after a lid-open onto the lock screen: `canary
+(wake): keys are hidden … the screen is locked` or `… Secure Input is on`, `tap heal (wake): waiting`,
+then within ~2 s of the unlock `tap heal (wake): alive again after N s, 0 rebuild(s)` (and a
+`canary (unlock)` line). A `still dead — rebuild` line **with keys visible** after a wake would mean a
+second, different cause, and the ladder then shows whether a rebuild fixes it.

@@ -1975,8 +1975,141 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     private let MOUSE_BUTTON_5: Int64 = 4   // 0-indexed "forward" side button
     private let MOUSE_BUTTON_MIDDLE: Int64 = 2   // the wheel, pressed
 
+    /// Written on main at `start` and on the tap thread by `rebuildTap`; read
+    /// on the tap thread and, for `tapIsEnabled`, off it — hence `portLock`.
     private var tapPort: CFMachPort?
-    var isActive: Bool { tapPort != nil }
+    private let portLock = NSLock()
+    /// Tap thread only, after `start`.
+    private var tapSource: CFRunLoopSource?
+    private var tapRunLoop: CFRunLoop?
+    private var tapMask: CGEventMask = 0
+    var isActive: Bool { port() != nil }
+    private func port() -> CFMachPort? { portLock.lock(); defer { portLock.unlock() }; return tapPort }
+    private func setPort(_ p: CFMachPort?) { portLock.lock(); tapPort = p; portLock.unlock() }
+
+    private func makeTap() -> CFMachPort? {
+        CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: tapMask,
+            callback: tapCallback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+    }
+
+    /// Runs `work` on the tap thread's run loop and waits for it (≤ 2 s).
+    private func onTapThread(_ work: @escaping () -> Void) -> Bool {
+        guard let rl = tapRunLoop else { return false }
+        let done = DispatchSemaphore(value: 0)
+        CFRunLoopPerformBlock(rl, CFRunLoopMode.commonModes.rawValue) { work(); done.signal() }
+        CFRunLoopWakeUp(rl)
+        return done.wait(timeout: .now() + 2) == .success
+    }
+
+    /// **A dead tap is rebuilt, not re-enabled** (2026-09-28). `tapEnable` on
+    /// a port that reports enabled and sees nothing changes nothing; a fresh
+    /// `tapCreate` is a new registration with the window server. The old port
+    /// is invalidated and its source taken off the tap thread's run loop; the
+    /// new one goes on the same run loop, so the stall gate's watchdog, the
+    /// canary lock and everything `handle` reads stay where they were. Done on
+    /// the tap thread, so `handle` never sees a half-swapped port.
+    @discardableResult
+    func rebuildTap(_ why: String) -> Bool {
+        var ok = false
+        let ran = onTapThread { [self] in
+            if let old = tapPort {
+                CGEvent.tapEnable(tap: old, enable: false)
+                CFMachPortInvalidate(old)
+            }
+            if let src = tapSource, let rl = tapRunLoop { CFRunLoopRemoveSource(rl, src, .commonModes) }
+            guard let fresh = makeTap() else { setPort(nil); tapSource = nil; return }
+            let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, fresh, 0)
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), src, .commonModes)
+            setPort(fresh); tapSource = src
+            ok = true
+        }
+        Log.info("🛡️ tap rebuilt (\(why)): \(ran ? (ok ? "a new tap is on the run loop" : "tapCreate FAILED — no tap at all") : "the tap thread did not answer in 2 s")")
+        return ran && ok
+    }
+
+    /// `POST /test/tap {"kill": …}` — break the tap the ways a wake could, so
+    /// the self-heal can be watched without closing the lid. `unschedule`
+    /// (the default) takes the source off the run loop: the port stays enabled
+    /// and nothing services it — *enabled=true and inert*. `invalidate` kills
+    /// the mach port; `disable` is `tapEnable(false)`; `secure` holds Secure
+    /// Event Input in this process for `seconds` — what the lock screen and a
+    /// Terminal password prompt do (see `keyboardHidden`).
+    func breakTapForTest(_ mode: String, seconds: Double) -> [String: Any] {
+        switch mode {
+        case "secure":
+            let s = min(30, max(1, seconds))
+            DispatchQueue.main.async {
+                EnableSecureEventInput()
+                Log.info("🧪 /test/tap: Secure Event Input ON in this process for \(s) s")
+                DispatchQueue.main.asyncAfter(deadline: .now() + s) {
+                    DisableSecureEventInput()
+                    Log.info("🧪 /test/tap: Secure Event Input OFF")
+                }
+            }
+            return ["mode": mode, "seconds": s]
+        case "invalidate", "disable", "unschedule":
+            let ran = onTapThread { [self] in
+                guard let p = tapPort else { return }
+                switch mode {
+                case "invalidate": CFMachPortInvalidate(p)
+                case "disable": CGEvent.tapEnable(tap: p, enable: false)
+                default: if let src = tapSource, let rl = tapRunLoop { CFRunLoopRemoveSource(rl, src, .commonModes) }
+                }
+            }
+            let enabled = port().map { CGEvent.tapIsEnabled(tap: $0) } ?? false
+            Log.info("🧪 /test/tap: tap broken (\(mode)) — enabled=\(enabled)")
+            return ["mode": mode, "done": ran, "enabled": enabled]
+        default:
+            return ["error": "unknown kill mode \(mode) — unschedule｜invalidate｜disable｜secure"]
+        }
+    }
+
+    /// **Why a live tap can see no key at all** (2026-09-28, the 07:06 → 07:14
+    /// "dead tap" of 09-26 and 09-28). While any process holds **Secure Event
+    /// Input**, macOS shows keyboard events to *no* event tap — the canary (a
+    /// key-up), Options+'s ⌃⌥⌘F chords and Wispr's ⌘V all go past unseen. The
+    /// lock screen holds it (loginwindow's password field, raised at display
+    /// dim — `LWScreenLock startScreenLock: kLWLockFromDisplayDim` at 07:05:59,
+    /// keychain unlocked 07:13:54, canary alive 07:14:02), and so does
+    /// any app with a focused password field, and — suspected, not proven —
+    /// Terminal with a tab in `icanon -echo` (a harness witness running
+    /// `stty -echo; cat`). Nothing this app can
+    /// do makes those keys visible; re-creating the tap would change nothing.
+    /// Nil when keys should be visible; else a reason naming the holder.
+    static func keyboardHidden() -> String? {
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
+        let locked = (session["CGSSessionScreenIsLocked"] as? Bool) ?? ((session["CGSSessionScreenIsLocked"] as? Int).map { $0 != 0 } ?? false)
+        let holder = (session["kCGSSessionSecureInputPID"] as? Int).map { pid_t($0) } ?? 0
+        // The session's pid is **not** the caller: measured 2026-09-28, a
+        // process that called `EnableSecureEventInput` was reported as the
+        // frontmost app (Terminal), both for a CLI child of Terminal and for
+        // this app. So the name is "who the session blames", nothing more.
+        if locked { return "the screen is locked" + (holder > 0 ? " (Secure Input on, the session names \(procName(holder)))" : "") }
+        if IsSecureEventInputEnabled() {
+            return holder > 0 ? "Secure Input is on (the session names \(procName(holder)), pid \(holder) — the frontmost app, not necessarily the caller)" : "Secure Input is on (holder unknown)"
+        }
+        return nil
+    }
+
+    /// The Secure Input holder's name, or nil — for the flash, which stays
+    /// quiet about the lock screen (nobody is typing into a document then).
+    static func secureInputHolderName() -> String? {
+        let session = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
+        guard let pid = (session["kCGSSessionSecureInputPID"] as? Int), pid > 0 else { return nil }
+        return procName(pid_t(pid))
+    }
+
+    private static func procName(_ pid: pid_t) -> String {
+        var buf = [CChar](repeating: 0, count: 256)
+        guard proc_name(pid, &buf, UInt32(buf.count)) > 0 else { return "pid \(pid)" }
+        return String(cString: buf)
+    }
 
     @discardableResult
     func start() -> Bool {
@@ -2018,21 +2151,17 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                  | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
                  | CGEventMask(1 << CGEventType.rightMouseUp.rawValue)
 
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: tapCallback,
-            userInfo: Unmanaged.passUnretained(self).toOpaque()
-        ) else {
+        tapMask = mask
+        guard let tap = makeTap() else {
             Log.error("could not create event tap — grant Accessibility permission to Walkie Talkie")
             return false
         }
-        tapPort = tap
+        setPort(tap)
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        tapSource = source
         let thread = Thread { [weak self] in
+            self?.tapRunLoop = CFRunLoopGetCurrent()
             CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
             // The stall gate's watchdog — see `watchStall`. On this run loop so
             // the gate stays a tap-thread-only value.
@@ -2184,7 +2313,10 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // Re-enable after a system timeout disable, else the tap dies silently.
         if type.rawValue == 0xFFFFFFFE || type.rawValue == 0xFFFFFFFF {
-            if let port = tapPort { CGEvent.tapEnable(tap: port, enable: true) }
+            if let port = tapPort {
+                CGEvent.tapEnable(tap: port, enable: true)
+                Log.info("🛡️ the tap was disabled by the system (\(type.rawValue == 0xFFFFFFFE ? "timeout" : "user input")) — re-enabled")
+            }
             return Unmanaged.passUnretained(event)
         }
         // **A frozen app swallows nothing** — see `MainStallGate`. Before any
@@ -4443,6 +4575,9 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     private var canarySeenAt: CFTimeInterval = 0
     private var canarySeenFrozen = false
     private var lastCanaryRecord: (alive: Bool, ms: Double, at: Date, failingOpen: Bool)?
+    /// Why the last canary went unseen, when it was blindness and not death.
+    private var lastCanaryHidden: String?
+    var lastCanaryBlindness: String? { canaryLock.lock(); defer { canaryLock.unlock() }; return lastCanaryHidden }
     /// `failingOpen`: the tap saw its canary while the main thread was frozen
     /// — alive, and handing everything else through on purpose.
     var lastCanary: (alive: Bool, ms: Double, at: Date, failingOpen: Bool)? {
@@ -4465,15 +4600,20 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             let alive = seen > 0
             let ms = alive ? (seen - posted) * 1000 : 500
             self.canaryLock.lock(); self.lastCanaryRecord = (alive, ms, Date(), alive && frozen); self.canaryLock.unlock()
-            let enabled = self.tapPort.map { CGEvent.tapIsEnabled(tap: $0) } ?? false
+            let enabled = self.port().map { CGEvent.tapIsEnabled(tap: $0) } ?? false
+            let hidden = alive ? nil : HotkeyTap.keyboardHidden()
             if alive, frozen {
                 Log.info(String(format: "🛡️ canary (%@): the tap is alive and failing open — seen after %.1f ms; the main thread is frozen, so everything but this app's own chords is handed through on purpose", why, ms))
             } else if alive {
                 Log.info(String(format: "🛡️ canary (%@): the tap is alive — seen after %.1f ms", why, ms))
+            } else if let hidden {
+                // Not dead: blind. See `keyboardHidden`.
+                Log.info("🛡️ canary (\(why)): keys are hidden from every event tap — \(hidden); enabled=\(enabled). Not a dead tap; the gestures and the firewall come back when that ends")
             } else {
-                Log.error("🛡️ canary (\(why)): the tap did NOT see its own event — enabled=\(enabled). The firewall is down: Wispr's ⌘V would reach the front app")
-                if let port = self.tapPort { CGEvent.tapEnable(tap: port, enable: true) }
+                Log.error("🛡️ canary (\(why)): the tap did NOT see its own event — enabled=\(enabled), no Secure Input, screen unlocked. The firewall is down: Wispr's ⌘V would reach the front app")
+                if let port = self.port() { CGEvent.tapEnable(tap: port, enable: true) }
             }
+            self.canaryLock.lock(); self.lastCanaryHidden = hidden; self.canaryLock.unlock()
             completion(alive)
         }
     }
