@@ -43,6 +43,7 @@ The whole suite runs weekly **inside the Tart guest** at 02:00 (`tools/wt-night.
 | `POST /test/whisper {"kill"｜"stop"｜"cont"｜"restart": true}` | **the local helper on demand** (G4): SIGKILL/SIGSTOP/SIGCONT to `whisper_helper.py`, or stop + bring up; answers `describe()` (`ready`, `alive`, `pid`). A dead helper now fails the next request instead of killing the app (SIGPIPE ignored; `ready` cleared on EOF/EPIPE) |
 | `POST /test/input {"name"}` | point the **system** default input at a device (for `tools/wispr-test.sh`) |
 | `POST /test/paste-hint` | show the `📋 Re-paste ⌘⇧P` row once |
+| `POST /test/engine-menu {"appearance": "light"｜"dark", "seconds"? (3), "x"?, "y"?}` | pop a copy of the **Engine** list (with the 🧾 quota row) in a forced theme at global point x,y (default: top right of the menu-bar screen); closes itself — a submenu cannot be opened from code |
 | `POST /test/cancel` · `/test/recover` | the ✕'s cancel · recover the cancelled dictation |
 | `POST /test/autosend {"on": bool}` | **Autosend for this run** (2026-09-26 batch 6, G6): the menu row's toggle, **not** written to the defaults — a relaunch restores his setting; `state.autosend` |
 | `POST /test/prompt {"do": "send"｜"cancel"｜"edit", "text"?}` | **the held prompt panel** (2026-09-26, G5): ⏎ · the ✕'s cancel · `edit` with `text` replaces the words and restarts the clock (an edit that ended), without it opens the field; 409 `no prompt on the panel` otherwise. Answers `prompt` |
@@ -62,7 +63,7 @@ are held — read this, never infer) · `keyTrace` · `keyRedirect` · `lastRing
 `liveCaption` (the band's ticker) · `fallingBack` · `autosend` · `lastFailure {why, engine, at}` · `recoverable {path,
 duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, `seconds`, `cutSeconds`, `segments`,
 `correctedSegments`, `corrections`, `correcting`, `committedChars`, `partialChars`, `keyterms`) · `elevenFault` ·
-`elevenCost {total, label, lines}` · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
+`elevenCost {total, label, lines}` · `elevenQuota {used, total, remaining, reset, source (subscription｜character-stats), subscriptionStatus, missingUserRead, title, error, fetchedAt}` (null before the first fetch; the Engine list's 🧾 row, 2026-09-28) · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
 since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
 `sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11). **`{"fail": "delay", "delayMs": n}`** is the real
 upload made n ms late (Q12's order cases); `delayx2` delays the next two.

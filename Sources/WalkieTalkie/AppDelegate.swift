@@ -1786,6 +1786,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.wisprSource.postStartChord(byHand: hand)
             }
         }
+        // Async: the pop-up's tracking loop holds main until it closes itself.
+        picker.onTestEngineMenu = { [weak self] body in
+            DispatchQueue.main.async {
+                let frame = NSScreen.screens.first?.frame ?? .zero
+                let x = (body["x"] as? NSNumber)?.doubleValue ?? Double(frame.maxX - 420)
+                let y = (body["y"] as? NSNumber)?.doubleValue ?? Double(frame.maxY - 40)
+                let secs = min(max((body["seconds"] as? NSNumber)?.doubleValue ?? 3, 0.5), 10)
+                self?.status.popEngineMenuForTest(appearance: body["appearance"] as? String,
+                                                  seconds: secs, at: NSPoint(x: x, y: y))
+            }
+        }
         picker.onTestPasteHint = { [weak self] in
             DispatchQueue.main.async { self?.pasteHint.pulse(reason: "POST /test/paste-hint") }
         }
@@ -6279,6 +6290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["elevenFault"] = ["batch": batchFault, "live": liveFault]
         let cost = ElevenLabsCost.summary()
         out["elevenCost"] = ["total": cost.total, "label": ElevenLabsCost.label, "lines": cost.lines]
+        // 🧾 what the account has left — the menu row's numbers (2026-09-28).
+        out["elevenQuota"] = ElevenLabsQuota.shared.describe()
         out["micOpened"] = MicRecorder.lastOpened.map { ["device": $0.device, "rate": $0.rate, "channels": $0.channels, "at": Outbox.iso($0.at)] } ?? NSNull()
         out["whisper"] = whisperSource.describe()
         return out

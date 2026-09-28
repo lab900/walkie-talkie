@@ -207,6 +207,19 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   fallback, deliberately, because an engine that can run but cannot be picked is the one state
   where the chip and the menu disagree.
 
+- **🧾 The account's quota is the last row of the list, under a separator (2026-09-28)** —
+  `🧾 ElevenLabs −33 / 10k / ?` = remaining / total in k / reset `Mon d`, **red** once remaining
+  ≤ 0; words, sources and the `user_read` hint on the tooltip; click → elevenlabs.io (API keys
+  while the key lacks `user_read`, subscription otherwise). It was built into Victor Addons first
+  and moved here the same morning — *"quota lui 11labs are sens doar in walkie - addons nu
+  foloseste eleven labs de loc."* `ElevenLabsQuota`: `GET /v1/user/subscription` (needs
+  `user_read`; the key answered `401 missing_permissions` on 2026-09-28), else used =
+  `/v1/usage/character-stats` over the last 30 days and total = `WT_ELEVEN_QUOTA` (10 000). The
+  reset date is never invented. Off main, cached 5 min, refreshed on menu open and every 30 min;
+  lands in `.common` so an open list repaints. It answers what the *account* has left;
+  `ElevenLabsCost`'s `$x.xx` on the rows is what *this Mac* sent. `GET /test/state.elevenQuota`;
+  photographed with `POST /test/engine-menu {"appearance"}`.
+
 ## The Microphone row (2026-09-19)
 
 Victor: *"Listening(E)... turns to Listening(🎙️⇒E)... (XLR) or Listening(💻⇒E)... (Mac's

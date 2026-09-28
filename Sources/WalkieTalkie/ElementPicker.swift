@@ -473,6 +473,9 @@ final class ElementPicker {
 
     /// One pulse of the `⌘⇧P` hint under the pointer — see `PasteHint`.
     var onTestPasteHint: (() -> Void)?
+    /// `POST /test/engine-menu {"appearance": "light"|"dark", "seconds", "x", "y"}` — the Engine
+    /// list popped up on its own so the 🧾 quota row can be photographed; closes itself.
+    var onTestEngineMenu: (([String: Any]) -> Void)?
     /// `POST /test/live-caption` `{"text": "…", "partial": "…"?}` — the subtitle band's words as if
     /// the live recogniser had just heard them; `{"on": false}` closes the band.
     var onTestLiveCaption: (([String: Any]) -> Void)?
@@ -878,6 +881,12 @@ final class ElementPicker {
         // say there is no way to look at it twice in a row without talking.
         case ("POST", "/test/paste-hint"):
             onTestPasteHint?()
+            respond(conn, 200, ["ok": true])
+
+        // The Engine list in a forced theme — see `StatusItem.popEngineMenuForTest`.
+        case ("POST", "/test/engine-menu"):
+            let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any] ?? [:]
+            onTestEngineMenu?(body)
             respond(conn, 200, ["ok": true])
 
         // **The `💬` caption without a microphone or a bill** — the ticker is

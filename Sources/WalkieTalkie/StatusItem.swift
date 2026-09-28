@@ -1088,6 +1088,11 @@ final class StatusItem: NSObject, NSMenuDelegate {
 
         engineItem.image = Self.symbolIcon("waveform")
         engineItem.submenu = engineSubmenu
+        // 🧾 the account's quota, drawn at the foot of the list — fetched off
+        // the main thread; a fetch that lands while the list is open repaints
+        // the row in place (`applyQuotaRow`).
+        ElevenLabsQuota.shared.onChange = { [weak self] in self?.applyQuotaRow() }
+        ElevenLabsQuota.shared.start()
         applyEngineRow()
         menu.addItem(engineItem)
 
@@ -1483,6 +1488,59 @@ final class StatusItem: NSObject, NSMenuDelegate {
             row.image = id == engineId ? Self.symbolIcon("checkmark") : Self.blankIcon
             engineSubmenu.addItem(row)
         }
+        // **🧾 What the account has left, under a line of its own** (2026-09-28,
+        // moved here from Victor Addons the same morning — *"quota lui 11labs
+        // are sens doar in walkie"*). Below the rows he picks from, because it
+        // is a readout, not a choice; beside the `$x.xx` on the ElevenLabs rows
+        // because the two are read together — what this Mac spent, and what
+        // the plan has left. `remaining / total / reset`, red once ≤ 0.
+        engineSubmenu.addItem(.separator())
+        let quota = NSMenuItem(title: "", action: #selector(quotaClicked), keyEquivalent: "")
+        quota.target = self
+        quota.image = Self.blankIcon
+        quotaRow = quota
+        applyQuotaRow()
+        engineSubmenu.addItem(quota)
+    }
+
+    /// The 🧾 row, rebuilt with the list and repainted in place when a fetch lands.
+    private var quotaRow: NSMenuItem?
+
+    private func applyQuotaRow() {
+        guard let row = quotaRow else { return }
+        let q = ElevenLabsQuota.shared
+        row.title = q.title
+        row.toolTip = q.tooltip
+        // Red through `attributedTitle`, like the Halo presets' bolt: a tint on
+        // the title is the only colour a menu row takes.
+        row.attributedTitle = q.exhausted
+            ? NSAttributedString(string: q.title, attributes: [.foregroundColor: NSColor.systemRed,
+                                                               .font: NSFont.menuFont(ofSize: 0)])
+            : nil
+    }
+
+    @objc private func quotaClicked() {
+        NSWorkspace.shared.open(ElevenLabsQuota.shared.clickURL)
+    }
+
+    /// **`POST /test/engine-menu`** — the Engine list popped up on its own, in a
+    /// forced appearance, closing itself after `seconds`. A submenu cannot be
+    /// opened from code, and the 🧾 row has to be reviewed in both themes
+    /// without flipping his desktop; a copy of the rows is what AppKit draws
+    /// under the arrow, row for row. The close is armed before the pop-up,
+    /// because the tracking loop does not drain the main queue.
+    func popEngineMenuForTest(appearance: String?, seconds: TimeInterval, at point: NSPoint) {
+        applyEngineRow()
+        let copy = NSMenu()
+        copy.autoenablesItems = false
+        for row in engineSubmenu.items { copy.addItem(row.copy() as! NSMenuItem) }
+        if let appearance {
+            copy.appearance = NSAppearance(named: appearance == "light" ? .aqua : .darkAqua)
+        }
+        let timer = Timer(timeInterval: seconds, repeats: false) { _ in copy.cancelTracking() }
+        RunLoop.main.add(timer, forMode: .common)
+        RunLoop.main.add(timer, forMode: .eventTracking)
+        copy.popUp(positioning: nil, at: point, in: nil)
     }
 
     /// **`Full Log`, a line, then the last sentences he dictated.**
@@ -1943,6 +2001,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         guard menu === item.menu else { return }
         SessionLabel.refresh()
         applyHeader()
+        // 🧾 cached for 5 min; a stale one refreshes in the background and the
+        // row repaints while the menu is still open.
+        ElevenLabsQuota.shared.refreshIfStale()
         applyEngineRow()
         // Devices come and go while the app runs, and the only moment this list
         // has to be right is the moment he is looking at it.
