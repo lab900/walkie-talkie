@@ -466,7 +466,8 @@ and open a device before `IsRunningInput` flips.
   config** — `~/Library/Application Support/Wispr Flow/config.json`, `prefs.user.shortcuts`, keyed
   by keycodes joined with `+`: **`49+59+63` = `popo`** (fn ⌃ Space, the hands-free toggle
   `postWisprHandsFree` already posts) and **`54+61` = `ptt`** (right ⌘ + right ⌥ held,
-  push-to-talk). Watched, never taken. → journal: *The ring is up on Wispr's keystroke (2026-09-12)*
+  push-to-talk — **historical**: since Q9 step 2, 2026-09-28, right ⌘⌥ is Walkie's own and Wispr's
+  ptt is `61+60`, not watched). Watched, never taken. → journal: *The ring is up on Wispr's keystroke (2026-09-12)*
 - **Push-to-talk is two modifiers and produces no `keyDown`** — it is a `flagsChanged`, and the
   test has to be on the **device-dependent** bits (`NX_DEVICERCMDKEYMASK` 0x10,
   `NX_DEVICERALTKEYMASK` 0x40). `.maskCommand`/`.maskAlternate` would raise the ring on every ⌘⌥ in
@@ -703,7 +704,8 @@ closes. Between the two is the whole transcription — the stretch in which he i
   de câte ori Wispr Flow interceptează vocea, trebuie să fie o animație pe ecran … că pornesc cu
   apăsat taste, că pornesc din gesturi de mouse"*). Three witnesses, all unconditional now:
   `HotkeyTap`'s two chords — `54+61` (right ⌘ + right ⌥ held, `ptt`, tested on the **device-right**
-  flag bits) and `49+59+63` (fn ⌃ Space, `popo`); `onWisprRawChord` for the chords this app posts
+  flag bits; **gone since Q9 step 2, 2026-09-28** — Wispr's own sentences get no halo, they are
+  Wispr's alone) and `49+59+63` (fn ⌃ Space, `popo`); `onWisprRawChord` for the chords this app posts
   itself (🔽 →, the back-button stop), which the tap filters out by design; and
   `WisprFlowSource.watch`, the CoreAudio edge.
 - **The watch is started by `watchMicrophone()`, not by `prepare()`** — that was the bug. `prepare()`

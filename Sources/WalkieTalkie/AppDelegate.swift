@@ -2597,13 +2597,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           // `StatusItem.micRowsForTest`.
                           "rows": self.status.micRowsForTest()]
             out["whisper"] = self.whisperSource.describe()
-            // Wispr's own shortcut table beside the Q9 flag (C, W-C7): standalone is
-            // coherent only while Wispr's `ptt` is off Walkie's right ⌘⌥ (54+61) —
-            // 61+60 since Q23; without standalone the tap still reads 54+61 as Wispr's.
+            // Wispr's own shortcut table (C, W-C7): Q9 is coherent only while
+            // Wispr's `ptt` is off Walkie's right ⌘⌥ (54+61) — 61+60 since Q23.
+            // `wisprStandalone` is always true since Q9 step 2 (2026-09-28: the
+            // flag is gone); kept in the answer for the scripts that read it.
             let shortcuts = HotkeyTap.wisprShortcuts()
             out["wisprShortcuts"] = shortcuts
-            out["wisprStandalone"] = HotkeyTap.wisprStandalone
-            out["wisprPttCoherent"] = shortcuts["ptt"].map { HotkeyTap.wisprStandalone ? $0 != "54+61" : $0 == "54+61" } ?? NSNull()
+            out["wisprStandalone"] = true
+            out["wisprPttCoherent"] = shortcuts["ptt"].map { $0 != "54+61" } ?? NSNull()
             out["elevenlabs"] = (self.source === self.elevenLiveSource ? self.elevenLiveSource : self.elevenSource).describe()
             return out
         }
@@ -3016,27 +3017,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wisprSource.didMaybeBegin = { [weak self] why in
             guard let self else { return }
             self.wisprMicSentence = !self.wisprSource.relayStarted
-            // **Held right ⌘⌥ is always the caret** (2026-09-22). Victor: *"daca
-            // apas si tin apasat cmd-opt drept tre sa faca insert at caret fara
-            // alte poze/procesari"* — bound or not, Wispr's clean transcript at
-            // the cursor, no context shot, no ⌘C probe. Raised here and not in
-            // `dictationBegan` because this gesture is unconfident: Wispr's row
-            // confirms it inside the source and `didBegin` never fires, so the
-            // latch in `dictationStoppedListening` never runs either — `deliver`
-            // reads `pasteMode` itself for that reason.
-            if self.wisprSource.startedByHeldPair {
-                self.pasteMode = true
-                Log.info("📍 right ⌘⌥ held — these words go to the caret")
-            }
             self.noteCleanStart()
-            self.noteHandStartedAtCaret()
             self.dictationMaybeBeginning(why)
         }
         wisprSource.didBegin = { [weak self] in
             guard let self else { return }
             self.wisprMicSentence = !self.wisprSource.relayStarted
             self.noteCleanStart()
-            self.noteHandStartedAtCaret()
             self.dictationBegan()
         }
         wisprSource.didStopListening = { [weak self] in self?.dictationStoppedListening() }
@@ -3075,20 +3062,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// before the chord's announcement reaches the main queue, and which is
     /// retired at the stop click — so it is latched here, at the begin, and
     /// carried to `deliver` on the flag.
-    /// **A sentence Wispr's own chord opened, with nothing bound, is a caret
-    /// sentence** (2026-09-26). Q1 holds an unbound sentence for the next bind,
-    /// and that is about the relay's gestures: Wispr's chord is a caret
-    /// dictation by nature, and holding it would take Wispr away from every app
-    /// for as long as the relay is unbound — most of the day. It used to reach
-    /// the caret through the unbound caret latch Q1 removed; it is `pasteMode`
-    /// now, explicitly, so a deliberate bind mid-sentence still takes it to the
-    /// terminal (`showBound`), as the wiring above promises.
-    private func noteHandStartedAtCaret() {
-        guard !wisprSource.relayStarted, !isBound, !spawnPending, !pasteMode else { return }
-        pasteMode = true
-        Log.info("📍 Wispr's own chord with nothing bound — these words go to the caret")
-    }
-
     private func noteCleanStart() {
         guard !wisprSource.relayStarted, hotkeys.backStopsWispr else { return }
         if !cleanSentence { Log.info("🧼 a plain dictation (back click) — clean words at the caret, nothing added") }
@@ -6291,7 +6264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["latchedTargetPending"] = latchedTarget != nil
         out["historyRow"] = wisprSource.historyRow.map { NSNumber(value: $0) } ?? NSNull()
         out["firewall"] = hotkeys.wisprFirewallOn
-        out["wisprStandalone"] = HotkeyTap.wisprStandalone   // Q9, off until Wispr moves to 54+60
+        out["wisprStandalone"] = true   // Q9 — always, since step 2 (2026-09-28); the flag is gone
         out["tapAlive"] = hotkeys.lastCanary.map { $0.alive } ?? NSNull()
         out["tapFailingOpen"] = hotkeys.lastCanary.map { $0.failingOpen } ?? NSNull()
         // The held prompt panel (test-plan gap G5): {held, verb, deadline, text, …}.

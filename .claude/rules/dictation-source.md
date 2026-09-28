@@ -83,10 +83,9 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
 - **A chord this app posts must announce itself** — `HotkeyTap.onWisprRawChord` →
   `noteRawChord(closing:)`. The keyboard branch filters our own posts (`backButtonStamp`), so without
   this 🔽 → reached `WisprState` through no witness at all: no row poll, no ring.
-- **Push-to-talk ends when the ⌘⌥ pair goes up** — `onWisprPushToTalkReleased` → `closeListening`,
-  gated on `startedByHeldPair` and `isRecording`. `onWisprMaybeStarting` carries a `WisprStart` so
-  the release pairs with its own press. Once Wispr's row confirms a held-pair dictation it opens the
-  sentence (`confirmSpeculative` → `didBegin`, caret mode: no picture, no probe).
+- **Right ⌘⌥ is never Wispr's push-to-talk any more** (Q9 step 2, 2026-09-28): `onWisprPushToTalkReleased`,
+  `WisprStart.pushToTalk`, `startedByHeldPair`, `heldPairIsTheEngines` are deleted; the pair is
+  `onCleanHold` whatever the Engine. Wispr's own ptt is **right ⌥⇧ `61+60`** (Q23) and nothing here watches it.
 - **A Wispr sentence names Wispr's microphone** — `History.micDevice` → `InputDevice.glyph(wisprName:)`,
   read from Wispr, never written; `🎓 TO Wispr` maps to the relay's own device.
 
@@ -131,15 +130,16 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   open** (its own lock, never `stateLock`): `POST /test/firewall` answers `alive: true, tap: "open"`,
   not `alive: false` (TG26). **Not fixed:** a session button stuck down keeps the gate open for as long
   as it is stuck (R24, the 7 h middle button) — the close waits for no button down, by design.
-- **An unclaimed ⌘V is rescued from the row** (`rescueFromRow`). `WT_WISPR_FIREWALL=0` for one run.
-- **Q9 standalone (2026-09-26, batch 6) — built, OFF** (`WT_WISPR_STANDALONE=1` env / `elevenlabs.env`,
-  or the `wisprStandalone` default; read once at launch; `state.wisprStandalone`). On: a Wispr sentence
-  the relay did not start is **Wispr's alone** — `gestureSeen(relay: false)` and a mic edge nobody
-  asked for return early (no ring, no capture, no delivery), his chord never closes the relay's own
-  sentence, and the tap lets Wispr's ⌘V through unless the relay owns a Wispr sentence
-  (`setWisprRelayOwned`: from the relay's gesture to its machine's idle + 10 s, ceiling 11 min) or a
-  capture is armed. Right ⌘⌥ is always `onCleanHold`. Flip it only after Wispr's `ptt` is `54+60`
-  (and `helpers/wispr_loopback.py`'s keycodes with it); then the old adoption path is deleted.
+- **No unclaimed-paste rescue** (Q9 step 2, 2026-09-28): `rescueFromRow` is deleted — it had no
+  freshness check (W17). `WT_WISPR_FIREWALL=0` for one run.
+- **Q9: Wispr's own sentences are Wispr's alone — always** (batch 6 built it behind
+  `WT_WISPR_STANDALONE`; **step 2, 2026-09-28, deleted the flag and the old adoption path**;
+  `state.wisprStandalone` still answers `true` for the scripts that read it). A Wispr sentence the
+  relay did not start: `gestureSeen(relay: false)` and a mic edge nobody asked for return early (no
+  ring, no capture, no delivery), his chord never closes the relay's own sentence, and the tap lets
+  Wispr's ⌘V through unless the relay owns a Wispr sentence (`setWisprRelayOwned`: from the relay's
+  gesture to its machine's idle + 10 s, ceiling 11 min) or a capture is armed. Wispr's ptt is
+  `61+60` (right ⌥⇧, Q23); `GET /engine.wisprPttCoherent` is false if it is ever `54+61` again.
 
 ## Catching Wispr's words
 
@@ -346,7 +346,6 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 |---|---|
 | `WT_SOURCE=whisper｜eleven｜wispr` | engine for one run (the menu writes `dictationSource`) |
 | `WT_WISPR_FIREWALL=0` | let Wispr's ⌘V through (`POST /test/firewall {"on": false}`) |
-| `WT_WISPR_STANDALONE=1` | Q9: Wispr's own sentences are left to Wispr; right ⌘⌥ is Walkie's only (default off, batch 6) |
 | `ELEVENLABS_API_KEY` · `WT_ELEVEN_MODEL=scribe_v2` · `WT_ELEVEN_LANG=ro` · `WT_ELEVEN_LIVE_LANGS=ro,en` | key; model (default `scribe_v1`); pinned language (off); the live caption's language set (default `ro,en`) |
 | `WT_WRAP_WISPR=0` · `WT_WRAP_MODE=scratchpad｜sink｜off` | wrap off / forced mode (`POST /test/wrap-mode`) |
 | `WT_SCRATCHPAD_DELIVER=note` | deliver from the note (2.8 s slower) |

@@ -237,14 +237,6 @@ final class WisprFlowSource: DictationSource {
     /// into one flag broke that route the first time it was tried.
     private var intercepting = false
 
-    /// **This dictation was opened by holding right ⌘⌥**, so the moment that pair
-    /// comes back up is the moment it ends — see `pushToTalkReleased`.
-    ///
-    /// The gate, and the reason the release is not simply *a stop*: a ⌘⌥ Victor
-    /// presses for something else in the middle of a hands-free sentence, or of
-    /// one the relay opened, must not end it. Only a sentence this pair started
-    /// is a sentence this pair can finish.
-    private(set) var startedByHeldPair = false
 
     // MARK: - Events
 
@@ -630,9 +622,9 @@ final class WisprFlowSource: DictationSource {
         // **And every edge of `listening` is published** — see `hearingChanged`.
         state.onTransition = { [weak self] previous, next, _ in
             guard let self else { return }
-            // Standalone (Q9): the relay's own Wispr sentence is over — its ⌘V
-            // tail runs out in `HotkeyTap.wisprOwnedTail`.
-            if HotkeyTap.wisprStandalone, next == .idle { self.hotkeys.setWisprRelayOwned(false) }
+            // Q9: the relay's own Wispr sentence is over — its ⌘V tail runs out
+            // in `HotkeyTap.wisprOwnedTail`.
+            if next == .idle { self.hotkeys.setWisprRelayOwned(false) }
             self.syncInputPoll()
             if previous.isListening != next.isListening {
                 self.hearingChanged?(next.isListening)
@@ -642,12 +634,8 @@ final class WisprFlowSource: DictationSource {
         hotkeys.onWisprMaybeStarting = { [weak self] start in
             // His keyboard, not the relay's — `relay: false`.
             DispatchQueue.main.async {
-                self?.gestureSeen(start.why, confident: start.isConfident, relay: false,
-                                  heldPair: start == .pushToTalk)
+                self?.gestureSeen(start.why, confident: start.isConfident, relay: false)
             }
-        }
-        hotkeys.onWisprPushToTalkReleased = { [weak self] in
-            DispatchQueue.main.async { self?.pushToTalkReleased() }
         }
         hotkeys.onWisprMaybeCancelling = { [weak self] in
             DispatchQueue.main.async { self?.dismissSeen() }
@@ -1328,12 +1316,10 @@ final class WisprFlowSource: DictationSource {
     ///   will have to undo. Nil means *the mode in force* — every gesture except
     ///   the loopback's hands-free routes, which post Wispr's own chord and so
     ///   have no key held and no sink to take.
-    /// - Parameter heldPair: whether this is the **held** right ⌘⌥ pair, whose
-    ///   release ends the sentence (`pushToTalkReleased`). Only the tap's
-    ///   `.pushToTalk` branch passes it; every other route here is a toggle or
-    ///   the relay's own, and is closed by something else.
+    /// (`heldPair` — the right ⌘⌥ hold read as Wispr's push-to-talk — went with
+    /// Q9 step 2, 2026-09-28.)
     private func gestureSeen(_ why: String, confident: Bool, relay: Bool, mode: WrapMode? = nil,
-                             heldPair: Bool = false, walkiePosted: Bool = false) {
+                             walkiePosted: Bool = false) {
         // **The chord is a toggle and the second press is the stop** (2026-09-13).
         // Only for a confident gesture: `fn ⌃ Space` is unambiguous and this
         // app's own posts no longer come back through the tap, so a hands-free
@@ -1341,9 +1327,9 @@ final class WisprFlowSource: DictationSource {
         // keyboard — which the relay used to learn only from a CoreAudio edge
         // that may be six seconds late or absent.
         if confident, isRecording || speculative {
-            // Standalone (Q9): his own chord never ends the relay's sentence —
-            // it is Wispr's second sentence, not a stop.
-            if HotkeyTap.wisprStandalone, !relay, !walkiePosted {
+            // Q9: his own chord never ends the relay's sentence — it is Wispr's
+            // second sentence, not a stop.
+            if !relay, !walkiePosted {
                 Log.info("⚡ \(why) — Wispr's own chord (standalone, Q9); the relay's sentence goes on")
                 return
             }
@@ -1355,11 +1341,11 @@ final class WisprFlowSource: DictationSource {
         // chord is Wispr's alone** — not adopted, not firewalled, not delivered.
         // The back click's raw chord (`walkiePosted`) is Walkie's gesture, not his
         // Wispr chord — still the relay's plain sentence.
-        if HotkeyTap.wisprStandalone, !relay, !walkiePosted {
-            Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (standalone, Q9)")
+        if !relay, !walkiePosted {
+            Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (Q9)")
             return
         }
-        if HotkeyTap.wisprStandalone { hotkeys.setWisprRelayOwned(true) }
+        hotkeys.setWisprRelayOwned(true)
         speculative = true
         // **A chord still waiting for a bare wire belongs to the sentence that
         // asked for it, and that sentence is over.** The epoch moves here and at
@@ -1380,7 +1366,6 @@ final class WisprFlowSource: DictationSource {
         focusPid = frontPid != 0 ? frontPid
             : (Self.frontWindowOwner() ?? (lastFrontPid != 0 ? lastFrontPid : nil))
         relayStarted = relay
-        startedByHeldPair = heldPair
         startedMode = relay ? (mode ?? wrapMode) : .off
         // **Every Wispr sentence is the relay's to deliver** (2026-09-22). Until
         // today a dictation Victor started with Wispr's own chord was watched
@@ -1476,16 +1461,6 @@ final class WisprFlowSource: DictationSource {
                         what, (CFAbsoluteTimeGetCurrent() - gestureAt) * 1000))
         isRecording = true
         startMeter()
-        // **The held right ⌘⌥ opens the sentence here** (2026-09-22). It is the
-        // one unconfident gesture, so nothing fired `didBegin` at the chord, and
-        // until now nothing fired it at the confirmation either: the relay sat
-        // `speculative` for the whole hold — no `Listening` row, no `at caret`,
-        // and at the release `dictationStoppedListening` (guarded on
-        // `listening`) never ran, so there was no settle and no doubled heads
-        // while Wispr transcribed. Victor: *"cât am tastele apăsate … trebuie să
-        // se poarte exact ca dictarea la caret"*. Every other gesture that
-        // reaches here already had its `didBegin`, or has none to have.
-        if startedByHeldPair { didBegin?() }
     }
 
     /// **The microphone is shut as far as this app is concerned** — by the
@@ -1501,7 +1476,6 @@ final class WisprFlowSource: DictationSource {
         // kind of disagreement between two records of the same fact this file
         // exists to remove.
         state.stopChord(why)
-        startedByHeldPair = false
         // **Belt on the hold.** Every ordinary path releases the chord before it
         // gets here; this is for the ones that do not exist yet and for the one
         // that already does — Victor's own hands-free chord, read as a stop for
@@ -1590,36 +1564,6 @@ final class WisprFlowSource: DictationSource {
         }
     }
 
-    /// **He let go of right ⌘⌥ — the push-to-talk sentence is over.**
-    ///
-    /// The whole of what was missing on 2026-09-18: *"nu se prinde când Wispr se
-    /// oprește când apas cmd-opt și dau release la taste"*. The start of that
-    /// dictation has been read off the keyboard since 2026-09-12; its end never
-    /// was, and every other witness the relay has is late or conditional. The
-    /// CoreAudio notification is 0–6 s behind and was absent in five of five
-    /// runs; the 100 ms poll needs a `WisprWatch` that `prepare()` never started
-    /// when the Engine is the local model; and Wispr's `History` row only leaves
-    /// `listening` once it turns **terminal**, which is after the formatting
-    /// pass — measured that morning, the row sat at `raw_transcript` and the
-    /// phase stayed `listening` indefinitely, with the music off the whole time.
-    /// The key going up is the same fact, free and exact.
-    ///
-    /// **Only for a sentence this pair started** (`startedByHeldPair`). Wispr
-    /// keeps push-to-talk on its own `ptt` action (`54+61`) and its hands-free
-    /// toggle on another chord entirely, so a release here is never a toggle in
-    /// disguise — but a ⌘⌥ pressed for something unrelated in the middle of a
-    /// hands-free sentence, or of one the relay opened, is ordinary and must not
-    /// end it.
-    ///
-    /// **And only once the guess is confirmed.** A tap too short for Wispr to
-    /// have made a row leaves this `speculative`, and *that was not a dictation*
-    /// is a different claim from *the sentence is over* — `speculativeGrace`
-    /// owns it and says so in its own words.
-    private func pushToTalkReleased() {
-        guard startedByHeldPair, isRecording else { return }
-        closeListening("right ⌘⌥ released — his push-to-talk is over")
-    }
-
     /// **Victor pressed Wispr's own dismiss (⌃Escape).** The sentence is over
     /// on Wispr's side and nothing will be pasted, so nothing here may go on
     /// waiting for it: a capture standing is closed and the ring goes down now,
@@ -1659,17 +1603,10 @@ final class WisprFlowSource: DictationSource {
             Log.info("⚡ \(why) — a late confirmation of the sentence that is over, not a new dictation")
             return
         }
-        // **Wispr heard the right ⌘⌥ the Engine took** (2026-09-25,
-        // `HotkeyTap.heldPairIsTheEngines`): its microphone opening is a second
-        // recogniser on the same voice, not a sentence of Victor's to deliver.
-        if on, !speculative, !isRecording, hotkeys.heldPairIsTheEngines {
-            Log.info("⚡ Wispr opened its microphone for the right ⌘⌥ the Engine has — not a sentence of its own")
-            return
-        }
-        // **Standalone (Q9): a microphone nobody here asked for is Wispr's own
-        // sentence** — no ring, no capture, no delivery; and its close is not ours.
-        if HotkeyTap.wisprStandalone, !speculative, !isRecording {
-            if on { Log.info("⚡ Wispr opened its microphone for a sentence of its own — left to Wispr (standalone, Q9)") }
+        // **Q9: a microphone nobody here asked for is Wispr's own sentence** —
+        // no ring, no capture, no delivery; and its close is not ours.
+        if !speculative, !isRecording {
+            if on { Log.info("⚡ Wispr opened its microphone for a sentence of its own — left to Wispr (Q9)") }
             return
         }
         state.notify(on)
@@ -2617,16 +2554,12 @@ final class WisprFlowSource: DictationSource {
             return
         }
         guard capturing else {
-            // **No capture at all — a sentence this app never saw start**, and
-            // the firewall has just eaten its paste. The words are in Wispr's
-            // `History` row all the same; that row is delivered, late, rather
-            // than lost — **unless it is the right ⌘⌥ the Engine took**
-            // (2026-09-25), whose words the Engine is already delivering.
-            if hotkeys.heldPairIsTheEngines {
-                Log.info("🛡️ ⌘V from \(process) dropped — Wispr's copy of the right ⌘⌥ sentence the Engine has; not rescued")
-                return
-            }
-            if hotkeys.wisprFirewallOn { rescueFromRow(after: process) }
+            // **No capture at all — a sentence this app never saw start.** Under
+            // Q9 the tap lets such a ⌘V through (it is Wispr's own sentence);
+            // one dropped here fell inside the relay-owned tail. The unclaimed-
+            // paste rescue (`rescueFromRow`) went with Q9 step 2 (2026-09-28): it
+            // had no freshness check and could deliver an hours-old row (W17).
+            Log.info("🛡️ ⌘V from \(process) with no capture open — not the relay's; nothing delivered")
             return
         }
         if discardOnArrival {
@@ -2634,10 +2567,7 @@ final class WisprFlowSource: DictationSource {
             endCapture(quiet: true)
             return
         }
-        guard intercepting else {
-            if hotkeys.wisprFirewallOn { rescueFromRow(after: process) }
-            return
-        }
+        guard intercepting else { return }
         // **Under the firewall the ⌘V is only a dropped key, never the words**
         // (2026-09-22). The pasteboard it points at is Wispr's and is about to
         // be restored; the sentence is read from the `History` row and nowhere
@@ -2660,38 +2590,6 @@ final class WisprFlowSource: DictationSource {
                         wrapWispr ? " (taken)" : " (let through)"))
         deliver(reason: "Wispr's ⌘V", via: "wispr-cmdv",
                 delivery: wrapWispr ? .route : .alreadyInserted)
-    }
-
-    /// **A ⌘V the firewall dropped that no capture was taking.** Wispr's row
-    /// for it is on top of `History` (it posts the paste after writing the
-    /// row), so the newest terminal row that is not one this app has already
-    /// delivered is that sentence. Polled briefly, because the paste and the
-    /// `formatted` status land within the same few hundred milliseconds and in
-    /// no fixed order.
-    private var rescueTries = 0
-    private func rescueFromRow(after process: String) {
-        rescueTries = 0
-        Log.error("🛡️ ⌘V from \(process) dropped with no capture open — delivering the sentence from Wispr's History row instead")
-        func attempt() {
-            rescueTries += 1
-            guard let e = WisprHistory.newest(), e.rowid != lastRow, e.rowid != historyRow else {
-                Log.error("🛡️ rescue: the newest row is one already delivered — nothing to put anywhere"); return
-            }
-            if WisprState.intermediateStatuses.contains(e.status) || e.status.isEmpty {
-                if rescueTries < 20 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: attempt) }
-                else { Log.error("🛡️ rescue: row \(e.rowid) never became terminal — still \(e.status)") }
-                return
-            }
-            lastRow = e.rowid
-            let text = e.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { Log.error("🛡️ rescue: row \(e.rowid) is \(e.status) and carries nothing"); return }
-            Log.info("🛡️ rescue: row \(e.rowid) (\(e.status)) — \(text.count) chars handed to the relay")
-            didTranscribe?(DictationResult(text: text, language: nil, audio: nil, duration: 0,
-                                           engine: "wispr-flow", warning: nil, delivery: .route,
-                                           via: "wispr-history", focusPid: nil, markersInAudio: false,
-                                           engineLabel: "Wispr Flow"))
-        }
-        attempt()
     }
 
     private func captureExpired() {
