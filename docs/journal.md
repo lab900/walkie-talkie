@@ -29,6 +29,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *F10's re-fire guard, scoped to F10 only* (2026-09-16/18) — superseded 2026-09-26 by batch 4 §2: every flick has the 0.6 s window
 - *`PasteHint` after every delivered sentence* (2026-09-23) and **⌘⇧P** itself (2026-09-19) — superseded 2026-09-28 by Q17: the clipboard always holds the finished sentence (envelope or clean words), ⌘⇧P is gone, the chip's row after a delivery says ⌘V (*Wispr as engine: decisions Q14–Q23*)
 - *The eraser waits 5 s and fades letter by letter* (2026-09-26 14:20), the eraser of *The caption after a night of use*, and the single centred line that scrolled left once wider than the band (*The caption is centred…*) — superseded 2026-09-28 by *Two lines that roll up*: two centred lines ≤ 80 % of the band, a roll-up on the third, silence rolls lines out after a read time; no eraser, no horizontal scroll
+- *Two escapes, both said out loud: a relay that has not answered for a minute* (2026-09-23, `restart_gate.py`) — superseded 2026-09-28 by *A restart waits for every engine and for his hands*: an app that does not answer is refused (exit 4), never restarted
 - *The back button's two gestures swapped roles* (2026-09-23, `268b111`: 🔽 = the plain toggle, 🔽 → = Return) — superseded 2026-09-28 by *The back button's gestures swapped back*: 🔽 → is the plain toggle, 🔽 is Return (the shutter while a prompt records; stop + words + Return in a plain one)
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
@@ -14085,6 +14086,7 @@ settle alone (0.8 s from the start) let a re-fire at ~0.9 s close what the flick
 `evals/test_gesture_spec.py --self-test` now also reads `HotkeyTap.swift` at `c8d918b` (the last
 09-23 mapping) out of git and asserts the spec rejects it.
 
+
 ## ⌘⌃X: the local model, now (2026-09-28)
 
 Victor, dictated: *"To compensate as a backup for slow transcriptions, I want a local fallback that
@@ -14117,3 +14119,47 @@ A cold model is banked by the fallback's own 90 s wait, and the press itself sta
 chip's `💻 Local now  ⌘⌃X` row (`(loading)` while the weights are down) is up while there is a take
 to hand over; the menu has **Transcribe Locally Now** with ⌘⌃X in its shortcut column.
 `POST /test/local-now`, `state.localNow`, harness cases TN1–TN3 (`evals/plan/cases_localnow.py`).
+
+## A restart waits for every engine and for his hands (2026-09-28)
+
+Victor, 18:39: *"someone just restarted the walkie while I was dictating. that should never
+happen (while dictating or transcribing). restart is only possible after 5 secs of inactivity
+after the last insert of text."*
+
+**What the gate saw at 18:39:14** — and why it opened with *waited 0 s*: the relay's last
+sentence (a right ⌘⌥ plain dictation on ElevenLabs) had landed at the caret at 18:37:51, 83 s
+earlier; nothing of the relay's own was open; Wispr's newest History row was 17892, from 07:33
+that morning, so no Wispr sentence either. `busy` was honestly false and the ten quiet seconds
+long gone. What the gate did not look at was **him**: hands-off had reported *Victor took
+control* at 18:37:38, and at 18:41:09 he dictated a 24.6 s sentence — the one, by every sign,
+that the restart had cut into or pre-empted (a chord made while the app was down between the
+SIGTERM and the tap's canary at 18:39:18 reaches nothing). The relay's `busy` is blind to his
+hands and, since Q9 step 2, to a Wispr sentence he says on his own.
+
+What ships:
+
+- `restartBlockers` (hence `busy`/`busyWhy`, the gate, the Dock tile) adds the local fallback,
+  a sentence in the queue, the live caption open, any other engine's microphone, **Wispr Flow's
+  microphone** (`WisprFlowSource.wisprMicOpenNow`, the CoreAudio sample) and **a Wispr History
+  row still being worked on** (`""`/`processing`/`raw_transcript`/…) younger than 60 s — the
+  pure half in `RestartGate`, tested by `RestartGateTests`. Not in `quitBlockers`: ⌘Q is his.
+- `/test/state.lastInputAt` — the tap's stamp of every key, modifier, button, drag or wheel it
+  sees (`HotkeyTap.noteInput`, canary excluded), maxed with the HID system's own clock
+  (`CGEventSource.secondsSinceLastEventType(.hidSystemState, …)`, hardware only, no tap needed).
+  Plus `lastInsertAt` (delivery, own clipboard write, Wispr's finished row), `lastDictationEdgeAt`
+  (`dictationStartedAt` set/cleared, Wispr's newest gesture), `inactivitySeconds`, `inactivityLeft`.
+- `tools/restart_gate.py`: `INACTIVITY = 5` (his quote) since the last input, read from the app
+  **and** from CoreGraphics through ctypes (so any build, and an app that does not answer);
+  `QUIET_AFTER_DELIVERY = 10` since the last insert/edge/busy poll; the Wispr checks mirrored from
+  `wisprLive` and from `flow.sqlite` read-only. `--quiet` never goes below 5.
+- **The "unreachable for 60 s → restart anyway" escape is gone.** A frozen app is still not a
+  reason to cut a dictation: the gate waits, and at 60 s refuses (exit 4, *nothing was
+  restarted*). `--force` is a human's (stdin must be a terminal, and he types `force`); it goes
+  past that one refusal and still waits for Wispr and his hands. The night brief treats exit 4
+  like exit 3 — abort the install.
+- Every stand-down audited: `relay-restart.sh`, `docs/shoot-overlay-states.sh` (already on
+  `relay_wait_idle`), `helpers/wispr_loop.py`'s *Wispr alone* and TD12 now ask the gate before
+  their own `pkill`/SIGTERM. `build-app.sh` never touches the process; `tools/vm-lab.sh deploy`
+  is the guest's; the Addons repo neither kills nor launches the app; the `relay` skill's
+  `install.sh` still `pkill`s and `start.sh` launches by the executable path — his own `/relay`,
+  another repo, left as it was and noted.

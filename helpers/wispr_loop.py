@@ -3259,6 +3259,17 @@ def scenario_wispr_alone(ctx) -> Result:
     victim = None
     tty = None
     relaunched = False
+    # **Through the restart gate first** (2026-09-28): the stand-down is a
+    # restart's first half, and it must never land on his dictation — on any
+    # engine — or within 5 s of his last key. Before the `try`, whose `finally`
+    # would `open` the app — and an `open` on a running app is a Dock-tile restart.
+    if not relay.dry_run:
+        gate = subprocess.run([sys.executable, os.path.join(REPO, "tools", "restart_gate.py"),
+                               "wait", "--max-wait", "120"], capture_output=True, text=True, timeout=200)
+        if gate.returncode != 0:
+            result.check(False, "the restart gate opened before the stand-down",
+                         (gate.stdout.strip().splitlines() or ["exit %d" % gate.returncode])[-1])
+            return result
     try:
         import wispr_loopback as wl
 

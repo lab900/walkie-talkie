@@ -427,6 +427,13 @@ def td12():
     exit, the pre-SIGTERM read only as the fallback)."""
     if not os.environ.get("WT_ALLOW_RELAUNCH"):
         return "SKIP", "quits and relaunches the app — set WT_ALLOW_RELAUNCH=1 with Victor idle"
+    # The SIGTERM below is this case's own (it tests the deferred quit), so it
+    # cannot go through relay-restart.sh — but it goes through its gate (2026-09-28):
+    # never over a dictation on any engine, never within 5 s of his last key.
+    gate = subprocess.run(["./relay-restart.sh", "--dry-run", "--max-wait", "120"], cwd=REPO,
+                          capture_output=True, text=True, timeout=240)
+    if gate.returncode != 0:
+        return "SKIP", "the restart gate is closed: " + ((gate.stdout.strip().splitlines() or ["exit %d" % gate.returncode])[-1])
     _fresh()
     tb = None
     try:

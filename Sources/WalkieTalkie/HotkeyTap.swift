@@ -481,6 +481,24 @@ final class HotkeyTap {
         }
     }
 
+    /// **The last key, modifier, mouse button or wheel turn this tap saw**
+    /// (2026-09-28) — `GET /test/state.lastInputAt`, for the restart gate:
+    /// *"restart is only possible after 5 secs of inactivity"* (`RestartGate`).
+    /// Every type in the tap's mask counts (none of them is a plain mouse move);
+    /// the canary does not. Synthetic events count too — the relay's own paste
+    /// is an insert, and a harness typing is somebody at work. Wall clock, under
+    /// its own lock: written on the tap thread, read on the main one.
+    static var lastInputAt: Date? {
+        inputLock.lock(); defer { inputLock.unlock() }
+        return lastInputStamp > 0 ? Date(timeIntervalSinceReferenceDate: lastInputStamp) : nil
+    }
+    private static let inputLock = NSLock()
+    private static var lastInputStamp: CFAbsoluteTime = 0
+    fileprivate static func noteInput() {
+        let now = CFAbsoluteTimeGetCurrent()
+        inputLock.lock(); lastInputStamp = now; inputLock.unlock()
+    }
+
     /// **The modifiers the session believes are held**, by name — `GET
     /// /test/state.sessionFlags`.
     ///
@@ -2296,6 +2314,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             canaryLock.lock(); canarySeenAt = HotkeyTap.uptime(); canarySeenFrozen = frozen; canaryLock.unlock()
             return nil
         }
+        // Anything past the canary is someone's input — the restart gate's clock.
+        HotkeyTap.noteInput()
         if frozen {
             if isOwnChordWhileFrozen(type, event) {
                 chordsDroppedWhileOpen += 1

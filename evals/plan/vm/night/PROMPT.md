@@ -124,8 +124,9 @@ frame pacing, autosend default, no Wispr, no second display — see the 26/27 Se
 ## 6. Fix loop — cap 1 h 30 min, at most 3 iterations
 
 Edit → `swift build` → install on the host with `./relay-restart.sh --build --max-wait 900` (the idle
-gate; Victor is asleep — exit 3 after 15 min means someone is dictating: abort the install, leave the
-fix uncommitted, note it) → redeploy to the guest (§3, app only) → re-run only the affected IDs as
+gate; Victor is asleep — exit 3 after 15 min means someone is dictating, exit 4 means the host app has
+not answered for a minute and the gate refuses to restart it blind (2026-09-28): either way abort the
+install, leave the fix uncommitted, note it; never `--force`, that flag is a human's) → redeploy to the guest (§3, app only) → re-run only the affected IDs as
 `X<n>`. Keep the fix only if its IDs pass and nothing else in the re-run broke. Commit each fix
 separately on the current branch, `git add` by path, message naming the case IDs, ending with
 

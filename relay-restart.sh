@@ -2,15 +2,17 @@
 #
 # **The one way to restart the installed app.** `safe-restart.sh` is an alias.
 #
-#   ./relay-restart.sh [--build] [--dry-run] [--max-wait SECONDS] [--quiet SECONDS]
+#   ./relay-restart.sh [--build] [--dry-run] [--max-wait SECONDS] [--quiet SECONDS] [--force]
 #
 #   --build      run ./build-app.sh first — ungated, a build may happen while he
 #                dictates; only the quit and relaunch wait
 #   --dry-run    wait for the gate and say it would restart; touch nothing
 #   --max-wait   give up after this long (default 1800 s = 30 min), exit 3
-#   --quiet      seconds of quiet required after the last delivery (default 10)
+#   --quiet      seconds of quiet required after the last insert (default 10, never below 5)
+#   --force      a HUMAN's, at a terminal: go past an app that has not answered for 60 s
 #
-# Exit: 0 restarted (or gate open on --dry-run), 1 build failed, 3 gave up waiting.
+# Exit: 0 restarted (or gate open on --dry-run), 1 build failed, 3 gave up
+# waiting, 4 refused (the app has not answered for 60 s — never restarted blind).
 #
 # Victor's rule, in three dated halves:
 #
@@ -25,15 +27,25 @@
 #   10 more seconds in case I routed the prompt to the wrong place, and then only
 #   then restart."*
 #
+#   2026-09-28, after a restart at 18:39:14 landed while he was dictating: *"someone
+#   just restarted the walkie while I was dictating. that should never happen
+#   (while dictating or transcribing). restart is only possible after 5 secs of
+#   inactivity after the last insert of text."*
+#
 # So, in order:
 #
-# 1. **Wait for the gate** — `tools/restart_gate.py wait`: `GET /test/state.busy`
-#    false (the app's own `restartBlockers`: every engine's microphone, the
-#    recogniser, a Wispr sentence behind the firewall, the prompt on screen, a
-#    sentence held for a bind, the words being typed, a spawn until its window is bound, audio staged for
-#    Recover — TL18, a restart wipes `cancelled/`), then ten quiet seconds after
-#    the last delivery, the countdown starting over on anything new. Polled every
-#    second; unit-tested by `evals/test_restart_gate.py`.
+# 1. **Wait for the gate** — `tools/restart_gate.py wait`: nothing dictating or
+#    transcribing on any engine (`GET /test/state.busy` — the app's own
+#    `restartBlockers`: every microphone, the recogniser, the local fallback, the
+#    sentence queue, the live caption, a Wispr sentence behind the firewall, the
+#    prompt on screen, a sentence held for a bind, the words being typed, a spawn
+#    until its window is bound, audio staged for Recover — plus Wispr Flow's own
+#    microphone and a History row it is still working on, also read by the gate
+#    itself for older builds), then ten quiet seconds after the last insert or
+#    dictation edge, and five with no key, click or scroll from him. The
+#    countdown starts over on anything new. An app that does not answer is waited
+#    for, and refused after a minute (exit 4) — never restarted blind. Polled
+#    every second; unit-tested by `evals/test_restart_gate.py`.
 # 2. **Read the binding** from `~/.walkie-talkie/bound-tty` — before the SIGTERM
 #    as a fallback, and again **once the process is gone** (2026-09-26, TD12): an
 #    app being replaced leaves the binding it had *at quit* there, so a bind made
@@ -66,9 +78,10 @@ RELAY_EXEC="$RELAY_APP/Contents/MacOS/Walkie Talkie"
 relay_pid() { pgrep -f "$RELAY_EXEC" 2>/dev/null | head -1; }
 
 # Block until the gate is open (see above). Exit status 3 when --max-wait ran out.
+# Exit status 4 when it refuses (the app has not answered for 60 s).
 relay_wait_idle() {
   python3 "$RELAY_DIR/tools/restart_gate.py" wait --quiet "${RELAY_QUIET:-10}" \
-    --max-wait "${RELAY_MAX_WAIT:-1800}"
+    --max-wait "${RELAY_MAX_WAIT:-1800}" ${RELAY_FORCE:+--force}
 }
 
 # The tty it was pointed at, or nothing. Read *before* standing the app down —
@@ -176,7 +189,8 @@ relay_restart() {
       --dry-run) dry=1 ;;
       --max-wait) RELAY_MAX_WAIT="$2"; shift ;;
       --quiet) RELAY_QUIET="$2"; shift ;;
-      -h|--help) sed -n '2,13p' "$RELAY_DIR/relay-restart.sh"; return 0 ;;
+      --force) RELAY_FORCE=1 ;;
+      -h|--help) sed -n '2,15p' "$RELAY_DIR/relay-restart.sh"; return 0 ;;
       *) echo "unknown argument: $1" >&2; return 2 ;;
     esac
     shift
@@ -195,7 +209,7 @@ relay_restart() {
     return 0
   fi
 
-  echo "🔍 waiting until Walkie Talkie (pid $pid) is idle and quiet for ${RELAY_QUIET:-10} s…"
+  echo "🔍 waiting until Walkie Talkie (pid $pid) is idle: nothing dictating on any engine, ${RELAY_QUIET:-10} s after the last insert, 5 s since his last input…"
   relay_wait_idle || return $?
 
   local tty pane owner; tty="$(relay_bound_tty)"; pane="$(relay_bound_pane)"; owner="$(relay_bound_owner)"

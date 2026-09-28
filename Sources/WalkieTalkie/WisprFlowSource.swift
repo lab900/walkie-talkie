@@ -1315,6 +1315,10 @@ final class WisprFlowSource: DictationSource {
         return testDescribe()
     }
 
+    /// **Wispr's microphone, sampled now** — the restart gate's question
+    /// (`RestartGate`): is he saying a Wispr sentence the relay is not tracking.
+    var wisprMicOpenNow: Bool { watch.sampleIsRunningInput() }
+
     /// When the tap last reported a Wispr ⌘V (`injected(from:)`), any capture.
     private var lastCmdVAt: CFAbsoluteTime = 0
 
@@ -1328,6 +1332,8 @@ final class WisprFlowSource: DictationSource {
         return ["micOpen": watch.sampleIsRunningInput(),
                 "newestRowId": newest.map { NSNumber(value: $0.rowid) } ?? NSNull(),
                 "newestRowStatus": newest.map { $0.status } ?? NSNull(),
+                // The row's gesture (2026-09-28) — the restart gate's *fresh row*.
+                "newestRowAt": newest.flatMap { $0.startedAt > 0 ? Outbox.iso(Date(timeIntervalSince1970: $0.startedAt)) : nil } ?? NSNull(),
                 "newestRowText": newest.map { $0.text.count } ?? NSNull(),
                 "captureOpen": capturing,
                 "captureRow": historyRow.map { NSNumber(value: $0) } ?? NSNull(),

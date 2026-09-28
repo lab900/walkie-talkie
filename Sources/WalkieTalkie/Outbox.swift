@@ -294,6 +294,8 @@ enum Outbox {
     /// exist for are hundreds of milliseconds apart — a second-resolution stamp
     /// cannot order a settle against the click that landed inside it.
     static func iso(_ date: Date) -> String { isoFormatter.string(from: date) }
+    /// The inverse of `iso`, for a stamp read back (the restart gate's clocks).
+    static func parseISO(_ text: String) -> Date? { isoFormatter.date(from: text) }
 
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

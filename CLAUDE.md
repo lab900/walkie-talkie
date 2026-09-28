@@ -40,8 +40,12 @@ menus, About, the Chrome extension. Logs, comments and commits are unaffected. S
 
 - **Build + install:** `./build-app.sh`. Never commit an `.icns`.
 - **Restart ONLY through `./relay-restart.sh [--build]`** — never `pkill`/`kill`/`open` by hand.
-  It waits until `GET /test/state.busy` is false **and** 10 s quiet after the last delivery, then
-  restarts and re-binds the tty. Victor: never restart mid-dictation. `--dry-run` checks the gate.
+  2026-09-28, Victor: *"restart is only possible after 5 secs of inactivity after the last insert
+  of text"* — **5 s of inactivity after the last insert, never while any engine is dictating or
+  transcribing.** The gate waits for `GET /test/state.busy` false (every engine, Wispr's own mic
+  and History row included), 10 s after the last insert/dictation edge, 5 s since his last key,
+  click or scroll; an app that does not answer is refused (exit 4), never restarted blind.
+  `--dry-run` checks the gate; `--force` is a human's only. If it refuses, WAIT — never override.
 - **Never launch by the executable path** — `open "/Applications/Walkie Talkie.app"`; a path launch
   is a second app to TCC.
 - **A fix "did not take"? Read the bundle, not the repo** (`find "/Applications/Walkie Talkie.app"

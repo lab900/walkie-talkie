@@ -238,6 +238,30 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   superseding *six seconds after the row stops saying `listening`*). `GET /test/state.busy` is
   `AppDelegate.restartBlockers`; the ten seconds are Victor's, for re-routing a prompt he sent to
   the wrong place. `tools/restart_gate.py`, tested by `evals/test_restart_gate.py`.
+- **…on every engine, and five seconds after his hands** (2026-09-28, after a restart at 18:39:14
+  landed while he was dictating — *"restart is only possible after 5 secs of inactivity after the
+  last insert of text"*). `restartBlockers` also carries the local fallback, the sentence queue,
+  the live caption, another engine's microphone and **Wispr Flow's own** — its microphone
+  (`wisprMicOpenNow`) and a History row still `NULL`/`processing`/`raw_transcript` under 60 s old
+  (`RestartGate`, tested by `RestartGateTests`); `restart_gate.py` reads the same from
+  `wisprLive` and from `flow.sqlite` itself, so an older build is gated too. `/test/state` has
+  `lastInputAt` (the tap's stamp and the HID system's clock — keys, buttons, drags, wheel, never a
+  plain move), `lastInsertAt` (delivery, own clipboard write, Wispr's finished row) and
+  `lastDictationEdgeAt`; the gate wants `INACTIVITY` (5 s) since the input and
+  `QUIET_AFTER_DELIVERY` (10 s) since the rest — the longer wins. The Wispr and inactivity
+  checks are not in `quitBlockers` and inactivity is not in `restartBlockers`: ⌘Q and the Dock
+  tile's click are his own and must not wait on his own hands.
+- **An app that does not answer is refused, never restarted** (2026-09-28, superseding *a relay
+  silent for a minute is wedged — go ahead*). The gate waits, and at 60 s exits 4 with a note for
+  the operator; `--force` (relay-restart.sh and the gate) goes past that one refusal only, asks a
+  human at a terminal to type `force`, and still waits for Wispr and his hands.
+- **Every stand-down goes through the gate**: `relay-restart.sh` (`--build` builds ungated, the
+  quit waits), `docs/shoot-overlay-states.sh` (`relay_wait_idle` before the shoot binary's
+  `SingleInstance` stands the app down), `helpers/wispr_loop.py`'s *Wispr alone* (the gate before
+  its `pkill`, outside the `try` whose `finally` opens the app), TD12 (`relay-restart.sh --dry-run`
+  before its own SIGTERM). Not gated, on purpose: `build-app.sh` (swaps the bundle, never touches
+  the process), `tools/vm-lab.sh deploy` (the guest's app), the Dock tile (his click; waits on
+  `restartBlockers`), the `relay` skill's `install.sh` / `start.sh` (his own `/relay`).
 - **Audio staged for Recover blocks a restart, not a quit** (TL18, 2026-09-26 batch 6): a launch
   wipes `cancelled/`, so `restartBlockers` carries `audio staged for Recover (N s left)` for the five
   minutes (`cancelledGrace`) or until it is recovered — the gate, the Dock tile. `quitBlockers` (the

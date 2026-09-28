@@ -94,8 +94,16 @@ enum PasteboardTimeline {
     /// Right after a write of this app's own, with the reason.
     static func noteOwnWrite(_ why: String) {
         let count = NSPasteboard.general.changeCount
-        lock.lock(); own[count] = why; lock.unlock()
+        lock.lock(); own[count] = why; ownWriteAt = Date(); lock.unlock()
     }
+
+    /// **The last clipboard write of this app's own** — an insert, to the
+    /// restart gate (`lastInsertAt`, 2026-09-28).
+    static var lastOwnWriteAt: Date? {
+        lock.lock(); defer { lock.unlock() }
+        return ownWriteAt
+    }
+    private static var ownWriteAt: Date?
 
     /// Main thread (the `/test/state` builder).
     static func describe() -> [String: Any] {

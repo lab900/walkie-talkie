@@ -857,7 +857,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let pickTTL: TimeInterval = 600
 
     /// When the current dictation opened, i.e. the zero of those offsets.
-    private var dictationStartedAt: Date?
+    /// Its edges — set, cleared — are the restart gate's *dictation start/stop*.
+    private var dictationStartedAt: Date? {
+        didSet { if (oldValue == nil) != (dictationStartedAt == nil) { lastDictationEdgeAt = Date() } }
+    }
+    /// **The last time a dictation of the relay's opened or closed** (2026-09-28)
+    /// — `GET /test/state.lastDictationEdgeAt`, one of the three clocks of
+    /// `RestartGate.inactivity`.
+    private var lastDictationEdgeAt: Date?
     private var dictationInFlight = false
     /// 🔼 ↓ was made during this sentence: it goes out with `kamikaze` on a
     /// line of its own, the agent's cue to close its terminal when it is done.
@@ -6469,6 +6476,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         out["quitPending"] = quitDeferredSince != nil
         out["pid"] = Int(ProcessInfo.processInfo.processIdentifier)
         out["dictationStartedAt"] = dictationStartedAt.map { Outbox.iso($0) } ?? NSNull()
+        // **His inactivity** (2026-09-28): *"restart is only possible after 5 secs
+        // of inactivity after the last insert of text"*. `restart_gate.py` waits
+        // `inactivitySeconds` after the latest of the three.
+        let heard = RestartGate.secondsSinceHumanInput()
+        let lastInput = RestartGate.latest(HotkeyTap.lastInputAt,
+                                           heard.isFinite ? Date().addingTimeInterval(-heard) : nil)
+        let inserted = lastInsertAt()
+        let wisprRow = WisprHistory.newest().flatMap { $0.startedAt > 0 ? Date(timeIntervalSince1970: $0.startedAt) : nil }
+        let edge = RestartGate.latest(lastDictationEdgeAt, wisprRow)
+        out["lastInputAt"] = lastInput.map { Outbox.iso($0) } ?? NSNull()
+        out["lastInsertAt"] = inserted.map { Outbox.iso($0) } ?? NSNull()
+        out["lastDictationEdgeAt"] = edge.map { Outbox.iso($0) } ?? NSNull()
+        out["inactivitySeconds"] = RestartGate.inactivity
+        out["inactivityLeft"] = RestartGate.inactivityLeft(now: Date(), lastInput: lastInput,
+                                                           lastInsert: inserted, lastDictationEdge: edge)
         out["liveCaption"] = overlay.liveCaption.describe()
         // Gap G7 (2026-09-26): what the plan's assertions could not read.
         out["fallingBack"] = fallingBack
@@ -8954,7 +8976,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let left = max(0, Self.cancelledGrace - Date().timeIntervalSince(kept.at))
             why.append(String(format: "audio staged for Recover (%.0f s left)", left))
         }
+        // **Everything else that is a dictation or a transcription, on any
+        // engine** (2026-09-28, the 18:39 restart — see `RestartGate`). A restart
+        // waits for these; a quit he asks for (`quitBlockers`) does not, so ⌘Q is
+        // never held hostage by his own Wispr sentence.
+        if fallingBack { why.append("local fallback transcribing") }
+        if [parkedSentence, liveSentence].contains(where: { $0.map { !$0.finished } == true }) {
+            why.append("a sentence in the queue")
+        }
+        if overlay?.liveCaption.isOpen ?? false { why.append("live caption open") }
+        let engines: [DictationSource] = [elevenSource, elevenLiveSource, whisperSource, wisprSource]
+        for engine in engines where engine !== source && engine.isRecording {
+            why.append("\(engine.name) microphone open")
+        }
+        why += RestartGate.wisprReasons(wisprReading(), now: Date().timeIntervalSince1970)
         return why
+    }
+
+    /// Wispr Flow's own microphone and its newest History row — what a Wispr
+    /// sentence he says on his own leaves behind, now that the relay does not
+    /// track those (Q9 step 2). One CoreAudio sample and one 6 ms read.
+    private func wisprReading() -> RestartGate.WisprReading {
+        let newest = WisprHistory.newest()
+        return RestartGate.WisprReading(micOpen: wisprSource.wisprMicOpenNow,
+                                        rowId: newest?.rowid, rowStatus: newest?.status,
+                                        rowStartedAt: newest?.startedAt)
+    }
+
+    /// **The last text this app or Wispr put somewhere** — a delivery, a write
+    /// to the clipboard, Wispr's newest finished row (its gesture plus its own
+    /// round trip, a lower bound). `GET /test/state.lastInsertAt`.
+    private func lastInsertAt() -> Date? {
+        deliveryLock.lock()
+        let delivered = (lastDeliveryRecord?["at"] as? String).flatMap { Outbox.parseISO($0) }
+        deliveryLock.unlock()
+        var wispr: Date?
+        if let row = WisprHistory.newest(), !RestartGate.wisprBusyStatuses.contains(row.status), row.startedAt > 0 {
+            wispr = Date(timeIntervalSince1970: row.startedAt + max(0, row.e2eLatency) / 1000)
+        }
+        return RestartGate.latest(delivered, PasteboardTimeline.lastOwnWriteAt, wispr)
     }
 
     /// `restartBlockers` without the Recover staging: what a quit waits for.
