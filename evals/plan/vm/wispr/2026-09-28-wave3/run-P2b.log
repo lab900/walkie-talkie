@@ -1,0 +1,13 @@
+start P2b cap=2700s ids=TX2,TX7,TX8a,TX8b,TX9,TX10,TX13 Mon Sep 28 19:43:35 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 58495
+relay on 8917, 7 case(s), report → /Users/admin/wt-lab/night/wispr3/report-lab-P2b.md
+  TX2: PASS (69.7s) — listening down 0.17 s after the kill (True); 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Q14 fallback; Recover staged; 0.0 s voiced; failure: The relay
+  TX7: FAIL (72.7s) — incomplete: 📦×1 wispr-history; copies 4.0 recall 1.00; rows +1 (raw_transcript); 10.9 s voiced; clipboard writes 1; stop→end 4.0 s; repetitions 4.0/6;
+  TX8a: PASS (64.3s) — relay opened False, refused True; his words: TextEdit 1.0 (recall 0.36), witness 0.0; 📦×0 -; copies 0.0 recall 0.00; rows +1 (formatted); refusal; cli
+  TX8b: BUG (21.0s) — his sentence lost (W4; lab finding 3): relay: witness 1.0, TextEdit 0.0 · his: TextEdit 0.0, witness 0.0 · Q19 line False · drop line True; 📦×1 wispr-
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.4 s), mic now closed)
+  TX9: PASS (203.1s) — losses 0/3 (silent 0), head losses 0; 
+  TX10: BUG (93.4s) — relay: 5 opened, 0 refused, witness 5.0/5, TextEdit 0.0 · his: TextEdit 0.0/5, witness 0.0 · losses relay 0 his 5; 📦×5 wispr-history,wispr-history,wis
+  TX13: ERROR (210.6s) — relay-restart.sh did not restart: ['⛔️ still waiting for a harness run holding the runner lock (pid 4745 since 2026-09-28 19:43:36) after 122 s — gave
+rc=0 Mon Sep 28 19:55:55 UTC 2026
+PHASEDONE P2b

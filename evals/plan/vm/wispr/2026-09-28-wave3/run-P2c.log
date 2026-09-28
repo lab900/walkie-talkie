@@ -1,0 +1,8 @@
+start P2c cap=5400s ids=TS1,TS2,TS3 Mon Sep 28 19:55:56 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 59403
+relay on 8917, 3 case(s), report → /Users/admin/wt-lab/night/wispr3/report-lab-P2c.md
+  TS1: PASS (564.7s) — 30/30 · delivered 30 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 30/30 (NULL 0) · via wispr-history 30 · recall mean 1.00 min 1.00 · close→land
+  TS2: PASS (268.4s) — 20/20 · delivered 20 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 20/20 (NULL 0) · recall mean 1.00 min 1.00 · close→landed p50 0.8 s p90 2.1 s 
+  TS3: PASS (350.9s) — 20/20 · delivered 20 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 20/20 (NULL 0) · via wispr-history 12 · recall mean 1.00 min 1.00 · close→land
+rc=0 Mon Sep 28 20:15:44 UTC 2026
+PHASEDONE P2c

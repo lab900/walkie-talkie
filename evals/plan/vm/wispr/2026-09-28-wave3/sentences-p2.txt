@@ -1,0 +1,87 @@
+09-28 19:02:33 relay recover voiced 0.0 
+09-28 19:07:46 relay delivered voiced 1.7 
+09-28 19:08:11 relay delivered voiced 1.7 
+09-28 19:08:41 relay delivered voiced 2.7 
+09-28 19:09:47 relay recover voiced 0.3 
+09-28 19:09:57 relay delivered voiced 1.7 Q14
+09-28 19:32:07 desk delivered voiced 0.0 
+09-28 19:32:18 relay delivered voiced 0.0 Q14
+09-28 19:33:21 relay cancel(recover) voiced None 
+09-28 19:41:00 desk delivered voiced 2.2 Q14
+09-28 19:41:52 desk delivered voiced 2.2 Q14
+09-28 19:42:41 desk delivered voiced 2.1 Q14
+09-28 19:43:40 relay recover voiced 0.0 
+09-28 19:44:49 relay delivered voiced 10.9 
+09-28 19:47:07 relay delivered voiced 1.9 
+09-28 19:47:28 relay delivered voiced 2.8 Q14
+09-28 19:48:19 relay delivered voiced 2.6 Q14
+09-28 19:49:09 relay delivered voiced 2.6 Q14
+09-28 19:50:51 relay delivered voiced 1.7 
+09-28 19:51:08 relay delivered voiced 1.9 
+09-28 19:51:25 relay delivered voiced 1.8 
+09-28 19:51:41 relay delivered voiced 2.0 
+09-28 19:51:58 relay delivered voiced 2.0 
+09-28 19:52:23 relay cancel(recover) voiced 2.0 
+09-28 19:56:00 relay delivered voiced 2.0 
+09-28 19:56:26 relay delivered voiced 2.3 
+09-28 19:56:46 relay delivered voiced 1.7 
+09-28 19:57:03 relay delivered voiced 2.2 
+09-28 19:57:23 relay delivered voiced 2.0 
+09-28 19:57:39 relay delivered voiced 2.0 
+09-28 19:58:00 relay delivered voiced 1.7 
+09-28 19:58:17 relay delivered voiced 2.4 
+09-28 19:58:37 relay delivered voiced 1.7 
+09-28 19:58:54 relay delivered voiced 2.0 
+09-28 19:59:14 relay delivered voiced 2.0 
+09-28 19:59:31 relay delivered voiced 2.1 
+09-28 19:59:51 relay delivered voiced 1.8 
+09-28 20:00:07 relay delivered voiced 2.4 
+09-28 20:00:28 relay delivered voiced 1.9 
+09-28 20:00:44 relay delivered voiced 2.3 
+09-28 20:01:05 relay delivered voiced 2.0 
+09-28 20:01:21 relay delivered voiced 2.4 
+09-28 20:01:41 relay delivered voiced 1.9 
+09-28 20:01:58 relay delivered voiced 2.0 
+09-28 20:02:18 relay delivered voiced 1.7 
+09-28 20:02:35 relay delivered voiced 2.3 
+09-28 20:02:55 relay delivered voiced 2.0 
+09-28 20:03:12 relay delivered voiced 2.0 
+09-28 20:03:32 relay delivered voiced 1.9 
+09-28 20:03:49 relay delivered voiced 2.4 
+09-28 20:04:10 relay delivered voiced 1.9 
+09-28 20:04:26 relay delivered voiced 2.4 
+09-28 20:04:47 relay delivered voiced 2.0 
+09-28 20:05:03 relay delivered voiced 2.2 
+09-28 20:10:06 relay delivered voiced 2.4 
+09-28 20:11:01 relay delivered voiced 1.9 
+09-28 20:11:37 relay delivered voiced 2.0 
+09-28 20:11:54 relay delivered voiced 1.7 
+09-28 20:12:27 relay delivered voiced 1.8 
+09-28 20:12:46 relay delivered voiced 2.4 
+09-28 20:13:05 relay delivered voiced 2.4 
+09-28 20:13:28 relay delivered voiced 2.2 
+09-28 20:13:48 relay delivered voiced 2.3 
+09-28 20:14:40 relay delivered voiced 2.2 
+09-28 20:15:01 relay delivered voiced 1.9 
+09-28 20:15:20 relay delivered voiced 2.3 
+09-28 20:15:51 desk delivered voiced 0.0 
+09-28 20:16:01 relay delivered voiced 1.7 
+09-28 20:16:25 desk cancel voiced 0.0 
+09-28 20:16:38 relay delivered voiced 2.2 
+09-28 20:17:07 relay delivered voiced 1.8 Q14
+09-28 20:18:42 relay delivered voiced 2.6 Q14
+09-28 20:19:30 relay delivered voiced 2.2 Q14
+09-28 20:20:31 relay delivered voiced 1.9 
+09-28 20:20:51 desk abandoned voiced 0.0 
+09-28 20:20:52 desk recover voiced 0.0 
+09-28 20:26:23 relay cancel(recover) voiced 0.0 
+09-28 20:27:26 relay cancel(recover) voiced 0.0 
+09-28 20:28:31 relay cancel(recover) voiced 0.3 
+09-28 20:29:20 relay cancel(recover) voiced 0.4 
+09-28 20:30:06 relay cancel(recover) voiced 1.0 
+09-28 20:30:51 relay cancel(recover) voiced 1.6 
+09-28 20:31:36 relay cancel(recover) voiced 1.7 
+09-28 20:32:21 relay cancel(recover) voiced 1.7 
+09-28 20:33:24 relay failed:timed out waiting for the text voiced 2.2 
+09-28 20:33:50 desk delivered voiced 0.0 
+{('relay', 'recover'): 3, ('relay', 'delivered'): 63, ('desk', 'delivered'): 6, ('relay', 'cancel(recover)'): 10, ('desk', 'cancel'): 1, ('desk', 'abandoned'): 1, ('desk', 'recover'): 1, ('relay', 'failed'): 1}

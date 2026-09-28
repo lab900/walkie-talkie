@@ -1,0 +1,26 @@
+start P2d cap=3600s ids=TW14,TW17,TW19,TX1,TX3,TX4,TX5,TX6a,TX6b,TX11*,TX12,TX12d Mon Sep 28 20:15:45 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 62318
+relay on 8917, 19 case(s), report → /Users/admin/wt-lab/night/wispr3/report-lab-P2d.md
+  TW14: PASS (12.0s) — second sentence opened False; chip named the wait True; refusal logged True
+  TW17: PASS (23.8s) — new wispr corpus rows 0; micOpened {'device': 'BlackHole 2ch', 'at': '2026-09-28T20:16:01.435Z', 'rate': 48000, 'channels': 2}; Wispr's mic []
+  TW19: PASS (13.9s) — L: engine→wispr, source Wispr Flow; S: engine→wispr, source Wispr Flow; X: switched True, capture still open True (discarding True); late row delivere
+  TX1: PASS (27.7s) — delivered once: 📦×1 wispr-history; copies 1.0 recall 0.33; rows +1 (formatted); 2.2 s voiced; clipboard writes 1
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.4 s), mic now closed)
+  TX3: BUG (90.9s) — relaunch 0.8 s; first sentence opened True, 📦×1 local-fallback; copies 1.0 recall 1.00; rows +1 (); Q14 fallback; refusal; 1.8 s voiced; failure: Wisp
+  TX4: PASS (51.9s) — delivered once: 📦×1 local-fallback; copies 1.0 recall 0.50; rows +1 (error); Q14 fallback; late row logged only; 2.6 s voiced; failure: Wispr Flow rep
+  TX5: PASS (61.6s) — delivered once: 📦×1 local-fallback; copies 1.0 recall 0.44; rows +1 (error); Q14 fallback; late row logged only; Q24 wait; 2.2 s voiced; failure: Wisp
+  TX6a: PASS (19.9s) — delivered once: 📦×1 wispr-history; copies 1.0 recall 1.00; rows +1 (formatted); 1.9 s voiced; clipboard writes 1; dwell-guard swallows 0; Wispr mic 10
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.7 s), mic now closed)
+  TX6b: FAIL (219.1s) — the speech after the double chord was not delivered (said so, but lost): 📦×0 -; copies 0.0 recall 0.00; rows +2 (); Recover staged; 0.0 s voiced; fail
+  TX11a: PASS (62.9s) — Recover: cancel mid-sentence (+0.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Recover staged; 0.0 s voiced; clipboard writes 0
+  TX11b: PASS (64.9s) — Recover: cancel mid-sentence (+1.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Recover staged; 0.0 s voiced; clipboard writes 0
+  TX11c: PASS (48.0s) — Recover: cancel mid-sentence (+1.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; 0.3 s voiced; clipboard writes 0
+  TX11d: PASS (46.4s) — Recover: cancel mid-sentence (+2.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; 0.4 s voiced; clipboard writes 0
+  TX11e: PASS (45.0s) — Recover: cancel mid-sentence (+2.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; 1.0 s voiced; clipboard writes 0
+  TX11f: PASS (44.9s) — Recover: cancel mid-sentence (+3.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; 1.6 s voiced; clipboard writes 0
+  TX11g: PASS (44.9s) — Recover: cancel mid-sentence (+3.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; 1.7 s voiced; clipboard writes 0
+  TX11h: PASS (63.7s) — Recover: cancel 0.1 s after the stop (+4.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (processing); Recover staged; 1.7 s voiced; clipboard writes 0
+  TX12: PASS (25.4s) — delivered once: journal wal, held 8.0 s; 📦×1 wispr-history; copies 1.0 recall 0.33; rows +1 (formatted); 2.2 s voiced; clipboard writes 1; db log line
+  TX12d: PASS (19.4s) — delivered once: held 8.0 s (delete); capture held through the lock True; given up during the lock: no; delivered 4.2 s after the release; db log lines
+rc=0 Mon Sep 28 20:34:10 UTC 2026
+PHASEDONE P2d

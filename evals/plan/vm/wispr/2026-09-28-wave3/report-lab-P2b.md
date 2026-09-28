@@ -1,0 +1,19 @@
+# Test plan run — 2026-09-28 19:43
+
+Verdicts: **PASS** = the app does what the plan expects · **BUG** = the plan's prediction of a defect was confirmed · **FAIL** = neither the expectation nor the prediction · **SKIP** / **ERROR**.
+
+BUG 2 · ERROR 1 · FAIL 1 · PASS 3
+
+ElevenLabs: credits unreadable (no ELEVENLABS_API_KEY); cap 3000 → cases that would spend real credits **SKIP**. Engine for the run: `whisper` (was `wispr`, put back at exit); only `eleven`-tagged cases switch. fake Scribe on port 58495 (live + batch, `WT_FAKE_SCRIBE=1`).
+
+| case | verdict | s | expectation | observed |
+|---|---|---|---|---|
+| TX2 | **PASS** | 70 | Wispr killed 5 s into an 8 s sentence: Q14 delivers the relay's own recording once; relaunched, Wispr's mic stays closed for 30 s with no capture (no ghost) | listening down 0.17 s after the kill (True); 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Q14 fallback; Recover staged; 0.0 s voiced; failure: The relay's recording got no audio from the microphone (Blac; clipboard writes 0; mic after 30 s closed |
+| TX7 | **FAIL** | 73 | a 60 s sentence (CLIP_EN ×6): one Wispr row, one delivery, ≥ 5 of 6 repetitions in the witness, no ceiling / 30 s cap line | incomplete: 📦×1 wispr-history; copies 4.0 recall 1.00; rows +1 (raw_transcript); 10.9 s voiced; clipboard writes 1; stop→end 4.0 s; repetitions 4.0/6; cap line False |
+| TX8a | **PASS** | 64 | his 61+60 held 6 s over speech, 🔼→ at +1.5 s: the relay refuses (or runs its own sentence to the witness); his words land in TextEdit once, never in the witness | relay opened False, refused True; his words: TextEdit 1.0 (recall 0.36), witness 0.0; 📦×0 -; copies 0.0 recall 0.00; rows +1 (formatted); refusal; clipboard writes 0 |
+| TX8b | **BUG** | 21 | relay sentence, then his 61+60 sentence 0.3 s after its stop: relay's in the witness once, his at the caret once (Q19), nothing crossed | his sentence lost (W4; lab finding 3): relay: witness 1.0, TextEdit 0.0 · his: TextEdit 0.0, witness 0.0 · Q19 line False · drop line True; 📦×1 wispr-history; copies 1.0 recall 1.00; rows +2 (formatted); 1.9 s voiced; clipboard writes 1 |
+| TX9 | **PASS** | 203 | 3 sentences each 1 s after a Wispr relaunch: all delivered with their head (first 5 words), or said why — losses counted | losses 0/3 (silent 0), head losses 0; <br>#0 opened True ok head-miss 1/5; 📦×1 local-fallback; copies 1.0 recall 0.48; rows +1 (); Q14 fallback; 2.8 s voiced; failure: Wispr Flow never opened its microphone; clipboard writes 1<br>#1 opened True ok head-miss 1/5; 📦×1 local-fallback; copies 1.0 recall 0.48; rows +2 (); Q14 fallback; 2.6 s voiced; failure: Wispr Flow never opened its microphone; clipboard writes 2<br>#2 opened True ok head-miss 1/5; 📦×1 local-fallback; copies 1.0 recall 0.48; rows +3 (); Q14 fallback; 2.6 s voiced; failure: Wispr Flow never opened its microphone; clipboard writes 3 |
+| TX10 | **BUG** | 93 | 5 relay + 5 standalone sentences alternating, 2 s gaps: relay words only in the witness, his only in TextEdit; losses counted, 0 misroutes, 0 stuck | relay: 5 opened, 0 refused, witness 5.0/5, TextEdit 0.0 · his: TextEdit 0.0/5, witness 0.0 · losses relay 0 his 5; 📦×5 wispr-history,wispr-history,wispr-history,wispr-history,wispr-history; copies 5.0 recall 1.00; rows +10 (formatted); doubled text; 2.0 s voiced; clipboard writes 15 |
+| TX13 | **ERROR** | 211 | Wispr frozen with the row in flight: relay-restart.sh's gate holds; after cancel + restart + thaw, the late row is never delivered, the next sentence carries only its own words | relay-restart.sh did not restart: ['⛔️ still waiting for a harness run holding the runner lock (pid 4745 since 2026-09-28 19:43:36) after 122 s — gave up (--max-wait 120); nothing was restarted']; row 139 processing at the freeze; dry-run gate exit 3; Recover → nothing; restart exit 3 |
+
+Fake Scribe: 0 live session(s), 0 chunks (0.0 s), 0 partials, 0 commits, 0 batch upload(s), 0 error(s) sent.

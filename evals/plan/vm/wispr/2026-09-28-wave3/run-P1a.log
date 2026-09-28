@@ -1,0 +1,15 @@
+start P1a cap=2400s ids=TW1,TW2,TW5,TW6a,TW6b,TW6c,TW6d,TW7,TW9,TW10,TW11,TW14,TW17,TW19,TW20 Mon Sep 28 18:21:28 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 49228
+relay on 8917, 15 case(s), report → /Users/admin/wt-lab/night/wispr3/report-lab-P1a.md
+  TW1: BUG (68.7s) — held seen True; listening from 1.78 s for 0.9 s; release line before the case's cancel True; other cancel: None
+  TW2: PASS (2.0s) — the stamped tail was ignored; the pair stayed held
+  TW5: PASS (65.6s) — 43/43 samples listening while warming with no row; chip rows then: ['Opening Wispr Flow...', 'bind to send', '🎙️ Wispr Flow']
+  TW6a: PASS (85.4s) — recoverable True; 'nothing had been recorded' False; wispr-*.wav 2→2; lastFailure None
+  TW6b: PASS (74.7s) — recoverable True; 'nothing had been recorded' False; wispr-*.wav 2→2; lastFailure None
+  TW6c: PASS (60.7s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 2→2; lastFailure {'engine': 'wispr', 'why': 'Wispr Flow quit', 'at': '2026-09-28T18:
+  TW6d: PASS (60.8s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 2→2; lastFailure {'engine': 'wispr', 'why': 'Wispr Flow quit', 'at': '2026-09-28T18:
+  TW7: PASS (72.9s) — (a) recoverable True, 'nothing had been recorded' False, wav 2→2; (b) recoverable True, wav 2→2; (c) 'the sentence is lost' False, recoverable True, w
+  TW9: PASS (6.8s) — refused True; relay opened a sentence False
+  TW10: PASS (47.5s) — new row with words False; lastDelivery changed False; witness 0 chars
+rc=143 Mon Sep 28 19:00:18 UTC 2026
+PHASEDONE P1a

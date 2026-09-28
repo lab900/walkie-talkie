@@ -1,0 +1,9 @@
+chain start 19:25:40 e6cfca7
+P2a2 start 19:26:52
+P2b start 19:43:35
+pf rules after P2b:        0 in the anchor
+P2c ready 19:55:55
+P2c start 19:55:56
+P2d start 20:15:45
+pf rules after P2d:        0 in the anchor
+CHAINDONE 20:34:11

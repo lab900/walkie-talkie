@@ -1,0 +1,10 @@
+start P2a2 cap=2400s ids=TW32,TW33,TW34,TN4,TW1 Mon Sep 28 19:26:52 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 56725
+relay on 8917, 5 case(s), report → /Users/admin/wt-lab/night/wispr3/report-lab-P2a2.md
+  TW1: BUG (65.0s) — held seen True; listening from 0.76 s for 2.0 s; release line before the case's cancel False; other cancel: None
+  TW32: PASS (13.3s) — idle True; relay's tail ⌘V dropped (the relay's tail (5.1 s after idle), no newer row of his seen); said relay's own True; his row 2 noted True; his ⌘
+  TW33: BUG (280.2s) — B opened True (row adopted True); A parked True; B refused False; A 494 chars before B at -1; 'dropped' False
+  TW34: PASS (154.3s) — +1s: 2.2 s voiced (BlackHole 2ch: 74 buffers, peak 16366, 0 tap restart(s), 7.5 s); opened BlackHole 2ch 48000 Hz × 2; restarts 0; 'No speech' False |
+  TN4: SKIP (2.3s) — [eleven → fake Scribe] BlackHole 2ch pass-thru is dead (440 Hz check) — toggle the device in Loopback
+rc=0 Mon Sep 28 19:43:33 UTC 2026
+PHASEDONE P2a2
