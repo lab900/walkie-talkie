@@ -17,9 +17,9 @@ import Foundation
 ///   connection closes (Wispr quits) and recreated on the next open — and on
 ///   every safety tick, when the path (a `WT_WISPR_DB` switch) or the inode
 ///   moved, or a file that was missing appeared.
-/// - **A second look 40 ms after every event**: the WAL frames are written
-///   before the wal-index in `-shm` is updated, so a read that lands in between
-///   sees the old snapshot and no further write follows.
+/// - **Second looks 5, 15 and 40 ms after every event**: the WAL frames are
+///   written before the wal-index in `-shm` is updated, so a read that lands in
+///   between sees the old snapshot and no further write follows.
 /// - **A 1 s safety tick**, for a missed event and for the readers' clocks
 ///   (their deadlines also ask `wake(after:)` for a pass at the instant).
 ///
@@ -28,7 +28,12 @@ import Foundation
 final class WisprHistoryWatch {
 
     static let safetyTick: TimeInterval = 1.0
-    static let secondLook: TimeInterval = 0.04
+    /// **Looks after each event**: the WAL frames are written before the
+    /// wal-index in `-shm` says so, and a pass in between sees the old snapshot.
+    /// One look at 40 ms left the desk at 62–69 ms twice in six commits (TW38,
+    /// 2026-09-29); 5 / 15 / 40 ms catches the index as soon as it lands, and a
+    /// look that finds nothing new costs one `PRAGMA data_version`.
+    static let secondLooks: [TimeInterval] = [0.005, 0.015, 0.04]
 
     private var subscribers: [String: () -> Void] = [:]
     private var sources: [String: (source: DispatchSourceFileSystemObject, inode: UInt64)] = [:]
@@ -111,7 +116,7 @@ final class WisprHistoryWatch {
                     }
                 }
                 self.queuePass()
-                self.wake(after: Self.secondLook)
+                for look in Self.secondLooks { self.wake(after: look) }
             }
             src.setCancelHandler { close(fd) }
             src.resume()
@@ -121,7 +126,7 @@ final class WisprHistoryWatch {
 
     /// Several events in one run-loop turn are one pass, and passes are at
     /// least `minInterval` apart: a burst of commits (a Wispr busy writing
-    /// other tables) costs at most 40 passes a second, not one per commit.
+    /// other tables) is coalesced rather than run once per commit.
     private func queuePass() {
         guard !passQueued else { return }
         passQueued = true
@@ -132,7 +137,7 @@ final class WisprHistoryWatch {
             self.runPass()
         }
     }
-    static let minInterval: TimeInterval = 0.025
+    static let minInterval: TimeInterval = 0.004
     private var lastPassAt: CFAbsoluteTime = 0
 
     private func runPass() {

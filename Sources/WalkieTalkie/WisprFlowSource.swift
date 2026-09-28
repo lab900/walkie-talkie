@@ -2304,6 +2304,9 @@ final class WisprFlowSource: DictationSource {
             guard isNew, e.startedAt >= openedAt - 2 else { return }
             historyRow = e.rowid
             pidAtAdoption = pid
+            // Rowids only grow in one file: lower than a row already pasted for
+            // him means another file (a `WT_WISPR_DB` switch) — its guard is void.
+            if e.rowid < lastForeignRow { lastForeignRow = 0 }
             if relayStarted { ownedRow = e.rowid }
             namedMic = ""
             Log.info(String(format: "wispr history: row %d is this dictation's — %.0f ms after the chord (%@)",

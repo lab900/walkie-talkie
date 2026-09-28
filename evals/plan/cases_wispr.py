@@ -808,13 +808,14 @@ def tw22():
     delivered = wait_for(lambda: witness_text().strip() != "", 90, 0.5)
     wait_for(lambda: log_has(mark, r"📦 delivery: "), 10, 0.3)
     txt = log_since(mark)
-    fell_back = "local model stands in (Q14)" in txt
+    # Since the auto p98 fallback (AutoLocal, 2026-09-28) the clock may hand the take over first.
+    fell_back = re.search(r"local model (stands in \(Q14\)|takes it)", txt) is not None
     m = re.search(r"📦 delivery: (\S+)", txt)
     via = m.group(1) if m else None
     note = (f"gave up {bool(gave_up)} {dt:.1f} s after the stop; fallback line {fell_back}; delivered {bool(delivered)} "
             f"({len(witness_text())} chars, via {via}); 'No words came back' {'No words came back' in txt}")
     db.update(rid, status="dismissed")
-    return ("PASS" if gave_up and dt < 8 and fell_back and delivered and via == "local-fallback" else "BUG"), note
+    return ("PASS" if gave_up and dt < 8 and fell_back and delivered and via in ("local-fallback", "local-auto") else "BUG"), note
 
 
 # ---------------------------------------------------------------- TW32: B, the row-aware tail (2026-09-28, wave 3)
@@ -1113,8 +1114,10 @@ def tw38():
     bind_witness(); witness_clear()
     lat, wake0 = [], live().get("historyWake") or {}
     def seen(rid, status, t):
+        # `epoch` after the write: a fresh fake reuses rowid 1, and the last case's rowSeen may match.
         ok = wait_for(lambda: (live().get("rowSeen") or {}).get("rowid") == rid
-                      and (live().get("rowSeen") or {}).get("status") == status, 3, 0.02)
+                      and (live().get("rowSeen") or {}).get("status") == status
+                      and (live().get("rowSeen") or {}).get("epoch", 0) >= t - 0.002, 3, 0.02)
         if ok:
             lat.append(((live()["rowSeen"]["epoch"]) - t) * 1000)
         return ok

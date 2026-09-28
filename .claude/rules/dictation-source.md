@@ -198,7 +198,7 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   `formattedText`. `e2eLatency` p50 2.2 s / p99 7.1 s / max 13.7 s.
 - **The readers wake on Wispr's commits, not a timer** (batch 3, 2026-09-28): `WisprHistoryWatch`
   = kqueue on `flow.sqlite-wal` + the main file (re-armed on delete/rename, path or inode change),
-  a second look 40 ms after each event (WAL frames land before the `-shm` index), passes ≥ 25 ms
+  second looks 5/15/40 ms after each event (WAL frames land before the `-shm` index), passes ≥ 4 ms
   apart, a 1 s safety tick; `pollHistory`, the retired-discard and discard-close watches subscribe.
   `WisprHistory.read` runs its query only when `PRAGMA data_version` moved (cache per handle
   generation). Clocked rules ask `wake(after:)`. Measured: 0.6 ms from commit to read (unit test).

@@ -20,6 +20,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *F10 nu mai comută dictarea de două ori pe un singur gest* (2026-09-16) — the guard was right and both of its numbers were wrong; superseded 2026-09-18 by *One slow flick right is one gesture, and it cannot close what it just opened* (sliding window, 0.6 s, plus a 2 s dwell before the flick may stop)
 - *The oblique wipe: a message replaces a message*, *What the cancel actually looked like…*, *`WT_SHOOT_WIPE` — because this is the least reviewable thing in the app* — **retired 2026-09-18**: `ChipWipe.swift`, its rule file and the `WT_SHOOT_WIPE` harness are deleted; a chip message is swapped in one frame (*The chip swaps in one frame*)
 - *The DJI receiver is the microphone whenever it is plugged in* (2026-09-01) — superseded 2026-09-19: *automatic* is a ladder, 🎙️ XLR ▸ 🎤 DJI ▸ 🎧 Bose ▸ 💻 built-in, and the receiver is its second rung (*The chip says which microphone, and the menu picks it*)
+- *`raw_transcript` is a finished sentence Wispr never labelled* (2026-09-22) and Q24's *wait without the 30 s cap while `processing`* (2026-09-28) — superseded 2026-09-29 by *fix batch 3*: `raw_transcript` is terminal (Wispr's own code), and a row Wispr will never finish is called dead on the commit that shows it (`WisprState.deadRow`); the rest waits to 40 s, not 300 s
 - *Wispr Flow everywhere (2026-09-12)*, and every later line making Wispr one of the engines — superseded 2026-09-22 by *Wispr Flow leaves the Engine list*: it is not selectable at all any more, and keeps only 🔽 →. The wrap sections are **not** retired — they still describe the mechanism accurately and it is what the row would come back to
 - *`PasteHint` — `⌘⇧P`, said once and faintly* (2026-09-22; recorded in `.claude/rules/replace-wispr-and-halo.md`, not here) — superseded 2026-09-23: the hint follows **every** delivered sentence (caret, bound, spawn, a held sentence's release, Wispr's routed ones) plus a cancelled prompt, at **0.80 for 2.5 s then a 0.5 s fade**, where it was caret and cancelled prompt only, at 0.20, 0.8 s up / 1.2 s down. Victor: *"indiferent prin ce mecanism am închis o dictare … uneori îl plasez greșit, lasă-mă să-mi amintesc constant"*
 - *What a caret dictation carries* (2026-09-08) and 2026-09-19's *no initial screenshot at the caret* — superseded 2026-09-23 for the **forward click**: its caret sentence is the whole terminal envelope (context frame, `[Dictated in RO or EN]`) and is submitted into a Claude Code prompt; the back click's sentence is the words alone, at the caret even when bound (*Forward is a prompt, back is plain words*)
@@ -14492,3 +14493,80 @@ code until the next install.
 If nothing brings it back, the next move belongs to the lab rig, not the app: a second BlackHole
 (16ch) for the relay, so the two apps stop reading one ring. The app already does the right thing
 with a deaf take: it says DEAF and keeps it for Recover.
+
+## Wispr as engine: fix batch 3 — Wispr's own row rules, WAL wake, D2, B2, E (2026-09-29, night)
+
+Commits `353c181` (survey items 1–4), `e6f948f` (D2), `bd2de0e` (B2 + rig), `cb17885` (E, B-risk),
+and the one after this section (WAL looks, TW38/TW22 case fixes, this entry). From
+`evals/plan/wispr/integration-surfaces.md` (*Recommended change to `WisprFlowSource`*) and the
+wave-3 VM report (`report-wave3-2026-09-28.md`, *Findings for fix batch 3*).
+
+- **1. `raw_transcript`, `fallback`, `verification_failed`, `timeout` are terminal.** Wispr writes
+  them only in its final update. `raw_transcript` was progress, so `rawTextSettled` spent 0.8 s
+  on it and `silenceCeiling` spent 8 s. `fallback` was an unknown status, a failure, so Wispr's
+  words were thrown away for the local model. `WisprState.pasteableStatuses` is Wispr's own set.
+  A pasteable final row with no words goes to `endWithRecording` at once (Q14). Desk TW35: both
+  let go 0.05 s after the write, and `fallback` is delivered `via: wispr-history`.
+- **2. The dead-row verdict (`WisprState.deadRow`) replaces Q24's blind wait.** Q24 waited up to
+  300 s while a row said `processing`. A row is now dead when:
+  - it is NULL or `processing` and a newer rowid exists (Wispr skips a superseded dictation);
+  - Wispr runs under another pid;
+  - it is still open 1 s after the relay's own ⌃Escape;
+  - it is still NULL, with no `duration`, 3 s after the close, and Wispr's mic is shut.
+  A dead row ends the sentence and lets go of `watchLateRow`'s hold and the retired-discard
+  claim. Rows that are still alive wait up to 40 s from the close (Wispr's e2e max is 36 s).
+  Desk: TW36 ends 0.04–0.06 s after the newer row, and his later ⌘V is not held. TW37 closes the
+  discard capture 1.16–1.18 s after the cancel; it used to hold it for 30 s.
+- **3. `WisprHistoryWatch`: kqueue on `flow.sqlite-wal`, plus the main file for a rollback-mode
+  fake.** It re-arms on delete/rename, takes second looks 5/15/40 ms after each event, and keeps a
+  1 s safety tick. `WisprHistory` runs its query only when `PRAGMA data_version` moved. It
+  replaces the 150 ms `historyPoll` and the two discard timers. Unit test: 0.6 ms from commit to
+  read. Desk TW38 (the fake in WAL mode, `create(wal=True)`), six commits per run:
+  - first run: max 38 ms;
+  - with one 40 ms second look: 62 and 69 ms twice (the wal-index lags the frames);
+  - with 5/15/40 ms looks: 40, 19, 36, 6, 8 ms.
+- **4. The dropped ⌘V with no capture open reads the row first, then the pasteboard once.** The
+  pasteboard is read off main, only when the row has no words at the drop. It is refused while
+  it still holds the relay's own Q17 write (`PasteboardTimeline.lastOwnCount`). The row's words
+  win if they arrive within the claim's 5 s; otherwise the pasteboard's are pasted, never both.
+  Desk TW39 (dry claim, `POST /test/wispr-paste {"dryClaim"}`): (a) the row's text, (b) the
+  pasteboard's text after 5 s, and no second paste.
+- **5. The `wispr-flow://` deep links are not built.** They are VM-only: on the host they start
+  his real dictation. Measure `start-hands-free` / `stop-hands-free` in the guest before they
+  replace the blind fn ⌃ Space toggle (survey item 4).
+- **D2 (TW33 in the VM, 151 s then dropped).** `wisprSource.didEnd` called `dictationEnded`
+  directly. B's `.delivered` therefore ran while B's words were still queued behind parked A:
+  B was marked finished, `drainSentences` skips finished sentences, and the words were stranded.
+  Reproduced at the desk as TW40: SIGSTOP the local helper while B finishes, and the queue after A
+  reads `{id 3, state done, waiting 1}`. The fix routes the end through `runAnswer`, with a loud
+  belt in `drainSentences` and in the settle's give-up. TW40 PASS: B arrives 3.5 s after the
+  resume, A first, 0 waits.
+- **B2 (TX10 5/5).** Three NULL rows after Wispr relaunches were each held for 5 min, so every
+  ⌘V of his was "the relay's". The dead-row verdict now lets such rows go at once. In
+  `WisprOwnership.verdict`, a noted row of his outranks held rows: a held row is always older,
+  and Wispr finalizes only its newest. TX8b ("passed, nothing in TextEdit") is not reproducible
+  at a desk. The pass now logs the front app and the clipboard count against the relay's last
+  write, and 0.7 s later whether Wispr's restore moved it. The Q19 paste names the front app.
+- **E, the ghost microphone.** A relay sentence whose Wispr mic never opened arms a 25 s watch.
+  If Wispr's mic opens while no relay sentence is open, his `61+60` is not held and he sent no
+  chord since, the relay posts ⌃Escape. The chip then says *👻 Wispr Flow opened its microphone
+  late for a start it never answered — dismissed*.
+- **B-risk (TX6b).** A row that opens within 1 s of the relay's start chord is never his, nor
+  within 1 s of a stop chord for a sentence Wispr never answered. In-sync stops are not recorded,
+  so his sentence 0.3 s after the stop (TW8a, TX8b) stays his.
+- **Rig.**
+  - TW8a/b accept the pass line with `(B, Q19)`, and so does TX8b's regex.
+  - TW1 is measured from when listening began.
+  - TW22 accepts the auto p98 hand-over (`via: local-auto`, another session's feature).
+  - TW38 matches only samples taken after its write.
+
+**Desk** (`report-wispr-batch3*.md`, `report-wispr-d2-before.md`; the screen was locked, so chord
+routes and no keys): TW22, TW32, TW35–TW40 PASS. TW38's first sample in the last run matched a
+stale `rowSeen`; the case is fixed and was not re-run.
+
+**Only the VM can confirm** (`evals/plan/vm/wispr/wave4-rerun.txt`):
+- items 1–4 on real Wispr rows and a real WAL;
+- B2 on TX10 and TX8b: read the new front-app and clipboard lines;
+- E: TX3, TW20, TX6b, and whether the ⌃Escape clears the ghost;
+- B-risk: TX6b;
+- that D2 holds against a cold 60 s decode.
