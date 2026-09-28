@@ -1030,12 +1030,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// **submitted** when the caret is a Claude Code prompt
     /// (`TerminalBinding.frontClaudePromptTTY`).
     ///
-    /// `cleanSentence` — opened by the back click (the arm, `backStopsWispr`, is
-    /// up when Wispr's begin callbacks run): the words and nothing else, at the
-    /// caret **even when a terminal is bound** (the delivery to a bound terminal
-    /// always presses Return, and here Return is 🔽 →'s to give), no context
-    /// frame, no probe, no shutter, no kamikaze, no marker splicing.
-    /// `submitAfterClean` is 🔽 → having ended it: Return once the words land.
+    /// `cleanSentence` — opened by 🔽 → (the back click until 2026-09-28; the
+    /// arm, `backStopsWispr`, is up when Wispr's begin callbacks run): the words
+    /// and nothing else, at the caret **even when a terminal is bound** (Return
+    /// is the back click's to give), no context frame, no probe, no shutter, no
+    /// kamikaze, no marker splicing. `submitAfterClean` is the back click having
+    /// ended it (🔽 → until 2026-09-28): Return once the words land.
     ///
     /// Anything else reaching the caret — the held right ⌘⌥, a hand-started Wispr
     /// sentence with nothing bound, `/test` — keeps `caretLine`'s old envelope.
@@ -2782,8 +2782,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onWisprCancel = { [weak self] in
             DispatchQueue.main.async { self?.overlay.flash("🗑️ Cancelled", duration: 1.5) }
         }
-        // 🔽 → ended the plain dictation: the words go in clean, then Return
-        // (2026-09-23) — see `submitAfterClean`.
+        // 🔽 ended the plain dictation (🔽 → until 2026-09-28): the words go in
+        // clean, then Return — see `submitAfterClean`.
         hotkeys.onBackSubmit = { [weak self] in
             DispatchQueue.main.async { self?.submitAfterClean = true }
         }
@@ -2803,7 +2803,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
                     }
                 } else {
-                    Log.info("🧼 a plain dictation (back click) on \(self.source.name) — clean words at the caret, nothing added")
+                    Log.info("🧼 a plain dictation (🔽 →) on \(self.source.name) — clean words at the caret, nothing added")
                     self.startDictation(paste: true, clean: true)
                 }
             }
@@ -3142,14 +3142,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// device open. Victor sees that gap (2026-09-12: *the ring still comes up
     /// late*), so the ring goes up on the gesture and the source takes it back
     /// if no microphone follows.
-    /// **A Wispr sentence the back click opened is a plain one** (2026-09-23) —
-    /// see `cleanSentence`. Read off the arm, which the tap raises at the click
-    /// before the chord's announcement reaches the main queue, and which is
-    /// retired at the stop click — so it is latched here, at the begin, and
+    /// **A Wispr sentence 🔽 → opened is a plain one** (2026-09-23 on the back
+    /// click, 🔽 → since 2026-09-28) — see `cleanSentence`. Read off the arm,
+    /// which the tap raises at the gesture before the chord's announcement
+    /// reaches the main queue, and which is retired at the stop — so it is
+    /// latched here, at the begin, and
     /// carried to `deliver` on the flag.
     private func noteCleanStart() {
         guard !wisprSource.relayStarted, hotkeys.backStopsWispr else { return }
-        if !cleanSentence { Log.info("🧼 a plain dictation (back click) — clean words at the caret, nothing added") }
+        if !cleanSentence { Log.info("🧼 a plain dictation (🔽 →) — clean words at the caret, nothing added") }
         cleanSentence = true
         caretPrompt = false
         pasteMode = true
@@ -7258,11 +7259,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 🔽 → ended the plain dictation: Return, after the words (2026-09-23).
+    /// 🔽 ended the plain dictation: Return, after the words (2026-09-23 on 🔽 →,
+    /// the back click since 2026-09-28).
     /// A beat after the ⌘V so the paste lands first; `postReturn` waits out
     /// Options+'s flags itself and is stamped as this app's.
     private func submitAfterCleanWords() {
-        Log.info("⏎ plain dictation ended by 🔽 → — Return after the words")
+        Log.info("⏎ plain dictation ended by 🔽 — Return after the words")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             // **Q18 (2026-09-28): never a Return at a shell prompt.** The words
             // land where the caret is when they arrive (Victor's Q6 = C); if that

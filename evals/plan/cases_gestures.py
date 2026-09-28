@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""T-G — gestures and the tap (docs/test-plan.md §7.5), the [R] cases only.
+"""
+**2026-09-28: the back button's gestures swapped back** — 🔽→ (`back-right`, F5) starts/stops the
+plain dictation, 🔽 (`back-click`, F6) is Return (the shutter while a prompt records, stop + Return
+in a plain one). Every `back-click` / `back-right` step below was swapped with it, so each case
+still exercises the same role; the prose names the role by its 09-23 gesture where not updated.
+T-G — gestures and the tap (docs/test-plan.md §7.5), the [R] cases only.
 
 Every gesture goes in through `POST /test/gesture` (the ⌃⌥⌘F-key chord Options+ makes for it), so
 every case that makes one is tagged `gesture` and runs only under `hands-off` (HANDS_OFF=1). The
@@ -51,11 +56,11 @@ KEYCODE = {"forward-click": 98, "forward-right": 109, "forward-left": 103, "forw
 FKEY = {98: "F7", 109: "F10", 103: "F11", 100: "F8", 101: "F9", 97: "F6", 111: "F12", 96: "F5",
         99: "F3", 118: "F4"}
 
-STRAY_RETURN = re.compile(r"⌨️ 🔽 → — Return\s*$", re.M)          # F5's bare-Return branch
-OWN_STOP = "⌨️ 🔽 → — stopping the plain dictation (own engine)"
-WISPR_STOP = "⌨️ 🔽 → — stopping the plain dictation; Return once its words land"
-CLEAN_START_OWN = "back click — a clean dictation on the Engine (the start)"
-CLEAN_START_WISPR = "back click — Wispr Flow's hands-free toggle (the start)"
+STRAY_RETURN = re.compile(r"⌨️ 🔽 — Return\s*$", re.M)            # F6's bare-Return branch (F5's until 2026-09-28)
+OWN_STOP = "⌨️ 🔽 — stopping the plain dictation (own engine)"
+WISPR_STOP = "⌨️ 🔽 — stopping the plain dictation; Return once its words land"
+CLEAN_START_OWN = "🔽 → — a clean dictation on the Engine (the start)"
+CLEAN_START_WISPR = "🔽 → — Wispr Flow's hands-free toggle (the start)"
 BANKED = re.compile(r"dictate gesture with .* not ready — bringing it up")
 RESUMED = re.compile(r"up after a gesture that had to wait — opening the microphone")
 
@@ -479,7 +484,7 @@ def tg4():
         if not to_whisper(g):
             return g.done("FAIL", "POST /engine {id: whisper} was not taken")
         g.key_sink()
-        m, opened, dt, cold = cold_open(g, "back-click")
+        m, opened, dt, cold = cold_open(g, "back-right")
         if not opened:
             return g.done("FAIL", "the back click never opened the microphone (cold model)")
         time.sleep(0.4)
@@ -490,7 +495,7 @@ def tg4():
         shot = "context screen captured" in L1
         skipped = "context screen skipped — a clean dictation" in L1
         m2 = log_mark()
-        g.step("back-click")
+        g.step("back-right")
         time.sleep(1.0)
         L2 = log_since(m2)
         stop = "(the stop)" in L2
@@ -519,9 +524,9 @@ def back_pair(g, gap):
     """🔽 then 🔽→ `gap` s later, the sink in front. Returns (log, sink events, state 1 s on, gap sent)."""
     post("/test/sink/clear")
     m = log_mark()
-    t1 = g.step("back-click", check=False)
+    t1 = g.step("back-right", check=False)
     sleep_until(t1 + gap)
-    t2 = g.step("back-right", check=False)
+    t2 = g.step("back-click", check=False)
     sleep_until(t1 + gap + 1.0)
     s = st()
     g.flags(f"🔽/🔽→ +{gap * 1000:.0f} ms (checked after the pair)")
@@ -707,7 +712,7 @@ def tg11():
         up = hold_panel(g)
         if up is None:
             return g.skip(f"the prompt panel was never seen (autosend={st().get('autosend')}, 1 s hold)")
-        t = g.step("back-right", check=False)
+        t = g.step("back-click", check=False)
         sent = wait_for(lambda: outbox_count() > c0, 3, 0.02)
         sent_ms = (now() - t) * 1000
         g.flags("back-right (checked after the outbox poll)", t)
@@ -746,13 +751,13 @@ def tg13():
         bind_witness()
         tty = WITNESS["tty"]
         g.key_sink()
-        m = spoken(g, start="back-click", stop=None, after_play=0.5)
+        m = spoken(g, start="back-right", stop=None, after_play=0.5)
         if m is None:
             return g.done("FAIL", "the back click never opened the microphone")
         g.step("forward-right")
         redirected = wait_for(lambda: "↪️ redirected mid-sentence" in log_since(m), 3, 0.05)
         time.sleep(BACK_SETTLE + 0.2)
-        g.step("back-click")
+        g.step("back-right")
         wait_delivery(m, 40)
         time.sleep(1.0)
         s, evs = st(), sink_events()
@@ -1099,7 +1104,7 @@ def tour(g):
     """The ten chords, each once, each made harmless: four at idle (🔽→ types a Return into the sink,
     🔼← and 🔽↓ find nothing, 🔼↓ is ignored), then a caret sentence (🔼) in which 🔼→ is refused by the
     dwell, 🔼↑ is refused on a caret sentence, 🔽↑ films, 🔽 is the shutter and 🔽← cancels it."""
-    for name in ("back-right", "forward-left", "back-down", "forward-down"):
+    for name in ("back-click", "forward-left", "back-down", "forward-down"):
         g.step(name)
         time.sleep(0.6)
     g.step("forward-click")
@@ -1107,7 +1112,7 @@ def tour(g):
         g.notes.append("the caret sentence never opened — the in-sentence half ran against idle")
     g.step("forward-right")
     time.sleep(0.4)
-    for name in ("forward-up", "back-up", "back-click"):
+    for name in ("forward-up", "back-up", "back-right"):
         g.step(name)
         time.sleep(0.7)
     g.step("back-left")
@@ -1227,7 +1232,7 @@ def tg36():
         post("/test/rebind-panel", {"query": tty})   # a tty only the witness's row carries: row 0
         time.sleep(1.0)
         m = log_mark()
-        g.step("back-right")
+        g.step("back-click")
         time.sleep(1.5)
         b = st().get("bound") or {}
         activated = bool(b) and str(b.get("tty", "")).endswith(tty)
@@ -1265,16 +1270,16 @@ def tg40():
         if st().get("sentenceQueue"):
             time.sleep(1.0)
         early = "📦 delivery:" in log_since(m)
-        g.step("back-click")
+        g.step("back-right")
         s_at = st()
         wait_delivery(m, 40)
         time.sleep(1.0)
         L = log_since(m)
-        ir = L.find("back click refused — the relay's own engine is mid-sentence")
+        ir = L.find("🔽 → refused — the relay's own engine is mid-sentence")
         idl = L.find("📦 delivery:")
         new_sentence = n(r"mic: recording through", L) > 1
         # Batch 6: the refusal with the microphone closed names what is true.
-        inflight = "back click refused — words still in flight" in L
+        inflight = "🔽 → refused — words still in flight" in L
         msg = (f"refused line={ir >= 0} (before the delivery={0 <= ir < idl if idl >= 0 else ir >= 0}), "
                f"'words still in flight' line={inflight}, "
                f"state just after: listening={s_at.get('listening')} settling={s_at.get('settling')}, "

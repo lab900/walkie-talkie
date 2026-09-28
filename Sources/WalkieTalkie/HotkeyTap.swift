@@ -138,12 +138,13 @@ final class HotkeyTap {
     /// anyway, from its own state, exactly as it does for his keyboard.
     var onWisprRawChord: ((Bool) -> Void)?
 
-    /// **🔽 → ended a plain dictation, and the words are to be submitted**
-    /// (2026-09-23). Victor: *"Enter is dispatched if I do a back click and move
-    /// the mouse to my right."* The flick stops the back click's clean sentence
-    /// exactly as a second back click would, and this tells `AppDelegate` to
-    /// press Return once the clean words have landed at the caret — the Return
-    /// cannot go out here, because the words are still a round trip away.
+    /// **🔽 ended a plain dictation, and the words are to be submitted**
+    /// (2026-09-23 on 🔽 →; on the back click since 2026-09-28 — Victor: *"The
+    /// back key should result in an Enter key being pressed"*). The click stops
+    /// 🔽 →'s clean sentence exactly as a second 🔽 → would, and this tells
+    /// `AppDelegate` to press Return once the clean words have landed at the
+    /// caret — the Return cannot go out here, because the words are still a
+    /// round trip away.
     var onBackSubmit: (() -> Void)?
 
     /// **The back click's clean sentence on the Engine, when the Engine is not
@@ -152,9 +153,10 @@ final class HotkeyTap {
     /// back button click."* Until today the click posted Wispr's hands-free
     /// chord whatever the Engine said, so a clean sentence was always Wispr's
     /// words while every other gesture was ElevenLabs'. Now, with
-    /// `backUsesOwnEngine`, the click starts the relay's own source instead —
+    /// `backUsesOwnEngine`, the gesture starts the relay's own source instead —
     /// the same clean envelope (`AppDelegate.cleanSentence`) — and a second
-    /// click, or 🔽 →, stops it. Toggles: a start when nothing is open, a stop
+    /// 🔽 →, or the back click (which also queues the Return), stops it. The
+    /// gesture is 🔽 → since 2026-09-28 (the click until then). Toggles: a start when nothing is open, a stop
     /// when the open sentence is this one. Hops to main on the other side.
     var onCleanToggle: (() -> Void)?
 
@@ -1084,13 +1086,14 @@ final class HotkeyTap {
     /// flight, in the words that are true (TG40): with the microphone closed
     /// nothing is being dictated — the words are on their way and a back click
     /// cannot stop them.
-    private func refuseBackClick() {
+    private func refuseBackClick(_ who: String = "back click") {
+        let Who = who.prefix(1).uppercased() + who.dropFirst()
         if ownMicOpen {
-            Log.error("🎙️ ⬅️ back click refused — the relay's own engine is mid-sentence")
-            onEngineBusy?("Back click ignored — finish the sentence you are dictating first")
+            Log.error("🎙️ ⬅️ \(who) refused — the relay's own engine is mid-sentence")
+            onEngineBusy?("\(Who) ignored — finish the sentence you are dictating first")
         } else if ownDictation {
-            Log.error("🎙️ ⬅️ back click refused — words still in flight — the back click stops nothing")
-            onEngineBusy?("Back click ignored — the words are still in flight")
+            Log.error("🎙️ ⬅️ \(who) refused — words still in flight — the \(who) stops nothing")
+            onEngineBusy?("\(Who) ignored — the words are still in flight")
         }
     }
     private var ownDictationSince: CFTimeInterval = 0
@@ -1461,10 +1464,14 @@ final class HotkeyTap {
     /// continued movement and shorter than letting go of the button, moving back
     /// and pressing again.
     private var lastF10At: CFTimeInterval = 0
-    /// The last 🔽 → (F5, Return), for the same re-trigger guard.
+    /// The last 🔽 → (F5, the plain dictation's toggle), for the same re-trigger guard.
     private var lastF5At: CFTimeInterval = 0
-    /// The last back click that posted Wispr's toggle — see the F6 case.
+    /// The last toggle of a plain dictation (🔽 →'s start or stop, 🔽's stop) —
+    /// see the F5 case.
     private var lastBackToggleAt: CFTimeInterval = 0
+    /// When 🔽 → last *started* a plain dictation — its stop waits
+    /// `gestureStopDwellSeconds`, like F10's (2026-09-28).
+    private var lastPlainStartAt: CFTimeInterval = 0
     private static let backToggleSettleSeconds: CFTimeInterval = 0.8
     private static let gestureRetriggerSeconds: CFTimeInterval = 0.6
     /// **The same sliding window for the six flicks that had none** (2026-09-26,
@@ -3126,9 +3133,9 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // makes that independence readable rather than merely true.
         //
         // **Only a Return he pressed** (2026-09-26, TG11). This app posts
-        // Returns of its own — 🔽 →'s (`postReturn`) and a clean sentence's
+        // Returns of its own — 🔽's (`postReturn`; 🔽 →'s until 2026-09-28) and a clean sentence's
         // submit (`submitAfterCleanWords`) — stamped `backButtonStamp`, and
-        // they are meant for the terminal, not for the panel: 🔽 → under a
+        // they are meant for the terminal, not for the panel: that Return under a
         // held prompt used to send it. The same rule the *Rebind to…* panel
         // got in batch 2 (TG36), here asked in the tap because this panel
         // never takes the keyboard. A stamped Return goes on down and out.
@@ -3487,21 +3494,29 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 DispatchQueue.global().async { [weak self] in self?.onPasteToggle?() }
                 return swallow(gesture, type, event)
 
-            // **The back button's two gestures swapped roles** (Victor,
-            // 2026-09-23: *"când apăs butonul de back, asta doar să oprească și
-            // să pornească dictarea curată, cum ar fi Wispr normal, iar enterul
-            // să-l trimit cu gestul de back și swipe la dreapta. Așa nu avem
-            // niciun fel de race pe cine ce face"*). Until today one click meant
-            // three things — a Wispr stop, a picture, a Return — decided by a
-            // state he could not see at the moment of pressing, and a click meant
-            // as a stop that came a beat after the sentence had ended typed a
-            // Return instead. Now the click is **only** Wispr's hands-free toggle
-            // (the shutter excepted, below) and 🔽 → is **only** Return.
+            // **The back button's two gestures, swapped back** (2026-09-28).
+            // Victor: *"The plain transcription, the simple dictation with no
+            // prompting, should be started on the gesture with back key and move
+            // the mouse to the right, not just by pressing back key. The back key
+            // should result in an Enter key being pressed, unless I'm doing a
+            // dictation of a prompt, in which case it results in a screenshot
+            // being taken."* This supersedes 2026-09-23's swap (268b111: the
+            // click the plain toggle, 🔽 → only Return) and puts back the shape
+            // of 2026-09-17: 🔽 → starts and stops the plain sentence, the click
+            // is Return, the shutter while a prompt records, and the way out of
+            // an open plain sentence — here with its words submitted.
 
-            // 🔽 → — **Return**, posted by this app (see `postReturn`: in Logi mode
-            // nothing upstream types it). Guarded against Options+ re-firing on
-            // the tail of one flick the way F10 is (`lastF10At`), since here a
-            // re-fire would be a second send.
+            // 🔽 → — **a plain dictation**: start, or stop the one open. Clean
+            // words at the caret, bound or not, nothing added
+            // (`AppDelegate.cleanSentence`); heard by the Engine — Wispr's
+            // hands-free chord on Engine = Wispr, the relay's own source
+            // (`onCleanToggle`) otherwise. Never a Return, never a picture.
+            //
+            // Three guards, because one flick can re-fire: the 0.6 s sliding
+            // re-trigger window (F10's), the 0.8 s settle after a toggle (Wispr's
+            // microphone reads stale that long after a stop and would re-open
+            // it), and the 2 s dwell before a stop (a slow flick must not start
+            // and end the same sentence — F10's `gestureStopDwellSeconds`).
             case VK_F5:
                 let f5Now = CACurrentMediaTime()
                 let sinceLastF5 = f5Now - lastF5At
@@ -3510,92 +3525,28 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                     Log.info("🎯 🔽 → F5 re-triggered \(String(format: "%.0f", sinceLastF5 * 1000))ms after the last one — still the same motion, dropped")
                     return swallow("\(gesture) — re-fire dropped", type, event)
                 }
-                // **During a plain dictation it is the stop *and* the submit**
-                // (2026-09-23). Victor: *"Enter is dispatched if I do a back
-                // click and move the mouse to my right."* The same test and the
-                // same chord as the back click's stop below, so the two ways out
-                // of a clean sentence cannot drift; the Return waits for the
-                // words (`onBackSubmit`), because a Return now would land before
-                // them.
-                // …and the same for a clean sentence on the relay's own engine
-                // (2026-09-25, `onCleanToggle`): Return queued first, then the
-                // stop, both on one hop so the flag is up before the words are.
-                if ownDictation, ownCleanSentence, !backStopsWispr {
-                    lastBackToggleAt = f5Now
-                    Log.info("⌨️ 🔽 → — stopping the plain dictation (own engine); Return once its words land")
-                    DispatchQueue.global().async { [weak self] in
-                        self?.onBackSubmit?()
-                        self?.onCleanToggle?()
-                    }
-                    return swallow(gesture, type, event)
-                }
-                if backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation) {
-                    lastBackToggleAt = f5Now
-                    Log.info("⌨️ 🔽 → — stopping the plain dictation; Return once its words land")
-                    Self.postWisprHandsFree()
-                    onWisprRawChord?(true)
-                    setWisprArm(0)
-                    DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
-                    return swallow(gesture, type, event)
-                }
-                Log.info("⌨️ 🔽 → — Return")
-                Self.postReturn()
-                return swallow(gesture, type, event)
-
-            // The back button **clicked** — Wispr Flow's **raw** hands-free
-            // toggle, in both modes: it starts a **plain** sentence — clean words
-            // at the caret, bound or not, nothing added (`AppDelegate.cleanSentence`,
-            // 2026-09-23) — and stops any Wispr sentence,
-            // whoever started it. Same chord, same `postWisprHandsFree` as
-            // before, when 🔽 → was the start and this click its stop.
-            //
-            // **The one exception is the shutter**: while the relay's own
-            // sentence is recording (`dictating`) the click takes a picture, as it
-            // always has — opening Wispr then is refused anyway (below), so the
-            // button would otherwise do nothing at all.
-            case VK_F6:
-                // **The stop of a clean dictation comes before the shutter**
-                // (2026-09-23, the same afternoon — Victor: *"butonul de Back
-                // trebuie să pornească dictarea simplă, fără poze, fără nimic. Pe
-                // durata acelei dictări nu are sens să fac poze … butonul de Back
-                // oprește dictarea în acel moment"*). A sentence this click
-                // started is Wispr's, but the relay routes it and so goes
-                // `listening` — which made `dictating` true and turned the very
-                // next click, meant as the stop, into a picture. The arm (this
-                // click's own start) or Wispr's microphone open on a sentence the
-                // relay did not start is always a stop; the picture belongs only
-                // to the relay's own dictation, the one the forward button starts.
                 let wisprSentence = backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation)
-                // A clean sentence on the relay's own engine is this click's
-                // too (2026-09-25): its stop, never its shutter.
                 let ownClean = !wisprSentence && ownDictation && ownCleanSentence
-                if !wisprSentence, !ownClean, dictating, ownDictation {
-                    let cursor = NSEvent.mouseLocation
-                    DispatchQueue.global().async { [weak self] in self?.onScreenshot?(cursor) }
-                    return swallow(gesture, type, event)
+                guard f5Now - lastBackToggleAt >= Self.backToggleSettleSeconds else {
+                    Log.info("🎯 🔽 → \(String(format: "%.0f", (f5Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
+                    return swallow("\(gesture) — inside the plain toggle's settle", type, event)
                 }
-                // **A second click inside `backToggleSettleSeconds` is dropped.**
-                // Which half of the toggle a click is comes from Wispr's
-                // microphone, and that witness lags both ways: it still reads
-                // open for 100–600 ms after a stop, and reads closed for 0.3–6 s
-                // after a start. A quick second click would read the stale state
-                // and post the toggle again — re-opening what was just stopped.
-                let f6Now = CACurrentMediaTime()
-                guard f6Now - lastBackToggleAt >= Self.backToggleSettleSeconds else {
-                    Log.info("🎯 ⬅️ back click \(String(format: "%.0f", (f6Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
-                    return swallow("\(gesture) — inside the back toggle's settle", type, event)
+                if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {
+                    Log.info("🎯 🔽 → \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
+                    return swallow("\(gesture) — inside the stop dwell", type, event)
                 }
-                // **With the Engine off Wispr the clean sentence is the
+                // **With the Engine off Wispr the plain sentence is the
                 // Engine's** (2026-09-25, `onCleanToggle`). A Wispr sentence
                 // already open is still stopped with Wispr's chord below — a
                 // stop must reach whoever is listening.
                 if !wisprSentence, backUsesOwnEngine {
                     if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
-                        refuseBackClick()
+                        refuseBackClick("🔽 →")
                         return swallow(gesture, type, event)
                     }
-                    lastBackToggleAt = f6Now
-                    Log.info("🎙️ ⬅️ back click — a clean dictation on the Engine\(ownClean ? " (the stop)" : " (the start)")")
+                    lastBackToggleAt = f5Now
+                    if !ownClean { lastPlainStartAt = f5Now }
+                    Log.info("🎙️ 🔽 → — a clean dictation on the Engine\(ownClean ? " (the stop)" : " (the start)")")
                     DispatchQueue.global().async { [weak self] in self?.onCleanToggle?() }
                     return swallow(gesture, type, event)
                 }
@@ -3609,16 +3560,85 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 // must never be. Victor: *"E absurd să pornesc două motoare de
                 // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
                 if !closing, ownDictation {
-                    refuseBackClick()
+                    refuseBackClick("🔽 →")
                     return swallow(gesture, type, event)
                 }
-                lastBackToggleAt = f6Now
-                Log.info("🎙️ ⬅️ back click — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
+                lastBackToggleAt = f5Now
+                if !closing { lastPlainStartAt = f5Now }
+                Log.info("🎙️ 🔽 → — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
                 Self.postWisprHandsFree()
                 // …and the chord says so to the state machine, which cannot see
                 // it any other way — see `onWisprRawChord`.
                 onWisprRawChord?(closing)
                 setWisprArm(closing ? 0 : CACurrentMediaTime())
+                return swallow(gesture, type, event)
+
+            // The back button **clicked** — **Return**, posted by this app (see
+            // `postReturn`: in Logi mode nothing upstream types it), with two
+            // exceptions decided by what is open:
+            //
+            // - **a prompt dictation recording** (🔼, 🔼 →, 🔼 ↑ — the relay's own,
+            //   not clean): the **shutter**. A prompt still in flight after its
+            //   microphone closed gets no Return either — it would land before
+            //   the words — and is refused out loud (TG40).
+            // - **a plain dictation open**: its stop, then the clean words, then
+            //   the Return (`onBackSubmit`), because a Return now would land
+            //   before them. On a plain sentence already in flight it only asks
+            //   for the Return after the words.
+            //
+            // **The plain sentence is decided before the shutter** (2026-09-23):
+            // the relay routes a Wispr sentence and goes `listening`, so
+            // `dictating` is true under it and the click meant to end it would
+            // otherwise be a picture.
+            case VK_F6:
+                let f6Now = CACurrentMediaTime()
+                let wisprSentence = backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation)
+                // A clean sentence on the relay's own engine is this button's
+                // stop too (2026-09-25), never its shutter.
+                let ownClean = !wisprSentence && ownDictation && ownCleanSentence
+                if !wisprSentence, !ownClean, dictating, ownDictation {
+                    let cursor = NSEvent.mouseLocation
+                    DispatchQueue.global().async { [weak self] in self?.onScreenshot?(cursor) }
+                    return swallow(gesture, type, event)
+                }
+                if ownClean {
+                    if ownMicOpen {
+                        lastBackToggleAt = f6Now
+                        Log.info("⌨️ 🔽 — stopping the plain dictation (own engine); Return once its words land")
+                        DispatchQueue.global().async { [weak self] in
+                            self?.onBackSubmit?()
+                            self?.onCleanToggle?()
+                        }
+                    } else {
+                        Log.info("⌨️ 🔽 — the plain dictation's words are in flight; Return once they land")
+                        DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
+                    }
+                    return swallow(gesture, type, event)
+                }
+                if wisprSentence {
+                    // Wispr's microphone reads open for up to 0.6 s after a stop:
+                    // with the arm down that reading is the sentence 🔽 → just
+                    // ended, and a second chord would re-open it. Its words are
+                    // on their way — the Return goes after them.
+                    if !backStopsWispr, f6Now - lastBackToggleAt < Self.backToggleSettleSeconds {
+                        Log.info("⌨️ 🔽 — the plain dictation just stopped; Return once its words land")
+                        DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
+                        return swallow(gesture, type, event)
+                    }
+                    lastBackToggleAt = f6Now
+                    Log.info("⌨️ 🔽 — stopping the plain dictation; Return once its words land")
+                    Self.postWisprHandsFree()
+                    onWisprRawChord?(true)
+                    setWisprArm(0)
+                    DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
+                    return swallow(gesture, type, event)
+                }
+                if ownDictation {
+                    refuseBackClick()
+                    return swallow(gesture, type, event)
+                }
+                Log.info("⌨️ 🔽 — Return")
+                Self.postReturn()
                 return swallow(gesture, type, event)
 
             default:
@@ -4256,9 +4276,9 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
          ("forward-up",    VK_F8,  "⌃⌥⌘F8",  "dictate at a session that does not exist yet"),
          ("forward-down",  VK_F9,  "⌃⌥⌘F9",  "kamikaze — appends the word to the sentence in flight"),
          ("back-click",    VK_F6,  "⌃⌥⌘F6",
-          "start or stop a plain dictation — clean words at the caret; a picture while the relay's own one is dictating"),
+          "Return — a picture while a prompt is dictating; during a plain dictation: stop it, insert the words, then Return"),
          ("back-down",     VK_F12, "⌃⌥⌘F12", "unbind — the menu's Disconnect"),
-         ("back-right",    VK_F5,  "⌃⌥⌘F5",  "Return — during a plain dictation: stop it, insert the words, then Return"),
+         ("back-right",    VK_F5,  "⌃⌥⌘F5",  "start or stop a plain dictation — clean words at the caret, heard by the Engine"),
          ("back-left",     VK_F3,  "⌃⌥⌘F3",  "cancel Wispr Flow's dictation — the relay's own when there is none"),
          ("back-up",       VK_F4,  "⌃⌥⌘F4",  "start or stop a screen recording, while a dictation is open")]
     }

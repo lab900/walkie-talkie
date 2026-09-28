@@ -20,6 +20,15 @@ Victor, 2026-09-23 (dictated):
      [caret] into a Claude Code terminal prompt, it should already submit the
      prompt as it's actually a prompt."
 
+Victor, 2026-09-28 (dictated) — the back button's two gestures swapped back,
+superseding the 09-23 swap (268b111) for 🔽 and 🔽 →:
+
+    "The plain transcription, the simple dictation with no prompting, should be
+     started on the gesture with back key and move the mouse to the right, not
+     just by pressing back key. The back key should result in an Enter key being
+     pressed, unless I'm doing a dictation of a prompt, in which case it results
+     in a screenshot being taken."
+
 The gesture map has been rewritten five times in two weeks and every rewrite
 left a path behind that still did the previous thing (the back click that was
 still a shutter, the forward click that still went to the bound terminal). So
@@ -169,12 +178,14 @@ def spec(src: dict):
             ],
         },
         {
-            "row": ("🔽 back", "click"),
+            "row": ("🔽 back", "drag right, nothing open"),
             "does": "caret, even when bound · CLEAN (words only) · no Enter",
             "checks": [
-                ("F6 posts Wispr's toggle and arms the back click", "HotkeyTap `case VK_F6`",
-                 lambda: has(gesture_case(src, "VK_F6"),
+                ("F5 posts Wispr's toggle and arms the plain sentence", "HotkeyTap `case VK_F5`",
+                 lambda: has(gesture_case(src, "VK_F5"),
                              r"postWisprHandsFree\(\).*?setWisprArm\(closing \? 0 : CACurrentMediaTime\(\)\)")),
+                ("F5 never presses Return, never takes a picture", "HotkeyTap `case VK_F5`",
+                 lambda: not has(gesture_case(src, "VK_F5"), r"postReturn|onBackSubmit|onScreenshot")),
                 ("the arm makes the sentence clean and aims it at the caret", "AppDelegate `noteCleanStart`",
                  lambda: has(function(src, ad, "noteCleanStart"),
                              r"hotkeys\.backStopsWispr.*?cleanSentence = true.*?pasteMode = true")),
@@ -190,23 +201,23 @@ def spec(src: dict):
                  lambda: has(function(src, ad, "deliver"), r"result\.text = clean \? spokenText :")),
                 ("no kamikaze word", "AppDelegate `deliver`",
                  lambda: has(function(src, ad, "deliver"), r"if clean \{ kamikaze = false \}")),
-                ("no Return unless 🔽 → asked for it", "AppDelegate `deliver`",
+                ("no Return unless 🔽 asked for it", "AppDelegate `deliver`",
                  lambda: has(function(src, ad, "deliver"), r"let submitClean = clean && submitAfterClean")),
             ],
         },
         {
             # Victor, 2026-09-25: "changing the transcription engine from wispr to
-            # elevenlabs should change it as well for «clean dictation» = back
-            # button click."
-            "row": ("🔽 back", "click, Engine not Wispr"),
+            # elevenlabs should change it as well for «clean dictation»" — the
+            # gesture is 🔽 → since 2026-09-28.
+            "row": ("🔽 back", "drag right, Engine not Wispr"),
             "does": "the same CLEAN dictation, heard by the Engine (ElevenLabs / local), not Wispr",
             "checks": [
                 ("the tap knows which Engine is live", "AppDelegate `wireDictationSource`",
                  lambda: has(function(src, ad, "wireDictationSource"),
                              r"hotkeys\.backUsesOwnEngine = source !== wisprSource")),
-                ("F6 toggles the Engine's clean sentence instead of posting Wispr's chord",
-                 "HotkeyTap `case VK_F6`",
-                 lambda: before(gesture_case(src, "VK_F6"), r"if !wisprSentence, backUsesOwnEngine \{.*?onCleanToggle",
+                ("F5 toggles the Engine's clean sentence instead of posting Wispr's chord",
+                 "HotkeyTap `case VK_F5`",
+                 lambda: before(gesture_case(src, "VK_F5"), r"if !wisprSentence, backUsesOwnEngine \{.*?onCleanToggle",
                                 r"postWisprHandsFree")),
                 ("the toggle starts a clean caret sentence, and stops only a clean one",
                  "AppDelegate `hotkeys.onCleanToggle`",
@@ -215,9 +226,9 @@ def spec(src: dict):
                 ("startDictation(clean:) makes it clean, not a caret prompt", "AppDelegate `startDictation`",
                  lambda: has(function(src, ad, "startDictation"),
                              r"caretPrompt = paste && !clean.*?cleanSentence = clean")),
-                ("🔽 → stops it and submits", "HotkeyTap `case VK_F5`",
-                 lambda: has(gesture_case(src, "VK_F5"),
-                             r"if ownDictation, ownCleanSentence, !backStopsWispr \{.*?onBackSubmit\?\(\).*?onCleanToggle\?\(\)")),
+                ("🔽 stops it and submits", "HotkeyTap `case VK_F6`",
+                 lambda: has(gesture_case(src, "VK_F6"),
+                             r"if ownClean \{\s*if ownMicOpen \{.*?onBackSubmit\?\(\).*?onCleanToggle\?\(\)")),
             ],
         },
         {
@@ -243,10 +254,32 @@ def spec(src: dict):
             ],
         },
         {
-            "row": ("🔽 back", "click during a plain dictation"),
-            "does": "STOP it — never a shutter",
+            "row": ("🔽 back", "click, nothing open"),
+            "does": "Return, and nothing else",
             "checks": [
-                ("the stop is decided before the shutter", "HotkeyTap `case VK_F6`",
+                ("F6 falls through to postReturn", "HotkeyTap `case VK_F6`",
+                 lambda: has(gesture_case(src, "VK_F6"), r"Self\.postReturn\(\)\s*return (nil|swallow\()")),
+                ("…and never starts a dictation", "HotkeyTap `case VK_F6`",
+                 lambda: not has(gesture_case(src, "VK_F6"), r"setWisprArm\(closing")),
+            ],
+        },
+        {
+            "row": ("🔽 back", "click while a prompt is dictating"),
+            "does": "the SHUTTER — a picture, no Return",
+            "checks": [
+                ("F6 takes the picture while the relay's own prompt records", "HotkeyTap `case VK_F6`",
+                 lambda: has(gesture_case(src, "VK_F6"),
+                             r"if !wisprSentence, !ownClean, dictating, ownDictation \{.*?onScreenshot\?\(cursor\).*?return swallow\(")),
+                ("a prompt still in flight is refused, not given a Return", "HotkeyTap `case VK_F6`",
+                 lambda: before(gesture_case(src, "VK_F6"), r"if ownDictation \{\s*refuseBackClick\(\)",
+                                r"Self\.postReturn\(\)")),
+            ],
+        },
+        {
+            "row": ("🔽 back", "click during a plain dictation"),
+            "does": "STOP it, insert the clean words, then Enter — never a shutter",
+            "checks": [
+                ("the plain sentence is decided before the shutter", "HotkeyTap `case VK_F6`",
                  lambda: before(gesture_case(src, "VK_F6"), r"let wisprSentence = backStopsWispr",
                                 r"onScreenshot")),
                 ("a Wispr sentence is excluded from the shutter branch", "HotkeyTap `case VK_F6`",
@@ -254,6 +287,30 @@ def spec(src: dict):
                 ("a clean sentence on the relay's own engine is excluded too", "HotkeyTap `case VK_F6`",
                  lambda: has(gesture_case(src, "VK_F6"),
                              r"let ownClean = !wisprSentence && ownDictation && ownCleanSentence")),
+                ("F6 stops a Wispr plain sentence with 🔽 →'s own chord, before any Return",
+                 "HotkeyTap `case VK_F6`",
+                 lambda: before(gesture_case(src, "VK_F6"), r"if wisprSentence \{.*?postWisprHandsFree\(\)",
+                                r"Self\.postReturn\(\)")),
+                ("…and asks for the Return after the words", "HotkeyTap `case VK_F6`",
+                 lambda: has(gesture_case(src, "VK_F6"),
+                             r"postWisprHandsFree\(\).*?setWisprArm\(0\)\s*DispatchQueue\.global\(\)\.async \{ \[weak self\] in self\?\.onBackSubmit\?\(\) \}\s*return swallow\(")),
+                ("the request is recorded for this sentence", "AppDelegate `hotkeys.onBackSubmit`",
+                 lambda: has(closure(src, "hotkeys.onBackSubmit"), r"submitAfterClean = true")),
+                ("the Return follows the paste", "AppDelegate `deliver`",
+                 lambda: has(function(src, ad, "deliver"),
+                             r"pasteText\(line, to: result\.focusPid\)\s*if submitClean \{ submitAfterCleanWords\(\) \}")),
+                ("…and is this app's stamped Return", "AppDelegate `submitAfterCleanWords`",
+                 lambda: has(function(src, ad, "submitAfterCleanWords"), r"HotkeyTap\.postReturn\(\)")),
+            ],
+        },
+        {
+            "row": ("🔽 back", "drag right during a plain dictation"),
+            "does": "STOP it, insert the clean words — no Enter",
+            "checks": [
+                ("F5's stop is the same toggle, disarming the sentence", "HotkeyTap `case VK_F5`",
+                 lambda: has(gesture_case(src, "VK_F5"), r"let closing = wisprSentence.*?setWisprArm\(closing \? 0")),
+                ("…and a stop younger than 2 s is dropped (one slow flick)", "HotkeyTap `case VK_F5`",
+                 lambda: has(gesture_case(src, "VK_F5"), r"lastPlainStartAt < Self\.gestureStopDwellSeconds")),
             ],
         },
         {
@@ -275,28 +332,6 @@ def spec(src: dict):
             ],
         },
         {
-            "row": ("🔽 back", "drag right during a plain dictation"),
-            "does": "STOP it, insert the clean words, then Enter",
-            "checks": [
-                ("F5 stops a plain sentence with the back click's own chord, before any Return",
-                 "HotkeyTap `case VK_F5`",
-                 lambda: before(gesture_case(src, "VK_F5"), r"if backStopsWispr \|\|.*?postWisprHandsFree\(\)",
-                                r"Self\.postReturn\(\)")),
-                ("…and asks for the Return after the words", "HotkeyTap `case VK_F5`",
-                 # After Wispr's stop chord: the own-engine branch above it asks for
-                 # the Return too, and must not stand in for this one (2026-09-26).
-                 lambda: has(gesture_case(src, "VK_F5"),
-                             r"postWisprHandsFree\(\).*?onBackSubmit\?\(\).*?return (nil|swallow\()")),
-                ("the request is recorded for this sentence", "AppDelegate `hotkeys.onBackSubmit`",
-                 lambda: has(closure(src, "hotkeys.onBackSubmit"), r"submitAfterClean = true")),
-                ("the Return follows the paste", "AppDelegate `deliver`",
-                 lambda: has(function(src, ad, "deliver"),
-                             r"pasteText\(line, to: result\.focusPid\)\s*if submitClean \{ submitAfterCleanWords\(\) \}")),
-                ("…and is this app's stamped Return", "AppDelegate `submitAfterCleanWords`",
-                 lambda: has(function(src, ad, "submitAfterCleanWords"), r"HotkeyTap\.postReturn\(\)")),
-            ],
-        },
-        {
             # Q10 (2026-09-26): IntelliJ's Step Into / Resume are bare F7 / F9.
             "row": ("⌨️ fn+F7/F9", "keyboard, not a button"),
             "does": "halo style −1/+1 only with the fn key down; bare F7/F9 pass to the front app",
@@ -307,14 +342,6 @@ def spec(src: dict):
                 ("fnKeyHeld follows the fn key's own flagsChanged (keycode 63)", "HotkeyTap `.flagsChanged`",
                  lambda: has(_strip_comments(src["HotkeyTap.swift"]),
                              r"== VK_FUNCTION \{\s*fnKeyHeld = event\.flags\.contains\(\.maskSecondaryFn\)")),
-            ],
-        },
-        {
-            "row": ("🔽 back", "drag right, no plain dictation"),
-            "does": "Return, and nothing else",
-            "checks": [
-                ("F5 falls through to postReturn", "HotkeyTap `case VK_F5`",
-                 lambda: has(gesture_case(src, "VK_F5"), r"Self\.postReturn\(\)\s*return (nil|swallow\()")),
             ],
         },
     ]
@@ -350,7 +377,7 @@ def main(argv: list[str]) -> int:
         return self_test()
     code, failures = run(load())
     if failures:
-        print("\nThe gesture spec (2026-09-23) no longer holds:")
+        print("\nThe gesture spec (2026-09-23, back button swapped back 2026-09-28) no longer holds:")
         for f in failures:
             print(f"  ✗ {f}")
     return code
@@ -377,8 +404,21 @@ MUTATIONS = [
      "        if hotkeys.cleanSentenceOpen {\n            Log.info(\"📸 refused", "        if false {\n            Log.info(\"📸 refused"),
     ("back click is a shutter before it is a stop", "HotkeyTap.swift",
      "if !wisprSentence, !ownClean, dictating, ownDictation {", "if dictating, ownDictation {"),
-    ("back + right is only Return again", "HotkeyTap.swift",
-     "DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }", ""),
+    ("the back click stops a plain sentence without its Return", "HotkeyTap.swift",
+     "                    setWisprArm(0)\n                    DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }",
+     "                    setWisprArm(0)"),
+    ("🔽 → presses Return again", "HotkeyTap.swift",
+     "                Log.info(\"🎙️ 🔽 → — Wispr Flow's hands-free toggle",
+     "                Self.postReturn()\n                Log.info(\"🎙️ 🔽 → — Wispr Flow's hands-free toggle"),
+    ("the bare back click starts Wispr instead of Return (the 09-23 swap)", "HotkeyTap.swift",
+     "                Log.info(\"⌨️ 🔽 — Return\")\n                Self.postReturn()",
+     "                Self.postWisprHandsFree()\n                setWisprArm(closing ? 0 : CACurrentMediaTime())"),
+    ("a prompt in flight gets a Return instead of the refusal", "HotkeyTap.swift",
+     "                if ownDictation {\n                    refuseBackClick()\n                    return swallow(gesture, type, event)\n                }\n                Log.info(\"⌨️ 🔽 — Return\")",
+     "                Log.info(\"⌨️ 🔽 — Return\")"),
+    ("🔽 → stops a plain sentence it opened a moment ago", "HotkeyTap.swift",
+     "if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {",
+     "if false {"),
     ("the pair reads the app's own stamped flagsChanged as his release again (W1)", "HotkeyTap.swift",
      "if !ownPost, pair != cleanPairDown {", "if pair != cleanPairDown {"),
     ("held right ⌘⌥ no longer reaches onCleanHold", "HotkeyTap.swift",
@@ -412,11 +452,39 @@ def self_test() -> int:
         print(f"{'✓' if code != 0 else '✗'} caught: {name}")
         if code == 0:
             missed.append(name)
+    # **The mapping this spec was rewritten against must fail it** (2026-09-28):
+    # the tap as it stood before the swap back — 🔽 the plain toggle, 🔽 → only
+    # Return (268b111, 2026-09-23) — read out of git, the whole file, not a
+    # one-line mutation.
+    old = old_mapping_tap()
+    if old is None:
+        print(f"self-test FAILED — cannot read HotkeyTap.swift at {OLD_MAPPING_COMMIT} from git")
+        return 1
+    src = dict(base)
+    src["HotkeyTap.swift"] = old
+    code, _ = run(src, quiet=True)
+    print(f"{'✓' if code != 0 else '✗'} caught: the 2026-09-23 mapping ({OLD_MAPPING_COMMIT}: 🔽 = plain toggle, 🔽 → = Return)")
+    if code == 0:
+        missed.append("the 2026-09-23 mapping")
     if missed:
         print(f"self-test FAILED — {len(missed)} mutation(s) not caught")
         return 1
-    print(f"self-test ok — all {len(MUTATIONS)} broken rules are caught")
+    print(f"self-test ok — all {len(MUTATIONS)} broken rules and the old mapping are caught")
     return 0
+
+
+# The last commit whose HotkeyTap still had the 2026-09-23 mapping.
+OLD_MAPPING_COMMIT = "c8d918b"
+
+
+def old_mapping_tap() -> str | None:
+    import subprocess
+    root = SOURCES.parent.parent
+    try:
+        return subprocess.run(["git", "-C", str(root), "show", f"{OLD_MAPPING_COMMIT}:Sources/WalkieTalkie/HotkeyTap.swift"],
+                              capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
 
 
 if __name__ == "__main__":

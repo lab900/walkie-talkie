@@ -29,6 +29,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *F10's re-fire guard, scoped to F10 only* (2026-09-16/18) — superseded 2026-09-26 by batch 4 §2: every flick has the 0.6 s window
 - *`PasteHint` after every delivered sentence* (2026-09-23) and **⌘⇧P** itself (2026-09-19) — superseded 2026-09-28 by Q17: the clipboard always holds the finished sentence (envelope or clean words), ⌘⇧P is gone, the chip's row after a delivery says ⌘V (*Wispr as engine: decisions Q14–Q23*)
 - *The eraser waits 5 s and fades letter by letter* (2026-09-26 14:20), the eraser of *The caption after a night of use*, and the single centred line that scrolled left once wider than the band (*The caption is centred…*) — superseded 2026-09-28 by *Two lines that roll up*: two centred lines ≤ 80 % of the band, a roll-up on the third, silence rolls lines out after a read time; no eraser, no horizontal scroll
+- *The back button's two gestures swapped roles* (2026-09-23, `268b111`: 🔽 = the plain toggle, 🔽 → = Return) — superseded 2026-09-28 by *The back button's gestures swapped back*: 🔽 → is the plain toggle, 🔽 is Return (the shutter while a prompt records; stop + words + Return in a plain one)
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
@@ -14055,3 +14056,32 @@ should be without pan, sudden. no animation"*.
 ## Wispr Flow's Engine row behind a switch (2026-09-28)
 
 - Victor: *"once you're convinced [by the VM tests], restore Wispr Flow as a transcription engine"* — the verdict is not in, so the row hidden on 2026-09-25 (*"ascunde pt moment wispr flow"*) returns last in the list only under `WT_WISPR_ENGINE=1` (env → `elevenlabs.env`, re-read per menu build; `GET /engine.wisprRowShown`); the restore is flipping `StatusItem.wisprEngineDefault`. Same pass: the `Halo 𝓯𝔁 when…` row is now just `𝓯𝔁` (*"no ellipses, no other words, just the FX stylish font"*).
+
+## The back button's gestures swapped back (2026-09-28)
+
+Victor, dictated: *"there is a bit of regression. The plain transcription, the simple dictation
+with no prompting, should be started on the gesture with back key and move the mouse to the right,
+not just by pressing back key. The back key should result in an Enter key being pressed, unless I'm
+doing a dictation of a prompt, in which case it results in a screenshot being taken."*
+
+**Where it drifted:** not today's tap edits (`ec019c8`, `252b533`, `829b494`, `c3c97c0` touch
+neither `case VK_F5` nor `case VK_F6`'s semantics) but `268b111` (2026-09-23 12:56), *Back click =
+Wispr's hands-free toggle, 🔽 → = Return*, made on his own words that day (*"când apăs butonul de
+back, asta doar să oprească și să pornească dictarea curată … iar enterul să-l trimit cu gestul de
+back și swipe la dreapta"*). Before it (2026-09-17/18) 🔽 → started Wispr's sentence and the click
+was its stop, the shutter, or Return. His words today win; the 09-23 swap is superseded.
+
+What ships:
+
+| gesture | does |
+|---|---|
+| 🔽 → F5 | the plain dictation, start/stop — Wispr's chord on Engine = Wispr, `onCleanToggle` otherwise; never a Return; 0.6 s re-fire window, 0.8 s settle, 2 s stop dwell (F10's) |
+| 🔽 F6, nothing open | Return (`postReturn`) |
+| 🔽 F6, a prompt recording | the shutter; a prompt in flight after its microphone closed is refused (TG40), never given a Return |
+| 🔽 F6, a plain sentence open | stop it, the clean words, then Return (`onBackSubmit`, moved from F5); already in flight → Return after its words; Wispr's microphone reading open inside 0.8 s of 🔽 →'s stop is that sentence, not a new one — Return after its words, no second chord |
+
+The 2 s stop dwell is new on 🔽 →: it is the flick F10 is, with the same re-fire habit, and the
+settle alone (0.8 s from the start) let a re-fire at ~0.9 s close what the flick had just opened.
+`evals/test_gesture_spec.py --self-test` now also reads `HotkeyTap.swift` at `c8d918b` (the last
+09-23 mapping) out of git and asserts the spec rejects it.
+

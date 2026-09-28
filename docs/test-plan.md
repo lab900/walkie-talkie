@@ -111,8 +111,8 @@ Two invariants every test asserts, whatever else it checks:
 | 🔼→ F10 | 0.6 s window, `openSentenceAge < 2 s` refused, ◀️ held → bind+dictate | `toggleDictation` | the one guarded gesture |
 | 🔼← F11 · 🔼↑ F8 · 🔼↓ F9 | 0.6 s window (batch 4) | cancel (the held panel first, Q6) · spawn/convert · kamikaze toggle (the held panel too) | ~~no re-fire guard~~ |
 | 🔼 F7 | ◀️ held ≥ 0.3 s → bind | caret prompt / stop | |
-| 🔽 F6 | arm, `ownDictation`, `ownCleanSentence`, 0.8 s settle, `backUsesOwnEngine` | shutter / clean toggle / Wispr chord | |
-| 🔽→ F5 | 0.6 s window; `ownDictation && ownCleanSentence` | stop + Return / Return | plain Return mid relay-prompt |
+| 🔽 F6 | arm, `ownDictation`, `ownCleanSentence`, `ownMicOpen`, 0.8 s settle (stale Wispr mic) | Return / shutter while a prompt records / plain stop + Return (2026-09-28) | refused while a prompt is in flight |
+| 🔽→ F5 | 0.6 s window, 0.8 s settle, 2 s stop dwell, `backUsesOwnEngine` | plain dictation toggle: clean toggle / Wispr chord (2026-09-28) | never a Return |
 | 🔽← F3 · 🔽↑ F4 · 🔽↓ F12 | 0.6 s window (batch 4) | Wispr cancel or relay cancel · film · unbind | ~~no re-fire guard~~ |
 | middle button (Logi) | `dictating && bare && !promptHeld && !left && !right`, 12 pt | crop drag | press **passes** to the app underneath (dial: a Chrome tab closes) |
 
@@ -126,6 +126,10 @@ a 10 Hz watchdog, the real stall length at the close, the app's own chords dropp
 swallow traced.)
 
 ### 2.6 Action × state (the cells that are wrong or undefined; full matrix in the gesture review)
+
+*As found on 2026-09-26, under the 2026-09-23 mapping (🔽 F6 = the plain toggle, 🔽→ F5 = Return).
+Since 2026-09-28 the two are swapped back — 🔽→ starts/stops the plain dictation, 🔽 is Return (the
+shutter while a prompt records, stop + Return in a plain one); read the 🔽 / 🔽→ rows with that in mind.*
 
 | gesture | S2 relay prompt | S3 clean (own engine) | S3w adopted Wispr | S4 settle | S5 panel | S8 cold bank |
 |---|---|---|---|---|---|---|
