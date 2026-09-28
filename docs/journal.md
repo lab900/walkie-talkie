@@ -14413,7 +14413,7 @@ What ships:
   (`evals/plan/cases_localauto.py`); states page `transcribing-local-auto`,
   `transcribing-local-auto-fired`, `listening-wispr-starting`.
 
-### A after wave 3: buffers of zeros are a stall too (2026-09-28, 23:55)
+## Wispr as engine: A after wave 3 — buffers of zeros are a stall too (2026-09-28, 23:55)
 
 The VM answered batch 2's two readings for finding A. It was **not A1**: all night there was not
 one `AVAudioEngineConfigurationChange`. Every DEAF take was **flowing buffers of exact zeros**:
