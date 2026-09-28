@@ -14388,7 +14388,11 @@ Replayed on his `decode-rate.jsonl` (2 010 lines) the evening it shipped:
 `elevenlabs`. Over all 165 ElevenLabs samples (a 600 s take, a 48 s answer) the tail is × 5.7 and
 the cap would decide at every length — which is why the window is the newest 100, not the file.
 **The fake Scribe's answers were being filed as ElevenLabs'** (every desk run since 2026-09-27):
-they now file under `elevenlabs-test` whenever `WT_ELEVEN_BATCH_URL` is set.
+they now file under `elevenlabs-test` whenever `WT_ELEVEN_BATCH_URL` is set, and a fake
+`History`'s rows under `wispr-flow-test` (`WT_WISPR_DB`). **Wispr's window is not his yet:** of its
+newest 300 samples, 278 are 30–40 s takes from 2026-09-27 — the harness's ~38 s clip and the
+loops — so the Wispr row of the table is the rig's Wispr more than his; it turns over as real
+sentences land.
 
 What ships:
 
@@ -14412,6 +14416,15 @@ What ships:
 - `POST /test/local-auto {"on", "wisprDown", "fakeLaunch"}`, `state.localAuto`; cases TA1–TA5
   (`evals/plan/cases_localauto.py`); states page `transcribing-local-auto`,
   `transcribing-local-auto-fired`, `listening-wispr-starting`.
+
+**At the desk, 29 Sep 00:06 — not run.** Installed at 23:58 (`relay-restart.sh --build`, gate open
+at once; `💻 local model warm for the auto fallback — 2.2 GB resident` at launch + 2 s; `state.localAuto`
+answered). TA1–TA5 then waited for the other runner's lock and started at 00:06:40 with **the screen
+locked** (`CGSSessionScreenIsLocked`, Secure Input on — the tap's own `🛡️ tap heal … the screen is
+locked` at 00:05:49): every `POST /test/gesture` chord went nowhere, so no microphone opened (TA1,
+TA2, TA4 ERROR, TA3, TA5 FAIL on *the sentence did not open*). No verdict about the feature. To run
+once he is back at an unlocked Mac:
+`HANDS_OFF=1 hands-off run "…" -- python3 evals/plan/harness.py --only TA1,TA2,TA3,TA4,TA5`.
 
 ## Wispr as engine: A after wave 3 — buffers of zeros are a stall too (2026-09-28, 23:55)
 

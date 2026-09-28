@@ -86,7 +86,8 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   over budget (X s)`; the engine's late answer is only logged, as after the key. Words landing
   first log `⏱ <engine> answered N s after the close — inside its X s budget`. `eleven-live` files
   under `elevenlabs` (the delivered words are the same batch upload). **The fake Scribe's answers
-  file under `elevenlabs-test`** (any `WT_ELEVEN_BATCH_URL`) so desk runs never teach the real line.
+  file under `elevenlabs-test`** (any `WT_ELEVEN_BATCH_URL`), **and a fake `History`'s rows under
+  `wispr-flow-test`** (`WT_WISPR_DB` set), so desk runs never teach the real lines.
   While ON and the engine is not local, the local weights are kept up (`keepLocalWarm`: launch +2 s,
   every engine pick, the checkbox; log `💻 local model warm for the auto fallback — X GB resident`).
 - **A Wispr sentence never waits for Wispr Flow to start** (same evening — *"10 s startup time is

@@ -112,6 +112,10 @@ enum DecodeRate {
     /// ElevenLabs answered by a stand-in (`WT_ELEVEN_BATCH_URL`, the harness's
     /// fake Scribe) — filed apart so it never teaches the real line (2026-09-28).
     static let elevenLabsTest = "elevenlabs-test"
+    /// Wispr rows from a fake `flow.sqlite` (`WT_WISPR_DB`, the desk's fake
+    /// History) — the same reason: 50 of the newest Wispr samples on
+    /// 2026-09-28 were the harness's ~38 s clip.
+    static let wisprFlowTest = "wispr-flow-test"
 
     /// What an engine costs before it has taught this file anything. The local
     /// model's is the old fallback; the other two are read off `relay.log`
@@ -376,6 +380,8 @@ enum DecodeRate {
     static func record(audio: TimeInterval, decode: TimeInterval, engine: String = whisperLocal,
                        chars: Int? = nil, compression: Double? = nil) {
         guard audio > 0, decode > 0 else { return }
+        // A desk run's fake Wispr rows never teach the real line (2026-09-28).
+        let engine = engine == wisprFlow && WisprFlowDB.overridePath != nil ? wisprFlowTest : engine
         // The first decode after the helper starts is the *local model's* cold
         // start; a hosted recogniser has no weights to page in.
         var cold = false
