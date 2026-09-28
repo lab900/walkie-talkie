@@ -3167,7 +3167,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.pasteText(text, settles: false)
             self.pasteHint.pulse(reason: "Wispr's own sentence, pasted by the relay (Q19)")
         }
-        wisprSource.didEnd = { [weak self] end in self?.dictationEnded(end) }
+        // **D2 (lab wave 3, 2026-09-28): the end goes through the order rule too.**
+        // `didTranscribe` above waits its turn behind a parked sentence (Q12/Q15),
+        // and the `.delivered` that follows it ran at once: `dictationEndedForGood`
+        // marked the waiting sentence finished, `drainSentences` skips a finished
+        // one, and its words stayed queued for ever (TW33: 151 s, then dropped).
+        // Same split as `wireDictationSource`: a cancel or an end with nothing to
+        // deliver is never held.
+        wisprSource.didEnd = { [weak self] end in
+            guard let self else { return }
+            var cancel = false
+            switch end {
+            case .cancelled, .silent: cancel = true
+            case .failed(_, let audio, _) where audio == nil: cancel = true
+            default: break
+            }
+            self.runAnswer(for: self.liveSentence, immediate: cancel) { self.dictationEnded(end) }
+        }
         // **One letter on the chip, saying which recogniser is listening**
         // (2026-09-18) — `Listening(W)...`. Pushed from here because here is the
         // one place in the app that is allowed to know there are three of them;
@@ -4350,6 +4366,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return self.armSettleGiveUp()
             }
             if let live = self.liveSentence, !live.waiting.isEmpty {
+                // D2: nothing older in flight any more — its turn is now, not never.
+                if self.parkedSentence.map({ $0.finished }) ?? true {
+                    Log.error(String(format: "🧾 sentence #%d's words were still waiting with nothing before them — delivering them now (D2), %.0f s in", live.id, waited))
+                    self.drainSentences()
+                    if self.settling { self.armSettleGiveUp() }
+                    return
+                }
                 Log.info(String(format: "the settle waits: sentence #%d's words wait for the one before — %.0f s in", live.id, waited))
                 return self.armSettleGiveUp()
             }
@@ -10662,6 +10685,16 @@ extension AppDelegate {
         }
         for s in [parkedSentence, liveSentence].compactMap({ $0 }) {
             if s !== parkedSentence, let p = parkedSentence, !p.finished { return }
+            // D2: a finished sentence with words still queued would strand them
+            // for ever — the end that finished it ran out of turn. Said, not hidden.
+            if s.finished, !s.waiting.isEmpty {
+                Log.error("🧾 sentence #\(s.id) ended with \(s.waiting.count) answer(s) still queued — running them (D2)")
+                let late = s.waiting
+                s.waiting = []
+                late.forEach { $0() }
+                if s === liveSentence { liveSentence = nil }
+                continue
+            }
             while !s.waiting.isEmpty, !s.finished {
                 let next = s.waiting.removeFirst()
                 Log.info("🧾 sentence #\(s.id): its turn — delivering what waited")

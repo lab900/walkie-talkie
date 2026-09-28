@@ -10,6 +10,8 @@ TW36
 TW37
 TW38
 TW39
+# Wave-3 VM findings (batch 3, second half):
+TW40
 # Existing lab cases whose path batch 3 changed (real Wispr rows, real ⌘V, real WAL):
 TW8a
 TW8b
@@ -20,7 +22,7 @@ TX8a
 TX8b
 #
 # One line for run-phase.sh / harness.py:
-# --only TW35,TW36,TW37,TW38,TW39,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b
+# --only TW35,TW36,TW37,TW38,TW39,TW40,TW8a,TW8b,TW12,TW20,TX2,TX8a,TX8b
 #
 # Finding A, the peak-0 watch (MicRecorder, 2026-09-28 night): TM1/TM2 in cases_audio.py (Loopback =
 # BlackHole 2ch, local engine), plus TW4 and TW34 where A showed (TX2 is already listed above):

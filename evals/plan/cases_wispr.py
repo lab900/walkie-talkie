@@ -1191,3 +1191,66 @@ def tw39():
           and vc.get("verdict") == "dropped" and cc.get("row") == rc and str(cc.get("source", "")).startswith("the pasteboard")
           and cc.get("chars") == len("PB-C pasteboard words") and claims_c == 1 and read_once == 2)
     return ("PASS" if ok else "BUG"), note
+
+
+# ---------------------------------------------------------------- TW40: D2, the sentence behind a parked fallback (lab wave 3)
+@case("TW40", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="A's Wispr row never moves → Q14 local decode, parked by B; B's row formatted BEFORE A's decode ends: "
+             "when A is delivered, B follows at once — both in the witness, A first; no 'wait for the one before' past A")
+def tw40():
+    """D2 (lab wave 3, TW33: B's words waited behind parked A for 151 s, then were dropped). The desk
+    TW33 never had B's words arrive while A was still decoding — a warm model finished first. Here
+    the local helper is SIGSTOPped (`/test/whisper {"stop"}`) the moment A falls back, B is opened,
+    stopped and finished on its fake row, and only then is the helper resumed."""
+    db = desk()
+    bind_witness(); witness_clear()
+    was_auto = bool(state().get("autosend"))
+    post("/test/autosend", {"on": True})
+    mark = log_mark()
+    chord(state_="start")   # the relay's own gesture, no key (the screen may be locked)
+    if not wait_for(lambda: state()["listening"], 4):
+        return "FAIL", "A did not open"
+    ra = db.insert(at=time.time())
+    wait_for(lambda: live()["captureRow"] == ra, 3)
+    time.sleep(2.3)
+    play(CLIP_SPEECH, seconds=6)
+    chord(state_="stop")
+    # Q14's NULL-row fallback, or the auto p98 hand-over (AutoLocal) — both park A while it decodes.
+    if not wait_for(lambda: log_has(mark, r"the local model (stands in \(Q14\)|takes it)"), 15, 0.05):
+        db.update(ra, status="dismissed")
+        return "FAIL", "A never fell back to the local model"
+    stopped = post("/test/whisper", {"stop": True})[0] == 200
+    try:
+        time.sleep(0.9)
+        m2 = log_mark()
+        chord(state_="start")
+        if not wait_for(lambda: state()["listening"], 4):
+            return "FAIL", "B did not open (%s)" % (re.search(r"🚫 start refused[^\n]*", log_since(m2)) or [None])[0]
+        rb = db.insert(at=time.time())
+        wait_for(lambda: live()["captureRow"] == rb, 3)
+        time.sleep(2.3)
+        chord(state_="stop")
+        db.update(rb, status="processing", duration=1.5); time.sleep(0.3)
+        db.finish(rb, "tw forty sentence bee")
+        waited = wait_for(lambda: log_has(m2, r"landed before #\d+ — it waits its turn"), 6, 0.1)
+        time.sleep(1.0)
+    finally:
+        if stopped:
+            post("/test/whisper", {"cont": True})
+    t_cont = time.time()
+    got_b = wait_for(lambda: "sentence bee" in witness_text(), 20, 0.3)
+    queue = state().get("sentences")
+    dt = time.time() - t_cont
+    wait_for(lambda: not state()["busy"], 30, 0.5)
+    got = witness_text()
+    ib = got.find("sentence bee")
+    a_len = len(got[:ib].strip()) if ib >= 0 else len(got.strip())
+    txt = log_since(mark)
+    stuck = len(re.findall(r"words wait for the one before", txt))
+    dropped = "which is over — dropped" in txt or "cancelled and dropped" in txt
+    post("/test/autosend", {"on": was_auto})
+    db.update(ra, status="dismissed")
+    note = (f"helper stopped {stopped}; B waited its turn {bool(waited)}; B in the witness {bool(got_b)} "
+            f"{dt:.1f} s after the resume; A {a_len} chars before B at {ib}; 'wait for the one before' ×{stuck}; dropped {dropped}; "
+            f"queue after the resume {queue}")
+    return ("PASS" if stopped and waited and got_b and ib > 0 and a_len > 20 and not dropped else "BUG"), note
