@@ -14163,3 +14163,16 @@ What ships:
   is the guest's; the Addons repo neither kills nor launches the app; the `relay` skill's
   `install.sh` still `pkill`s and `start.sh` launches by the executable path — his own `/relay`,
   another repo, left as it was and noted.
+
+**The same afternoon, a second defect — the install itself.** The `relay-restart.sh --build`
+that shipped the above swapped the new bundle into `/Applications` at 19:54:13 and then, correctly,
+waited on the gate for 410 s while he dictated (Wispr's microphone, row 17893, his hands). For
+those minutes the **running** app (pid 18433, from 18:39) had its bundle replaced under it: its
+on-disk code no longer matched its running signature, and from 19:55 every bind failed with
+*"Terminal.app would not name its front tab's tty"* — seven by Victor, one `POST /bind` by the
+coordinator — while the same AppleScript worked from a shell and TCC still had the grant. The
+gate let the restart through at 20:01:03 and the new app bound again. Fix: `build-app.sh
+--stage-only` builds, signs and verifies into `~/.walkie-talkie/staging/`; `relay-restart.sh`
+calls `--swap-staged` only once the gate is open **and the old process has exited**, right
+before `open -g`. `restart_gate.py` warns *bundle already replaced under the running app —
+restart as soon as the gate allows* when the executable on disk is newer than the process.

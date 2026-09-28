@@ -4,8 +4,9 @@
 #
 #   ./relay-restart.sh [--build] [--dry-run] [--max-wait SECONDS] [--quiet SECONDS] [--force]
 #
-#   --build      run ./build-app.sh first — ungated, a build may happen while he
-#                dictates; only the quit and relaunch wait
+#   --build      build and sign into the staging folder first (ungated — a build may
+#                happen while he dictates); the bundle is swapped into /Applications
+#                only after the gate and the quit, right before the relaunch
 #   --dry-run    wait for the gate and say it would restart; touch nothing
 #   --max-wait   give up after this long (default 1800 s = 30 min), exit 3
 #   --quiet      seconds of quiet required after the last insert (default 10, never below 5)
@@ -59,6 +60,10 @@
 #    words have landed (`quitPending`), and this waits for it. `.replacing` is
 #    kept fresh meanwhile so no `session_end` reaches the watching agent. SIGKILL
 #    only if the app neither exits nor says it is finishing a sentence within 15 s.
+# 3½. **With `--build`, swap the staged bundle in now** (2026-09-28): the process is
+#    gone, so no running app ever has its bundle replaced under it. Swapped at
+#    19:54 and left running while the gate waited, the old app's AppleEvents to
+#    Terminal were refused — every bind failed until the relaunch at 20:01.
 # 4. **Relaunch through LaunchServices**: `open -g "/Applications/Walkie Talkie.app"`.
 #    Never the executable path (TCC files a path launch as a second app), and `-g`
 #    so the relay he gets back is not in front of the terminal he is typing in.
@@ -168,6 +173,18 @@ relay_quit() {
   done
 }
 
+# The staged bundle into /Applications, with the app down. The build lock may be
+# held by another checkout's build for a moment: retried for a minute; on failure
+# the old bundle stays and is what relaunches — said out loud, never silent.
+relay_swap_staged() {
+  local i
+  for i in $(seq 1 30); do
+    if (cd "$RELAY_DIR" && ./build-app.sh --swap-staged); then return 0; fi
+    sleep 2
+  done
+  echo "⚠️ could not install the staged build — relaunching the bundle already in /Applications"
+}
+
 relay_launch() {
   open -g "$RELAY_APP"
   local waited=0
@@ -197,13 +214,14 @@ relay_restart() {
   done
 
   if [ "$build" = 1 ]; then
-    echo "🔨 building (ungated — the running app is not touched)…"
-    (cd "$RELAY_DIR" && ./build-app.sh) || { echo "⛔️ build failed — nothing restarted"; return 1; }
+    echo "🔨 building into the staging folder (ungated — /Applications and the running app are not touched)…"
+    (cd "$RELAY_DIR" && ./build-app.sh --stage-only) || { echo "⛔️ build failed — nothing restarted"; return 1; }
   fi
 
   local pid; pid="$(relay_pid)"
   if [ -z "$pid" ]; then
-    if [ "$dry" = 1 ]; then echo "🧪 dry run: the app is not running — would launch it"; return 0; fi
+    if [ "$dry" = 1 ]; then echo "🧪 dry run: the app is not running — would$([ "$build" = 1 ] && echo " install the staged build and") launch it"; return 0; fi
+    [ "$build" = 1 ] && relay_swap_staged
     echo "the app is not running — launching it"
     relay_launch
     return 0
@@ -214,7 +232,7 @@ relay_restart() {
 
   local tty pane owner; tty="$(relay_bound_tty)"; pane="$(relay_bound_pane)"; owner="$(relay_bound_owner)"
   if [ "$dry" = 1 ]; then
-    echo "🧪 dry run: the gate is open — would quit pid $pid, relaunch, and re-bind ${tty:-nothing}"
+    echo "🧪 dry run: the gate is open — would quit pid $pid,$([ "$build" = 1 ] && echo " install the staged build,") relaunch, and re-bind ${tty:-nothing}"
     return 0
   fi
   if [ -n "$tty" ]; then echo "↻ restarting — the binding to $tty travels with it"
@@ -229,6 +247,7 @@ relay_restart() {
     fi
     tty="$at_quit"; pane="$at_pane"; owner="$at_owner"
   fi
+  [ "$build" = 1 ] && relay_swap_staged
   relay_launch
   relay_rebind "$tty" "$pane" "$owner"
 }

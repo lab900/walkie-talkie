@@ -6,7 +6,27 @@
 # gets a NEW identity on every rebuild, so Victor would have to re-tick the
 # Accessibility checkbox after each change. Signing the bundle with the stable
 # local identity makes the grant stick.
+#
+#   ./build-app.sh                  build, sign, verify, swap into /Applications
+#   ./build-app.sh --stage-only     build, sign, verify into the staging folder; /Applications untouched
+#   ./build-app.sh --swap-staged    swap the staged bundle into /Applications (no build)
+#
+# **Never swap the bundle under a running app** (2026-09-28). A `relay-restart.sh
+# --build` swapped it at 19:54 and then — correctly — waited for his dictation;
+# for as long as it waited, the running process's on-disk bundle no longer matched
+# its code signature, and every AppleEvent it sent Terminal was refused ("Terminal.app
+# would not name its front tab's tty": seven binds failed). So `relay-restart.sh`
+# stages, waits for the gate, quits the app, and only then swaps (`--swap-staged`).
+# A bare `./build-app.sh` still swaps at once — use it only with the app not running.
 set -e
+
+MODE=install
+case "${1:-}" in
+    "") ;;
+    --stage-only) MODE=stage ;;
+    --swap-staged) MODE=swap ;;
+    *) echo "usage: $0 [--stage-only | --swap-staged]" >&2; exit 2 ;;
+esac
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="Walkie Talkie"
@@ -16,7 +36,13 @@ APP_NAME="Walkie Talkie"
 # `--identifier` codesign is given, and the check that refuses to install a bundle
 # where they do not.
 BUNDLE_ID="ro.victorrentea.wispr-relay"
-FINAL_APP="/Applications/$APP_NAME.app"
+# `WALKIE_FINAL_APP` only for exercising the swap against a scratch folder.
+FINAL_APP="${WALKIE_FINAL_APP:-/Applications/$APP_NAME.app}"
+APPS_DIR="$(dirname "$FINAL_APP")"
+# Where `--stage-only` leaves a complete, signed, verified bundle for `--swap-staged`.
+# Outside /Applications on purpose: nothing there may look like a second copy of the
+# app to LaunchServices while it waits, possibly for minutes, on the gate.
+STAGED_APP="${WALKIE_STAGING:-${WALKIE_HOME:-$HOME/.walkie-talkie}/staging}/$APP_NAME.app"
 
 # **Two builds must not assemble into /Applications at the same time.** On
 # 2026-09-21 two of them did — three worktrees of this repo exist and each has this
@@ -48,16 +74,75 @@ fi
 
 # Staged **inside /Applications** so the swap at the end is a rename on the same
 # filesystem rather than a copy: hidden, prefixed, and removed by the trap however
-# this script leaves.
-STAGE="/Applications/.$APP_NAME.app.build-$$"
+# this script leaves. `--stage-only` assembles beside `STAGED_APP` instead.
+if [ "$MODE" = stage ]; then
+    mkdir -p "$(dirname "$STAGED_APP")"
+    STAGE="$STAGED_APP.build-$$"
+else
+    STAGE="$APPS_DIR/.$APP_NAME.app.build-$$"
+fi
+INCOMING=""
 APP_DIR="$STAGE"
 CONTENTS="$APP_DIR/Contents"
 MACOS="$CONTENTS/MacOS"
 # `$STAGE` and not `$APP_DIR`: the swap at the end repoints `APP_DIR` at the
 # installed app, and a trap reading it then would delete the very thing this
 # script just installed. `$STAGE` is emptied by the swap instead.
-cleanup() { [ -n "$STAGE" ] && rm -rf "$STAGE"; rm -f "$LOCK"; return 0; }
+cleanup() { [ -n "$STAGE" ] && rm -rf "$STAGE"; [ -n "$INCOMING" ] && rm -rf "$INCOMING"; rm -f "$LOCK"; return 0; }
 trap cleanup EXIT
+
+# **The swap** — the only moment the installed app changes, in one rename. The
+# source is first moved beside it inside /Applications (a rename there, or a copy
+# from the staging folder), verified again, then the old bundle goes aside and the
+# new one in. A failure leaves something to put back instead of a hole.
+swap_in() {
+    local src="$1"
+    local old_icon_sum aside new_icon_sum
+    old_icon_sum="$(shasum -a 256 "$FINAL_APP/Contents/Resources/AppIcon.icns" 2>/dev/null | cut -d' ' -f1 || true)"
+    INCOMING="$APPS_DIR/.$APP_NAME.app.incoming-$$"
+    rm -rf "$INCOMING"
+    mv "$src" "$INCOMING" || { echo "❌ could not move $src beside $FINAL_APP — left untouched" >&2; exit 1; }
+    codesign --verify --deep --strict "$INCOMING" 2>/dev/null \
+        || { echo "❌ $INCOMING does not verify after the move — $FINAL_APP left untouched" >&2; exit 1; }
+    aside="$APPS_DIR/.$APP_NAME.app.replaced-$$"
+    if [ -e "$FINAL_APP" ]; then
+        mv "$FINAL_APP" "$aside"
+    fi
+    if ! mv "$INCOMING" "$FINAL_APP"; then
+        if [ -e "$aside" ]; then mv "$aside" "$FINAL_APP"; fi
+        echo "❌ could not move the new bundle into place" >&2; exit 1
+    fi
+    INCOMING=""
+    rm -rf "$aside"
+    # Finder and the Dock cache an app's icon by bundle path; touching the bundle is
+    # what tells them the cache is stale, or the old picture survives the rebuild.
+    touch "$FINAL_APP"
+    # **And touching it is not enough for the Dock.** Measured on 2026-09-07, when
+    # the icon was inset to Apple's grid: the installed `.icns` was the new one and
+    # `NSWorkspace.iconForFile:` served the new one, while the Dock went on painting
+    # the old picture across a `killall Dock` — because the tile it draws comes from
+    # `com.apple.dock.iconcache` in the darwin user cache dir, which **survives a
+    # Dock restart**. Deleting that file and restarting is what actually repaints it,
+    # verified by capturing the Dock and measuring the tile (72px against a
+    # neighbour's 76, i.e. the circle slot, where before it was the full tile).
+    #
+    # Only when the picture changed: a Dock restart is a visible flicker and this
+    # script runs on every build.
+    new_icon_sum="$(shasum -a 256 "$FINAL_APP/Contents/Resources/AppIcon.icns" | cut -d' ' -f1)"
+    if [ "$old_icon_sum" != "$new_icon_sum" ]; then
+        rm -f "$(getconf DARWIN_USER_CACHE_DIR)com.apple.dock.iconcache"
+        killall Dock 2>/dev/null || true
+        echo "   icon changed — cleared the Dock icon cache and restarted it"
+    fi
+}
+
+if [ "$MODE" = swap ]; then
+    STAGE=""
+    [ -d "$STAGED_APP" ] || { echo "❌ nothing staged at $STAGED_APP — run ./build-app.sh --stage-only" >&2; exit 1; }
+    swap_in "$STAGED_APP"
+    echo "✅ Installed $FINAL_APP (staged $(stat -f '%Sm' -t '%b %-d, %H:%M' "$FINAL_APP/Contents/MacOS/$APP_NAME"))"
+    exit 0
+fi
 
 echo "Building WalkieTalkie (release)…"
 cd "$DIR"
@@ -227,43 +312,17 @@ fi
 
 echo "   verified: $BUNDLE_ID, signature intact, Info.plist sealed"
 
-# **The swap.** Everything above happened beside /Applications; this is the only
-# moment the installed app changes, and it changes in one rename. The old bundle is
-# moved aside first rather than deleted, so a failure here leaves something to put
-# back instead of a hole where the app was.
-OLD_ASIDE="/Applications/.$APP_NAME.app.replaced-$$"
-if [ -e "$FINAL_APP" ]; then
-    mv "$FINAL_APP" "$OLD_ASIDE"
+# **The swap** (`swap_in`, above) — or, with `--stage-only`, the bundle left in the
+# staging folder for `relay-restart.sh` to swap in once the app has quit.
+if [ "$MODE" = stage ]; then
+    rm -rf "$STAGED_APP"
+    mv "$STAGE" "$STAGED_APP"
+    STAGE=""
+    echo "✅ Staged $STAGED_APP (built $(date '+%b %-d, %H:%M')) — /Applications untouched; ./build-app.sh --swap-staged installs it"
+    exit 0
 fi
-if ! mv "$APP_DIR" "$FINAL_APP"; then
-    if [ -e "$OLD_ASIDE" ]; then mv "$OLD_ASIDE" "$FINAL_APP"; fi
-    fail "could not move the new bundle into place"
-fi
-rm -rf "$OLD_ASIDE"
+swap_in "$STAGE"
 STAGE=""                      # installed now — the trap has nothing left to remove
 APP_DIR="$FINAL_APP"
-CONTENTS="$APP_DIR/Contents"
-
-# Finder and the Dock cache an app's icon by bundle path; touching the bundle is
-# what tells them the cache is stale, or the old picture survives the rebuild.
-touch "$APP_DIR"
-
-# **And touching it is not enough for the Dock.** Measured on 2026-09-07, when
-# the icon was inset to Apple's grid: the installed `.icns` was the new one and
-# `NSWorkspace.iconForFile:` served the new one, while the Dock went on painting
-# the old picture across a `killall Dock` — because the tile it draws comes from
-# `com.apple.dock.iconcache` in the darwin user cache dir, which **survives a
-# Dock restart**. Deleting that file and restarting is what actually repaints it,
-# verified by capturing the Dock and measuring the tile (72px against a
-# neighbour's 76, i.e. the circle slot, where before it was the full tile).
-#
-# Only when the picture changed: a Dock restart is a visible flicker and this
-# script runs on every build. The old checksum was taken before the wipe above.
-NEW_ICON_SUM="$(shasum -a 256 "$CONTENTS/Resources/AppIcon.icns" | cut -d' ' -f1)"
-if [ "$OLD_ICON_SUM" != "$NEW_ICON_SUM" ]; then
-    rm -f "$(getconf DARWIN_USER_CACHE_DIR)com.apple.dock.iconcache"
-    killall Dock 2>/dev/null || true
-    echo "   icon changed — cleared the Dock icon cache and restarted it"
-fi
 
 echo "✅ Installed $APP_DIR (built $(date '+%b %-d, %H:%M'))"

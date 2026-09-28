@@ -269,6 +269,27 @@ def app_running() -> bool:
     return subprocess.run(["pgrep", "-f", APP_EXEC], capture_output=True).returncode == 0
 
 
+def bundle_replaced_under_app() -> str | None:
+    """**Was the bundle swapped under the running process?** (2026-09-28) A bundle
+    replaced on disk no longer matches the running code signature, and the app's
+    AppleEvents to Terminal are refused — every bind fails — until it restarts.
+    `relay-restart.sh --build` stages and swaps only after the quit now; this is
+    here so the class is seen when anything else does it."""
+    try:
+        pid = subprocess.run(["pgrep", "-f", APP_EXEC], capture_output=True, text=True).stdout.split()[0]
+        lstart = subprocess.run(["ps", "-o", "lstart=", "-p", pid], capture_output=True, text=True).stdout.strip()
+        started = time.mktime(time.strptime(" ".join(lstart.split()), "%a %b %d %H:%M:%S %Y"))
+        built = os.stat(APP_EXEC).st_mtime
+    except (IndexError, ValueError, OSError):
+        return None
+    if built > started + 2:
+        return (f"bundle already replaced under the running app (pid {pid} started"
+                f" {time.strftime('%H:%M:%S', time.localtime(started))}, executable on disk from"
+                f" {time.strftime('%H:%M:%S', time.localtime(built))}) — restart as soon as the gate allows;"
+                " until then its AppleEvents (binds) may be refused")
+    return None
+
+
 def wispr_newest_row(state: dict | None) -> dict | None:
     """Wispr's newest History row, read-only, straight from its file — so any
     build is gated on it, and so is an app that does not answer. The app's
@@ -338,6 +359,9 @@ def cmd_wait(args) -> int:
         return 4
     gate = Gate(quiet=max(args.quiet, INACTIVITY), force=args.force)
     started = time.time()
+    replaced = bundle_replaced_under_app()
+    if replaced:
+        print("⚠️  " + replaced, flush=True)
     said, said_at, noted = None, 0.0, ""
     while True:
         now = time.time()
@@ -381,6 +405,7 @@ def cmd_once(_args) -> int:
                       "lastInputAt": (state or {}).get("lastInputAt"),
                       "secondsSinceHumanInput": None if idle is None else round(idle, 1),
                       "wisprRow": row,
+                      "bundleReplacedUnderApp": bundle_replaced_under_app(),
                       "quitPending": (state or {}).get("quitPending"),
                       "pid": (state or {}).get("pid")}, ensure_ascii=False))
     return 0

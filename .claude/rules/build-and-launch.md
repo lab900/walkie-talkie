@@ -251,12 +251,20 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   `QUIET_AFTER_DELIVERY` (10 s) since the rest — the longer wins. The Wispr and inactivity
   checks are not in `quitBlockers` and inactivity is not in `restartBlockers`: ⌘Q and the Dock
   tile's click are his own and must not wait on his own hands.
+- **Never swap the bundle under the running app** (2026-09-28). `relay-restart.sh --build` swapped
+  it at 19:54:13 and then correctly waited on the gate — and for those seven minutes the running
+  app's on-disk bundle no longer matched its code signature: every AppleEvent to Terminal was
+  refused (*"Terminal.app would not name its front tab's tty"*, seven binds by Victor). Now
+  `--build` runs `build-app.sh --stage-only` (signed, verified, in `~/.walkie-talkie/staging/`) and
+  `--swap-staged` only after the gate and the quit, right before the relaunch; the swap moves the
+  bundle beside `/Applications`, re-verifies it, then renames old aside / new in. The gate logs
+  *bundle already replaced under the running app* when the executable is newer than the process.
 - **An app that does not answer is refused, never restarted** (2026-09-28, superseding *a relay
   silent for a minute is wedged — go ahead*). The gate waits, and at 60 s exits 4 with a note for
   the operator; `--force` (relay-restart.sh and the gate) goes past that one refusal only, asks a
   human at a terminal to type `force`, and still waits for Wispr and his hands.
-- **Every stand-down goes through the gate**: `relay-restart.sh` (`--build` builds ungated, the
-  quit waits), `docs/shoot-overlay-states.sh` (`relay_wait_idle` before the shoot binary's
+- **Every stand-down goes through the gate**: `relay-restart.sh` (`--build` stages ungated and swaps
+  only after the quit), `docs/shoot-overlay-states.sh` (`relay_wait_idle` before the shoot binary's
   `SingleInstance` stands the app down), `helpers/wispr_loop.py`'s *Wispr alone* (the gate before
   its `pkill`, outside the `try` whose `finally` opens the app), TD12 (`relay-restart.sh --dry-run`
   before its own SIGTERM). Not gated, on purpose: `build-app.sh` (swaps the bundle, never touches

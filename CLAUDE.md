@@ -38,7 +38,9 @@ menus, About, the Chrome extension. Logs, comments and commits are unaffected. S
 
 ## Build, install, restart
 
-- **Build + install:** `./build-app.sh`. Never commit an `.icns`.
+- **Build + install:** `./relay-restart.sh --build` (stages, waits for the gate, quits, swaps, relaunches).
+  A bare `./build-app.sh` swaps the bundle at once — only with the app not running: a bundle
+  replaced under the running app breaks its AppleEvents (every bind fails). Never commit an `.icns`.
 - **Restart ONLY through `./relay-restart.sh [--build]`** — never `pkill`/`kill`/`open` by hand.
   2026-09-28, Victor: *"restart is only possible after 5 secs of inactivity after the last insert
   of text"* — **5 s of inactivity after the last insert, never while any engine is dictating or
