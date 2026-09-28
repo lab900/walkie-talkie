@@ -62,8 +62,9 @@ needs, so the setup is a new Loopback device rather than a new driver.
 
 **The push-to-talk chord was read out of Wispr's own config**, not guessed:
 `~/Library/Application Support/Wispr Flow/config.json`, `prefs.user.shortcuts`,
-where `"54+61": "ptt"` is macOS keycodes 54 (Right Command) and 61 (Right
-Option). `WISPR_PTT_KEYS` overrides it, because it is a setting in an app we do
+where `"61+60": "ptt"` is macOS keycodes 61 (Right Option) and 60 (Right
+Shift) — since 2026-09-28 (Q23); it was `54+61` (right ⌘⌥, now Walkie's own clean
+dictation) until 2026-09-27 and `54+60` (right ⌘⇧) for a day. `WISPR_PTT_KEYS` overrides it, because it is a setting in an app we do
 not control and it will move one day. The same file names the others, which is
 worth knowing next time one is wanted: `"49+59+63"` is hands-free
 (fn ⌃ Space), `"178+59+63"` Command Mode, `"53+59"` dismiss.

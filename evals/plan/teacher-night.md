@@ -27,9 +27,10 @@ Tonight's queue (`--all --min-seconds 3`, max 120 s): 1529 clips, 765 min of aud
 | relay `GET /engine` | `eleven-live`, `wrapMode:off`, firewall on (`wrapWhy`: *the firewall drops Wispr's ⌘V … the History row is the delivery*) |
 | front app | `Loopback` — not a safe sink, irrelevant: the gate brings TextEdit forward once the Mac is quiet |
 
-**Since 2026-09-27 (Q9): Wispr's push-to-talk is right ⌘ + right ⇧, `"54+60": "ptt"`** (was
-`54+61`, right ⌘⌥ — that pair is now Walkie's own clean dictation only). `helpers/wispr_loopback.py`
-posts `54,60` by default (`WISPR_PTT_KEYS`), and with `WT_WISPR_STANDALONE=1` in
+**Since 2026-09-28 (Q23): Wispr's push-to-talk is right ⌥ + right ⇧, `"61+60": "ptt"`** (was
+`54+60`, right ⌘⇧, from 2026-09-27 — right-hand ⌘⇧P/T/4 kept starting it; `54+61`, right ⌘⌥, before
+that — now Walkie's own clean dictation only). `helpers/wispr_loopback.py` posts `61,60` by default
+(`WISPR_PTT_KEYS`), and with `WT_WISPR_STANDALONE=1` in
 `~/.walkie-talkie/elevenlabs.env` the relay no longer adopts, firewalls or delivers a Wispr sentence
 it did not start — the batch's clips are Wispr's alone and never reach ElevenLabs, so the Engine may
 stay `eleven-live` (§3 step 0).
@@ -48,8 +49,8 @@ only now), so the pin is an evening step and the un-pin a morning step (§6).
 - **Env it reads:** `VOICE_CORPUS_DIR`, `WISPR_BATCH_GAP_MIN/MAX` (2.5/9 s), `WISPR_BATCH_GIVE_UP`
   (5), `WISPR_MAX_LABEL_LAG` (8) + `_PER_SEC` (0.7), `WISPR_SILENT_PEAK` (0.02),
   `WISPR_COOLDOWN_HOURS` (3), `TEACHER_QUIET_MINUTES` (5), `TEACHER_STATUS`, `TEACHER_LOG` (only
-  echoed into the status file), and in `wispr_loopback`: `WISPR_PTT_KEYS` (54,60 = right ⌘⇧ since
-  2026-09-27, was 54,61 = right ⌘⌥ — now Walkie's own clean dictation),
+  echoed into the status file), and in `wispr_loopback`: `WISPR_PTT_KEYS` (61,60 = right ⌥⇧ since
+  2026-09-28; 54,60 = right ⌘⇧ on 09-27; 54,61 = right ⌘⌥ before — now Walkie's own clean dictation),
   `WISPR_LEAD_SECONDS` 1.3, `WISPR_TAIL_SECONDS` 0.5, `WISPR_RESULT_TIMEOUT` 45, `WISPR_PLAY_PEAK` 0.5.
 - **What must be in front:** the allow-list `SAFE_SINKS = {TextEdit, Notes, Stickies, Wispr Flow,
   Finder}`, checked before **every** clip. A gated run does not refuse at start: after 5 min of
@@ -102,9 +103,9 @@ below therefore reads Wispr's `micDevice` directly.
 
 **Preconditions, in order (stop at the first red):**
 
-0. **Wispr's chord is `54+60` and the relay does not ride it** (Q9, since 2026-09-27): Wispr's
-   push-to-talk is right ⌘ + right ⇧ (`prefs.user.shortcuts` `"54+60": "ptt"`), the rig posts
-   that (`WISPR_PTT_KEYS` default `54,60`), and `WT_WISPR_STANDALONE=1` in `elevenlabs.env` makes
+0. **Wispr's chord is `61+60` and the relay does not ride it** (Q9 2026-09-27, Q23 2026-09-28): Wispr's
+   push-to-talk is right ⌥ + right ⇧ (`prefs.user.shortcuts` `"61+60": "ptt"`), the rig posts
+   that (`WISPR_PTT_KEYS` default `61,60`), and `WT_WISPR_STANDALONE=1` in `elevenlabs.env` makes
    the relay leave every Wispr sentence it did not start alone — so **the Engine may stay
    `eleven-live`**. Check: `curl -s localhost:8917/test/state` → `"wisprStandalone":true`. If it
    says `false` (flag gone, old build), fall back to the old rule: `POST /engine {"id":"wispr"}`

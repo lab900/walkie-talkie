@@ -119,7 +119,8 @@ From `~/Library/Application Support/Wispr Flow/config.json` (48.6 KB) on the hos
 
 ```
 prefs.user.shortcuts = {
-  "54+61": "ptt",               ← Right ⌘ + Right ⌥ — what PushToTalk posts (WISPR_PTT_KEYS)
+  "61+60": "ptt",               ← Right ⌥ + Right ⇧ — what PushToTalk posts (WISPR_PTT_KEYS; Q23, 2026-09-28 —
+                                   was 54+60 from 09-27, 54+61 before; right ⌘⌥ = 54+61 is Walkie's own)
   "53+59": "dismiss",           ← ⌃Esc — post_wispr_dismiss() on an aborted clip (WISPR_DISMISS_KEYS)
   "49+59+63": "popo",           ← fn ⌃ Space, hands-free (WISPR_HANDSFREE_KEYS)
   "79": "open_scratchpad",      ← F18, rebound from ⌘⌥P (wispr_loop scenarios only; the batch never uses it)
@@ -417,7 +418,7 @@ WER and Victor has made the call on item 1.
      - `shortcuts`, `lastSetScratchpadShortcut`, `stashedScratchpadShortcuts`;
      - `shouldAutoLearnWords: false`, `openAtLogin: true`, `enableSounds: false`.
    - Nothing else: not `overrideAudioDeviceId` and not the ids.
-   - Relaunch, then confirm with `python3 -c 'import json;…'` that `"54+61": "ptt"` is still there
+   - Relaunch, then confirm with `python3 -c 'import json;…'` that `"61+60": "ptt"` is still there
      after Wispr has rewritten the file.
 9. **Automation grants.** Insert AppleEvents rows for `org.python.python` → `com.apple.systemevents`
    and → `com.apple.TextEdit` into the user `TCC.db`, then `sudo killall tccd`. Alternatively,
