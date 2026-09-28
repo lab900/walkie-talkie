@@ -1358,12 +1358,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         micId = InputDevice.chosenId
         micAnnouncer.start()
-        // **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should
-        // show an overlay on the bottom saying what source/engine it uses. this way
-        // I know when it restarted"*): the blue tab at the bottom of the screen
-        // under the mouse, with the Engine row's words, 3 s. After `status` is up
-        // and the engine restored, so the words are the menu's.
-        micAnnouncer.announceStartup(engine: status.engineBannerTitle(engineId))
         // **The menu's way into the recording**, and the same call 🔽 ↑ makes —
         // the row and the gesture must not be able to drift apart. It exists for
         // `Start Dictation`'s reason: the gesture lives in a Logi Options+
@@ -1527,6 +1521,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // launch, so pasting the key in and opening the menu is the whole of
         // setting it up — see `ElevenLabsSource.reloadKey`.
         status.elevenReady = { [weak self] in self?.elevenSource.reloadKey() ?? false }
+        // **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should
+        // show an overlay on the bottom saying what source/engine it uses. this way
+        // I know when it restarted"*): the blue tab at the bottom of the screen
+        // under the mouse, with the Engine row's words, 3 s. Here, after
+        // `elevenReady` is wired — placed earlier it said `⚠️` (no key) on a Mac
+        // with the key, because the menu had no way to read it yet (21:15).
+        micAnnouncer.announceStartup(engine: status.engineBannerTitle(engineId))
         // The menu asks rather than being told, like the footprint above: the flag
         // flips on every dictation, and the only moment its answer has to be right
         // is the moment the row is on screen.
