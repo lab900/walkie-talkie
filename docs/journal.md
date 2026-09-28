@@ -14189,3 +14189,49 @@ gate let the restart through at 20:01:03 and the new app bound again. Fix: `buil
 calls `--swap-staged` only once the gate is open **and the old process has exited**, right
 before `open -g`. `restart_gate.py` warns *bundle already replaced under the running app —
 restart as soon as the gate allows* when the executable on disk is newer than the process.
+
+## Wispr as engine: lab wave 2 — not yet (2026-09-28, evening)
+
+`evals/plan/vm/wispr/report-wave2-2026-09-28.md`, raw files in
+`evals/plan/vm/wispr/2026-09-28-wave2/`.
+
+Victor asked for the VM half before restoring Wispr as an engine (dictated: *"After you test the
+Wispr Flow engine again in the virtual machine … once you're convinced, restore Wispr Flow as a
+transcription engine"*). One driver ran `wt-lab` from 18:27 to 20:31 EEST.
+
+What ran:
+
+- the rest of the TW set;
+- the open BUGs twice;
+- the new soak suite (TS) and chaos suite (TX).
+
+The host was at load 100–172 from ~19:30, which starved the S phase.
+
+**Verdict: not yet.**
+
+- **Holding:**
+  - The firewall caught every Wispr ⌘V during relay sentences (0 passed, no crossing, no doubles).
+  - Nothing stayed stuck past a Wispr relaunch.
+  - `POST /engine wispr` still works behind `WT_WISPR_ENGINE`.
+- **Relay-side word losses: 6 of 65 relay sentences (90.8 %, the bar is 95 %).**
+  - **A**, 4: the relay's own recording reads `0.0 s voiced` when the sentence starts within
+    ~5 s of a Wispr launch, so Q14 cannot stand in and the chip says *No speech*. A probe showed
+    BlackHole itself is not silenced.
+  - **D**, 2: a Q14 local answer still decoding is dropped when the next sentence opens
+    (`dictationBegan` closes the unparked sentence → `which is over — dropped`). Silent.
+- **B, his own Wispr sentences are eaten:** 8 of his 9 `61+60` sentences were swallowed by the
+  firewall's 10 s relay-owned tail (`⌘V … with no capture open — not the relay's; nothing
+  delivered`). Wispr had transcribed all of them. **Q9's pass-through fired 0 times all wave.**
+- **Smaller:**
+  - C: a refused 🔽 → makes the next 🔽 → a start.
+  - TW15 (W19) 4/4.
+  - The ghost microphone seen 3×, only after chords, each cleared by a relaunch.
+- **Case fixes:**
+  - TW4/TW20 wait for a new Wispr pid.
+  - TW8a/TW20 timing.
+  - TW3 retired.
+  - TW11 rewritten.
+  - Chaos `_still_up` ignores `done` sentences (16 false FAILs).
+  - Soak osascript timeout 25 s.
+
+To fix before restoring: B, D, A, in that order. Then re-run on a quiet host.

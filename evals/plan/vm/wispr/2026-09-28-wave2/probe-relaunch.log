@@ -1,0 +1,18 @@
+== control 16:16:09
+player rc 0 played 3.5435  started at +1.5 s
+voiced share per 0.5 s: 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+total voiced s ≈ 0.0
+== relaunch 16:16:45
+relaunch: b'{"ok":true,"forMs":null,"did":"relaunch","wisprPid":4455,"afterMs":0}' at +1.22 s
+player rc 0 played 3.5435  started at +1.5 s
+voiced share per 0.5 s: 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+total voiced s ≈ 0.0
+== control 16:17:17
+player rc 0 played 3.5435  started at +1.5 s
+voiced share per 0.5 s: 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+total voiced s ≈ 0.0
+== relaunch 16:17:48
+relaunch: b'{"forMs":null,"ok":true,"wisprPid":4620,"did":"relaunch","afterMs":0}' at +1.13 s
+player rc 0 played 3.5435  started at +1.5 s
+voiced share per 0.5 s: 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00
+total voiced s ≈ 0.0

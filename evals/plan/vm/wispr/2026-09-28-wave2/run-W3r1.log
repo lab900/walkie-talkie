@@ -1,0 +1,11 @@
+start W3r1 cap=1200s ids=TW4,TW8a,TW15,TW20,TW3,TW11 Mon Sep 28 16:03:48 UTC 2026
+ElevenLabs: 1617 credits used this month, 8383 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 51247
+relay on 8917, 6 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W3r1.md
+  TW3: SKIP retired 2026-09-28 (lab wave 2): Q9 step 2 deleted `WT_WISPR_STANDALONE` and the tap's Wispr push-to-talk branch — the held right ⌘⌥ is always Walkie's clean hold, which TW1 covers; the ptt-mismatch check is HK11's (README §4.2)
+  TW4: BUG (55.8s) — 91/449 samples listening+warming+no row (4.5 s); first-5-words hit 0/5; chip named it True; still listening at the stop False
+  TW8a: BUG (30.8s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed False
+  TW11: PASS (127.2s) — outbox +1; 📦 lines 1; held False; witness 371 chars; lost-line False; B refused True (B refused out loud while A settles — not silent)
+  TW15: BUG (1.8s) — spawnPending True; 'not running' True
+  TW20: BUG (36.1s) — down in 1.08 s (True); next sentence delivered True; capture False
+rc=0 Mon Sep 28 16:12:12 UTC 2026
+PHASEDONE W3r1

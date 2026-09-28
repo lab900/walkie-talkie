@@ -1,0 +1,5 @@
+start X cap=4500s ids=TX Mon Sep 28 16:18:30 UTC 2026
+ElevenLabs: 1682 credits used this month, 8318 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 53114
+relay on 8917, 0 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-X.md
+rc=0 Mon Sep 28 16:18:34 UTC 2026
+PHASEDONE X

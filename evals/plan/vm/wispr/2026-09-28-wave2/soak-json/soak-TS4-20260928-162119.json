@@ -1,0 +1,64 @@
+{
+ "case": "TS4",
+ "at": "2026-09-28T16:21:19.533Z",
+ "records": [
+  {
+   "i": 1,
+   "kind": "relay",
+   "clip": "21-05-35-11l735.wav",
+   "tGesture": 1790612460.025843,
+   "ghostBefore": false,
+   "at": "2026-09-28T16:21:00.025Z",
+   "opened": true,
+   "stopSent": true,
+   "row": true,
+   "rowStatus": "formatted",
+   "rowNull": false,
+   "rowAfterGesture": 11.72,
+   "landed": true,
+   "text": "[\ud83d\udcf80\ud83d\uddb1\ufe0f@20:20 auto]\n\nIf I dictate now how good is this dictation?\n\n[Dictated in RO or EN]\n[\ud83d\udcc1=$WALKIE_SHOTS/2026-09-28-15-44-12/16-21-00]\n[\ud83d\udcf80 = \ud83d\udcc1/screenshot-0-800px.jpg at 800px width, or -original.jpg at 2048x1536px]",
+   "closeToLanded": 5.51,
+   "via": "wispr-history",
+   "to": "terminal:ttys001",
+   "outbox": 1,
+   "loud": false,
+   "why": null,
+   "noWords": false,
+   "stuck": false,
+   "stillUp": [],
+   "maxBusy": 6.3,
+   "refWords": 11,
+   "recall": 0.82,
+   "truncated": false,
+   "delivered": true,
+   "silent": false,
+   "doubled": false
+  }
+ ],
+ "idle": [
+  {
+   "t": 0,
+   "micOpen": false,
+   "busy": false,
+   "wisprPid": 4707
+  },
+  {
+   "t": 30,
+   "micOpen": false,
+   "busy": false,
+   "wisprPid": 4707
+  },
+  {
+   "t": 60,
+   "micOpen": false,
+   "busy": false,
+   "wisprPid": 4707
+  },
+  {
+   "t": 90,
+   "micOpen": false,
+   "busy": false,
+   "wisprPid": 4707
+  }
+ ]
+}

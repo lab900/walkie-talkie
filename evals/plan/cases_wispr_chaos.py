@@ -373,7 +373,9 @@ def _still_up(s=None):
     lv = s.get("wisprLive") or {}
     return [k for k, v in (("listening", s.get("listening")), ("settling", s.get("settling")),
                            ("isRecording", s.get("isRecording")), ("captureOpen", lv.get("captureOpen")),
-                           ("sentences", bool(s.get("sentences")))) if v]
+                           # A `done` sentence stays in the ledger until the next one opens
+                           # (`describeSentences` = parked + live) — not stuck (lab wave 2, 2026-09-28).
+                           ("sentences", any(x.get("state") != "done" for x in s.get("sentences") or []))) if v]
 
 def _wait_end(mark, timeout=60):
     """Until the sentence ended (a delivery or a failure line) and the relay let go of it."""

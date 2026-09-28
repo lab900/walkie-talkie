@@ -1,0 +1,29 @@
+start X2 cap=4500s ids=TX* Mon Sep 28 16:51:10 UTC 2026
+ElevenLabs: 1789 credits used this month, 8211 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 56529
+relay on 8917, 23 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-X2.md
+  TX1: FAIL (104.6s) — stuck: ['sentences']: 📦×1 wispr-history; copies 1.0 recall 0.33; rows +1 (formatted); clipboard writes 1; STILL UP ['sentences']
+  TX2: ERROR (104.4s) — KeyError: 'wisprLive'
+  TX3: PASS (60.0s) — relaunch 0.8 s; first sentence opened True, 📦×0 -; copies 0.0 recall 0.00; rows +0 (); Q14 fallback; Recover staged; 1.8 s voiced; failure: Wispr Flow
+  TX4: FAIL (106.2s) — stuck: ['sentences']: 📦×0 -; copies 0.0 recall 0.00; rows +1 (error); Q14 fallback; late row logged only; Recover staged; 2.9 s voiced; failure: Wispr
+  TX5: FAIL (121.1s) — stuck: ['sentences']: 📦×1 wispr-history; copies 1.0 recall 0.33; rows +1 (formatted); clipboard writes 3; STILL UP ['sentences']; net: cut 2026-09-28T
+  TX6a: FAIL (77.9s) — stuck: ['sentences']: 📦×1 wispr-history; copies 1.0 recall 0.91; rows +1 (formatted); clipboard writes 1; STILL UP ['sentences']; dwell-guard swallows
+  TX6b: FAIL (84.2s) — stuck: ['sentences']: 📦×0 -; copies 0.0 recall 0.00; rows +2 (formatted); Q14 fallback; Recover staged; 1.6 s voiced; failure: Wispr Flow returned no 
+  TX7: FAIL (190.7s) — 📦×1 wispr-history; copies 4.0 recall 1.00; rows +1 (raw_transcript); clipboard writes 1; STILL UP ['sentences']; stop→end 120.3 s; repetitions 4.0/6; 
+  TX8a: FAIL (91.7s) — relay opened False, refused True; his words: TextEdit 0.0 (recall 0.00), witness 0.0; 📦×0 -; copies 0.0 recall 0.00; rows +1 (formatted); refusal; cli
+  TX8b: FAIL (83.5s) — relay: witness 1.0, TextEdit 0.0 · his: TextEdit 0.0, witness 0.0 · Q19 line False · drop line True; 📦×1 wispr-history; copies 1.0 recall 1.00; rows +
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.8 s), mic now closed)
+  TX9: FAIL (259.9s) — stuck after a cold sentence: losses 3/3 (silent 0), head losses 0; 
+  TX10: FAIL (155.3s) — relay: 5 opened, 0 refused, witness 5.0/5, TextEdit 0.0 · his: TextEdit 0.0/5, witness 0.0 · losses relay 0 his 5; 📦×5 wispr-history,wispr-history,wis
+  TX11a: FAIL (47.8s) — cancel mid-sentence (+0.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11b: FAIL (46.4s) — cancel mid-sentence (+1.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11c: FAIL (47.5s) — cancel mid-sentence (+1.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11d: FAIL (48.7s) — cancel mid-sentence (+2.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11e: FAIL (46.3s) — cancel mid-sentence (+2.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11f: FAIL (45.6s) — cancel mid-sentence (+3.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11g: FAIL (45.8s) — cancel mid-sentence (+3.5 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (dismissed); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX11h: FAIL (45.6s) — cancel 0.1 s after the stop (+4.0 s): 📦×0 -; copies 0.0 recall 0.00; rows +1 (processing); Recover staged; clipboard writes 0; STILL UP ['sentences']
+  TX12: FAIL (93.6s) — stuck: ['sentences']: journal wal, held 8.0 s; 📦×1 wispr-history; copies 1.0 recall 0.33; rows +1 (formatted); clipboard writes 1; STILL UP ['sentence
+  TX12d: FAIL (20.2s) — stuck: ['sentences']: held 8.1 s (delete); capture held through the lock True; given up during the lock: no; delivered 4.4 s after the release; db log
+  TX13: ERROR (173.3s) — relay-restart.sh did not restart: ['⛔️ still waiting for the sentence in flight: audio staged for Recover (158 s left) after 122 s — gave up (--max-wa
+rc=0 Mon Sep 28 17:26:18 UTC 2026
+PHASEDONE X2

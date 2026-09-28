@@ -1,0 +1,89 @@
+09-28 15:45:13 desk abandoned voiced None 
+09-28 15:45:17 desk delivered voiced None 
+09-28 15:46:57 desk cancel voiced None 
+09-28 15:57:09 desk delivered voiced None 
+09-28 15:57:20 desk cancel(recover) voiced None 
+09-28 16:02:24 desk delivered voiced 2.4 Q14
+09-28 16:03:58 relay no-speech voiced 0.0 
+09-28 16:04:54 relay delivered voiced None 
+09-28 16:05:23 relay delivered voiced None 
+09-28 16:05:40 plain cancel(recover) voiced None 
+09-28 16:11:35 relay no-speech voiced 0.0 
+09-28 16:11:47 relay delivered voiced 1.9 Q14
+09-28 16:12:32 relay no-speech voiced 0.0 
+09-28 16:13:21 relay delivered voiced None 
+09-28 16:13:52 relay delivered voiced None 
+09-28 16:14:19 plain abandoned voiced None 
+09-28 16:15:11 relay no-speech voiced 0.1 
+09-28 16:15:22 relay delivered voiced 1.9 Q14
+09-28 16:21:00 relay delivered voiced None 
+09-28 16:21:26 relay delivered voiced 3.1 Q14
+09-28 16:22:21 relay delivered voiced None 
+09-28 16:22:40 relay cancel(recover) voiced None 
+09-28 16:28:45 relay delivered voiced None 
+09-28 16:29:25 relay delivered voiced None 
+09-28 16:29:48 relay delivered voiced None 
+09-28 16:30:05 relay delivered voiced None 
+09-28 16:30:28 relay delivered voiced None 
+09-28 16:30:49 relay delivered voiced None 
+09-28 16:31:13 relay delivered voiced None 
+09-28 16:31:31 relay delivered voiced None 
+09-28 16:31:52 relay delivered voiced 3.1 Q14
+09-28 16:32:24 relay delivered voiced None 
+09-28 16:33:02 relay cancel(recover) voiced None 
+09-28 16:34:29 relay delivered voiced None 
+09-28 16:39:38 relay delivered voiced None 
+09-28 16:40:01 relay delivered voiced None 
+09-28 16:40:25 relay delivered voiced None 
+09-28 16:40:44 relay failed:timed out waiting for the text voiced None 
+09-28 16:41:11 relay abandoned voiced 2.7 Q14
+09-28 16:41:55 relay delivered voiced None 
+09-28 16:42:39 relay delivered voiced None 
+09-28 16:43:01 relay delivered voiced None 
+09-28 16:43:34 relay delivered voiced None 
+09-28 16:44:24 relay delivered voiced None 
+09-28 16:44:42 relay delivered voiced None 
+09-28 16:45:15 relay delivered voiced None 
+09-28 16:45:32 relay delivered voiced None 
+09-28 16:45:54 relay delivered voiced None 
+09-28 16:46:12 relay delivered voiced None 
+09-28 16:47:15 relay delivered voiced None 
+09-28 16:47:42 relay delivered voiced None 
+09-28 16:48:09 relay delivered voiced None 
+09-28 16:48:35 relay delivered voiced None 
+09-28 16:48:58 relay delivered voiced None 
+09-28 16:49:19 relay delivered voiced None 
+09-28 16:49:41 relay delivered voiced None 
+09-28 16:49:59 relay delivered voiced None 
+09-28 16:50:19 relay delivered voiced None 
+09-28 16:50:35 relay delivered voiced None 
+09-28 16:51:17 relay failed:Wispr Flow quit voiced 1.6 Q14
+09-28 16:53:00 relay cancel(recover) voiced None 
+09-28 16:54:46 relay failed:Wispr Flow returned no words (Wispr neve voiced 1.8 Q14
+09-28 16:55:49 relay failed:Wispr Flow reported error voiced 2.9 Q14
+09-28 16:57:31 relay delivered voiced None 
+09-28 16:59:32 relay delivered voiced None 
+09-28 17:00:50 desk abandoned voiced None 
+09-28 17:00:51 desk failed:Wispr Flow returned no words (Wispr's ro voiced 1.6 Q14
+09-28 17:02:15 relay delivered voiced None 
+09-28 17:06:59 relay delivered voiced None 
+09-28 17:08:22 relay failed:Wispr Flow never opened its microphone voiced 2.6 Q14
+09-28 17:09:44 relay failed:Wispr Flow returned no words (Wispr neve voiced 2.7 Q14
+09-28 17:11:02 relay failed:Wispr Flow never opened its microphone voiced 2.6 Q14
+09-28 17:12:43 relay delivered voiced None 
+09-28 17:13:00 relay delivered voiced None 
+09-28 17:13:17 relay delivered voiced None 
+09-28 17:13:33 relay delivered voiced None 
+09-28 17:13:50 relay delivered voiced None 
+09-28 17:15:16 relay cancel(recover) voiced None 
+09-28 17:16:04 relay cancel(recover) voiced None 
+09-28 17:16:50 relay cancel(recover) voiced None 
+09-28 17:17:38 relay cancel(recover) voiced None 
+09-28 17:18:27 relay cancel(recover) voiced None 
+09-28 17:19:13 relay cancel(recover) voiced None 
+09-28 17:19:59 relay cancel(recover) voiced None 
+09-28 17:20:45 relay cancel(recover) voiced None 
+09-28 17:21:30 relay failed:timed out waiting for the text voiced None 
+09-28 17:23:04 desk delivered voiced None 
+09-28 17:23:24 relay cancel(recover) voiced None 
+{('desk', 'abandoned'): 2, ('desk', 'delivered'): 4, ('desk', 'cancel'): 1, ('desk', 'cancel(recover)'): 1, ('relay', 'no-speech'): 4, ('relay', 'delivered'): 52, ('plain', 'cancel(recover)'): 1, ('plain', 'abandoned'): 1, ('relay', 'cancel(recover)'): 12, ('relay', 'failed'): 8, ('relay', 'abandoned'): 1, ('desk', 'failed'): 1}

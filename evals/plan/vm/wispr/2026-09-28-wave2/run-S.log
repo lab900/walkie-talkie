@@ -1,0 +1,8 @@
+start S cap=3000s ids=TS1,TS3,TS6 Mon Sep 28 16:28:06 UTC 2026
+ElevenLabs: 1682 credits used this month, 8318 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 54090
+relay on 8917, 3 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-S.md
+  TS1: FAIL (1076.6s) — 30/30 · delivered 24 (80.0 %) · truncated 0 · lost 6 (silent 3) · rows 27/30 (NULL 0) · via none 6, wispr-history 24 · recall mean 0.56 min 0.00 · clo
+  TS3: ERROR (23.3s) — TextEdit would not open a document (osascript)
+  TS6: FAIL (232.9s) — 10/10 · delivered 10 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 10/10 (NULL 0) · via wispr-history 10 · recall mean 0.79 min 0.00 · close→land
+rc=0 Mon Sep 28 16:50:57 UTC 2026
+PHASEDONE S

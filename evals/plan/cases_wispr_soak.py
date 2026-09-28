@@ -260,7 +260,9 @@ def _osa_out(*lines):
     for l in lines:
         cmd += ["-e", l]
     try:
-        r = subprocess.run(cmd, capture_output=True, timeout=8)
+        # 25 s, not 8 (lab wave 2, 2026-09-28): under a guest load of 7–40 `make new document`
+        # overran 8 s and TS2/TS3 ERRORed before their first sentence.
+        r = subprocess.run(cmd, capture_output=True, timeout=25)
         return r.returncode, r.stdout.decode("utf-8", "replace").rstrip("\n")
     except Exception:
         return 1, ""

@@ -1,0 +1,10 @@
+start W2b cap=1800s ids=TW12,TW13,TW14,TW19,TW22 Mon Sep 28 15:45:03 UTC 2026
+ElevenLabs: 1617 credits used this month, 8383 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 49256
+relay on 8917, 5 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W2b.md
+  TW12: BUG (64.6s) — A at 10, B at -1 in the witness; 'No words came back' False
+  TW13: ERROR (129.6s) — RuntimeError: fake row 1 was not adopted (captureRow 1)
+  TW14: PASS (13.3s) — second sentence opened False; chip named the wait True; refusal logged True
+  TW19: PASS (14.5s) — L: engine→wispr, source Wispr Flow; S: engine→wispr, source Wispr Flow; X: switched True, capture still open True (discarding True); late row delivere
+  TW22: BUG (72.5s) — gave up False 12.1 s after the stop; fallback line True; delivered True (223 chars, via local-fallback); 'No words came back' False
+rc=0 Mon Sep 28 16:03:37 UTC 2026
+PHASEDONE W2b

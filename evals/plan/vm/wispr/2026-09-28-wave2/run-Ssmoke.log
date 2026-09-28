@@ -1,0 +1,8 @@
+start Ssmoke cap=1200s ids=TS2,TS4,TS5 Mon Sep 28 16:18:44 UTC 2026
+ElevenLabs: 1682 credits used this month, 8318 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 53132
+relay on 8917, 3 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-Ssmoke.md
+  TS2: ERROR (11.3s) — TextEdit would not open a document (osascript)
+  TS4: PASS (140.6s) — idle 120 s, 4 samples · Wispr mic open in 0 (at []) · relay busy in 0 · Wispr pid(s) [4707] · then: row True (11.7 s after the gesture) · landed True 
+  TS5: PASS (214.3s) — 2/2 · delivered 2 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 1/2 (NULL 0) · via local-fallback 2 · recall mean 0.54 min 0.52 · close→landed p5
+rc=0 Mon Sep 28 16:27:56 UTC 2026
+PHASEDONE Ssmoke

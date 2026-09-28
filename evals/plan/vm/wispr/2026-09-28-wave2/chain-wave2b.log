@@ -1,0 +1,14 @@
+/Users/admin/wt-lab/run-wphase.sh: line 19:  4775 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-wphase.sh: line 19:  4778 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+pf rules after X:        0 in the anchor
+/Users/admin/wt-lab/run-wphase.sh: line 19:  4807 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-wphase.sh: line 19:  4810 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-wphase.sh: line 19:  5768 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-wphase.sh: line 19:  5771 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+CHAINDONE

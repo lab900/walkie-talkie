@@ -1,0 +1,84 @@
+rowid|timestamp|status|chars|text
+24|2026-09-28 15:57:04.076 +00:00|NULL||
+25|2026-09-28 16:04:55.634 +00:00|formatted|44|If I dictate now how good is this dictation?
+26|2026-09-28 16:05:06.561 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+27|2026-09-28 16:05:23.521 +00:00|formatted|39|Could you get the assumptions attached?
+28|2026-09-28 16:05:40.758 +00:00|NULL||
+29|2026-09-28 16:11:55.385 +00:00|NULL||
+30|2026-09-28 16:13:21.390 +00:00|formatted|36|If I type now how good is dictation?
+31|2026-09-28 16:13:32.919 +00:00|raw_transcript|0|
+32|2026-09-28 16:13:52.778 +00:00|formatted|35|Could you get the assumption that a
+33|2026-09-28 16:14:22.480 +00:00|NULL||
+34|2026-09-28 16:15:32.204 +00:00|NULL||
+35|2026-09-28 16:21:00.319 +00:00|formatted|44|If I dictate now how good is this dictation?
+36|2026-09-28 16:22:41.815 +00:00|NULL||
+37|2026-09-28 16:28:46.163 +00:00|formatted|21|If I delete now how? 
+38|2026-09-28 16:29:25.731 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+39|2026-09-28 16:29:48.465 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+40|2026-09-28 16:30:05.829 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+41|2026-09-28 16:30:29.126 +00:00|formatted|21|Now how does it work?
+42|2026-09-28 16:30:49.382 +00:00|formatted|8|Poți să?
+43|2026-09-28 16:31:14.132 +00:00|formatted|54|If I dictate now how good is this dictation, I wonder?
+44|2026-09-28 16:31:31.528 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+45|2026-09-28 16:31:52.952 +00:00|formatted|33|Please take the node application.
+46|2026-09-28 16:32:25.231 +00:00|formatted|44|Poți, mă, să știe să ruleze testele pe pipe?
+47|2026-09-28 16:33:04.265 +00:00|raw_transcript|0|
+48|2026-09-28 16:34:30.780 +00:00|raw_transcript|0|
+49|2026-09-28 16:39:39.123 +00:00|formatted|41|If I think I'll do this dictation, I want
+50|2026-09-28 16:40:01.508 +00:00|formatted|18|Postman ce ruleze?
+51|2026-09-28 16:40:26.164 +00:00|formatted|50|Dictate now. How good is this dictation? I wonder.
+52|2026-09-28 16:40:45.141 +00:00|formatted|48|Tot mă știe să rulez teste automate pe pipeline.
+53|2026-09-28 16:41:11.599 +00:00|formatted|41|Now how good is this dictation? I wonder.
+54|2026-09-28 16:41:56.380 +00:00|raw_transcript|0|
+55|2026-09-28 16:42:40.402 +00:00|formatted|32|How good is this station I want?
+56|2026-09-28 16:43:01.965 +00:00|formatted|23|Rulează testul automat.
+57|2026-09-28 16:43:35.784 +00:00|formatted|31|Where do you think I have this?
+58|2026-09-28 16:44:24.369 +00:00|formatted|27|Is this dictation I wonder?
+59|2026-09-28 16:44:43.163 +00:00|formatted|18|Post maiște să le.
+60|2026-09-28 16:45:15.311 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder 
+61|2026-09-28 16:45:32.534 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+62|2026-09-28 16:45:54.610 +00:00|formatted|44|If I dictate now how good is this dictation?
+63|2026-09-28 16:46:13.895 +00:00|formatted|57|Poți să îmi spui cum să rulez teste automate pe pipeline?
+64|2026-09-28 16:47:16.636 +00:00|formatted|44|If I dictate now how good is this dictation?
+65|2026-09-28 16:47:44.363 +00:00|formatted|48|Postman știe să ruleze teste automate pe Python?
+66|2026-09-28 16:48:10.187 +00:00|formatted|49|If I dictate now how is this dictation? I wonder.
+67|2026-09-28 16:48:36.605 +00:00|formatted|6|lăzeșe
+68|2026-09-28 16:48:59.086 +00:00|formatted|36|Hey now, how good is this dictation?
+69|2026-09-28 16:49:19.969 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+70|2026-09-28 16:49:41.830 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+71|2026-09-28 16:49:59.352 +00:00|formatted|39|Osman știe să ruleze teste automate pe.
+72|2026-09-28 16:50:19.769 +00:00|formatted|54|If I dictate now how good is this dictation, I wonder?
+73|2026-09-28 16:50:36.240 +00:00|formatted|50|Postman știe să ruleze teste automate pe pipeline.
+74|2026-09-28 16:51:17.773 +00:00|formatted|33|Could you get the assumptions be 
+75|2026-09-28 16:53:00.705 +00:00|NULL||
+76|2026-09-28 16:55:50.667 +00:00|error|0|
+77|2026-09-28 16:57:32.070 +00:00|formatted|32|Could you get the assumptions be
+78|2026-09-28 16:59:33.182 +00:00|formatted|53|If I dictate now, how good is this dictation? I want 
+79|2026-09-28 17:00:51.312 +00:00|NULL||
+80|2026-09-28 17:00:52.947 +00:00|formatted|40|Evaluate now how good the reputation is.
+81|2026-09-28 17:02:15.599 +00:00|raw_transcript|54|If I dictate now how good is this dictation? I wonder.
+82|2026-09-28 17:05:29.096 +00:00|formatted|30|Could you get the assumptions?
+83|2026-09-28 17:06:59.612 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+84|2026-09-28 17:07:06.585 +00:00|formatted|29|Could you get the assumption?
+85|2026-09-28 17:08:34.474 +00:00|NULL||
+86|2026-09-28 17:11:13.552 +00:00|NULL||
+87|2026-09-28 17:12:43.530 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+88|2026-09-28 17:12:51.963 +00:00|formatted|29|Could you get the assumption?
+89|2026-09-28 17:13:00.666 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+90|2026-09-28 17:13:08.736 +00:00|formatted|29|Could you get the assumption?
+91|2026-09-28 17:13:17.380 +00:00|formatted|52|If I take now, how good is this dictation? I wonder 
+92|2026-09-28 17:13:25.478 +00:00|formatted|29|Could you get the assumption?
+93|2026-09-28 17:13:34.006 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+94|2026-09-28 17:13:42.151 +00:00|formatted|29|Could you get the assumption?
+95|2026-09-28 17:13:50.709 +00:00|formatted|55|If I dictate now, how good is this dictation? I wonder.
+96|2026-09-28 17:13:58.895 +00:00|formatted|29|Could you get the assumption?
+97|2026-09-28 17:15:17.111 +00:00|NULL||
+98|2026-09-28 17:16:05.488 +00:00|NULL||
+99|2026-09-28 17:16:51.062 +00:00|dismissed||
+100|2026-09-28 17:17:39.287 +00:00|dismissed||
+101|2026-09-28 17:18:28.303 +00:00|dismissed||
+102|2026-09-28 17:19:13.908 +00:00|dismissed||
+103|2026-09-28 17:19:59.468 +00:00|dismissed||
+104|2026-09-28 17:20:45.376 +00:00|processing||
+105|2026-09-28 17:21:31.146 +00:00|formatted|32|Could you get the assumptions be
+106|2026-09-28 17:23:24.726 +00:00|formatted|32|Could you get the assumptions be
