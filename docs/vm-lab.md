@@ -133,6 +133,16 @@ stay) — untested, and a resume would still read 8 GiB of RAM image off the dis
 
 ## Traps (every one of them hit on 2026-09-26)
 
+- **Since 2026-09-28 `wt-lab` carries a signed-in Wispr Flow: never `reset`, `bake` or `tart clone`
+  it** — the session is single-use and would be revoked (`docs/vm-wispr.md`, top and *Done
+  2026-09-28*). Boot, shut down and redeploy the app as before.
+- **`tart exec` can be dead for a whole boot with no stale socket** (2026-09-28): `wt-lab.log` said
+  `Failed to run control socket: NIOFcntlFailedError()`, `vms/wt-lab/control.sock` did not exist,
+  and every `tart exec` answered `GRPCConnectionPoolError` while both guest agents ran. Only a new
+  `tart run` brings it back. Meanwhile SSH does everything, including `osascript` to Terminal and
+  TextEdit: SIP is off in this image and the user `TCC.db` now has AppleEvents rows for
+  `sshd-keygen-wrapper` (list in `docs/vm-wispr.md`). `vm-lab.sh shot`/`deploy`/`api` go through
+  `tart exec` and fail with it — use `ssh … screencapture -x` and the manual tar deploy.
 - **`tart stop` is a pulled plug.** It SIGINTs `tart run`, whose handler cancels the task and
   calls `VZVirtualMachine.stop()` — no guest shutdown (Tart 2.34 `Commands/Stop.swift`,
   `Run.swift:593`, `VM.swift`). It returned in 0.13 s. `vm-lab.sh down` now runs

@@ -1,5 +1,11 @@
 # Wispr Flow in a VM: moving the teacher batch off Victor's screen
 
+> **Never `tart clone`, `vm-lab.sh bake` or `vm-lab.sh reset` the guest `wt-lab` again (2026-09-28).**
+> Wispr Flow is signed in there, and its Supabase session is single-use: a clone, a bake into
+> `wt-base` or a reset from `wt-base` copies or throws away that session, and a copy that refreshes
+> revokes it for both (§1 *Authentication*). A reboot or a clean shutdown is fine — same disk. What
+> is provisioned: *Done 2026-09-28* below.
+
 *Research and preparation, 2026-09-26. No VM had been started when this was written. The Sequoia
 base image was already pulled into `/Volumes/Vic/tart` (by another session) and nothing here
 touched it.*
@@ -370,6 +376,37 @@ it.
 WER and Victor has made the call on item 1.
 
 ---
+
+## Done 2026-09-28 — Wispr Flow provisioned in `wt-lab`
+
+Not in a dedicated `wt-wispr` as planned above: Wispr went into the existing lab guest `wt-lab`,
+which is therefore now the never-clone VM (note at the top). `wt-base` (baked 2026-09-27 00:11) has
+no Wispr and no sign-in, and stays the clean base — but `reset` would delete `wt-lab`, so it is off
+limits too. Report with timings: `evals/plan/vm/wispr-first-run.md`.
+
+| | state |
+|---|---|
+| Wispr Flow | 1.6.957, copied from the host; **signed in by Victor** over Screen Sharing on 2026-09-28, onboarding complete; Microphone + Accessibility granted in its onboarding; launch only with `open -b com.electron.wispr-flow` |
+| its microphone | `overrideAudioDeviceId: "default"` = Auto-detect → **BlackHole 2ch**, the guest's default and only input (rows say `micDevice = Auto-detect (BlackHole 2ch)`) |
+| its config (`prefs.user`) | the host's `shortcuts` map verbatim — **`"61+60": "ptt"`** (right ⌥ + right ⇧, Q23; the `ptt` entry of `prefs.cache.splitKeybinds` is `[61, 60]` too), `"49+59+63": "popo"`, `"79": "open_scratchpad"`, … — plus `lastSetScratchpadShortcut: "79"`, `stashedScratchpadShortcuts`, `shouldAutoLearnWords: false`, `enableSounds: false`, `openAtLogin: true`. Patched with Wispr killed (`pkill -9 -f "/Applications/Wispr Flow.app/"`), backups `config.json.bak-2026-09-28-before-chord` / `-before-q23` beside it; survived Wispr's own rewrites |
+| Walkie Talkie | the host's installed build of 2026-09-28 07:51, tar over SSH; grants held (`accessibility trusted=true eventTap=true`); `/test/firewall` alive |
+| `~/.walkie-talkie/elevenlabs.env` | the host's (mode 600), no `WT_ELEVEN_*_URL` lines, **`WT_WISPR_STANDALONE=1`** (Q9) |
+| Automation | rows in the user `TCC.db` (**SIP is disabled in this image**): AppleEvents → System Events, TextEdit and Terminal for `sshd-keygen-wrapper`, `/usr/bin/osascript`, `/usr/bin/python3`, `org.python.python`, `com.apple.python3` and the `tart-guest-agent` binary; `sudo killall tccd`. `osascript` over SSH drives all three with no prompt |
+| Python | `/usr/bin/python3` 3.9 + `pyobjc-core`, `-Cocoa`, `-Quartz`, `-ApplicationServices` **11.1** (`--only-binary=:all:` — unpinned pip picks 12.0, which has no cp39 wheel, and starts compiling); `AXIsProcessTrusted()` true |
+| repo mirror | `~/wt-lab`, refreshed 2026-09-28; the first-run driver is `~/wt-lab/wfirst.py` |
+
+**Measured on the first run** (warm; details in the report): relay path (Engine = wispr, bound
+witness, `/test/gesture forward-right`) — Wispr's row 0.76 s after the chord, `formatted` 0.86 s
+after the microphone closed, words routed 0.89–0.92 s after it, Wispr's ⌘V swallowed, `via:
+wispr-history`, 3 of 3. Standalone (relay idle, Wispr's own chord) — text at TextEdit's caret
+≤ 0.5–0.7 s after the chord's release, bound terminal untouched, 4 of 5 (one `61+60` chord two
+minutes after a Wispr relaunch made no row).
+
+**`tart exec` may be dead for a whole boot**: that day `tart run` logged `Failed to run control
+socket: NIOFcntlFailedError()` and no `control.sock` existed, so every `tart exec` answered
+`GRPCConnectionPoolError` with both guest agents running. With SIP off and the rows above, SSH does
+everything — `osascript`, `CGEventPost`, `screencapture -x`, `sounddevice`, `open`
+(`launchctl asuser 501` from SSH is refused: *Could not switch to audit session*).
 
 ## The step list, for the day the VM is up
 
