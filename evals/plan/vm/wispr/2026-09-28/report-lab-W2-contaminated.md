@@ -1,0 +1,15 @@
+# Test plan run — 2026-09-28 07:56
+
+Verdicts: **PASS** = the app does what the plan expects · **BUG** = the plan's prediction of a defect was confirmed · **FAIL** = neither the expectation nor the prediction · **SKIP** / **ERROR**.
+
+BUG 1 · PASS 2
+
+ElevenLabs: **530** credits used this month before the run, **9470** of 10000 left; cap 3000 → real cases allowed. Engine for the run: `whisper` (was `wispr`, put back at exit); only `eleven`-tagged cases switch. fake Scribe on port 55097 (live + batch, `WT_FAKE_SCRIBE=1`).
+
+| case | verdict | s | expectation | observed |
+|---|---|---|---|---|
+| TW1 | **BUG** | 5 | right ⌘⌥ held 3 s on Engine=Wispr stays one sentence: no 🧼 release before the real one, listening ≥ 2.5 s | held seen True; listening from - s for 0.0 s; release line before the case's cancel True; other cancel: None |
+| TW2 | **PASS** | 2 | a stamped flagsChanged [] under a held right ⌘⌥ is not its release | the stamped tail was ignored; the pair stayed held |
+| TW5 | **PASS** | 65 | while Wispr has no row and no microphone, the chip does not say Listening (or names the warming) | 0/42 samples listening while warming with no row; chip rows then: [] |
+
+Fake Scribe: 0 live session(s), 0 chunks (0.0 s), 0 partials, 0 commits, 0 batch upload(s), 0 error(s) sent.

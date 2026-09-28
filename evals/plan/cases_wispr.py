@@ -261,15 +261,20 @@ def tw4():
             time.sleep(0.05)
     th = threading.Thread(target=poll, daemon=True); th.start()
     time.sleep(0.2); play(CLIP_SPEECH); time.sleep(1.0)
-    gesture("forward-right")
+    # The stop is a toggle: sent to a relay that already gave up (a cold Wispr ignoring the chord →
+    # `done(timeout)` at 12 s) it opens a stray sentence that runs to the 10-min ceiling (lab
+    # 2026-09-28 07:18, 10 min lost). Stop only a sentence that is still open.
+    still = state()["listening"]
+    if still:
+        gesture("forward-right")
     wait_delivered(mark, 45); stop.set(); th.join(2)
     lie = [x for x in samples if x[0] and x[1] == "warming" and x[2] is None]
     first = open(os.path.splitext(CLIP_EN_LONG)[0] + ".txt", errors="replace").read().split()[:5] \
         if os.path.exists(os.path.splitext(CLIP_EN_LONG)[0] + ".txt") else []
     got = witness_text().lower()
     head = sum(1 for w in first if re.sub(r"\W", "", w.lower()) in got)
-    named = any(re.search(r"warm|waking|starting", " ".join(x[3]), re.I) for x in lie)
-    note = f"{len(lie)}/{len(samples)} samples listening+warming+no row ({len(lie) * 0.05:.1f} s); first-5-words hit {head}/{len(first)}; chip named it {named}"
+    named = any(re.search(r"warm|waking|starting|opening", " ".join(x[3]), re.I) for x in lie)   # Q20: `Opening Wispr Flow...`
+    note = f"{len(lie)}/{len(samples)} samples listening+warming+no row ({len(lie) * 0.05:.1f} s); first-5-words hit {head}/{len(first)}; chip named it {named}; still listening at the stop {still}"
     return ("PASS" if head >= max(1, len(first) - 1) and (not lie or named) else "BUG"), note
 
 @case("TW5", tags=("desk",), engine="wispr", pre=needs_desk,
@@ -323,14 +328,23 @@ def _tw6(kind):
             else:
                 post("/test/wispr-proc", {"kill": True})
         time.sleep(3.0)
+        if kind in "cd":
+            # Q14 (2026-09-28): Wispr quitting with ≥ 1.5 s voiced hands the relay's own WAV to the
+            # local model, delivered `via: local-fallback` — the sentence is not a failure to Recover.
+            wait_for(lambda: log_has(mark, r"📦 delivery: local-fallback|under the floor|staged"), 30, 0.3)
         s = state()
         txt = log_since(mark)
         n1 = wav_count()
-        bare = kind == "d" and re.search(r"screenshot", witness_text(), re.I) is not None
+        fallback = re.search(r"📦 delivery: local-fallback", txt) is not None
+        wtxt = witness_text()
+        bare = kind == "d" and re.search(r"screenshot", wtxt, re.I) is not None and not fallback
         note = (f"recoverable {bool(s['recoverable'])}; 'nothing had been recorded' {('nothing had been recorded' in txt)}; "
-                f"wispr-*.wav {n0}→{n1}; lastFailure {s['lastFailure']}" + (f"; bare screenshot message {bare}" if kind == "d" else ""))
+                f"wispr-*.wav {n0}→{n1}; lastFailure {s['lastFailure']}" + (f"; bare screenshot message {bare}" if kind == "d" else "")
+                + (f"; local-fallback delivery {fallback}, witness {len(wtxt.strip())} chars" if kind in "cd" else ""))
         if kind in "cd":
             post("/test/wispr-proc", {"relaunch": True}); wait_for(lambda: wispr_pid(), 30)
+            ok = (fallback and wtxt.strip() != "") or (s["recoverable"] and n1 == n0)
+            return ("PASS" if ok and not bare else "BUG"), note
         ok = s["recoverable"] and n1 == n0 and not bare
         return ("PASS" if ok else "BUG"), note
     return fn
@@ -447,7 +461,7 @@ def tw9():
     time.sleep(4.5)
     post("/test/key-trace", {"on": False})
     txt = log_since(mark)
-    refused = re.search(r"one engine at a time|Wispr Flow is listening", txt) is not None
+    refused = re.search(r"one engine at a time|Wispr Flow is listening|microphone is already open", txt) is not None
     opened = "opening the dictation on the gesture" in txt
     return ("PASS" if refused and not opened else "BUG"), f"refused {refused}; relay opened a sentence {opened}"
 

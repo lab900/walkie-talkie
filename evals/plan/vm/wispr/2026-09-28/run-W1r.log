@@ -1,0 +1,12 @@
+start W1r cap=1800s ids=TW4,TW6c,TW6d,TW8a,TW9,TW15,TW20 Mon Sep 28 07:53:24 UTC 2026
+ElevenLabs: 530 credits used this month, 9470 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 54481
+relay on 8917, 7 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W1r.md
+  TW4: BUG (33.3s) — 60/332 samples listening+warming+no row (3.0 s); first-5-words hit 0/5; chip named it True; still listening at the stop False
+  TW6c: PASS (16.8s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 0→0; lastFailure {'why': 'Wispr Flow quit', 'engine': 'wispr', 'at': '2026-09-28T07:
+  TW6d: PASS (16.7s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 0→0; lastFailure {'why': 'Wispr Flow quit', 'at': '2026-09-28T07:54:27.746Z', 'engin
+  TW8a: BUG (25.6s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed False
+  TW9: PASS (6.8s) — refused True; relay opened a sentence False
+  TW15: BUG (1.4s) — spawnPending True; 'not running' True
+  TW20: BUG (32.2s) — down in 0.34 s (True); next sentence delivered False; capture False
+rc=0 Mon Sep 28 07:55:42 UTC 2026
+PHASEDONE W1r

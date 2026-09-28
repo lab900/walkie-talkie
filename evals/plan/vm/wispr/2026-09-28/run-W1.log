@@ -1,0 +1,21 @@
+start W1 cap=3600s ids=TW3,TW4,TW6a,TW6b,TW6c,TW6d,TW7,TW8a,TW8b,TW9,TW10,TW11,TW15,TW16,TW17,TW20 Mon Sep 28 07:17:51 UTC 2026
+ElevenLabs: 530 credits used this month, 9470 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 50217
+relay on 8917, 16 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W1.md
+  TW3: SKIP needs Q9 standalone OFF (state.wisprStandalone)
+  TW4: BUG (108.0s) — 40/309 samples listening+warming+no row (2.0 s); first-5-words hit 0/5; chip named it False
+  TW6a: PASS (74.1s) — recoverable True; 'nothing had been recorded' False; wispr-*.wav 0→0; lastFailure None
+  TW6b: PASS (71.8s) — recoverable True; 'nothing had been recorded' False; wispr-*.wav 0→0; lastFailure None
+  TW6c: BUG (72.6s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 0→1; lastFailure {'why': 'Wispr Flow quit', 'engine': 'wispr', 'at': '2026-09-28T07:
+  TW6d: BUG (21.1s) — recoverable False; 'nothing had been recorded' False; wispr-*.wav 0→0; lastFailure {'at': '2026-09-28T07:44:23.266Z', 'why': 'Wispr Flow quit', 'engin
+  TW7: PASS (74.0s) — (a) recoverable True, 'nothing had been recorded' False, wav 0→0; (b) recoverable True, wav 0→0; (c) 'the sentence is lost' False, recoverable True, w
+  TW8a: BUG (25.7s) — outbox +1 (the relay's sentence is 1); rescue/drop line True; Wispr's own paste passed False
+  TW8b: PASS (29.0s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed True
+  TW9: BUG (6.5s) — refused False; relay opened a sentence False
+  TW10: PASS (47.1s) — new row with words False; lastDelivery changed False; witness 0 chars
+  TW11: SKIP needs Q9 standalone OFF (state.wisprStandalone)
+  TW15: BUG (1.4s) — spawnPending True; 'not running' True
+  TW16: SKIP (0.5s) — no helper survived the main process
+  TW17: PASS (47.2s) — new wispr corpus rows 0; micOpened {'at': '2026-09-28T07:51:40.152Z', 'rate': 48000, 'device': 'BlackHole 2ch', 'channels': 2}; Wispr's mic []
+  TW20: BUG (33.2s) — down in 0.66 s (True); next sentence delivered False; capture False
+rc=0 Mon Sep 28 07:53:00 UTC 2026
+PHASEDONE W1

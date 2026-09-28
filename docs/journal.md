@@ -13891,6 +13891,29 @@ Q13; the README's number is in brackets. Victor's answer, verbatim:
   stays `54+61`. Every `54+60` / `54+61` that meant Wispr's ptt (tables, rules, `docs/vm-wispr.md`,
   `WISPR_PTT_KEYS`, the teacher runbook) follows.
 
+### Results in the lab, real Wispr Flow (2026-09-28, 10:16–11:18 EEST, interrupted)
+
+`evals/plan/vm/wispr/report-lab-2026-09-28.md`, raw files in `evals/plan/vm/wispr/2026-09-28/`.
+The build through `c3c97c0` in `wt-lab`, the lab-only TW cases, every FAIL/BUG re-run once.
+
+- **Fixed:** TW6a–d, TW7 (a)(b)(c), TW9, and in the lab sample TW1, TW2 and TW5 (`Opening Wispr
+  Flow...`).
+- **Open:**
+  - TW4 (W11): a chord 2 s after a Wispr relaunch is ignored, and the relay judges its own
+    recording `0.0 s voiced`, so Q14 does not stand in. 2/2.
+  - TW8a (W4): his `61+60` sentence 1 s after the relay's stop is lost on Wispr's side. 2/2.
+  - TW15 (W19). 2/2.
+- **Case-caused:** TW6c/d asserted pre-Q14 Recover, TW9's regex, TW4's chip regex and blind stop
+  toggle. Fixed in `cases_wispr.py`. TW20 and TW8a timing fixes are proposed in the report.
+- **New:**
+  - After a relaunch, Wispr opens its microphone by itself 10–20 s after the relay's first chord
+    and holds it. That is the blind toggle, late (W6), and it blocks every relay start.
+  - Every bound delivery to the `cat` witness logs *typed keys never showed … do script, which
+    presses Return* (8/8 in the guest, 13 on the host today). The witness rig forces the Return
+    fallback that `9f8e49b` meant as an exception.
+- **Load:** guest load up to 13.4 at Wispr relaunches, otherwise under 6.
+- **Remaining for tonight:** TW12–TW14, TW19, TW22, plus TW3/TW11 with standalone off.
+
 ## The quota row shows what was spent, coloured by the trend (2026-09-28, 08:50)
 
 Victor, mid-morning: *"la eleven labs afișează consumat, nu rămas înainte de /. cu verde când mai

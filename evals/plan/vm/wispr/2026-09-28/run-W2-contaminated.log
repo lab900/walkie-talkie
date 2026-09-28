@@ -1,0 +1,7 @@
+start W2 cap=1264s ids=TW1,TW2,TW5,TW7,TW12,TW13,TW14,TW19,TW22 Mon Sep 28 07:55:56 UTC 2026
+ElevenLabs: 530 credits used this month, 9470 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 55097
+relay on 8917, 9 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W2.md
+  TW1: BUG (4.8s) — held seen True; listening from - s for 0.0 s; release line before the case's cancel True; other cancel: None
+  TW2: PASS (2.0s) — the stamped tail was ignored; the pair stayed held
+  TW5: PASS (65.3s) — 0/42 samples listening while warming with no row; chip rows then: []
+  TW7: ERROR — prompt panel paused by the pointer for 20 s (autosend held) — needs ⎋ by hand

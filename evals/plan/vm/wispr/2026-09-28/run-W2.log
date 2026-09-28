@@ -1,0 +1,10 @@
+start W2 cap=1000s ids=TW1,TW2,TW5,TW7,TW12,TW13,TW14,TW19,TW22 Mon Sep 28 08:01:19 UTC 2026
+ElevenLabs: 530 credits used this month, 9470 of 10000 left (cap 3000); engine wispr → whisper for the run; fake Scribe on port 55732
+relay on 8917, 9 case(s), report → /Users/admin/wt-lab/night/wispr/report-lab-W2.md
+  TW1: PASS (65.8s) — held seen True; listening from 0.15 s for 2.4 s; release line before the case's cancel False; other cancel: None
+  TW2: PASS (2.0s) — the stamped tail was ignored; the pair stayed held
+  TW5: PASS (65.2s) — 39/39 samples listening while warming with no row; chip rows then: ['Opening Wispr Flow...', 'bind to send', '🎙️ Wispr Flow']
+  TW7: PASS (72.8s) — (a) recoverable True, 'nothing had been recorded' False, wav 0→0; (b) recoverable True, wav 0→0; (c) 'the sentence is lost' False, recoverable True, w
+CAP hit Mon Sep 28 08:17:59 UTC 2026
+rc=137 Mon Sep 28 08:18:29 UTC 2026
+PHASEDONE W2
