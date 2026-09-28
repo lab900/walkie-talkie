@@ -226,7 +226,9 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   lands in `.common` so an open list repaints. `GET /test/state.elevenQuota`;
   photographed with `POST /test/engine-menu {"appearance"}`.
 - **No `$x.xx` on the ElevenLabs rows since 2026-09-28** — *"scoate $ de după nume. Îmi ajunge
-  quota consumată."* Rows are `☁️ ElevenLabs + Live` / `☁️ ElevenLabs` (+ ` ⚠️` keyless); the
+  quota consumată."* Rows are `☁️ ElevenLabs + Live 💸x3` / `☁️ ElevenLabs` (+ ` ⚠️` keyless; the `💸x3` since
+  2026-09-28 — captions bill each second three times, 1.06 vs 0.29 credits/s, figures on the
+  tooltip, source `evals/elevenlabs-cost.md`); the
   tooltip lost its `Spent so far:` block with it. `ElevenLabsCost` still counts, read only by
   `/test/state.elevenCost` (harness B-cases).
 

@@ -1730,7 +1730,12 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // consumată."* The 🧾 row at the foot of the list says what the
         // account has used; `ElevenLabsCost` still counts, for
         // `/test/state.elevenCost` only.
-        case "eleven-live": return "☁️ ElevenLabs + Live" + keyless
+        // **`💸x3` on the Live row** (2026-09-28, Victor: *"mention 💸x3 on … +
+        // Live in model choice"*): measured on the account, a dictated second
+        // with captions bills three times — the live stream, the corrections
+        // and the final upload, 1.06 credits/s against 0.29 batch-only
+        // (`evals/elevenlabs-cost.md`). The tooltip carries the figures.
+        case "eleven-live": return "☁️ ElevenLabs + Live 💸x3" + keyless
         case "eleven": return "☁️ ElevenLabs" + keyless
         case "wispr": return "☁️ Wispr Flow"
         default: return engineLoading ? "💻 Local ⏳" : "💻 Local"
@@ -1750,6 +1755,8 @@ final class StatusItem: NSObject, NSMenuDelegate {
                         + "at every committed segment \(ElevenLabsSource.model) corrects them",
                     "Sent text: ElevenLabs \(ElevenLabsSource.model) — \(ElevenLabsSource.rate), "
                         + "from the recording",
+                    "💸x3: every second is billed three times — the live stream, the corrections "
+                        + "and the final upload; measured 1.06 credits/s against 0.29 on ☁️ ElevenLabs alone (28 Sep)",
                     "Audio leaves this Mac", key].compactMap { $0 })
                 .joined(separator: "\n")
         case "eleven":
