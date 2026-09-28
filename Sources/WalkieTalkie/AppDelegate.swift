@@ -5943,6 +5943,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // between "point somewhere new" and "stop" is what it *was*.
         let previous = terminal.target?.handle
         guard let front = front, let bound = terminal.bind(app: front) else {
+            // The reason rides along (2026-09-28): "Terminal did not answer in
+            // 5 s" and "no Terminal window" are different problems, and the chip
+            // used to say the same four words for both.
+            let why = front == nil ? "no app in front" : terminal.lastBindFailure
+            Log.error("bind gesture: nothing bindable in front\(why.map { " — \($0)" } ?? "")")
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.bindInFlight = false
@@ -5950,7 +5955,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // terminal for it to have been waiting for, and opening the
                 // microphone at nothing is exactly what *Unbound is inert* is.
                 self.recordWhenBound = false
-                self.overlay.flash("⚠️ nothing bindable in front", duration: 3)
+                self.overlay.flash("⚠️ nothing bindable in front" + (why.map { " — \($0)" } ?? ""), duration: 3)
             }
             return nil
         }

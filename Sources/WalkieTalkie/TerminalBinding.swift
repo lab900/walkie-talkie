@@ -254,6 +254,20 @@ final class TerminalBinding {
         return current
     }
 
+    private var bindFailure: String?
+
+    /// Why the last `bind(app:)` bound nothing, in a few words — the hint the
+    /// chip's *nothing bindable in front* carries (2026-09-28). Nil after a bind
+    /// that succeeded or before any.
+    var lastBindFailure: String? {
+        lock.lock(); defer { lock.unlock() }
+        return bindFailure
+    }
+
+    private func noteBindFailure(_ why: String?) {
+        lock.lock(); bindFailure = why; lock.unlock()
+    }
+
     // MARK: - Binding
 
     /// Bind the terminal Victor is looking at.
@@ -276,9 +290,10 @@ final class TerminalBinding {
         let bundleID = app.bundleIdentifier ?? ""
         let name = app.localizedName ?? bundleID
 
+        noteBindFailure(nil)
         let bound: Target?
         if bundleID == "com.apple.Terminal" {
-            bound = bindTerminalApp(fallbackName: name, bundleID: bundleID)
+            bound = bindTerminalApp(fallbackName: name, bundleID: bundleID, pid: app.processIdentifier)
         } else if let editor = IDEBridge.kind(bundleID: bundleID) {
             let window = Self.focusedWindow(pid: app.processIdentifier)
             // **Ask the editor.** Its extension knows which terminal is active,
@@ -292,6 +307,7 @@ final class TerminalBinding {
                 // source file. Refusing sends the same message the banner
                 // already knows how to say: click into a terminal first.
                 Log.error("⌘⌃B on \(name) — that window has no terminal open, not binding")
+                noteBindFailure("no terminal open in \(Self.display(name))")
                 bound = nil
             case .bound(let handle):
                 bound = Target(handle: .ide(handle),
@@ -323,6 +339,7 @@ final class TerminalBinding {
             // screen locked, by binding `loginwindow`. A refusal is the only
             // correct answer: there is no terminal here to deliver to.
             Log.error("⌘⌃B on \(name) — not a terminal, not binding")
+            noteBindFailure("\(Self.display(name)) is not a terminal")
             bound = nil
         }
 
@@ -425,9 +442,12 @@ final class TerminalBinding {
 
     /// Terminal.app: ask it for the tty of the tab in front, then find out what
     /// is actually running there.
-    private func bindTerminalApp(fallbackName: String, bundleID: String) -> Target? {
-        guard let front = Self.frontTerminalTab() else {
-            Log.error("bind: Terminal.app would not name its front tab's tty")
+    private func bindTerminalApp(fallbackName: String, bundleID: String, pid: pid_t) -> Target? {
+        let answer = Self.frontTerminalTab(pid: pid, verbose: true)
+        guard let front = answer.tab else {
+            let why = answer.failure ?? "no answer"
+            Log.error("bind: Terminal.app would not name its front tab's tty — \(why)")
+            noteBindFailure(why)
             return nil
         }
         return terminalTarget(tty: front.tty, title: front.title,
@@ -802,29 +822,174 @@ final class TerminalBinding {
 
     // MARK: - Terminal.app
 
-    /// The tty and title of the frontmost Terminal.app tab.
+    /// One Terminal.app window as `frontTerminalTab`'s script saw it.
+    struct FrontTabCandidate: Equatable {
+        /// 1-based, front to back — Terminal's own `window i` order.
+        let index: Int
+        /// `/dev/ttysNNN`.
+        let tty: String
+        /// Terminal's `frontmost` property of the window.
+        let frontmost: Bool
+        /// AppleScript `bounds`: left, top, right, bottom, y measured downward.
+        let bounds: [Double]?
+        let name: String?
+        let title: String?
+    }
+
+    /// Every window the script walked: the ones with a tab that has a tty, and
+    /// why each other one was passed over.
+    struct FrontTabScan: Equatable {
+        var windows = 0
+        var candidates: [FrontTabCandidate] = []
+        var skipped: [String] = []
+    }
+
+    /// The script's output, line by line — tab-separated, see `frontTerminalTab`.
+    /// Anything unrecognised is ignored; a `tab` line whose tty is not a device
+    /// (a tab whose process has completed answers `""`) is a skip, not a candidate.
+    static func parseFrontTabScan(_ out: String) -> FrontTabScan {
+        var scan = FrontTabScan()
+        for line in out.components(separatedBy: "\n") {
+            let f = line.components(separatedBy: "\t")
+            switch f.first {
+            case "windows":
+                scan.windows = f.count > 1 ? Int(f[1].trimmingCharacters(in: .whitespaces)) ?? 0 : 0
+            case "skip":
+                let index = f.count > 1 ? f[1] : "?"
+                let why = f.count > 2 ? f[2] : "?"
+                scan.skipped.append("window \(index) \(why)")
+            case "tab" where f.count >= 4:
+                let index = Int(f[1]) ?? 0
+                guard f[2].hasPrefix("/dev/") else {
+                    scan.skipped.append("window \(index) has no tty")
+                    continue
+                }
+                let bounds = f.count > 4 ? f[4].split(separator: " ").compactMap { Double($0) } : []
+                scan.candidates.append(FrontTabCandidate(
+                    index: index, tty: f[2], frontmost: f[3] == "true",
+                    bounds: bounds.count == 4 ? bounds : nil,
+                    name: clean(f.count > 5 ? f[5] : nil),
+                    // A custom title may itself hold a tab: it is the rest of the line.
+                    title: clean(f.count > 6 ? f[6...].joined(separator: "\t") : nil)))
+            default:
+                continue
+            }
+        }
+        return scan
+    }
+
+    /// Which candidate is *the tab in front*: the one holding keyboard focus when
+    /// Accessibility can say (`hasFocus`), else the one Terminal calls
+    /// `frontmost`, else the first in Terminal's front-to-back order. Returns the
+    /// choice and how it was made, or nil when there is nothing to choose.
+    static func pickFrontTab(_ scan: FrontTabScan,
+                             hasFocus: (FrontTabCandidate) -> Bool) -> (FrontTabCandidate, String)? {
+        let focused = scan.candidates.filter(hasFocus)
+        if focused.count == 1 { return (focused[0], "keyboard focus") }
+        if let front = scan.candidates.first(where: { $0.frontmost }) { return (front, "frontmost") }
+        return scan.candidates.first.map { ($0, "front-to-back order") }
+    }
+
+    /// The tty and title of the frontmost Terminal.app tab — or, when there is
+    /// none, the reason in a few words for the log and the chip.
     ///
     /// Both in one round trip: they are read at the same instant for the same
     /// tab, and asking twice leaves room for the answer to be about two
     /// different tabs. The title comes from `custom title`, which is where
     /// Terminal.app files what a program sets with the OSC escape — i.e. exactly
     /// what an agent writes there while it works.
-    private static func frontTerminalTab() -> (tty: String, title: String?)? {
+    ///
+    /// **Front to back, skipping what cannot answer** (2026-09-28). It used to
+    /// read `selected tab of front window` and nothing else, so one bad window at
+    /// index 1 — a harness witness whose `cat` had been killed (`shellExitAction`
+    /// 1 keeps a window open after an unclean exit, its tab with no tty), a
+    /// window mid-teardown, one hidden or in the Dock — made every bind fail,
+    /// seven gestures in a row at 19:55, while Victor's own window sat right
+    /// behind it. Now each window is asked inside its own `try`, the hidden and
+    /// miniaturised ones are passed over, and among those left the one holding
+    /// keyboard focus (Accessibility, matched by frame or title) wins, then
+    /// Terminal's `frontmost`, then order.
+    private static func frontTerminalTab(pid: pid_t? = nil, verbose: Bool = false)
+        -> (tab: (tty: String, title: String?)?, failure: String?) {
         let script = """
         tell application "Terminal"
-            if (count of windows) is 0 then return ""
-            set t to selected tab of front window
-            set theTitle to ""
-            try
-                set theTitle to custom title of t
-            end try
-            return (tty of t) & "\t" & theTitle
+            set n to count of windows
+            set out to "windows\t" & n & linefeed
+            repeat with i from 1 to n
+                try
+                    set w to window i
+                    if not (visible of w) then
+                        set out to out & "skip\t" & i & "\tis hidden" & linefeed
+                    else if miniaturized of w then
+                        set out to out & "skip\t" & i & "\tis miniaturized" & linefeed
+                    else
+                        set t to selected tab of w
+                        set theTTY to tty of t
+                        set isFront to (frontmost of w) as text
+                        set b to ""
+                        try
+                            set bb to bounds of w
+                            set b to ((item 1 of bb) as string) & " " & ((item 2 of bb) as string) & ¬
+                                " " & ((item 3 of bb) as string) & " " & ((item 4 of bb) as string)
+                        end try
+                        set theName to ""
+                        try
+                            set theName to name of w
+                        end try
+                        set theTitle to ""
+                        try
+                            set theTitle to custom title of t
+                        end try
+                        set out to out & "tab\t" & i & "\t" & theTTY & "\t" & isFront & "\t" & b & ¬
+                            "\t" & theName & "\t" & theTitle & linefeed
+                    end if
+                on error errMsg number errNum
+                    set out to out & "skip\t" & i & "\tthrew " & errNum & linefeed
+                end try
+            end repeat
+            return out
         end tell
         """
-        guard let out = osascript(script) else { return nil }
-        let parts = out.components(separatedBy: "\t")
-        guard let tty = parts.first, tty.hasPrefix("/dev/") else { return nil }
-        return (tty, clean(parts.count > 1 ? parts[1] : nil))
+        let outcome = osascriptOutcome(script)
+        guard let out = outcome.output else {
+            switch outcome {
+            case .timedOut: return (nil, "Terminal did not answer in \(Int(osascriptTimeout)) s")
+            case .failed(_, let stderr):
+                // `…: execution error: Not authorised … (-1743)` → the number.
+                let code = stderr.range(of: #"\(-?\d+\)\s*$"#, options: .regularExpression)
+                    .map { String(stderr[$0]).trimmingCharacters(in: .whitespaces) } ?? ""
+                return (nil, "Terminal's AppleScript failed \(code)".trimmingCharacters(in: .whitespaces))
+            default: return (nil, "osascript would not start")
+            }
+        }
+        let scan = parseFrontTabScan(out)
+        if scan.windows == 0 && scan.candidates.isEmpty { return (nil, "no Terminal window") }
+
+        // Keyboard focus, as Accessibility has it: the focused window's frame
+        // (both in AppleScript's top-left space here, within 2 pt), or its
+        // title when the frame is unknown.
+        let terminalPID = pid ?? NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.apple.Terminal").first?.processIdentifier
+        let focus = terminalPID.map { axFocusedWindowRaw(pid: $0) } ?? (bounds: nil, title: nil)
+        let pick = pickFrontTab(scan) { c in
+            if let fb = focus.bounds, let cb = c.bounds {
+                return zip(fb, cb).allSatisfy { abs($0 - $1) <= 2 }
+            }
+            if let ft = focus.title, let name = c.name { return ft == name }
+            return false
+        }
+        let skipped = scan.skipped.isEmpty ? "" : "; skipped \(scan.skipped.joined(separator: ", "))"
+        guard let (chosen, how) = pick else {
+            let why = "none of \(scan.windows) Terminal windows has a tab with a tty"
+            Log.error("bind: \(why)\(skipped)")
+            return (nil, why)
+        }
+        // Every bind says which window it took; the caret questions only when
+        // the answer was not simply window 1.
+        if verbose || chosen.index != 1 || !scan.skipped.isEmpty {
+            Log.info("\(verbose ? "bind: front tab" : "front tab:") \((chosen.tty as NSString).lastPathComponent) «\(chosen.title ?? chosen.name ?? "")» — window \(chosen.index) of \(scan.windows), by \(how)\(skipped)")
+        }
+        return ((chosen.tty, chosen.title), nil)
     }
 
     /// **Every open Terminal.app tab, as `ttysNNN` → the title it is showing.**
@@ -1127,6 +1292,32 @@ final class TerminalBinding {
               AXValueGetValue(unsafeBitCast(sizeValue, to: AXValue.self), .cgSize, &size)
         else { return (nil, title) }
         return (cocoaRect(topLeft: origin, size: size), title)
+    }
+
+    /// The focused window of `pid` in AppleScript's own terms — `bounds` as
+    /// left, top, right, bottom with y downward, which is also how Accessibility
+    /// reports position — so the two can be compared without converting either.
+    private static func axFocusedWindowRaw(pid: pid_t) -> (bounds: [Double]?, title: String?) {
+        let app = AXUIElementCreateApplication(pid)
+        var windowRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef) == .success,
+              let window = windowRef, CFGetTypeID(window) == AXUIElementGetTypeID()
+        else { return (nil, nil) }
+        let element = unsafeBitCast(window, to: AXUIElement.self)
+        var titleRef: CFTypeRef?
+        let title = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef) == .success
+            ? clean(titleRef as? String) : nil
+        var positionRef: CFTypeRef?, sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              let positionValue = positionRef, let sizeValue = sizeRef,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID()
+        else { return (nil, title) }
+        var origin = CGPoint.zero, size = CGSize.zero
+        guard AXValueGetValue(unsafeBitCast(positionValue, to: AXValue.self), .cgPoint, &origin),
+              AXValueGetValue(unsafeBitCast(sizeValue, to: AXValue.self), .cgSize, &size)
+        else { return (nil, title) }
+        return ([Double(origin.x), Double(origin.y), Double(origin.x + size.width), Double(origin.y + size.height)], title)
     }
 
     /// **AppleScript and Accessibility both measure y downward from the top of
@@ -1610,7 +1801,7 @@ final class TerminalBinding {
     ///
     /// Runs `osascript` and `ps` — call it off the main thread.
     static func frontClaudePromptTTY(bundleID: String?) -> String? {
-        guard bundleID == "com.apple.Terminal", let tab = frontTerminalTab() else { return nil }
+        guard bundleID == "com.apple.Terminal", let tab = frontTerminalTab().tab else { return nil }
         guard let command = foregroundCommand(onTTY: tab.tty), !refusesDelivery(command) else { return nil }
         let device = (tab.tty as NSString).lastPathComponent
         guard publishedDirectory(onTTY: device) != nil else { return nil }
@@ -1623,7 +1814,7 @@ final class TerminalBinding {
     /// (`refusesDelivery`), else nil. A Return there runs what was just pasted.
     /// Runs `osascript` and `ps` — off the main thread.
     static func frontTerminalShell(bundleID: String?) -> String? {
-        guard bundleID == "com.apple.Terminal", let tab = frontTerminalTab(),
+        guard bundleID == "com.apple.Terminal", let tab = frontTerminalTab().tab,
               let command = foregroundCommand(onTTY: tab.tty), refusesDelivery(command) else { return nil }
         return command
     }
@@ -2055,8 +2246,74 @@ final class TerminalBinding {
 
     // MARK: - Subprocesses
 
+    /// How long any `osascript` may take before it is killed. Terminal answers in
+    /// ~30–200 ms (sixteen windows, `liveTitles`); five seconds is a Terminal that
+    /// is hung, and the bind path must not hang with it.
+    static let osascriptTimeout: TimeInterval = 5
+
+    /// What a subprocess did — kept whole so a failure can say *why*.
+    enum RunOutcome: Equatable {
+        /// Exit 0: trimmed stdout.
+        case ok(String)
+        /// Non-zero exit: the status and the first 200 characters of stderr.
+        case failed(status: Int32, stderr: String)
+        /// Killed after `timeout` seconds.
+        case timedOut(TimeInterval)
+        /// The executable could not be started at all.
+        case couldNotRun(String)
+
+        var output: String? {
+            if case .ok(let out) = self { return out }
+            return nil
+        }
+
+        /// A few words for the chip and the log: what went wrong, not how.
+        var reason: String {
+            switch self {
+            case .ok: return "ok"
+            case .failed(let status, let stderr):
+                return stderr.isEmpty ? "exit \(status)" : "exit \(status): \(stderr)"
+            case .timedOut(let t): return "timed out after \(Int(t)) s"
+            case .couldNotRun(let why): return "could not run: \(why)"
+            }
+        }
+    }
+
+    /// `osascript`, bounded by `osascriptTimeout`, **and every failure logged
+    /// with its reason** (2026-09-28). It used to return nil on any non-zero
+    /// exit with stderr thrown away: seven bind gestures failed in a row that
+    /// evening with nothing in the log but *would not name its front tab's
+    /// tty*, and the same script answered fine from a shell three minutes later
+    /// — the one piece of evidence that could have told the cases apart
+    /// (-1743 not authorised, -1728 no such object, -600 not running, a hang)
+    /// was the one this dropped.
+    static func osascriptOutcome(_ script: String,
+                                 timeout: TimeInterval = osascriptTimeout) -> RunOutcome {
+        let started = Date()
+        let outcome = runOutcome("/usr/bin/osascript", ["-e", script], timeout: timeout)
+        let ms = Int(Date().timeIntervalSince(started) * 1000)
+        switch outcome {
+        case .ok: break
+        case .timedOut:
+            Log.error("osascript timed out after \(ms) ms — killed (Terminal hung?): \(firstLine(of: script))")
+        default:
+            Log.error("osascript failed after \(ms) ms — \(outcome.reason) — script: \(firstLine(of: script))")
+        }
+        return outcome
+    }
+
     private static func osascript(_ script: String) -> String? {
-        run("/usr/bin/osascript", ["-e", script])
+        osascriptOutcome(script).output
+    }
+
+    /// Which script failed, in a log line: its first line that says something
+    /// beyond `tell application`.
+    private static func firstLine(of script: String) -> String {
+        let lines = script.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let telling = lines.first { !$0.hasPrefix("tell application") } ?? lines.first ?? ""
+        return String(telling.prefix(80))
     }
 
     /// Trimmed stdout, or nil on a non-zero exit — so every caller can treat
@@ -2064,21 +2321,63 @@ final class TerminalBinding {
     /// them it is.
     private static func run(_ path: String, _ args: [String],
                             environment: [String: String]? = nil) -> String? {
+        runOutcome(path, args, environment: environment).output
+    }
+
+    /// The subprocess, with stdout and stderr read concurrently (a full stderr
+    /// pipe must never block the child) and, when `timeout` is given, a kill
+    /// once it passes: SIGTERM, then SIGKILL 0.5 s later if it is still there.
+    static func runOutcome(_ path: String, _ args: [String],
+                           environment: [String: String]? = nil,
+                           timeout: TimeInterval? = nil) -> RunOutcome {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = args
         if let environment = environment { process.environment = environment }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
+        let outPipe = Pipe(), errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+        let exited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in exited.signal() }
         do { try process.run() } catch {
             Log.error("\(path) would not run: \(error)")
-            return nil
+            return .couldNotRun("\(error)")
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var outData = Data(), errData = Data()
+        let reads = DispatchGroup()
+        let queue = DispatchQueue.global(qos: .userInitiated)
+        queue.async(group: reads) { outData = outPipe.fileHandleForReading.readDataToEndOfFile() }
+        queue.async(group: reads) { errData = errPipe.fileHandleForReading.readDataToEndOfFile() }
+
+        var timedOut = false
+        if let timeout = timeout {
+            if exited.wait(timeout: .now() + timeout) == .timedOut {
+                timedOut = true
+                process.terminate()
+                if exited.wait(timeout: .now() + 0.5) == .timedOut {
+                    kill(process.processIdentifier, SIGKILL)
+                    exited.wait()
+                }
+            }
+        } else {
+            exited.wait()
+        }
+        // The pipes reach EOF once the child is gone; the bound is only a guard
+        // against a grandchild that inherited them and outlives it.
+        // Unread (never raced) when the drain did not finish.
+        let drained = reads.wait(timeout: .now() + 1) == .success
+        let stdout = drained ? outData : Data()
+        let stderr = drained ? errData : Data()
+
+        if timedOut { return .timedOut(timeout ?? 0) }
+        guard process.terminationStatus == 0 else {
+            let err = (String(data: stderr, encoding: .utf8) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+            return .failed(status: process.terminationStatus, stderr: String(err.prefix(200)))
+        }
+        return .ok((String(data: stdout, encoding: .utf8) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
