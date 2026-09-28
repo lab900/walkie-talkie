@@ -76,17 +76,3 @@ upload made n ms late (Q12's order cases); `delayx2` delays the next two.
 - **`evals/test_stale_modifier.py`** fails any function that posts a key with flags and neither posts
   `flagsChanged` nor uses `postToPid` (rule and history in `area-crop.md`).
 - `/test/dictation` enters below the recogniser; `/test/dictation/start` opens no mic, so the halo rests.
-- **Local tests prefer the local engine; ElevenLabs is capped** (2026-09-27, Victor: *"pune plafon +
-  regula ca testele locale sa prefere intotdeauna motor local"* · *"poti emula daca vrei apiul lor de
-  streaming pt testele de live subtitles"*; on 26 Sep the suite alone burned 4 561 of the month's
-  10 000 credits). `evals/plan/harness.py` sets `POST /engine {"id":"whisper"}` at start and puts his
-  engine back at exit; only the cases in `ELEVEN_ENGINE` (tags `eleven`, `live`) switch to
-  `eleven`｜`eleven-live`, for their duration. They run against **`evals/plan/fake_scribe.py`**
-  (stdlib RFC 6455 + batch, `--selftest` needs no app) through `WT_ELEVEN_LIVE_URL` /
-  `WT_ELEVEN_BATCH_URL` lines the harness writes into `elevenlabs.env` (between two
-  `# fake-scribe:` marks, removed at exit and at the next start) — the app re-reads that file at
-  every engine pick, so no relaunch. `WT_FAKE_SCRIBE=0` = the real service. A case that would spend
-  real credits (not `FAULT_ONLY`; always for `VENDOR_ONLY` = TL25) is `SKIP credit cap (N left)`
-  when `WT_ELEVEN_QUOTA` (10000) − this month's `GET /v1/usage/character-stats` < `WT_ELEVEN_MIN_CREDITS`
-  (3000) or the usage is unreadable; the report header and footer carry credits before/after.
-  The run also wakes the display (`caffeinate`): the band's display link stops with the screen.
