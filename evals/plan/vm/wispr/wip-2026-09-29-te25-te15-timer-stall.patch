@@ -825,3 +825,270 @@ index 67eadf5..542a452 100644
          try:
              importlib.import_module(mod)
          except ModuleNotFoundError as e:
+diff --git a/evals/plan/cases_explore_fixes.py b/evals/plan/cases_explore_fixes.py
+new file mode 100644
+index 0000000..0f49d14
+--- /dev/null
++++ b/evals/plan/cases_explore_fixes.py
+@@ -0,0 +1,261 @@
++"""**Desk cases for the exploratory run's three relay-side findings** (2026-09-29, TE25 / TE15-16 / the
++frozen-Wispr timer stall — `vm/wispr/2026-09-29-explore/`). The TE cases need the real Wispr in the Tart
++guest; these reach the same code at a desk, on the fake `History` with Wispr's chords muted, so his real
++Wispr never hears a chord — except TF3, which freezes his real Wispr for 2.5 s and runs only with
++`WT_ALLOW_WISPR_FREEZE=1` and his Wispr idle.
++
++    TF1  a Terminal window opened (or another raised) between a bound delivery's text and its Return: the
++         text AND its Return in the bound tab, nothing in the other one (TE25)
++    TF2  the relay's stop Wispr never heard: (a) Secure Input held at the stop → the relay's own recording
++         transcribed at once (`local-fallback`, not the 30 s timeout); (b) keys visible, Wispr's microphone
++         (faked) still open 2 s after the stop with its row NULL → the same at ~2 s; (c) control — the row
++         moves at the stop: Wispr's words, no 🙉 (TE15/TE16)
++    TF3  Wispr's process frozen (SIGSTOP) 0.3 s after the stop: the decode ahead starts at its plan (±0.1 s)
++         and `/test/state` keeps answering — nothing on main waits on the frozen process (the ~1.5 s stall)
++"""
++import os
++import re
++import subprocess
++import threading
++import time
++
++from harness import *  # noqa: F401,F403
++import harness as H
++import cases_wispr as cw
++from cases_audio import last_delivery
++
++SPEC_LINE = r"🔮 local transcript: decoding ahead from \+([\d.]+) s after the close \(planned \+([\d.]+) s\)"
++UNHEARD = r"🙉 Wispr Flow never heard the relay's stop — ([^\n]+)"
++_COV_W = covers("wispr", "local", "delivery", "gesture")
++_COV_T = covers("delivery")
++
++
++# ================================================================ TF1 — TE25 at a desk
++def _cat_tab(name):
++    path = "%s/%s.txt" % (WORK, name)
++    open(path, "w").close()
++    script = "printf '\\\\e]0;%s\\\\a'; stty -echo; exec cat >> %s" % (name, path)
++    tty = osa('tell application "Terminal" to set t to do script "%s"' % script,
++              'tell application "Terminal" to get tty of t').replace("/dev/", "")
++    time.sleep(0.8)
++    return tty, path
++
++
++def _front_tab(tty):
++    """Bring the window holding that tty to the front (his click on another Terminal window)."""
++    return osa('tell application "Terminal"', 'repeat with w in windows', 'repeat with t in tabs of w',
++               'if tty of t is "/dev/%s" then' % tty, 'set index of w to 1',
++               'return "ok"', 'end if', 'end repeat', 'end repeat', 'return "none"', 'end tell')
++
++
++def _read(path):
++    try:
++        return open(path, encoding="utf-8", errors="replace").read()
++    except IOError:
++        return ""
++
++
++@case("TF1", ("desk", "tty"), covers=_COV_T,
++      expect="a Terminal window opened, or another raised, inside a bound delivery's 0.5 s between the text and "
++             "its Return: the text and its Return in the bound tab (ends '\\n\\n'), no Return and no text in the "
++             "other tab; 📦 delivery logged once per trial")
++def tf1():
++    """TE25 (4/4 in the guest): `writeToTerminalApp` addressed the tab by its position among the windows,
++    re-resolved at every use — a window opened or raised mid-delivery took the Return. The fix addresses it by
++    window id and tab index and re-checks its tty before the Return. A fabricated sentence (`/test/dictation`,
++    Autosend on for the run) into the bound witness; the other window is opened the moment the delivery's
++    `⌨️ ttysNNN foreground=` line shows."""
++    tty_a = witness_open()
++    was_auto = bool(state().get("autosend"))
++    others, notes, vs = [], [], []
++    try:
++        post("/test/autosend", {"on": True})
++        d_tty, d_path = _cat_tab("wt-tf1-d")                  # a second window, behind
++        others.append(d_tty)
++        post("/bind", {"tty": tty_a})
++        for trial in ("control", "new-window", "raise-other", "new-window-2"):
++            witness_clear()
++            open(d_path, "w").close()
++            mark, t0 = log_mark(), now_iso()
++            tok = "tf1%s" % trial.replace("-", "")
++            post("/test/dictation", {"text": "%s the bound tab keeps its return" % tok})
++            seen = wait_for(lambda: log_has(mark, r"⌨️ %s foreground=" % tty_a), 20, 0.01)
++            c_path = None
++            if trial.startswith("new-window"):
++                c_tty, c_path = _cat_tab("wt-tf1-%s" % trial)
++                others.append(c_tty)
++            elif trial == "raise-other":
++                _front_tab(d_tty)
++            wait_for(lambda: log_has(mark, r"📦 delivery|delivered to the bound terminal|NOT delivered"), 15, 0.1)
++            time.sleep(1.5)
++            a = witness_text()
++            other = _read(c_path) if c_path else _read(d_path)
++            moved = log_has(mark, r"moved between its text and its Return")
++            lost = log_has(mark, r"NOT delivered")
++            ok = tok in a and a.endswith("\n\n") and other.count("\n") == 0 and tok not in other and not lost
++            v = "PASS" if ok else "BUG"
++            vs.append(v)
++            notes.append("%s: %s — seen %s; A ends %r; other tab %d newline(s)%s; moved %s; lost %s; delivery %s" % (
++                trial, v, bool(seen), a[-12:], other.count("\n"), ", has the text" if tok in other else "",
++                moved, lost, (last_delivery(t0) or {}).get("to")))
++            time.sleep(0.5)
++        v = "PASS" if all(x == "PASS" for x in vs) else "BUG"
++        return v, " | ".join(notes)
++    finally:
++        for t in others:
++            try:
++                close_tty_tab(t)
++            except Exception:
++                pass
++        post("/test/autosend", {"on": was_auto})
++        post("/bind", {"tty": tty_a})
++
++
++# ================================================================ TF2 — TE15/TE16 at a desk
++def _sentence(db, clip_s=8.0):
++    """A relay Wispr sentence on the fake History: direct start, its NULL row adopted, the clip on the
++    Loopback. Returns the rowid."""
++    cw._direct("forward-right")
++    if not wait_for(lambda: state()["listening"], 6):
++        raise RuntimeError("the sentence did not open")
++    ra = db.insert(at=time.time())
++    wait_for(lambda: cw.live()["captureRow"] == ra, 3)
++    time.sleep(0.4)
++    play(CLIP_SPEECH, seconds=clip_s)
++    return ra
++
++
++def _tf2(kind):
++    db = cw.desk()
++    cw.bind_witness()
++    witness_clear()
++    mark, t0 = log_mark(), now_iso()
++    ra = None
++    try:
++        ra = _sentence(db)
++        if kind == "secure":
++            post("/test/tap", {"kill": "secure", "seconds": 3})
++            time.sleep(0.4)
++        else:
++            post("/test/wispr", {"on": True})             # Wispr's microphone reads open (testPollSays)
++            time.sleep(0.2)
++        cw._direct("forward-right")
++        t_stop = time.time()
++        if kind == "control":
++            time.sleep(0.3)
++            db.update(ra, status="processing", speech=2.0)   # Wispr heard the stop: its row moves
++            time.sleep(0.5)
++            post("/test/wispr", {"on": False})
++            time.sleep(2.5)
++            db.finish(ra, "tf two control words from wispr")
++        d = wait_for(lambda: last_delivery(t0), 40, 0.1)
++        dt = time.time() - t_stop
++        time.sleep(1.5)
++        heard = re.search(UNHEARD, log_since(mark))
++        via = (d or {}).get("via")
++        if kind != "control":
++            # The row finishing late must be only logged, never a second delivery.
++            db.finish(ra, "tf two late words from wispr")
++            time.sleep(2.5)
++        n = len(re.findall(r"📦 delivery", log_since(mark)))
++        wt = witness_text()
++        facts = "via %s %.1f s after the stop; 🙉 %s; 📦×%d; witness %d chars" % (
++            via, dt, heard.group(1)[:90] if heard else None, n, len(wt))
++        if kind == "control":
++            ok = via == "wispr-history" and not heard and n == 1
++        else:
++            ok = via == "local-fallback" and heard is not None and dt < (6 if kind == "secure" else 8) and n == 1 \
++                 and "late words" not in wt
++        return ("PASS" if ok else "BUG"), facts
++    finally:
++        post("/test/wispr", {"on": False})
++        if ra and (cw.live() or {}).get("captureOpen"):
++            db.update(ra, status="dismissed")
++
++
++@case("TF2", ("desk", "audio"), covers=_COV_W, engine="wispr", pre=cw.needs_desk,
++      expect="(a) Secure Input held at the relay's stop → `🙉` and the relay's own recording delivered via "
++             "local-fallback < 6 s after the stop; (b) Wispr's microphone (faked) open 2 s after the stop, row NULL → "
++             "the same < 8 s; (c) the row moves at the stop → Wispr's words, no 🙉; each once, the late row only logged")
++def tf2():
++    """TE15/TE16: a stop chord posted under Secure Input or the lock screen never reached Wispr — its
++    microphone stayed open 60–70 s and the relay waited out the 30 s capture timeout. The fix asks
++    `WisprState.stopAnswerDue` from the stop on: blind → at once, microphone open with the row unmoved → at 2 s;
++    Wispr is dismissed through the ghost watch (E) when a key can reach it, the take goes to Q14."""
++    out, vs = [], []
++    for kind in ("secure", "mic-open", "control"):
++        try:
++            v, facts = _tf2(kind)
++        except Exception as e:
++            v, facts = "ERROR", "%s: %s" % (type(e).__name__, e)
++        vs.append(v)
++        out.append("%s: %s — %s" % (kind, v, facts))
++        cw.desk_off()
++        time.sleep(3)
++    v = "PASS" if all(x == "PASS" for x in vs) else ("BUG" if "BUG" in vs else "ERROR")
++    return v, " | ".join(out)
++
++
++# ================================================================ TF3 — the frozen Wispr's timer stall
++def _pre_freeze():
++    why = cw.needs_desk()
++    if why:
++        return why
++    if os.environ.get("WT_ALLOW_WISPR_FREEZE") != "1":
++        return "freezes his real Wispr 2.5 s — WT_ALLOW_WISPR_FREEZE=1 to run"
++    if (state().get("wisprLive") or {}).get("micOpen"):
++        return "his Wispr's microphone is open — not freezing it under a dictation"
++    return None
++
++
++@case("TF3", ("desk", "audio", "chaos"), covers=_COV_W, engine="wispr", pre=_pre_freeze,
++      expect="his real Wispr SIGSTOPped 2.5 s from 0.3 s after the stop of a fake-History sentence (plan forced to "
++             "+1.0 s): the decode ahead starts within ±0.1 s of its plan; `/test/state` never slower than 0.5 s")
++def tf3():
++    """Lab E3/P95 (4/4): with Wispr SIGSTOPped 0.3 s after the stop, the decode ahead started ~1.8 s after the
++    close whatever its plan and `/test/state` answered ~1.7 s late — an Accessibility read into the frozen
++    process on the main thread (1.5 s: the AX messaging timeout, measured on a frozen throwaway app). Desk:
++    a fake-History sentence, the plan forced to +1.0 s (budget 3.0, localEta 2.0), his real Wispr frozen for
++    2.5 s from +0.3 s; `WT_TF3_SAMPLE=<path>` samples the app for 2 s from +0.4 s."""
++    db = cw.desk()
++    cw.bind_witness()
++    witness_clear()
++    post("/test/local-auto", {"on": True, "budget": 3.0, "localEta": 2.0})
++    mark = log_mark()
++    ra = None
++    try:
++        ra = _sentence(db, clip_s=6.0)
++        cw._direct("forward-right")
++        t_close = time.time()
++        db.update(ra, status="processing", speech=2.0)
++        post("/test/wispr-proc", {"stop": True, "afterMs": 300, "forMs": 2500})
++        samp = os.environ.get("WT_TF3_SAMPLE")
++        if samp:
++            pid = str(state().get("pid"))
++            threading.Timer(0.1, lambda: subprocess.run(["sample", pid, "2", "-file", samp],
++                                                        capture_output=True)).start()
++        lat = []
++        while time.time() < t_close + 3.3:
++            a = time.time()
++            try:
++                H.get("/test/state", timeout=6)
++            except Exception:
++                pass
++            lat.append((round(a - t_close, 2), round(time.time() - a, 2)))
++            time.sleep(0.1)
++        m = H.wait_for(lambda: re.search(SPEC_LINE, log_since(mark)), 6, 0.05)
++        post("/test/wispr-proc", {"cont": True})
++        worst = max(lat, key=lambda x: x[1]) if lat else (None, None)
++        if not m:
++            return "FAIL", "no decode-ahead line; /test/state worst %s s at +%s s" % (worst[1], worst[0])
++        started, planned = float(m.group(1)), float(m.group(2))
++        slow = [x for x in lat if x[1] > 0.3]
++        facts = "decode ahead from +%.2f s (planned +%.2f s); /test/state worst %.2f s at +%.2f s, %d answer(s) > 0.3 s" % (
++            started, planned, worst[1], worst[0], len(slow))
++        ok = abs(started - planned) <= 0.1 and worst[1] < 0.5
++        return ("PASS" if ok else "BUG"), facts
++    finally:
++        post("/test/wispr-proc", {"cont": True})
++        post("/test/local-auto", {"budget": None, "localEta": None})
++        if ra:
++            db.update(ra, status="dismissed")
