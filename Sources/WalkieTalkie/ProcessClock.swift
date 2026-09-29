@@ -16,6 +16,21 @@ enum ProcessClock {
         return info
     }
 
+    /// **When the process started** (`p_starttime`) — item 4: a Wispr Flow
+    /// younger than `AutoLocal.wisprStartupGrace` is still starting, whoever
+    /// launched it. Nil when the pid is not in the table.
+    static func startTime(_ pid: pid_t) -> Date? {
+        guard let i = info(pid) else { return nil }
+        let tv = i.kp_proc.p_un.__p_starttime
+        guard tv.tv_sec > 0 else { return nil }
+        return Date(timeIntervalSince1970: Double(tv.tv_sec) + Double(tv.tv_usec) / 1_000_000)
+    }
+
+    /// Seconds since `pid` started — nil when it is not in the table.
+    static func age(_ pid: pid_t, now: Date = Date()) -> TimeInterval? {
+        startTime(pid).map { now.timeIntervalSince($0) }
+    }
+
     /// Alive = in the process table and not a zombie (a SIGKILLed process
     /// stays in the table as `SZOMB` until its parent reaps it).
     static func isAlive(_ pid: pid_t) -> Bool {

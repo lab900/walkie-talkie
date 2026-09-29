@@ -2013,6 +2013,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return ["error": "gone"] }
             if let on = body["on"] as? Bool { self.setAutoLocal(on, from: "POST /test/local-auto") }
             if let down = body["wisprDown"] as? Bool { self.testWisprDown = down }
+            // Item 4 (batch 4): Wispr's process read as this many seconds old; null clears.
+            if body.keys.contains("wisprAge") { self.testWisprAge = (body["wisprAge"] as? NSNumber)?.doubleValue }
             if let fake = body["fakeLaunch"] as? Bool {
                 self.testFakeWisprLaunch = fake
                 if !fake { self.wisprLaunchedAt = nil }
@@ -4175,15 +4177,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the relay under `AutoLocal.wisprStartupGrace` ago. Nil = it can.
     private func wisprNotUpForAutoLocal() -> String? {
         if testWisprDown { return "is not running (POST /test/local-auto wisprDown)" }
-        if !wisprSource.isReady { return "is not running" }
-        if let at = wisprLaunchedAt {
-            let age = CFAbsoluteTimeGetCurrent() - at
-            if age < AutoLocal.wisprStartupGrace {
-                return String(format: "is still starting (launched %.1f s ago)", age)
-            }
-        }
-        return nil
+        // Item 4 (batch 4): the process's age too, whoever launched it (TX9).
+        let running = wisprSource.isReady
+        let age = testWisprAge ?? wisprProcessAge()
+        let why = AutoLocal.wisprNotUp(running: running, processAge: age,
+                                       launchedByRelayAgo: wisprLaunchedAt.map { CFAbsoluteTimeGetCurrent() - $0 })
+        if let why, testWisprAge != nil { return why + " (POST /test/local-auto wisprAge)" }
+        return why
     }
+
+    /// Seconds since Wispr Flow's main process started — nil when it is not running.
+    private func wisprProcessAge() -> TimeInterval? {
+        let pid = WisprFlowSource.wisprMainPid
+        return pid > 0 ? ProcessClock.age(pid) : nil
+    }
+    /// `POST /test/local-auto {"wisprAge": s｜null}` — Wispr's process read as this old.
+    private var testWisprAge: TimeInterval?
 
     /// Wispr Flow opened in the background for the next sentence — by its
     /// bundle path, never `open -a` (the nested helper) and never activated.
@@ -4230,6 +4239,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             out["fired"] = false
         }
         out["wispr"] = ["down": testWisprDown, "fakeLaunch": testFakeWisprLaunch, "launches": wisprLaunches,
+                        "processAge": wisprProcessAge() ?? NSNull(), "fakeAge": testWisprAge ?? NSNull(),
+                        "notUp": wisprNotUpForAutoLocal() ?? NSNull(),
                         "launchedAgo": wisprLaunchedAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? NSNull()] as [String: Any]
         out["localReady"] = whisperSource.isReady
         return out

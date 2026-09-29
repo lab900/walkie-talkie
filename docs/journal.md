@@ -14615,3 +14615,12 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   the sentence's Wispr reads as exited, no signal — his real Wispr is never killed at a desk. Desk
   TW42 (exit then close; close then exit inside the grace; a close with Wispr alive as the control);
   lab TW20's bar is now *the quit noticed ≤ 0.6 s and the whole take delivered*, not *listening down*.
+- **4. "Never wait for Wispr" by process age.** The borrow covered only a Wispr the relay had
+  launched itself; TX9 relaunched Wispr from outside, dictated 1 s later, and each of three sentences
+  paid Q14's 4.3–6.3 s (Wispr ignored the chord) instead of the borrow's 1.3–1.6 s. The start now also
+  asks the kernel how old Wispr Flow's main process is (`ProcessClock.startTime`, `p_starttime`):
+  younger than `AutoLocal.wisprStartupGrace` (12 s) → borrowed, `💻 Local — Wispr Flow is starting`,
+  whoever launched it. Pure half `AutoLocal.wisprNotUp` (`AutoLocalWisprStartTests`, including a
+  real child process's age); `POST /test/local-auto {"wisprAge": s｜null}` fakes the age;
+  `state.localAuto.wispr {processAge, fakeAge, notUp}`. Desk TA6. The lab's TX9 is the real test; TQ4's
+  +2 s sentence (Wispr up 2 s) is now borrowed too — by design, it no longer waits on a young Wispr.

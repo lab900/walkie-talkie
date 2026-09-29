@@ -17,6 +17,7 @@ Wispr cases use `cases_wispr`'s desk (fake `History`, chords muted) — his real
     TA3  Wispr row stalled `processing` (fake DB) → local-auto; the row finishing later only logged
     TA4  checkbox OFF → no budget, no fallback: the relay waits for the 8 s-late answer as before
     TA5  Wispr Flow not running at the start (faked) → the local model at the close, Wispr launched (fake)
+    TA6  Wispr Flow's process 3 s old, launched by someone else (faked age) → borrowed too (batch 4, item 4)
 """
 import re
 import time
@@ -40,7 +41,7 @@ def _restore():
     """After every case: the checkbox as it was found, no Wispr fakes."""
     if "on" not in _ORIG:
         return
-    _quiet(post, "/test/local-auto", {"on": _ORIG["on"], "wisprDown": False, "fakeLaunch": False})
+    _quiet(post, "/test/local-auto", {"on": _ORIG["on"], "wisprDown": False, "fakeLaunch": False, "wisprAge": None})
 
 CLEANUPS.append(_restore)
 
@@ -286,3 +287,53 @@ def ta5():
             return ("PASS" if ok else "FAIL"), note
     finally:
         _quiet(post, "/test/wispr-chord", {"mute": False})
+
+
+# ---------------------------------------------------------------- TA6 (batch 4, item 4)
+@case("TA6", ("audio", "desk"), engine="wispr", pre=cw.needs_desk,
+      expect="Wispr Flow's process 3 s old (faked age; the relay did not launch it) → a start on Engine = Wispr borrows "
+             "the local model (`its process is 3.0 s old`), delivered via local-whisper into the witness; with the real "
+             "(old) age the next start is Wispr's, not borrowed")
+def ta6():
+    """Item 4 (lab wave 4, TX9): the borrow covered only a Wispr the relay launched itself; relaunched from
+    outside and dictated 1 s later, three sentences paid Q14's 4.3–6.3 s. The criterion is now the process's
+    own age (`ProcessClock.age`, < 12 s). `POST /test/local-auto {"wisprAge": 3}` fakes the age, so his
+    real Wispr is untouched; keyless starts (`/test/gesture {"direct"}`), chords muted (the desk)."""
+    _remember()
+    db = cw.desk()
+    cw.bind_witness(); witness_clear()
+    auto(on=True, wisprDown=False, fakeLaunch=True, wisprAge=3)
+    try:
+        m = log_mark()
+        cw._direct("forward-right")
+        if not wait_for(lambda: state()["listening"], 6):
+            return "FAIL", "the sentence did not open"
+        flashed = wait_for(lambda: _chip_has(r"Wispr Flow is starting"), 3, 0.1)
+        time.sleep(0.4)
+        play(CLIP_EN)
+        time.sleep(0.6)
+        cw._direct("forward-right")
+        got = wait_for(lambda: witness_text().strip(), 40, 0.3)
+        wait_for(lambda: log_has(m, r"📦 delivery: "), 10, 0.3)
+        txt = log_since(m)
+        borrowed = re.search(r"🔁 [^\n]*its process is 3\.0 s old[^\n]*", txt)
+        d = re.search(r"📦 delivery: (\S+) → (\S+)", txt)
+        wait_for(lambda: not state()["listening"] and not state()["settling"], 20, 0.3)
+        time.sleep(1.5)
+        # the real age (his Wispr, long up): not borrowed
+        auto(wisprAge=None)
+        m2 = log_mark()
+        cw._direct("forward-right")
+        opened2 = wait_for(lambda: state()["listening"], 6)
+        time.sleep(0.8)
+        s2 = state()
+        post("/test/cancel")
+        txt2 = log_since(m2)
+        not_borrowed = "auto fallback" not in txt2 and s2.get("borrowedFrom") is None
+        note = (f"borrow {borrowed.group(0)[:110] if borrowed else None}; flash {bool(flashed)}; delivery {d.groups() if d else None}; "
+                f"witness {len(witness_text().strip())} chars; real age: opened {bool(opened2)}, not borrowed {not_borrowed} "
+                f"(processAge {((state().get('localAuto') or {}).get('wispr') or {}).get('processAge')})")
+        ok = borrowed and flashed and got and d and d.group(1) == "local-whisper" and opened2 and not_borrowed
+        return ("PASS" if ok else "FAIL"), note
+    finally:
+        _quiet(post, "/test/local-auto", {"wisprAge": None, "fakeLaunch": False})

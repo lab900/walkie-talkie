@@ -92,11 +92,12 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   every engine pick, the checkbox; log `💻 local model warm for the auto fallback — X GB resident`).
 - **A Wispr sentence never waits for Wispr Flow to start** (same evening — *"10 s startup time is
   killing"*): with the checkbox ON, a `startDictation` on Engine = Wispr while Wispr is not running,
-  or was launched by the relay under `AutoLocal.wisprStartupGrace` (12 s) ago, borrows the local
+  or was launched by the relay under `AutoLocal.wisprStartupGrace` (12 s) ago — **or whose process is
+  younger than that, whoever launched it** (batch 4, item 4: `ProcessClock.age`, TX9) — borrows the local
   model for that one sentence (Q21's `borrowEngine`: the relay's own microphone, decoded at the
   close, `via: local-whisper`), flashes `💻 Local — Wispr Flow is starting`, and launches Wispr in
   the background (`NSWorkspace.openApplication` on the bundle path, `activates = false`, at most
-  once per 30 s). `POST /test/local-auto {"wisprDown", "fakeLaunch"}` fakes both halves.
+  once per 30 s). `POST /test/local-auto {"wisprDown", "fakeLaunch", "wisprAge"}` fakes them (`AutoLocal.wisprNotUp` is the pure half).
 - **`engine(named:)` is one table read by the launch pick and the menu pick; anything unrecognised is
   the default**, never a named engine, so a typo cannot pick a recogniser.
 - **`setEngine`** nils the old source's callbacks, assigns `source`, writes `dictationSource`, re-runs
