@@ -1307,6 +1307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // event — is behind it as well. See `clearStaleModifiersAtLaunch`.
         HotkeyTap.clearStaleModifiersAtLaunch()
         Self.startAtLogin()
+        FromWalkieDevice.set(true, reason: "launch")
         Outbox.prepare()
         // Synthesised once per Mac and loaded off the main thread — a shutter
         // press must never wait for `say`. → `ShotMarker`
@@ -9886,9 +9887,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // (a sentence finishing) was restored as the binding before it.
         Outbox.publishBound(tty: SingleInstance.beingReplaced() ? terminal.target?.restoreRecord : nil)
         guard !SingleInstance.beingReplaced() else {
+            // The device stays on: the instance coming up turns it on anyway, and
+            // an off/on blip would bounce Wispr to its next microphone and back.
             Log.info("terminating to make way for a new instance — no session_end")
             return
         }
+        FromWalkieDevice.set(false, reason: "app terminate")
         announceEnd("app terminate")
     }
 
