@@ -844,13 +844,24 @@ final class CaretHalo {
     /// the old effect goes on running underneath until the new host says
     /// `onVisible`, or 3 s at most, and only then is ordered out. No blink
     /// to empty between F9 presses.
+    ///
+    /// **It goes out in a 300 ms fade, never a cut** (Victor, 2026-09-29: *"when
+    /// the puzzle effect ends, it should not disappear abruptly, but instead fade
+    /// out smoothly over 300 ms"*). The mic's close swaps Mosaic for the rewind
+    /// here, and the `orderOut` alone had it vanish in one frame.
     private var retiring: (panel: RelayPanel, web: HaloWebHost?, under: HaloWebHost?)?
+    private static let retireFade: TimeInterval = 0.3
     private func retireOld() {
         guard let old = retiring else { return }
         retiring = nil
-        old.web?.stop(); old.under?.stop()
-        old.panel.orderOut(nil)
-        Log.info("◯ halo: the previous panel retired \(Self.sinceStyleChange)")
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = Self.retireFade
+            old.panel.animator().alphaValue = 0
+        } completionHandler: {
+            old.web?.stop(); old.under?.stop()
+            old.panel.orderOut(nil)
+        }
+        Log.info("◯ halo: the previous panel retiring — a \(Int(Self.retireFade * 1000)) ms fade \(Self.sinceStyleChange)")
     }
 
     private func rebuild() {

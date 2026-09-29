@@ -677,6 +677,9 @@ closes. Between the two is the whole transcription — the stretch in which he i
   moves for the sentence; Mosaic (the puzzle) stays `anchored` alone, placed from the pointer.
   Size ×1.4 the same ask (*"a bit bigger to better fill the entire screen"*): 0.4658 → 0.6521,
   1127 pt — the Retina's height.
+- **A replaced halo panel fades out in 300 ms, never cuts** (2026-09-29, *"when the puzzle effect
+  ends, it should not disappear abruptly"*): the mic's close swaps Mosaic for the rewind through
+  `CaretHalo.retireOld`, which used to `orderOut` in one frame. Every dress change crossfades now.
   **"Not centred on the tip of my mouse" was a size complaint**, measured that evening:
   `docs/projectm/captures/sparks-on-pointer-2026-09-21.png` — the demo on his own screen with the
   pointer in frame, differenced against a baseline capture — puts the cloud's centre of light
