@@ -1458,10 +1458,13 @@ def tw42():
     witness_clear(); m = log_mark()
     rc = _open_with_mic(db); time.sleep(1.2)
     post("/test/wispr", {"on": False}); tc = time.time()
+    # Wispr's own end writes `processing` + `duration` ~0.1 s after its microphone closes (2026-09-29:
+    # a close the row does not confirm is a blip and waits — `nullRowHold`, TW45).
+    time.sleep(0.1); db.update(rc, status="processing", duration=1.5)
     closed = wait_for(lambda: not state()["listening"], 2, 0.05)
     dc = time.time() - tc
     own_c = live().get("ownTake")
-    db.update(rc, status="processing", duration=1.5); time.sleep(0.3)
+    time.sleep(0.3)
     db.finish(rc, "tw forty two control words")
     got_c = wait_for(lambda: "forty two control" in witness_text(), 15, 0.2)
     notes.append(f"(c) Wispr alive: closed {bool(closed)} in {dc:.2f} s, ownTake {own_c}, row delivered {bool(got_c)}")
@@ -1526,20 +1529,24 @@ def tw44():
         db.update(r, status="dismissed")
         wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
         time.sleep(2.2)
-    # (d) control: the poll's close with Wispr alive — held for the grace, then Wispr's own end
+    # (d) control: the poll's close with Wispr alive — Wispr's own end, its row moving 0.3 s after
+    # (inside the grace, as Wispr writes `processing` + `duration` at its stop): closed by the row,
+    # no hold. (Until 2026-09-29 the row moved only after the grace and `outlived` closed it; a close
+    # its row does not confirm is now a blip that waits — TW45.)
     witness_clear(); m = log_mark()
     rc = _open_with_poll(db); time.sleep(1.2)
     post("/test/wispr", {"on": False, "via": "poll"}); tc = time.time()
+    time.sleep(0.3); db.update(rc, status="processing", duration=1.5)
     closed = wait_for(lambda: not state()["listening"], 3, 0.05)
     dc = time.time() - tc
     own_c = live().get("ownTake")
-    db.update(rc, status="processing", duration=1.5); time.sleep(0.3)
+    time.sleep(0.3)
     db.finish(rc, "tw forty four control words")
     got_c = wait_for(lambda: "forty four control" in witness_text(), 15, 0.2)
-    outlived = "Wispr outlived the 1.0 s grace" in log_since(m)
-    notes.append(f"(d) Wispr alive: closed {bool(closed)} in {dc:.2f} s (outlived line {outlived}), ownTake {own_c}, "
+    moved = "Wispr's row moved after the close" in log_since(m)
+    notes.append(f"(d) Wispr alive: closed {bool(closed)} in {dc:.2f} s (row-moved line {moved}), ownTake {own_c}, "
                  f"row delivered {bool(got_c)}")
-    if not (closed and 0.9 <= dc <= 1.6 and outlived and not own_c and got_c):
+    if not (closed and dc <= 1.6 and moved and not own_c and got_c):
         bad.append("d")
     return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
 
@@ -1573,4 +1580,98 @@ def tw43():
             f"delivery {dl}; auto p98 fired first {fired}; witness {len(witness_text().strip())} chars")
     ok = d is not None and d <= 0.3 and told and dl and dl[0] == "local-fallback" and dl[1].startswith("terminal:") \
         and not fired
+    return ("PASS" if ok else "BUG"), note
+
+
+# ---------------------------------------------------------------- 2026-09-29 evening: the day's Wispr incidents
+@case("TW45", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="a Wispr microphone blip (poll: off, back 2 s later) with the row still NULL does not end the sentence: "
+             "still listening, no ownTake, `Wispr's input is back`, the WHOLE take metered (≥ 3 s voiced), the row "
+             "delivered; with no reopen, 4 s after the input went off the relay's own take carries it (ownTake) and "
+             "his stop → local-fallback → terminal")
+def tw45():
+    """12:20 and 12:34 on 2026-09-29, right ⌘⌥ + F19 on Engine = Wispr: the 100 ms poll saw Wispr's input
+    go off ~1 s in, the 1 s grace saw Wispr alive and closed the relay's take at 2.8 s; the input came back
+    and Wispr recorded to 8.7 / 10 s. `nullRowHold`: a close whose row is still NULL with no duration waits.
+    (a) off at 2 s, back at 4 s, row finished after the clip → delivered from the row, one sentence.
+    (b) off at 2 s, never back → `ownTake` at ~4 s after the close, his stop → the local model."""
+    db = desk()
+    bind_witness(); witness_clear()
+    notes, bad = [], []
+    # (a) the blip
+    m = log_mark()
+    ra = _open_with_poll(db)
+    th = _bg_play(CLIP_SPEECH)   # the whole clip: ~3.6–4.2 s voiced; cut at the 2 s off, < 1 s
+    time.sleep(2.0)
+    post("/test/wispr", {"on": False, "via": "poll"}); t_off = time.time()
+    time.sleep(2.0)
+    listening_mid = state()["listening"]
+    post("/test/wispr", {"on": True, "via": "poll"})
+    back = wait_for(lambda: log_has(m, r"Wispr's input is back"), 2, 0.05)
+    own_a = live().get("ownTake")
+    th.join(20)
+    close_sentence(db, ra, "tw forty five blip words")
+    got_a = wait_for(lambda: "forty five blip" in witness_text(), 15, 0.2)
+    txt = log_since(m)
+    v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
+    voiced = float(v[-1]) if v else 0.0
+    d_a = _landed(m, 5)
+    notes.append(f"(a) blip: listening 2 s after the off {listening_mid}, back line {bool(back)}, ownTake {own_a}, "
+                 f"voiced {voiced:.1f} s, delivery {d_a}, witness has the row {bool(got_a)}")
+    if not (listening_mid and back and not own_a and voiced >= 3.0 and got_a and d_a and d_a[0] == "wispr-history"):
+        bad.append("a")
+    wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
+    time.sleep(2.2)
+    # (b) never back
+    witness_clear(); m = log_mark()
+    rb = _open_with_poll(db)
+    th = _bg_play(CLIP_SPEECH)   # the whole clip: ~3.6–4.2 s voiced; cut at the 2 s off, < 1 s
+    time.sleep(2.0)
+    post("/test/wispr", {"on": False, "via": "poll"}); t_off = time.time()
+    held = wait_for(lambda: bool(live().get("ownTake")), 6, 0.05)
+    dh = time.time() - t_off
+    still = state()["listening"]
+    th.join(20)
+    _direct("forward-right")
+    got_b = wait_for(lambda: witness_text().strip(), 40, 0.3)
+    d_b = _landed(m)
+    txt = log_since(m)
+    v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
+    voiced_b = float(v[-1]) if v else 0.0
+    notes.append(f"(b) never back: ownTake {bool(held)} {dh:.2f} s after the off, listening {still}, delivery {d_b}, "
+                 f"voiced {voiced_b:.1f} s, witness {len(witness_text().strip())} chars")
+    if not (held and 3.5 <= dh <= 5.0 and still and got_b and d_b and d_b[0] == "local-fallback"
+            and d_b[1].startswith("terminal:") and voiced_b >= 3.0):
+        bad.append("b")
+    db.update(rb, status="dismissed")
+    return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
+
+
+@case("TW46", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="a relay start Wispr never takes (no row, no microphone): the 📮 probe at 1.5 s names the chord; his stop "
+             "posts no chord and the local model delivers at once (local-fallback → terminal within the Q14 p99), "
+             "never the 30 s capture timeout")
+def tw46():
+    """09:51 on 2026-09-29: the start was lost, the stop chord went out anyway (09:45: it started a ghost
+    Wispr recording) and the sentence waited 30 s for a row that could not come. W6's check asked
+    `!isRecording`, which a relay start sets at the gesture. Desk: chords muted, no row ever inserted."""
+    db = desk()
+    bind_witness(); witness_clear()
+    m = log_mark()
+    open_sentence(db, adopt=False)
+    th = _bg_play(CLIP_SPEECH, seconds=6)
+    probe = wait_for(lambda: log_has(m, r"📮 Wispr has not answered the start chord"), 3, 0.1)
+    th.join(20)
+    ms = log_mark(); t0 = time.time()
+    _direct("forward-right")   # the real stop (`stop()`); `/test/wispr-chord {state: stop}` goes around it
+    d = _landed(ms, tmo("q14"))
+    dt = time.time() - t0
+    txt = log_since(ms)
+    said = "stop without a chord — Wispr never took the start" in txt
+    chord_after = re.search(r"fn ⌃ Space", txt) is not None
+    timed_out = "nothing came back within 30 s" in txt
+    note = (f"probe line {bool(probe)}; stop line {said}; a chord after the stop {chord_after}; delivery {d} "
+            f"{dt:.1f} s after the stop; 30 s timeout {timed_out}; witness {len(witness_text().strip())} chars")
+    ok = probe and said and not chord_after and not timed_out and d and d[0] == "local-fallback" \
+        and d[1].startswith("terminal:") and dt < 10
     return ("PASS" if ok else "BUG"), note
