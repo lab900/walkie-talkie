@@ -54,8 +54,10 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
 | `Disconnect` | `mappin.slash` | `➡️ + 🛞` |
 | `Paste last prompt` | 📋 | none since 2026-09-28 (⌘⇧P removed, Q17 — the clipboard holds the sentence) — **enabled off the log, not off this run's memory** (2026-09-22) |
 | — separator — | | |
-| `Start Dictation` | `mic` | `🛞` |
-| `Prompt new Claude` (`Dictate to New Claude` and before it `Start dictation to new claude`, both until 2026-09-22) | ✨ | `🛞🛞` |
+| `Prompt at caret` (2026-09-29, legend — disabled) | `text.cursor` | `🔼` |
+| `Prompt to bound` (`Start Dictation` until 2026-09-29) | `mic` | `🔼 →` / `🛞` |
+| `Prompt to new` (`Prompt new Claude` until 2026-09-29, `Dictate to New Claude` and `Start dictation to new claude` until 2026-09-22) | `mic.badge.plus` | `🔼 ↑` / `🛞🛞` |
+| `Dictate (no Enter)` (2026-09-29, legend — disabled) | `keyboard` | `🔽 →` |
 | `End Dictation` | `mic.slash` | `🛞` |
 | `Cancel Dictation` | 🗑️ | `🛞 2s` |
 | `Recover Dictation` (`Recover Cancelled Dictation` until 2026-09-22) | `arrow.up.trash` — out of the bin | |

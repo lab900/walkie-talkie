@@ -240,7 +240,14 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// Opens the microphone from the menu — see `onStartDictation`. The wheel is
     /// the gesture written on the row; ⌘⌃D, which does the same thing from the
     /// keyboard, went off the menu with ⌘⌃B (Victor, 2026-09-06).
-    private let startDictation = NSMenuItem(title: "Start Dictation", action: nil, keyEquivalent: "")
+    ///
+    /// **The four ways into a sentence, named by where it goes** (Victor,
+    /// 2026-09-29): 🔼 click = *Prompt at caret*, 🔼 → = *Prompt to bound*,
+    /// 🔼 ↑ = *Prompt to new*, 🔽 → = *Dictate (no Enter)*. The two without a
+    /// menu action of their own are legends, like `shot`.
+    private let startDictation = NSMenuItem(title: "Prompt to bound", action: nil, keyEquivalent: "")
+    private let promptAtCaret = NSMenuItem(title: "Prompt at caret", action: nil, keyEquivalent: "")
+    private let dictatePlain = NSMenuItem(title: "Dictate (no Enter)", action: nil, keyEquivalent: "")
     private let stopRecording = NSMenuItem(title: "End Dictation", action: nil, keyEquivalent: "")
     /// Same row, opposite verdict — see `onCancelDictation`.
     private let cancelDictation = NSMenuItem(title: "Cancel Dictation", action: nil, keyEquivalent: "")
@@ -283,7 +290,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// microphone, exactly like the row above it — the only difference is where
     /// the sentence lands, and a new session is the one destination that does
     /// not exist yet when the words start.
-    private let newSession = NSMenuItem(title: "Prompt new Claude", action: nil, keyEquivalent: "")
+    private let newSession = NSMenuItem(title: "Prompt to new", action: nil, keyEquivalent: "")
     /// The shutter. Its one route is named: the back button, only while a dictation
     /// is running — which is also the only window in which it stops typing
     /// Return.
@@ -1068,8 +1075,14 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // that is, and a block whose first row is missing reads as four gestures
         // with no way in.
         menu.addItem(.separator())
+        promptAtCaret.image = Self.symbolIcon("text.cursor")
+        promptAtCaret.isEnabled = false
+        dictatePlain.image = Self.symbolIcon("keyboard")
+        dictatePlain.isEnabled = false
+        menu.addItem(promptAtCaret)
         menu.addItem(startDictation)
         menu.addItem(newSession)
+        menu.addItem(dictatePlain)
         menu.addItem(stopRecording)
         menu.addItem(cancelDictation)
         menu.addItem(localNowItem)
@@ -1201,11 +1214,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
         gestureRows = [
             (bind, bind.title, "◀️ + 🔼", "◀️ + 🛞", Chord("", "◐"), Chord("", "◐")),
             (disconnect, disconnect.title, "🔽 ↓", "▶️ + 🛞", Chord("", "⇓"), Chord("", "◑")),
+            (promptAtCaret, promptAtCaret.title, "🔼", "🔼", Chord("", "○"), Chord("", "○")),
             (startDictation, startDictation.title, "🔼 →", "🛞", Chord("", "⇢"), Chord("", "◎")),
             // Right under `Start Dictation`'s own gesture, which is the pair the
             // order is for: one talks to what is bound, the one above it talks to
             // a session that is not open yet.
             (newSession, newSession.title, "🔼 ↑", "🛞🛞", Chord("", "⇡"), Chord("", "⦿")),
+            (dictatePlain, dictatePlain.title, "🔽 →", "🔽 →", Chord("", "⇒"), Chord("", "⇒")),
             // The same gesture as Start: it is one toggle, and writing it twice
             // is how the menu says so without a sentence.
             (stopRecording, stopRecording.title, "🔼 →", "🛞", Chord("", "⇢"), Chord("", "◎")),
