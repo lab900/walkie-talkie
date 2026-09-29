@@ -1426,3 +1426,35 @@ def tw42():
     if not (closed and dc <= 0.8 and not own_c and got_c):
         bad.append("c")
     return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
+
+@case("TW43", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="item 5: Wispr's process exiting while the relay's words are in flight is told at once — the capture lets "
+             "go ≤ 0.3 s after the exit (not at the next WAL commit / 1 s tick) and the take goes to Q14: "
+             "`local-fallback → terminal`, before the auto p98 budget")
+def tw43():
+    """Item 5 (lab wave 4, TW20: the quit noticed 1.48 s after the kill — the quit check rode `pollHistory`,
+    which since batch 3 runs on WAL commits and a 1 s tick). The exit is now the kernel's event
+    (`ProcessExitWatch`); `POST /test/wispr-proc {"fakeExit"}` delivers it at a desk with no signal. The
+    sentence is stopped, its fake row `processing`, and the exit comes 0.5 s later."""
+    db = desk()
+    bind_witness(); witness_clear()
+    m = log_mark()
+    ra = open_sentence(db)
+    post("/test/wispr", {"on": True}); time.sleep(0.3)
+    play(CLIP_SPEECH, seconds=6)
+    chord(state_="stop")
+    db.update(ra, status="processing", duration=6.0)
+    time.sleep(0.5)
+    t0 = time.time()
+    post("/test/wispr-proc", {"fakeExit": True})
+    d = _ended(t0, 5)
+    dl = _landed(m)
+    txt = log_since(m)
+    fired = re.search(r"⏱ .+ over budget", txt) is not None
+    told = "the sentence given to it is told at once" in txt
+    db.update(ra, status="dismissed")
+    note = (f"capture let go {('%.2f s' % d) if d is not None else 'NOT within 5 s'} after the exit; exit line {told}; "
+            f"delivery {dl}; auto p98 fired first {fired}; witness {len(witness_text().strip())} chars")
+    ok = d is not None and d <= 0.3 and told and dl and dl[0] == "local-fallback" and dl[1].startswith("terminal:") \
+        and not fired
+    return ("PASS" if ok else "BUG"), note

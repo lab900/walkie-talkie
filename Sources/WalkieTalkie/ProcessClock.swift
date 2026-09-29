@@ -38,3 +38,26 @@ enum ProcessClock {
         return Int32(i.kp_proc.p_stat) != SZOMB
     }
 }
+
+/// **One process's exit, told by the kernel** (`EVFILT_PROC` / `NOTE_EXIT`
+/// through a dispatch process source) — batch 4, item 5: Wispr Flow's quit
+/// noticed when it happens, not at the next row-reader pass. One-shot; the
+/// handler runs on `queue` with the pid. Cancelled on deinit.
+final class ProcessExitWatch {
+    let pid: pid_t
+    private let source: DispatchSourceProcess
+
+    init(pid: pid_t, queue: DispatchQueue = .main, _ onExit: @escaping (pid_t) -> Void) {
+        self.pid = pid
+        source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: queue)
+        let src = source
+        source.setEventHandler {
+            src.cancel()
+            onExit(pid)
+        }
+        source.resume()
+    }
+
+    func cancel() { source.cancel() }
+    deinit { source.cancel() }
+}

@@ -279,6 +279,9 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   on `wisprPidAtChord` (kernel table, zombie = dead), again 0.3 s later (`quitCloseGrace`); gone →
   `abandonForDeadWispr` → `holdOwnTake("Wispr Flow quit")`, alive → `closeListening` as before. Desk:
   `POST /test/wispr-proc {"fakeExit": true}` (no signal), TW42.
+- **Wispr's exit is watched, not polled** (batch 4, item 5 — TW20's quit took 1.48 s once the WAL
+  watch replaced the 150 ms poll the check rode on): `ProcessExitWatch` (`NOTE_EXIT`) on the pid at
+  every capture → `abandonForDeadWispr` at once. `wisprLive.exitWatchPid` / `exited`.
 - **A Wispr that quit is not slow:** `pollHistory` checks the main process by the anchored path
   `/Applications/Wispr Flow.app/Contents/MacOS/Wispr Flow` (two absences, 300 ms) **and** compares
   the pid read at the chord (`wisprPidAtChord`) — the harness relaunches Wispr in 200 ms.

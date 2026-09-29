@@ -1426,6 +1426,9 @@ final class WisprFlowSource: DictationSource {
                 "pidAtChord": Int(wisprPidAtChord),
                 // Batch 4: the relay's own recording carrying the sentence, and since when.
                 "ownTake": ownTakeOnly.map { ["why": $0, "for": CFAbsoluteTimeGetCurrent() - ownTakeSince] as [String: Any] } ?? NSNull(),
+                // Item 5: the exit watch — which pid, and the last exit it saw.
+                "exitWatchPid": Int(exitWatchPid),
+                "exited": exitedAt.map { ["pid": Int(exitedPid), "at": Outbox.iso($0)] as [String: Any] } ?? NSNull(),
                 "chordsMuted": HotkeyTap.wisprChordsMuted,
                 // Batch 3 (2026-09-28): what woke the row readers, and when the
                 // capture's reader saw its row change (wall clock, ms).
@@ -1443,6 +1446,10 @@ final class WisprFlowSource: DictationSource {
         let pid = wisprPidAtChord != 0 ? wisprPidAtChord : Self.wisprMainPid
         fakeExitedPid = pid
         Log.info("🧪 POST /test/wispr-proc {fakeExit} — pid \(pid) reads as exited (no signal sent)")
+        // Item 5: as the kernel's exit event would say it.
+        wisprExited(pid, how: "POST /test/wispr-proc {fakeExit}")
+        // The watch stays on the real, living process.
+        watchWisprExit(Self.wisprMainPid)
         return ["ok": true, "pid": Int(pid), "fakeExit": true]
     }
 
@@ -2075,6 +2082,7 @@ final class WisprFlowSource: DictationSource {
         sawWisprGone = 0
         wisprPidAtChord = Self.wisprMainPid
         fakeExitedPid = 0
+        watchWisprExit(wisprPidAtChord)
         armedAt = CFAbsoluteTimeGetCurrent()
         captureFrom = armedAt
         askedForCopy = false
@@ -3025,6 +3033,47 @@ final class WisprFlowSource: DictationSource {
     /// exited, no signal sent (a desk must never kill his real Wispr). Cleared at
     /// the next capture.
     private var fakeExitedPid: pid_t = 0
+
+    // MARK: - Item 5 (batch 4): Wispr's exit, watched — not polled
+
+    /// **The kernel says when Wispr's process exits** (`EVFILT_PROC`/`NOTE_EXIT`
+    /// through a dispatch process source, on main). Lab wave 4, TW20: the quit
+    /// was noticed 1.48 s after the kill (wave 3: 0.34 s) — the quit check lives
+    /// in `pollHistory`, and since batch 3 that runs on the WAL watch's commits
+    /// and its 1 s safety tick, not the 150 ms poll it used to ride. Armed at
+    /// every capture on the pid the sentence was given to; one at a time.
+    private var exitWatch: ProcessExitWatch?
+    private var exitWatchPid: pid_t { exitWatch?.pid ?? 0 }
+    /// The last Wispr pid the watch saw exit, and when (for `wisprLive`).
+    private var exitedPid: pid_t = 0
+    private var exitedAt: Date?
+
+    private func watchWisprExit(_ pid: pid_t) {
+        guard pid > 0, exitWatchPid != pid else { return }
+        exitWatch?.cancel()
+        exitWatch = ProcessExitWatch(pid: pid) { [weak self] pid in
+            self?.wisprExited(pid, how: "the kernel's exit event")
+        }
+    }
+
+    /// **Wispr's process is gone — the sentence given to it is told now**: still
+    /// recording → the relay's own recording carries it to his stop (item 3);
+    /// its words in flight → Q14 on the relay's recording at once
+    /// (`abandonForDeadWispr`), not at the next WAL commit or safety tick.
+    private func wisprExited(_ pid: pid_t, how: String) {
+        if exitWatchPid == pid {
+            exitWatch?.cancel()
+            exitWatch = nil
+        }
+        exitedPid = pid
+        exitedAt = Date()
+        guard pid == wisprPidAtChord, capturing || isRecording || speculative, ownTakeOnly == nil else {
+            Log.info("⚡ Wispr Flow's process \(pid) exited (\(how)) — no sentence of the relay's is on it")
+            return
+        }
+        Log.info("⚡ Wispr Flow's process \(pid) exited — \(how); the sentence given to it is told at once")
+        abandonForDeadWispr("pid \(pid) exited, \(how)")
+    }
 
     /// **Wispr is gone and the sentence went with it.** Everything this capture
     /// holds is handed back on the way out: `closeListening` releases the chord

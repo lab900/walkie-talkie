@@ -14624,3 +14624,12 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   real child process's age); `POST /test/local-auto {"wisprAge": s｜null}` fakes the age;
   `state.localAuto.wispr {processAge, fakeAge, notUp}`. Desk TA6. The lab's TX9 is the real test; TQ4's
   +2 s sentence (Wispr up 2 s) is now borrowed too — by design, it no longer waits on a young Wispr.
+- **5. Wispr's quit is the kernel's event, not a poll's.** TW20 went from 0.34 s (wave 3) to 1.48 s
+  (wave 4) between the kill and `listening` down: the quit check lives in `pollHistory`, and batch 3's
+  WAL watch replaced the 150 ms history poll it rode on — it now runs on Wispr's commits and a 1 s
+  safety tick, and a dead Wispr commits nothing. `ProcessExitWatch` (a dispatch process source,
+  `NOTE_EXIT`) is armed at every capture on the pid the sentence was given to: the exit calls
+  `abandonForDeadWispr` at once — still recording → item 3's hold, words in flight → Q14 on the
+  relay's recording. Unit tests: a SIGKILLed child is told in < 0.2 s, a cancelled watch says nothing.
+  `wisprLive {exitWatchPid, exited}`. Desk TW43 (exit 0.5 s into the settle: the capture lets go
+  ≤ 0.3 s, `local-fallback → terminal`, before the p98 budget); the lab's TW20 measures the real kill.
