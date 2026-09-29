@@ -4244,9 +4244,25 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 if down { usleep(30_000) }
             }
             Log.info("⌨️ right ⌘⌥ + F19 posted under his held pair — Wispr's hands-free")
+            noteWisprChordPost("right ⌘⌥ + F19 under his held pair")
         }
     }
     private static let VK_F19: CGKeyCode = 80
+
+    /// **How the last Wispr start/stop chord left, and when** (2026-09-29) — read
+    /// by `WisprFlowSource`'s start-chord probe, so a start Wispr never answered
+    /// says whether the chord went out at all, and under what. Six forward-button
+    /// starts were lost 09:43–09:52 that morning and the log could not tell.
+    private static let chordPostLock = NSLock()
+    private static var chordPost: (at: CFAbsoluteTime, what: String)?
+    private static func noteWisprChordPost(_ what: String) {
+        chordPostLock.lock(); defer { chordPostLock.unlock() }
+        chordPost = (CFAbsoluteTimeGetCurrent(), what)
+    }
+    static func lastWisprChordPost() -> (at: CFAbsoluteTime, what: String)? {
+        chordPostLock.lock(); defer { chordPostLock.unlock() }
+        return chordPost
+    }
 
     private static func wisprShortcut(named action: String, exactly chord: String) -> Bool {
         let url = FileManager.default.homeDirectoryForCurrentUser
@@ -4342,11 +4358,18 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             }
             let still = CGEventSource.flagsState(.combinedSessionState).intersection(watched)
             let ms = Int(settleForOptionsPlus / 1000) + waited * 5
+            // The hardware's view too: the wait reads the session's flags, which
+            // a synthetic post moves before the HID state does (10:34 on
+            // 2026-09-29: "bare" and Wispr still ignored the start).
+            let hid = CGEventSource.flagsState(.hidSystemState).intersection(watched)
+            let hidNote = hid.isEmpty ? "" : ", HID still 0x\(String(hid.rawValue, radix: 16))"
             if still.isEmpty {
-                Log.info("⌨️ fn ⌃ Space posted \(ms) ms after the ask — the wire was bare")
+                Log.info("⌨️ fn ⌃ Space posted \(ms) ms after the ask — the wire was bare\(hidNote)")
+                noteWisprChordPost("fn ⌃ Space on a bare wire after \(ms) ms\(hidNote)")
             } else {
                 Log.error("⌨️ fn ⌃ Space posted \(ms) ms after the ask with modifiers still down "
-                          + "(0x\(String(still.rawValue, radix: 16))) — Wispr may not take it")
+                          + "(0x\(String(still.rawValue, radix: 16))\(hidNote)) — Wispr may not take it")
+                noteWisprChordPost("fn ⌃ Space under 0x\(String(still.rawValue, radix: 16)) after \(ms) ms\(hidNote)")
             }
             let source = CGEventSource(stateID: .hidSystemState)
             source?.userData = backButtonStamp

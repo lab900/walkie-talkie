@@ -14905,3 +14905,39 @@ running", and once "missed the middle". From `relay.log` and the corpus:
   first instant, not mid-take. So the next one has to be caught live: the `local whisper:` line now
   carries the helper's `coverage` — segments, seconds covered of the total, the longest gap and
   where it starts, the fallback temperature, and whether the loop retry ran.
+
+## Wispr as the engine, 29 Sep: the incidents and the diagnostics they asked for (2026-09-29)
+
+Victor, 21:03: *"Wispr Flow failed to launch today while I was using it as an engine … I fell back to
+the local model at some point."* Wispr's process never restarted (pid 29987, up since 28 Sep 22:14);
+"failed to launch" is Wispr not **starting a dictation**. Engine = Wispr 09:43 → 12:47, then local.
+Read from `relay.log` and Wispr's own `History` rows:
+
+- **09:43–09:52, six forward-button starts lost** (rows 17908–17912 `dismissed`, 2–3 s each: the
+  *stop* chord started Wispr, the ghost watch dismissed it). Every sentence was saved by Q14 /
+  ⌘⌃X on the local model. Cause already fixed at 09:54 (`c613e06`: Options+ holds ⌃⌥⌘ while the
+  button is down; the chord now waits up to 1.5 s for a bare wire and says so). **09:51:07 waited
+  30 s** for a row that could not come (no row, no microphone, stop posted no chord — W6) before
+  `captureTimeout` handed it to the local model; Victor pressed ⌘⌃X on the next one.
+- **10:34, a desk `POST /test/gesture`: the same lost start after the fix** — `fn ⌃ Space posted
+  45 ms after the ask — the wire was bare`, yet no row until the stop chord 2.8 s later. The wait
+  reads only the session's flags; cause unknown.
+- **12:20 and 12:34, the right ⌘⌥ + F19 hold:** the 100 ms poll saw Wispr's input stop ~1 s in,
+  the 1 s grace saw Wispr alive, the relay closed its take at 2.8 / 2.6 s. Wispr's input came back
+  (read as *his own Wispr sentence*), it recorded to 8.7 / 10.0 s, and the row landed "8.4 / 9.4 s
+  after the close" — logged as Wispr `+1637%` over its prediction and *over budget*, while the
+  relay's own take (Q14's stand-in, the p95 decode ahead) held only the first 2.5 s.
+
+Added (log only, no behaviour change):
+- **`📮 Wispr has not answered the start chord 1.5 s after it`** (`armChordAnswerProbe`): how the
+  chord left (`HotkeyTap.lastWisprChordPost` — or *NO chord posted for this gesture*), Wispr's pid,
+  age and input, the row on top and when it opened, session + HID modifier flags now, Secure
+  Input, the front app.
+- The fn ⌃ Space line names **HID flags still down** when the hardware state disagrees.
+- **`🎙️ Wispr's input reopened N s after the relay took its close as the end of row R`** — a blip,
+  not an end (`noteWisprSideClose` / `noteInputReopened`).
+- **`wispr history: row R recorded X s, the relay closed its take at Y s`** at delivery.
+
+Open, not fixed: a Wispr-side close under the F19 hold should not end the take while the row is
+still NULL (wait for the row or a reopen); a relay stop with no row and no microphone should go to
+the local model at once, not after 30 s.

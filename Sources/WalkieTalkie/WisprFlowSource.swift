@@ -1715,6 +1715,7 @@ final class WisprFlowSource: DictationSource {
         speculativeDrop?.cancel()
         speculativeDrop = drop
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.speculativeGrace, execute: drop)
+        if relay { armChordAnswerProbe(chord: gestureAt) }
         // **The swallow window and the row poll are armed here, at the start
         // chord** (2026-09-13). They used to be armed at the microphone's close,
         // which is the single decision both failures of that day came out of: a
@@ -1752,6 +1753,72 @@ final class WisprFlowSource: DictationSource {
     /// relay's own stop gesture, by the poll, by the notification, or by Victor's
     /// own chord. Whoever said so, this is the one place the sentence stops being
     /// heard and starts being waited for.
+    /// **Did Wispr take the relay's start chord? Asked at 1.5 s, said once**
+    /// (2026-09-29). Six forward-button starts in a row went unanswered that
+    /// morning (09:43–09:52) and the log said so only at 12 s — *did not answer
+    /// the chord* — with nothing about why. Wispr makes its row ~100 ms after a
+    /// chord it took (357 ms cold), so 1.5 s with no row and no microphone is a
+    /// lost start; this line keeps what can still be read then: how the chord
+    /// left, the modifiers on the wire now, Secure Input, Wispr's age and input,
+    /// the row on top, and who is in front. Diagnosis only — nothing changes.
+    private static let chordAnswerProbe: TimeInterval = 1.5
+    private func armChordAnswerProbe(chord: CFAbsoluteTime) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.chordAnswerProbe) { [weak self] in
+            guard let self, self.gestureAt == chord, self.relayStarted,
+                  self.isRecording || self.speculative, self.ownTakeOnly == nil,
+                  self.historyRow == nil, !self.micSeen else { return }
+            let posted: String
+            if let p = HotkeyTap.lastWisprChordPost(), p.at >= chord - 0.05 {
+                posted = String(format: "%@, %.0f ms after the gesture", p.what, (p.at - chord) * 1000)
+            } else {
+                posted = "NO chord posted for this gesture"
+                    + (HotkeyTap.lastWisprChordPost().map { " (the last one: \($0.what))" } ?? "")
+            }
+            let pid = Self.wisprMainPid
+            let wispr = pid > 0
+                ? "Wispr pid \(pid), " + (ProcessClock.age(pid).map { String(format: "%.0f s old", $0) } ?? "age unknown")
+                    + ", input " + (self.watch.sampleIsRunningInput() ? "running" : "idle")
+                : "Wispr is not running"
+            let top = WisprHistory.newest().map { e in
+                String(format: "row on top %lld '%@', opened %.1f s %@ the gesture", e.rowid, e.status,
+                       abs(e.startedAt - self.openedAt), e.startedAt >= self.openedAt ? "after" : "before")
+            } ?? "no row readable"
+            let watched: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift, .maskSecondaryFn]
+            let session = CGEventSource.flagsState(.combinedSessionState).intersection(watched).rawValue
+            let hid = CGEventSource.flagsState(.hidSystemState).intersection(watched).rawValue
+            let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+            Log.error(String(format: "📮 Wispr has not answered the start chord %.1f s after it — no row, no microphone. "
+                             + "Chord: %@. %@. %@. Modifiers now: session 0x%llx, HID 0x%llx. %@. Front: %@",
+                             Self.chordAnswerProbe, posted, wispr, top, session, hid,
+                             HotkeyTap.keyboardHidden() ?? "keys visible to the tap", front))
+        }
+    }
+
+    /// **A Wispr-side close that was not Wispr's end** (2026-09-29, 12:20 and
+    /// 12:34): under the right ⌘⌥ + F19 hold the 100 ms poll saw Wispr's input
+    /// stop ~1 s in, the grace saw Wispr alive and the relay closed its take at
+    /// 2.6–2.8 s — then Wispr's input came back, it went on recording to 8.7 and
+    /// 10 s and the row landed 8–9 s "late". Stamped here, checked when Wispr's
+    /// input reopens (`noteInputReopened`) and when the row lands (`duration`).
+    private var wisprSideCloseAt: CFAbsoluteTime = 0
+    private var wisprSideCloseRow: Int64?
+    private func noteWisprSideClose() {
+        guard relayStarted, !cancelling else { return }
+        wisprSideCloseAt = CFAbsoluteTimeGetCurrent()
+        wisprSideCloseRow = historyRow
+    }
+    private func noteInputReopened() {
+        let since = CFAbsoluteTimeGetCurrent() - wisprSideCloseAt
+        guard wisprSideCloseAt > 0, since < 8, let row = wisprSideCloseRow else { return }
+        wisprSideCloseAt = 0
+        let status = WisprHistory.entry(rowid: row)?.status ?? "unreadable"
+        guard WisprState.intermediateStatuses.contains(status) else { return }
+        Log.error(String(format: "🎙️ Wispr's input reopened %.1f s after the relay took its close as the end of row %lld — "
+                         + "the row is still '%@': Wispr is still on this sentence, a blip, not its end; "
+                         + "the relay's own take (the Q14 stand-in) stopped at %.1f s",
+                         since, row, status, spokenFor))
+    }
+
     private func closeListening(_ why: String) {
         guard isRecording || speculative else { return }
         // Batch 4: a sentence the relay's own recording carried (Wispr out of it)
@@ -2137,6 +2204,7 @@ final class WisprFlowSource: DictationSource {
                   watch.sampleIsRunningInput() else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, !self.isRecording, !self.speculative else { return }
+                self.noteInputReopened()
                 self.feedOwnSentence("Wispr opened its input on its own")
             }
             return
@@ -2738,6 +2806,15 @@ final class WisprFlowSource: DictationSource {
                 didEnd?(.silent(""))
                 return
             }
+            // **Wispr's take against the relay's** (2026-09-29): a row that
+            // recorded seconds past the relay's close means that close was not
+            // Wispr's end — the relay's own take, and anything decoded ahead from
+            // it, is short by that much (12:20: 8.7 s against 2.8 s).
+            if let d = e.duration, spokenFor > 0, d - spokenFor > 2 {
+                Log.error(String(format: "wispr history: row %lld recorded %.1f s, the relay closed its take at %.1f s — "
+                                 + "Wispr went on %.1f s past the relay's close",
+                                 e.rowid, d, spokenFor, d - spokenFor))
+            }
             // **In Scratchpad mode the row is the delivery and the note is the
             // cross-check** (2026-09-13, after the first working run).
             //
@@ -3239,6 +3316,7 @@ final class WisprFlowSource: DictationSource {
         case .quit:
             abandonForDeadWispr("\(gone ?? "its exit came first") — its microphone closed with it (\(why))")
         case .wisprEnded:
+            noteWisprSideClose()
             wisprEnded()
         case .pending(let until):
             if let earlier = pendingWisprEnded {
@@ -3280,6 +3358,7 @@ final class WisprFlowSource: DictationSource {
                      ? "⏳ Wispr's row moved after the close — Wispr is alive and ended the dictation itself"
                      : String(format: "⏳ Wispr outlived the %.1f s grace — it ended the dictation itself (%@)",
                               WisprState.quitCloseGrace, state.wisprCloseBy))
+            noteWisprSideClose()
             ended()
         }
     }

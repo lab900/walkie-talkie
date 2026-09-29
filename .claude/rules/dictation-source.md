@@ -561,3 +561,11 @@ name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
   model as Q21 did. **The start chord waits up to 1.5 s for a bare wire and logs it** (`⌨️ fn ⌃ Space
   posted N ms after the ask`); it was 200 ms and silent.
 - `GET /test/state` → `wisprLive.bridge` {`feed`, `holding`, `held`, `queued`, `pending`}.
+
+## Diagnostics for a Wispr that will not start (2026-09-29)
+
+Three log lines, no behaviour behind them (journal: *Wispr as the engine, 29 Sep*):
+`📮 Wispr has not answered the start chord 1.5 s after it` (how the chord left — or that it never
+did — Wispr's pid/age/input, the row on top, session + HID flags, Secure Input, the front app);
+`🎙️ Wispr's input reopened N s after the relay took its close as the end of row R` (a poll close that
+was a blip); `wispr history: row R recorded X s, the relay closed its take at Y s`. Grep these first.
