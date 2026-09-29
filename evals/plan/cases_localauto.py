@@ -321,7 +321,9 @@ def ta6():
         wait_for(lambda: not state()["listening"] and not state()["settling"], 20, 0.3)
         time.sleep(1.5)
         # the real age (his Wispr, long up): not borrowed
-        auto(wisprAge=None)
+        # `fakeLaunch: false` also forgets the (fake) launch the first start recorded — it would
+        # otherwise read as "launched by the relay 10 s ago" and borrow again, rightly.
+        auto(wisprAge=None, fakeLaunch=False)
         m2 = log_mark()
         cw._direct("forward-right")
         opened2 = wait_for(lambda: state()["listening"], 6)

@@ -14648,3 +14648,33 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   from a separate driver bundle for the relay, e.g. `blackhole-16ch`; **not installed**). Wave 5:
   `evals/plan/vm/wispr/wave5-rerun.txt`, `chain-wave5.sh` (its `warm()` restarts a helper that is
   neither ready nor loading — `{}` only reads), `run-w5phase.sh`, `bhcheck.py`.
+
+**Desk** (installed 03:17 through `relay-restart.sh --build`, gate open at once; the screen was
+locked all night — Secure Input — so every case ran keyless: `/test/wispr-chord` states and
+`/test/gesture {"direct"}`, a fake `History`, chords muted, clips into `🧪 WT Inject`; his Wispr
+never touched; ElevenLabs 0 credits). `report-wispr-batch4*.md`:
+- **TW41 PASS** (F1): at 13 s still listening with `ownTake: Wispr Flow did not answer the chord`,
+  nothing delivered before the stop; after the stop `local-fallback → terminal:ttys000`, 265 chars
+  (the whole 12 s clip, 4.2 s voiced), no `🧷 stuck`, nothing at the caret — after a cancelled caret
+  prompt had left `latchedAtCaret` true, exactly TW4's predecessor.
+- **TW42 PASS** on the second run (item 3): (a) held 0.04 s after the exit, still listening 2 s on,
+  4.4 s voiced — the whole clip — `local-fallback → terminal`; (b) the close first, the exit 0.1 s
+  later: held inside the 0.3 s grace; (c) Wispr alive: closed 0.39 s after the edge, no hold, the
+  row delivered. First run BUG on the case: a 5 s voiced bar the 12 s clip never reaches (it
+  measures 4.2–4.4 s), and the simulated open edge is not delivered once the row has confirmed the
+  ring, so (c)'s close had no matching open — the case now opens the edge before the row.
+- **TW43 PASS** (item 5): the capture let go 0.05 s after the exit, `local-fallback → terminal`,
+  before the p98 budget.
+- **TA6 PASS** on the second run (item 4): borrowed at `its process is 3.0 s old`, `local-whisper`
+  into the witness; with the real age (5 h) not borrowed. First run FAIL on the case: its fake
+  launch was still 11 s old for the second start — the relay-launched rule borrowing, rightly.
+- Regression: TW22, TW32, TW35, TW36, TW37, TW38 (WAL max 35 ms), TW40 PASS; **TW39** BUG after
+  item 6's rig change (his row inserted at the capture's end fell inside B-risk's 1 s window after
+  the relay's chord → "not his"); the relay sentence now lasts 2.5 s before its stop → PASS.
+
+**Only the VM can confirm** (`evals/plan/vm/wispr/wave5-rerun.txt`): F1 on the real cold Wispr (TW4
+×2 — the hold at 12 s, the stop, `→ terminal`); E-FP on a real Wispr microphone (TW4 → TW8a back to
+back: the disarm line, row 227-style delivered by Wispr, not local-auto) and that TX3/TX6b's true
+ghosts are still dismissed; item 3 + 5 on a real SIGKILL (TW20 ≤ 0.6 s, TQ2's whole take delivered;
+whether the kernel's exit or the poll's close comes first); item 4 on a real outside relaunch (TX9
+1.3–1.6 s, not 4.3–6.3 s); criterion (g) (TW11) and TS3 with 2 s gaps. Finding A stays the rig's.

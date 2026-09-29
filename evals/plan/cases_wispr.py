@@ -1177,7 +1177,9 @@ def tw39():
     def pb(text):
         subprocess.run(["pbcopy"], input=text.encode())
     def claim_after(ra_text, prepare):
-        ra = open_sentence(db); time.sleep(0.5)
+        # 2.5 s, not 0.5: his row is inserted the moment the capture lets go, and a row opened
+        # within ~1 s of the relay's own chord is the relay's (B-risk, TX6b) — never claimed.
+        ra = open_sentence(db); time.sleep(2.5)
         close_sentence(db, ra, text=ra_text)
         # Lab wave 4 (batch 4): the tail's 1.5 s runs from the capture's end, not from the words
         # reaching the witness — on a slow guest the prompt panel took ~4 s, the tail watch had
@@ -1360,6 +1362,20 @@ def _landed(mark, timeout=40):
     d = re.search(r"📦 delivery: (\S+) → (\S+)", log_since(mark))
     return d.groups() if d else None
 
+def _open_with_mic(db):
+    """A relay sentence whose Wispr microphone the relay SAW open (the simulated CoreAudio edge,
+    while the ring is still a guess — once the row confirms it the fake edge is not delivered, so
+    its close would have no matching open), then Wispr's row adopted."""
+    chord(state_="start")
+    if not wait_for(lambda: state()["listening"], 3):
+        raise RuntimeError("the relay did not open the sentence")
+    post("/test/wispr", {"on": True})
+    time.sleep(0.4)
+    rid = db.insert(at=time.time())
+    if not wait_for(lambda: live()["captureRow"] == rid, 3):
+        raise RuntimeError(f"fake row {rid} was not adopted")
+    return rid
+
 @case("TW42", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="item 3: Wispr quitting mid-sentence (fakeExit + its microphone closing) is not his stop — the relay's "
              "own recording goes on (`ownTake` ≤ 0.6 s), his stop closes it, the WHOLE take is decoded locally into the "
@@ -1370,15 +1386,14 @@ def tw42():
     TW20 0.2 s). At a desk his real Wispr is never killed: `POST /test/wispr-proc {"fakeExit"}` makes the
     sentence's Wispr read as exited, `/test/wispr {"on": false}` is the microphone closing with it.
     (a) exit then close, 3 s into CLIP_SPEECH: held, still listening 2 s later, stop after the clip →
-    `local-fallback → terminal`, ≥ 5 s voiced. (b) close, then the exit 0.1 s later: the 0.3 s grace
+    `local-fallback → terminal`, ≥ 3 s voiced (the whole clip is ~4.2 s voiced). (b) close, then the exit 0.1 s later: the 0.3 s grace
     holds it. (c) control: a close with Wispr alive → the sentence closes (no ownTake), row delivered."""
     db = desk()
     bind_witness(); witness_clear()
     notes, bad = [], []
     # (a)
     m = log_mark()
-    ra = open_sentence(db)
-    post("/test/wispr", {"on": True}); time.sleep(0.3)
+    ra = _open_with_mic(db)
     th = _bg_play(CLIP_SPEECH)
     time.sleep(3.0)
     post("/test/wispr-proc", {"fakeExit": True})
@@ -1397,15 +1412,14 @@ def tw42():
     notes.append(f"(a) held {bool(held)} in {dq:.2f} s, listening 2 s on {still}, delivery {d}, voiced {voiced:.1f} s, "
                  f"witness {len(witness_text().strip())} chars")
     if not (held and dq <= 0.6 and still and got and d and d[0] == "local-fallback" and d[1].startswith("terminal:")
-            and voiced >= 5.0):
+            and voiced >= 3.0):   # the whole 12 s clip measures ~4.2 s voiced (TW41); cut at 3 s it was ~1
         bad.append("a")
     db.update(ra, status="dismissed")
     wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
     time.sleep(2.2)
     # (b)
     witness_clear(); m = log_mark()
-    rb = open_sentence(db)
-    post("/test/wispr", {"on": True}); time.sleep(0.3)
+    rb = _open_with_mic(db)
     th = _bg_play(CLIP_SPEECH, seconds=6)
     time.sleep(2.0)
     post("/test/wispr", {"on": False}); time.sleep(0.1)
@@ -1422,8 +1436,7 @@ def tw42():
     time.sleep(2.2)
     # (c) control
     witness_clear(); m = log_mark()
-    rc = open_sentence(db)
-    post("/test/wispr", {"on": True}); time.sleep(1.5)
+    rc = _open_with_mic(db); time.sleep(1.2)
     post("/test/wispr", {"on": False}); tc = time.time()
     closed = wait_for(lambda: not state()["listening"], 2, 0.05)
     dc = time.time() - tc
