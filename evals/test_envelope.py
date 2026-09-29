@@ -338,9 +338,9 @@ class FrameList(unittest.TestCase):
         `auto` on the token since 2026-09-20 — the frame he did not press for
         says so rather than being inferred from its position.
         """
-        # A blank line after it since 2026-09-25 — the token is the frame's
-        # caption, not the first word of the sentence.
-        self.assertRegex(self.line, r"^\[📸0(🖱️@\d+:\d+)? auto\]\n\n\S")
+        # A line of its own (2026-09-25) — the token is the frame's caption, not
+        # the first word of the sentence; no blank line under it since 2026-09-29.
+        self.assertRegex(self.line, r"^\[📸0(🖱️@\d+:\d+)? auto\]\n\S")
         self.assertRegex(self.line, r"\[📸0 = 📁/screenshot-0(-\d+)?-800px\.jpg")
         self.assertNotIn("[and shot", self.line)
         self.assertNotIn("[the screen when I started talking", self.line)
@@ -725,8 +725,10 @@ class FoldedFrameRows(unittest.TestCase):
 
     def test_the_templated_row_still_says_both_widths(self):
         row = [r for r in self.line.splitlines() if r.startswith("[📸n = ")][0]
-        self.assertIn("📁/screenshot-n-800px.jpg", row)
-        self.assertIn("at 800px width", row)
+        self.assertIn("📁/screenshot-n-800px.jpg, or", row)
+        # No `at 800px width` since 2026-09-29 — the name says it
+        # (`evals/envelope-width/`: 12/12 read 800 as the width).
+        self.assertNotIn("px width", row)
         self.assertIn("-original.jpg", row)
         # The resolution is the one fact a reader cannot derive from a number.
         self.assertRegex(row, r"-original\.jpg at \d+x\d+px\]$")

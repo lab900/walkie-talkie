@@ -1,0 +1,122 @@
+[
+ {
+  "arm": "old",
+  "model": "sonnet",
+  "run": 0,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width (the file is scaled to 800px wide; the note gives the full-size version as 1920x1080, so the height follows from the 16:9 ratio)",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed the @290:518 pointer position is in the 1920x1080 space and scaled it by 800/1920. The note doesn't say which space it uses."
+ },
+ {
+  "arm": "old",
+  "model": "sonnet",
+  "run": 1,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width: the filename says 'at 800px width', and the original is 1920x1080 (16:9), so 800 is the width",
+  "pointer_in_800": "121,194",
+  "unclear": "Height assumes the 800px file keeps the 1920x1080 aspect ratio (800*1080/1920=450). The pointer @290:518 is assumed to be in 1920x1080 coordinates, scaled by 800/1920 to 121,216. I did not open the file, so this is unchecked."
+ },
+ {
+  "arm": "old",
+  "model": "sonnet",
+  "run": 2,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width: the message says the -800px file is 800px wide, and the original is 1920x1080",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed the pointer @290:518 is in the 1920x1080 original's coordinates, so I scaled it by 800/1920. If it is in screen points or another space, this is off."
+ },
+ {
+  "arm": "old",
+  "model": "opus",
+  "run": 0,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width (the message says 'at 800px width'; height 450 comes from the 16:9 ratio of the 1920x1080 original)",
+  "pointer_in_800": "121,216",
+  "unclear": "I guessed that @290:518 is in 1920x1080 original-pixel coordinates and scaled it by 800/1920; if it's already in 800px space, the pointer is at 290,518, which falls below the 450px bottom edge, so that reading seems unlikely"
+ },
+ {
+  "arm": "old",
+  "model": "opus",
+  "run": 1,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width (stated as 'at 800px width'; I got the height by keeping the 1920x1080 aspect ratio: 1080 × 800/1920 = 450)",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed '@290:518' is x:y in the 1920x1080 original. It can't be in the 800px image, because y=518 is larger than that image's 450px height. I scaled it by 800/1920 ≈ 0.4167 and assumed the resize kept the aspect ratio with no cropping."
+ },
+ {
+  "arm": "old",
+  "model": "opus",
+  "run": 2,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width (the message says '800px width'; 1920x1080 scaled to 800 wide gives 450 high)",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed @290:518 is in the original 1920x1080 coordinates, since y=518 is larger than the 450px height, and scaled it by 800/1920. I also assumed the aspect ratio is kept."
+ },
+ {
+  "arm": "new",
+  "model": "sonnet",
+  "run": 0,
+  "w800": 800,
+  "h800": 450,
+  "dim": "Most likely its width, since the original is 1920x1080 and 800px is the scaled-down version. The message doesn't say so explicitly.",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed 800 is the width, which gives a 16:9 height of 450. I also assumed the pointer @290:518 is in 1920x1080 coordinates, so I scaled it by 800/1920 (about 0.4167)."
+ },
+ {
+  "arm": "new",
+  "model": "sonnet",
+  "run": 1,
+  "w800": 800,
+  "h800": 450,
+  "dim": "800 is the width, which here is also the longest side. The original is 1920x1080, so 800px is a 16:9 downscale.",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed the pointer @290:518 is in the 1920x1080 original's coordinates, so I scaled it by 800/1920. The 450 height follows from that 16:9 assumption, and I didn't open the file to check."
+ },
+ {
+  "arm": "new",
+  "model": "sonnet",
+  "run": 2,
+  "w800": 800,
+  "h800": 450,
+  "dim": "longest side (inferred from the 1920x1080 original; the message doesn't say)",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed @290:518 is in 1920x1080 screen coordinates and that the 800px image is that screen scaled to 800x450. The message states neither."
+ },
+ {
+  "arm": "new",
+  "model": "opus",
+  "run": 0,
+  "w800": 800,
+  "h800": 450,
+  "dim": "its width, which is also its longest side for a 16:9 image (1080 × 800/1920 = 450)",
+  "pointer_in_800": "121,216",
+  "unclear": "I assumed @290:518 is in the 1920x1080 original's pixels. In the 800px file's own pixels, y=518 would fall outside a 450px-high image. If it's in logical screen points (e.g. Retina scaling), the position would be different."
+ },
+ {
+  "arm": "new",
+  "model": "opus",
+  "run": 1,
+  "w800": 800,
+  "h800": 450,
+  "dim": "width (likely): 1920x1080 scaled so the 800 is the width gives 800x450; if 800 were the longest side the result is the same",
+  "pointer_in_800": "121,216",
+  "unclear": "Assumed @290:518 is in the 1920x1080 original's coordinates, since y=518 can't fit inside a 450px-tall image, and scaled it by 800/1920≈0.417. The tag doesn't say which coordinate space it uses, and it might be screen points instead."
+ },
+ {
+  "arm": "new",
+  "model": "opus",
+  "run": 2,
+  "w800": 800,
+  "h800": 450,
+  "dim": "most likely the longest side (the width, since 1920x1080 is landscape); scaling 1920x1080 by 800/1920 gives 800x450",
+  "pointer_in_800": "121,216",
+  "unclear": "I guessed that @290:518 is in the original 1920x1080 space, because y=518 can't fit in a 450px-tall image. If 800 were the height instead (1422x800), the pointer could be 290,518 as given."
+ }
+]

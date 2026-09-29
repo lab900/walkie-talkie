@@ -8250,7 +8250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// ```
     /// [📁=$WALKIE_SHOTS/2026-09-19-17-32-15/17-33-02]
-    /// [📸n = 📁/screenshot-n-800px.jpg at 800px width, or -original.jpg at 3456x2234px]
+    /// [📸n = 📁/screenshot-n-800px.jpg, or -original.jpg at 3456x2234px]
     /// [📸3✂️ = user-selected area between corners (x,y) (900,345)→(2594,574) at
     ///  📁/screenshot-3.jpg; full screen available at -800px and -original.jpg]
     /// [chrome-selection-1 = div.wrap > h1 at https://…]
@@ -8297,11 +8297,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
               !m.inlinedShots.contains(n) else { return "" }
         // `auto:` is true here and nowhere else — this *is* the frame he did not
         // press for, and this is the one place that knows it. See `Token.shot`.
-        // **A blank line after it** (2026-09-25, Victor, correcting a sent
-        // prompt by hand to `[📸0🖱️@1072:2033 auto]`, empty line, then his
-        // words): the token is a caption for the frame, not the start of the
-        // sentence, and on one line with it the first words read as its label.
-        return ShotMarker.Token.shot(n, mouse: m.mice[screen] ?? nil, auto: true) + "\n\n"
+        // **A line of its own** (2026-09-25, Victor, correcting a sent prompt
+        // by hand: the token is a caption for the frame, not the start of the
+        // sentence, and on one line with it the first words read as its label).
+        // **No blank line after it since 2026-09-29** (Victor's edit of a sent
+        // prompt): the newline alone keeps it a caption.
+        return ShotMarker.Token.shot(n, mouse: m.mice[screen] ?? nil, auto: true) + "\n"
     }
 
     private static func artifactsClause(_ m: Message) -> [String] {
@@ -8387,8 +8388,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // Written once, where the first of them would have stood, so the
                 // footer still reads in the order the sentence does.
                 if path == plain.first?.path {
-                    rows.append("[📸n = 📁/screenshot-n-\(ScreenCapture.handoverWidth)px.jpg "
-                        + "at \(ScreenCapture.handoverWidth)px width, "
+                    // **No `at 800px width` since 2026-09-29** (Victor's edit):
+                    // 12/12 fresh agents still read 800 as the width from the
+                    // name and the original's size (`evals/envelope-width/`).
+                    rows.append("[📸n = 📁/screenshot-n-\(ScreenCapture.handoverWidth)px.jpg, "
                         + "or -original.jpg at \(size(path))]")
                 }
                 continue
@@ -8411,8 +8414,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     + "at \(name(cut)); full screen available at -800px and -original.jpg at \(size(path))]")
             } else {
                 rows.append("[\(ShotMarker.Token.key(shot: n, area: false))\(when(n, offset, m.inlinedShots)) = "
-                    + "\(handed) at \(ScreenCapture.handoverWidth)px width, "
-                    + "or -original.jpg at \(size(path))]")
+                    + "\(handed), or -original.jpg at \(size(path))]")
             }
         }
 
