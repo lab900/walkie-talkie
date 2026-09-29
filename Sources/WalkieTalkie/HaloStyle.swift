@@ -327,6 +327,11 @@ enum HaloStyle: String, CaseIterable {
         /// cand urca inelul, pornind de la cursor, impins inapoi in ecran — vezi
         /// `CaretHalo.anchoredFrame` — si sta acolo toata propozitia.
         var anchored = false
+        /// **Pus in mijlocul ecranului**, nu langa cursor (Victor, 2026-09-29, pe
+        /// Sparks: *"has to remain fixed at the center of the screen where the
+        /// mouse is … wherever I move my mouse, that thing stays at the center"*).
+        /// Cere `anchored`: ecranul e cel al cursorului cand urca inelul.
+        var centred = false
         /// Care fluid pur: `false` = Cursify (mod 3), `true` = liquid-cursor (mod 4).
         var liquid = false
         /// ink (mod 5) — are prioritate fata de `liquid`.
@@ -532,6 +537,9 @@ enum HaloStyle: String, CaseIterable {
         //                            triggers properly and wants to be small
         //                            again — which lands it near the 0.55125 it
         //                            had before the two enlargements
+        //   ×1.4 → 0.65212875        2026-09-29, with it pinned to the screen's
+        //                            centre: *"a bit bigger to better fill the
+        //                            entire screen"* — 1127 pt, the Retina's height
         // The last three are him homing in by eye on a thing that only exists
         // while it is running. Since the halving the direction has been one
         // way, so multiply **this** number for the next ask: do not average the
@@ -577,9 +585,9 @@ enum HaloStyle: String, CaseIterable {
         // resolution** — see `Preset.renderScale`. It is the one preset whose
         // sparks were merging into a wash at 1:1, and the only one that asks
         // for this.
-        case .milkdrop87:  return Preset(number: 87, name: "martin - chain breaker", scale: 0.46580625,
+        case .milkdrop87:  return Preset(number: 87, name: "martin - chain breaker", scale: 0.65212875,
                                          fade: true, fadeAtEdge: true, fadeFloor: 0, webOnly: true,
-                                         renderScale: 1)
+                                         renderScale: 1, anchored: true, centred: true)
         // **Mosaic, back from the `−` list for Wispr Flow** (Victor, 2026-09-21:
         // *"când am Wispr Flow, dictare să apară mozaic"*). It was dropped on
         // 2026-09-20 with the other `−` effects — *"the bricks look lame"* —

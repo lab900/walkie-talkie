@@ -706,11 +706,13 @@ final class CaretHalo {
     /// moved no further than it has to be; along one where it is bigger than the
     /// screen, the overflow is split by where the pointer is — at the left edge,
     /// all of it hangs off the right — so the placement still says where he was.
+    /// A `centred` one ignores the pointer's place: the middle of its screen.
     private func anchoredFrame() -> NSRect? {
         guard let preset = drawn.preset else { return nil }
         let mouse = NSEvent.mouseLocation
         let f = (NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]).frame
         let s = (max(f.width, f.height) * preset.scale).rounded()
+        if preset.centred { return NSRect(x: (f.midX - s / 2).rounded(), y: (f.midY - s / 2).rounded(), width: s, height: s) }
         func place(_ p: CGFloat, _ lo: CGFloat, _ len: CGFloat) -> CGFloat {
             if s <= len { return min(max(p - s / 2, lo), lo + len - s) }
             return lo - (s - len) * min(max((p - lo) / len, 0), 1)

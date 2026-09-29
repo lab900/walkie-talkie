@@ -671,6 +671,12 @@ closes. Between the two is the whole transcription — the stretch in which he i
   **squared** — the ×3 was ×9 on screen, the ×0.5 was ×0.25 — which is most of why it took five
   of them to find the size. Sparks grew 1500 → 1610 pt when the second scale went, and `scale` is
   linear from here.
+  **Sparks sits in the middle of the screen since 2026-09-29** (*"has to remain fixed at the
+  center of the screen where the mouse is … in the same style as the puzzle"*): `anchored` +
+  `centred` — placed once when the ring rises, at the centre of the pointer's screen, and never
+  moves for the sentence; Mosaic (the puzzle) stays `anchored` alone, placed from the pointer.
+  Size ×1.4 the same ask (*"a bit bigger to better fill the entire screen"*): 0.4658 → 0.6521,
+  1127 pt — the Retina's height.
   **"Not centred on the tip of my mouse" was a size complaint**, measured that evening:
   `docs/projectm/captures/sparks-on-pointer-2026-09-21.png` — the demo on his own screen with the
   pointer in frame, differenced against a baseline capture — puts the cloud's centre of light
