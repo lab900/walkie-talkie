@@ -1,0 +1,15 @@
+start E2 cap=3600s ids=TE9,TE10,TE11,TE12,TE13,TE14,TE15,TE16 entry=cases_wispr_explore.py Tue Sep 29 04:07:08 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 51749
+relay on 8917, 8 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-E2.md
+  TE9: PASS (29.0s) — budget 3.61 s, ⌘⌃X at 1.88 s; over-budget line False; delivered once; 📦×1 local-forced; copies 1.0 recall 0.80; rows +1 (formatted); late row logged o
+  TE10: PASS (73.7s) — thaw at budget-0.90 (2.96 s of 3.86): PASS via ['wispr-history'], fired no, row seen formatted 2026-09-29T04:07:53.144Z; 📦×1 wispr-history; copies 0.5
+  TE11: BUG (70.6s) — (a) PASS delivered once — 📦×1 wispr-history; copies 0.5 recall 0.60; rows +1 (formatted); 2.0 s voiced; clipboard writes 1 | (b) BUG: witness 0.5, Tex
+  TE12: FAIL (20.9s) — spawnPending mid-sentence True; new Terminal tabs ['ttys002']; delivered, but not these words; 📦×1 wispr-history; copies 0.0 recall 0.00; rows +1 (for
+  TE13: PASS (28.6s) — armed True; delivered once; via ['wispr-history']; tail of text ' width, or -original.jpg at 2048x1536px]'; next sentence kamikaze 0 || log: 04:10:35 
+  TE14: BUG (108.7s) — pair 1 (tight): BUG — relay→witness 0.5, relay→TextEdit 0.0, caret→TextEdit 0.0, caret→witness 0.0, B opened False, B loud True, deliveries [('wispr-h
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.4 s), mic now closed)
+  TE15: RIG (103.4s) — tap answer {'tap': None, 'hidden': None, 'ok': True}; firewall mid-sentence tap=blind; delivered twice; TextEdit ''; mic after True; 📦×1 local-auto; c
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.5 s), mic now closed)
+  TE16: FAIL (98.9s) — pmset cap: Capabilities for AC Power:  displaysleep  disksleep  sleep  standby  powernap  ttyskeepawake  tcpkeepalive; ended 30.4 s after the stop whi
+rc=0 Tue Sep 29 04:16:06 UTC 2026
+PHASEDONE E2

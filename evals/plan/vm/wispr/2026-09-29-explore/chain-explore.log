@@ -1,0 +1,59 @@
+440 Hz before E0: E0 1 peak 0.3 nonzero 59711
+E0 start 03:36:10 4bcb250
+pf rules after E0:        0 in the anchor
+E0 CHAINDONE 03:50:35
+440 Hz before W6: W6 1 peak 0.3 nonzero 59711
+W6 start 03:55:03 64c296a
+pf rules after W6:        0 in the anchor
+W6 CHAINDONE 03:59:28
+440 Hz before E1: E1 1 peak 0.3 nonzero 59711
+E1 start 04:01:10 e9cd3be (evals; app 64c296a)
+pf rules after E1:        0 in the anchor
+E1 CHAINDONE 04:06:14
+440 Hz before E2: E2 1 peak 0.3 nonzero 59711
+E2 start 04:07:08 e9cd3be (evals; app 64c296a)
+pf rules after E2:        0 in the anchor
+E2 CHAINDONE 04:16:06
+440 Hz before E3: E3 1 peak 0.3 nonzero 59711
+E3 start 04:19:28 e9cd3be (evals; app 64c296a)
+pf rules after E3:        0 in the anchor
+E3 CHAINDONE 04:29:04
+R5 wave start 04:30:52
+440 Hz before R5a: R5a 1 peak 0.3 nonzero 59711
+R5a start 04:30:57 e9cd3be (evals; app 64c296a)
+pf rules after R5a:        0 in the anchor
+R5a CHAINDONE 04:34:59
+440 Hz before R5b: R5b 1 peak 0.3 nonzero 59711
+R5b start 04:40:17 e9cd3be (evals; app 64c296a)
+pf rules after R5b:        0 in the anchor
+R5b CHAINDONE 04:45:32
+440 Hz before R5c: R5c 1 peak 0.3 nonzero 59711
+R5c start 04:45:37 e9cd3be (evals; app 64c296a)
+pf rules after R5c:        0 in the anchor
+R5c CHAINDONE 04:47:39
+440 Hz before R5t: R5t 1 peak 0.3 nonzero 59711
+R5t start 04:47:43 e9cd3be (evals; app 64c296a)
+pf rules after R5t:        0 in the anchor
+R5t CHAINDONE 04:56:54
+440 Hz before R5e: R5e 1 peak 0.3 nonzero 59711
+R5e start 04:56:59 e9cd3be (evals; app 64c296a)
+pf rules after R5e:        0 in the anchor
+R5e CHAINDONE 05:02:05
+440 Hz before R5d: R5d 1 peak 0.3 nonzero 59711
+R5d start 05:02:10 e9cd3be (evals; app 64c296a)
+pf rules after R5d:        0 in the anchor
+R5d CHAINDONE 05:05:12
+R5 wave end 05:05:12
+440 Hz before P95: P95 1 peak 0.3 nonzero 59711
+P95 start 05:06:33 e1b3155
+pf rules after P95:        0 in the anchor
+P95 CHAINDONE 05:19:20
+warm: restarting the helper 05:22:02
+440 Hz before P95b: P95b 1 peak 0.3 nonzero 59711
+P95b start 05:22:12 1efc0ec
+pf rules after P95b:        0 in the anchor
+P95b CHAINDONE 05:24:40
+440 Hz before E4: E4 1 peak 0.3 nonzero 59711
+E4 start 05:25:33 1efc0ec
+pf rules after E4:        0 in the anchor
+E4 CHAINDONE 05:27:06

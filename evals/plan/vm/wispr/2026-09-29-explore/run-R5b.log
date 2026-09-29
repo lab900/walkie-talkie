@@ -1,0 +1,11 @@
+start R5b cap=2700s ids=TW4,TX3,TX6b,TX9,TX13 entry=cases_wispr_explore.py Tue Sep 29 04:40:17 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 54042
+relay on 8917, 5 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-R5b.md
+  TW4: BUG (20.0s) — 0/152 samples listening+warming+no row (0.0 s); first-5-words hit 0/5; chip named it False; still listening at the stop True
+  TX3: PASS (37.8s) — relaunch 0.4 s; first sentence opened True, 📦×1 local-whisper; copies 1.0 recall 1.00; rows +0 (); clipboard writes 1; mic with no capture first at ne
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.5 s), mic now closed)
+  TX6b: FAIL (91.8s) — the speech after the double chord was not delivered (said so, but lost): 📦×0 -; copies 0.0 recall 0.00; rows +2 (); Recover staged; 0.0 s voiced; fail
+  TX9: PASS (53.9s) — losses 0/3 (silent 0), head losses 0; 
+  TX13: PASS (101.3s) — gate held True; row 487 processing at the freeze; dry-run gate exit 3; restart exit 0; app pid 6042 → None; Wispr 7379 thawed; late row 487 → formatte
+rc=0 Tue Sep 29 04:45:32 UTC 2026
+PHASEDONE R5b

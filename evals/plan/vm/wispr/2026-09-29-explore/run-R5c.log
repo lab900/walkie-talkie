@@ -1,0 +1,12 @@
+start R5c cap=1800s ids=TQ2,TQ4 entry=cases_wispr_explore.py Tue Sep 29 04:45:37 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 54909
+relay on 8917, 2 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-R5c.md
+   SEC TQ2 close→words 1.03 s via local-fallback budget - (- samples on -) fired no voiced 2.7
+   SEC TQ2.next close→words 0.99 s via local-whisper budget - (- samples on -) fired no voiced -
+  TQ2: PASS (62.2s) — delivered once; SEC TQ2 close→words 1.03 s via local-fallback budget - (- samples on -) fired no voiced 2.7; 📦×1 local-fallback; copies 1.0 recall 0.5
+   SEC TQ4.cold close→words 0.97 s via local-whisper budget - (- samples on -) fired no voiced -
+   SEC TQ4.+2s close→words 0.44 s via wispr-history budget 2.5 (100 samples on wispr-flow) fired no voiced 1.8
+   SEC TQ4.+15s close→words 0.46 s via wispr-history budget 2.5 (100 samples on wispr-flow) fired no voiced 1.8
+  TQ4: PASS (56.1s) — cold: SEC TQ4.cold close→words 0.97 s via local-whisper budget - (- samples on -) fired no voiced -; borrowed True; 📦×1 local-whisper; copies 1.0 reca
+rc=0 Tue Sep 29 04:47:38 UTC 2026
+PHASEDONE R5c

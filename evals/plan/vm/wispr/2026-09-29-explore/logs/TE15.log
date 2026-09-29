@@ -1,0 +1,109 @@
+==== TE15 2026-09-29T04:13:35.536Z
+09-29 04:12:44 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 04:12:44 [relay] wispr state: idle → warming — the relay asked for a dictation (off) (0 ms after the chord)
+09-29 04:12:44 [relay] ⚡ the relay asked for a dictation (off) — opening the dictation on the gesture
+09-29 04:12:44 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-29 04:12:44 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-29 04:12:44 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-29 04:12:44 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-29 04:12:44 [relay] wispr history: row 460 is this dictation's — 147 ms after the chord (no device named yet)
+09-29 04:12:44 [relay] ⚡ Wispr's own row confirms the ring 151 ms after the gesture
+09-29 04:12:44 [relay] wispr state: warming → listening — Wispr created a row, poll saw it never after the chord, notification never
+09-29 04:12:44 [relay] context screen captured: screenshot-0-original.jpg
+09-29 04:12:44 [relay] 🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)
+09-29 04:12:44 [relay] 🧪 /test/tap: Secure Event Input ON in this process for 9.0 s
+09-29 04:12:45 [relay] ⚠️ 🔁 mic: 14 buffers with peak 0 for 1.4 s [mute off, input volume 1.00, nominal 48000 Hz, tap 48000 Hz, running somewhere yes, IO buffer 512] — tap restarted (step 1) on BlackHole 2ch, 48000 Hz × 2 ch (was BlackHole 2ch)
+09-29 04:12:46 [relay] 🛡️ canary (POST /test/tap secure): keys are hidden from every event tap — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); enabled=true. Not a dead tap; the gestures and the firewall come back when that ends
+09-29 04:12:46 [relay] 🛡️ tap heal (POST /test/tap secure): waiting — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); re-checking every 2 s, no event posted
+09-29 04:12:46 [relay] ⚠️ 🔁 mic: audio came back after restart 1 — peak 321, 0.1 s after it
+09-29 04:12:53 [relay] 🛡️ canary (POST /test/firewall): keys are hidden from every event tap — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); enabled=true. Not a dead tap; the gestures and the firewall come back when that ends
+09-29 04:12:53 [relay] wispr state: listening → transcribing — the relay's own stop gesture (9666 ms after the chord)
+09-29 04:12:53 [relay] 🎙️ the microphone is closed — the relay's own stop gesture (9667 ms of speech)
+09-29 04:12:53 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-29 04:12:53 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-29 04:12:53 [relay] 👁 selection watcher off
+09-29 04:12:53 [relay] ▶️ dictation over — resuming them
+09-29 04:12:53 [relay] ⏱ budget 2.8 s (p98 of 100 samples on wispr-flow, cap 3.9 s) — unclamped 2.8 s, floor 1.5 s, 9.7 s of audio — Wispr Flow falls back to this Mac past it
+09-29 04:12:53 [relay] 🖱️ POST /test/gesture forward-right direct — toggleDictation() called, no chord posted
+09-29 04:12:53 [relay] mic: closed — BlackHole 2ch: 96 buffers, peak 16301, 1 tap restart(s), 9.7 s
+09-29 04:12:53 [relay] wispr meter: 2.1 s voiced — BlackHole 2ch: 96 buffers, peak 16301, 1 tap restart(s), 9.7 s
+09-29 04:12:54 [relay] 🧪 /test/tap: Secure Event Input OFF
+09-29 04:12:54 [relay] 🛡️ canary (POST /test/tap secure, keys visible): the tap is alive — seen after 0.4 ms
+09-29 04:12:54 [relay] 🛡️ tap heal (POST /test/tap secure): alive again after 8.7 s, 0 rebuild(s)
+09-29 04:12:56 [relay] ⏱ Wispr Flow over budget — 2.8 s since the close, budget 2.8 s: the take goes to the local model
+09-29 04:12:56 [relay] 💻 ⌘⌃X — no longer waiting for Wispr's row; whatever it sends is only logged
+09-29 04:12:56 [relay] wispr state: transcribing → idle — handed to the local model (⌘⌃X) — Wispr's answer is only logged (12503 ms after the chord)
+09-29 04:12:56 [relay] 💻 auto p98 — waiting for Wispr Flow: the take goes to the local model now
+09-29 04:12:56 [relay] ⚠️ wispr: Handed to the local model (⌘⌃X) — 2.1 s voiced on the relay's own recording: the local model takes it
+09-29 04:12:56 [relay] 💻 auto p98 — transcribing the 9.7s recording on this Mac, Wispr Flow over its budget
+09-29 04:12:58 [relay] decode rate [whisper-local]: 9.7s audio → 1.32s (0.136×, load 1.81) — 50 samples, typical 1.08s + 0.007×, ceiling × 1.31
+09-29 04:12:58 [relay] ↪️ transcribed on this Mac instead of Wispr Flow (auto p98) — 62 chars
+09-29 04:12:58 [relay] ✍️ the words landed: routed to Terminal — 4234 ms after the microphone closed
+09-29 04:12:58 [relay] ◯ caret halo off
+09-29 04:12:58 [relay] corpus: 04-12-58-local116 — 301 KB, 9.7s (whisper-local)
+09-29 04:12:59 [relay] 📋 231 chars on the clipboard — the prompt (Q17)
+09-29 04:12:59 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-29 04:12:59 [relay] ⌨️ ttys001 foreground=cat — 231 chars
+09-29 04:13:00 [relay] ⌨️ 0 extra Return(s), 1 read-back(s) — tail: …0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txtadmin@Manageds-Virtual-Machine~%printf'\e]0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txt
+09-29 04:13:00 [relay] 📦 delivery: local-auto → terminal:ttys001 (route)
+09-29 04:13:00 [relay] ⌨️ delivered to the bound terminal
+09-29 04:13:00 [relay] → sent dictation (714 bytes)
+09-29 04:13:24 [relay] 🗑️ nothing came back for the cancelled sentence within 30 s — closing the capture
+==== TE15 2026-09-29T05:12:39.118Z
+09-29 05:11:45 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 05:11:46 [relay] wispr state: idle → warming — the relay asked for a dictation (off) (0 ms after the chord)
+09-29 05:11:46 [relay] ⚡ the relay asked for a dictation (off) — opening the dictation on the gesture
+09-29 05:11:46 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-29 05:11:46 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-29 05:11:46 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-29 05:11:46 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-29 05:11:46 [relay] wispr history: row 563 is this dictation's — 152 ms after the chord (no device named yet)
+09-29 05:11:46 [relay] ⚡ Wispr's own row confirms the ring 156 ms after the gesture
+09-29 05:11:46 [relay] wispr state: warming → listening — Wispr created a row, poll saw it never after the chord, notification never
+09-29 05:11:46 [relay] context screen captured: screenshot-0-original.jpg
+09-29 05:11:46 [relay] 🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)
+09-29 05:11:46 [relay] 🧪 /test/tap: Secure Event Input ON in this process for 9.0 s
+09-29 05:11:47 [relay] ⚠️ 🔁 mic: 14 buffers with peak 0 for 1.4 s [mute off, input volume 1.00, nominal 48000 Hz, tap 48000 Hz, running somewhere yes, IO buffer 512] — tap restarted (step 1) on BlackHole 2ch, 48000 Hz × 2 ch (was BlackHole 2ch)
+09-29 05:11:47 [relay] 🛡️ canary (POST /test/tap secure): keys are hidden from every event tap — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); enabled=true. Not a dead tap; the gestures and the firewall come back when that ends
+09-29 05:11:47 [relay] 🛡️ tap heal (POST /test/tap secure): waiting — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); re-checking every 2 s, no event posted
+09-29 05:11:48 [relay] ⚠️ 🔁 mic: audio came back after restart 1 — peak 321, 0.0 s after it
+09-29 05:11:55 [relay] 🛡️ canary (POST /test/firewall): keys are hidden from every event tap — Secure Input is on (the session names TextEdit, pid 372 — the frontmost app, not necessarily the caller); enabled=true. Not a dead tap; the gestures and the firewall come back when that ends
+09-29 05:11:55 [relay] wispr state: listening → transcribing — the relay's own stop gesture (9445 ms after the chord)
+09-29 05:11:55 [relay] 🎙️ the microphone is closed — the relay's own stop gesture (9446 ms of speech)
+09-29 05:11:55 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-29 05:11:55 [relay] ◯ the ring coasts while the words are transcribed — fading over ~3 s
+09-29 05:11:55 [relay] 👁 selection watcher off
+09-29 05:11:55 [relay] ▶️ dictation over — resuming them
+09-29 05:11:55 [relay] ⏱ budget 1.8 s (p95 of 100 samples on wispr-flow, cap 3.8 s) — unclamped 1.8 s, floor 1.5 s, 9.4 s of audio — the local transcript is prepared from +0.52 s (localEta 1.29 s) and offered on ⌘⌃X when ready; nothing is inserted on its own
+09-29 05:11:55 [relay] 🖱️ POST /test/gesture forward-right direct — toggleDictation() called, no chord posted
+09-29 05:11:55 [relay] mic: closed — BlackHole 2ch: 93 buffers, peak 16366, 1 tap restart(s), 9.5 s
+09-29 05:11:55 [relay] wispr meter: 2.0 s voiced — BlackHole 2ch: 93 buffers, peak 16366, 1 tap restart(s), 9.5 s
+09-29 05:11:55 [relay] 🧪 WT_KEEP_TAKES — /Users/admin/.walkie-talkie/kept-takes/wispr-1790658706.wav (2.0 s voiced)
+09-29 05:11:55 [relay] 🧪 /test/tap: Secure Event Input OFF
+09-29 05:11:56 [relay] 🔮 local transcript: decoding ahead from +0.55 s after the close (planned +0.52 s), 9.5 s of audio — held, not inserted
+09-29 05:11:56 [relay] 🛡️ canary (POST /test/tap secure, keys visible): the tap is alive — seen after 0.3 ms
+09-29 05:11:56 [relay] 🛡️ tap heal (POST /test/tap secure): alive again after 8.9 s, 0 rebuild(s)
+09-29 05:11:57 [relay] decode rate [whisper-local]: 9.5s audio → 0.99s (0.104×, load 2.22) — 50 samples, typical 0.91s + 0.009×, ceiling × 1.17
+09-29 05:11:57 [relay] 🔮 local transcript ready +1.54 s after the close (decoded in 0.99 s), 49 chars — offered on ⌘⌃X, not inserted
+09-29 05:11:57 [relay] 💻 Use local ⌘⌃X is on the chip — 1.54 s after the close, budget 1.8 s
+09-29 05:11:57 [relay] ⏱ Wispr Flow over budget — 1.9 s since the close, budget 1.8 s: nothing is inserted; the local words are ready — offered on ⌘⌃X
+09-29 05:12:03 [relay] the settle waits: Wispr Flow is still working — 8 s in
+09-29 05:12:11 [relay] the settle waits: Wispr Flow is still working — 16 s in
+09-29 05:12:20 [relay] the settle waits: Wispr Flow is still working — 25 s in
+09-29 05:12:25 [relay] wispr state: transcribing → done(timeout) — nothing came back within 30 s (39662 ms after the chord)
+09-29 05:12:25 [relay] ⚠️ wispr: nothing came back within 30 s — Wispr's row 563 is still empty
+09-29 05:12:25 [relay] wispr state: done → idle — the capture is over (39662 ms after the chord)
+09-29 05:12:25 [relay] ⚠️ wispr: Wispr Flow returned no words (Wispr's row 563 is still empty) — 2.0 s voiced on the relay's own recording: the local model stands in (Q14)
+09-29 05:12:25 [relay] ⚠️ ↪️ Wispr Flow returned no words (Wispr's row 563 is still empty) — transcribing the 9.5s recording on this Mac instead
+09-29 05:12:25 [relay] ↪️ transcribed on this Mac instead of Wispr Flow — decoded ahead, ready 28.7 s before it was asked for — 49 chars
+09-29 05:12:25 [relay] 📊 fallback: engine=wispr-flow audio=9.4 budget=1.81(p95,n=100) localEta=1.29 specStart=0.55 localReady=1.54 engineAnswer=30.22 budgetExpired=1.85 outcome=local-fallback wasted=false toWords=30.25
+09-29 05:12:25 [relay] ✍️ the words landed: routed to Terminal — 30257 ms after the microphone closed
+09-29 05:12:25 [relay] ◯ caret halo off
+09-29 05:12:25 [relay] corpus: 05-12-25-local715 — 291 KB, 9.5s (whisper-local)
+09-29 05:12:26 [relay] 📋 218 chars on the clipboard — the prompt (Q17)
+09-29 05:12:26 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-29 05:12:26 [relay] ⌨️ ttys001 foreground=cat — 218 chars
+09-29 05:12:27 [relay] ⌨️ 0 extra Return(s), 1 read-back(s) — tail: …0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txtadmin@Manageds-Virtual-Machine~%printf'\e]0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txt
+09-29 05:12:27 [relay] 📦 delivery: local-fallback → terminal:ttys001 (route)
+09-29 05:12:27 [relay] ⌨️ delivered to the bound terminal
+09-29 05:12:27 [relay] → sent dictation (692 bytes)

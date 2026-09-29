@@ -1,0 +1,7 @@
+start E4 cap=1200s ids=TE25,TE19 entry=cases_wispr_explore.py Tue Sep 29 05:25:33 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 59378
+relay on 8917, 2 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-E4.md
+  TE25: BUG (61.1s) — control: PASS — acted None (delivery line seen True); A ends '\n\n' (0.5 copies); other tab got 0 newline(s) ''; tail [] | new-window: BUG — acted tty
+  TE19: PASS (28.9s) — 0.3 s: PASS — ended True in 0.7 s, 📦×0 [], loud True, witness '' | 0.6 s: PASS — ended True in 0.8 s, 📦×0 [], loud True, witness '' | 1.0 s: PASS — en
+rc=0 Tue Sep 29 05:27:06 UTC 2026
+PHASEDONE E4

@@ -1,0 +1,28 @@
+start E0 cap=2700s ids=TQ1,TQ2,TQ3,TQ4,TA1,TA2,TA3,TA4,TA5,TA6,TX13 entry=harness.py Tue Sep 29 03:36:10 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 49207
+relay on 8917, 11 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-E0.md
+  TX13: PASS (107.1s) — gate held True; row 417 processing at the freeze; dry-run gate exit 3; restart exit 0; app pid 829 → None; Wispr 347 thawed; late row 417 → formatted 
+  TA1: PASS (38.0s) — [eleven → fake Scribe] budget 5.2 s (0 samples on elevenlabs); row counting at +1.3 s True (left 3.750141978263855); fired 5.21 s after the close; fla
+  TA2: PASS (25.2s) — [eleven → fake Scribe] budget 5.2 s (0 on elevenlabs); via elevenlabs-scribe 8.8 s after the close; inside line elevenlabs answered 1.2 s after the cl
+  TA3: PASS (31.4s) — budget 5.2 s (100 on wispr-flow); fired 5.14 s after the close; via local-auto; witness 263 chars, late row in it False; outbox +1; after the row: 09-
+  TA4: PASS (32.7s) — [eleven → fake Scribe] on False; at +2.5 s row `Local now` True, countdown False; budget line False; over-budget False; via elevenlabs-scribe
+  TA5: PASS (13.7s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is not running (POST /test/local-auto wisprDown) — ; flash True; borrowedFrom mid Wispr Flow; 
+  TA6: PASS (76.7s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is still starting (its process is 3.0 s old) (POST /test/loca; flash True; delivery ('local-wh
+   SEC TQ1.1 close→words 0.49 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.9
+   SEC TQ1.2 close→words 0.53 s via wispr-history budget 5.4 (100 samples on wispr-flow) fired no voiced 4.4
+   SEC TQ1.3 close→words 0.43 s via wispr-history budget 2.8 (100 samples on wispr-flow) fired no voiced 2.0
+   SEC TQ1.4 close→words 0.54 s via wispr-history budget 5.5 (100 samples on wispr-flow) fired no voiced 4.5
+   SEC TQ1.5 close→words 0.44 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.9
+   SEC TQ1.6 close→words 0.56 s via wispr-history budget 5.5 (100 samples on wispr-flow) fired no voiced 4.3
+  TQ1: PASS (118.6s) — auto True; 6/6 once; SEC TQ1.1 close→words 0.49 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.9 📦×1 wispr-history; copi
+   SEC TQ2 close→words 0.97 s via local-fallback budget - (- samples on -) fired no voiced 2.7
+   SEC TQ2.next close→words 1.01 s via local-whisper budget - (- samples on -) fired no voiced -
+  TQ2: FAIL (60.6s) — delivered twice; SEC TQ2 close→words 0.97 s via local-fallback budget - (- samples on -) fired no voiced 2.7; 📦×1 local-fallback; copies 2.0 recall 0.
+   SEC TQ3 close→words 6.91 s via local-auto budget 5.5 (100 samples on wispr-flow) fired at 5.5 s voiced 4.4
+  TQ3: FAIL (59.4s) — delivered twice; SEC TQ3 close→words 6.91 s via local-auto budget 5.5 (100 samples on wispr-flow) fired at 5.5 s voiced 4.4; 📦×1 local-auto; copies 2.
+   SEC TQ4.cold close→words 0.97 s via local-whisper budget - (- samples on -) fired no voiced -
+   SEC TQ4.+2s close→words 0.70 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.9
+   SEC TQ4.+15s close→words 0.46 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.9
+  TQ4: PASS (56.2s) — cold: SEC TQ4.cold close→words 0.97 s via local-whisper budget - (- samples on -) fired no voiced -; borrowed True; 📦×1 local-whisper; copies 1.0 reca
+rc=0 Tue Sep 29 03:50:35 UTC 2026
+PHASEDONE E0

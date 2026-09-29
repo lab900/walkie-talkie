@@ -1,0 +1,76 @@
+==== TE18 2026-09-29T04:22:59.425Z
+09-29 04:22:43 [relay] ⌨️trace on — every keyboard event and what became of it
+09-29 04:22:43 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 04:22:43 [relay] ⌨️trace ↓ key 109 pid 2200 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10
+09-29 04:22:43 [relay] ⌨️trace ↑ key 109 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 55 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 58 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:43 [relay] wispr state: idle → warming — the relay asked for a dictation (off) (0 ms after the chord)
+09-29 04:22:43 [relay] ⚡ the relay asked for a dictation (off) — opening the dictation on the gesture
+09-29 04:22:43 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-29 04:22:43 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-29 04:22:43 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-29 04:22:43 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 63 pid 2200 (ours) flags 0x20800000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20840000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ↑ key 49 pid 2200 (ours) flags 0x20840000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20800000 — passed (not a keyDown)
+09-29 04:22:43 [relay] ⌨️trace ⇧ key 63 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:43 [relay] wispr history: row 471 is this dictation's — 138 ms after the chord (no device named yet)
+09-29 04:22:43 [relay] ⚡ Wispr's own row confirms the ring 143 ms after the gesture
+09-29 04:22:43 [relay] wispr state: warming → listening — Wispr created a row, poll saw it never after the chord, notification never
+09-29 04:22:43 [relay] context screen captured: screenshot-0-original.jpg
+09-29 04:22:44 [relay] 🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)
+09-29 04:22:52 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 04:22:52 [relay] wispr state: listening → transcribing — the relay's own stop gesture (8854 ms after the chord)
+09-29 04:22:52 [relay] ⌨️trace ↓ key 109 pid 2200 (ours) flags 0x201c0000 — SWALLOWED by 🔼 → ⌃⌥⌘F10
+09-29 04:22:52 [relay] ⌨️trace ↑ key 109 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 55 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 58 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:52 [relay] 🎙️ the microphone is closed — the relay's own stop gesture (8855 ms of speech)
+09-29 04:22:52 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-29 04:22:52 [relay] ◯ the ring coasts while the words are transcribed — fading over ~1 s
+09-29 04:22:52 [relay] 👁 selection watcher off
+09-29 04:22:52 [relay] ▶️ dictation over — resuming them
+09-29 04:22:52 [relay] ⏱ budget 2.7 s (p98 of 100 samples on wispr-flow, cap 3.7 s) — unclamped 2.7 s, floor 1.5 s, 8.9 s of audio — Wispr Flow falls back to this Mac past it
+09-29 04:22:52 [relay] mic: closed — BlackHole 2ch: 88 buffers, peak 16301, 0 tap restart(s), 8.9 s
+09-29 04:22:52 [relay] wispr meter: 2.1 s voiced — BlackHole 2ch: 88 buffers, peak 16301, 0 tap restart(s), 8.9 s
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 63 pid 2200 (ours) flags 0x20800000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20840000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ↑ key 49 pid 2200 (ours) flags 0x20840000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 59 pid 2200 (ours) flags 0x20800000 — passed (not a keyDown)
+09-29 04:22:52 [relay] ⌨️trace ⇧ key 63 pid 2200 (ours) flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:52 [relay] wispr state: transcribing → transcribing(processing) — the row is processing (8924 ms after the chord)
+09-29 04:22:52 [relay] wispr state: transcribing → done(formatted) — the row is formatted (9272 ms after the chord)
+09-29 04:22:52 [relay] wispr history: formatted 417 ms after the microphone closed (Wispr's own e2e 349 ms) — the row is the delivery
+09-29 04:22:52 [relay] wispr state: done → idle — the capture is over (9276 ms after the chord)
+09-29 04:22:52 [relay] 🗣️ wispr transcript via Wispr's History row — 32 chars, 420 ms after the microphone closed
+09-29 04:22:52 [relay] decode rate [wispr-flow]: 8.9s audio → 0.42s (0.047×, load 2.90) — 50 samples, typical 0.47s + 0.000×, ceiling × 1.30
+09-29 04:22:52 [relay] ✍️ the words landed: routed to Terminal — 430 ms after the microphone closed
+09-29 04:22:52 [relay] ⏱ wispr-flow answered 0.4 s after the close — inside its 2.7 s budget
+09-29 04:22:52 [relay] ◯ caret halo off
+09-29 04:22:52 [relay] 🧾 sentence #49 waits for the prompt panel on screen
+09-29 04:22:52 [relay] ⌨️trace ↓ key 9 pid 5011 flags 0x20100000 — SWALLOWED by the Wispr firewall
+09-29 04:22:53 [relay] ⌨️trace ↑ key 9 pid 5011 flags 0x20100000 — SWALLOWED by the Wispr firewall
+09-29 04:22:53 [relay] corpus: 04-22-52-wispr987 — 277 KB, 8.9s (wispr-flow)
+09-29 04:22:53 [relay] 🛡️ ⌘V from Wispr Flow with no capture open — asking the rows whose it is (the relay's floor is row 471)
+09-29 04:22:53 [relay] 🛡️ the dropped ⌘V is not his: the newest row 471 is the relay's or older (floor 471) — the relay's own late ⌘V, nothing of his lost
+09-29 04:22:54 [relay] 📋 201 chars on the clipboard — the prompt (Q17)
+09-29 04:22:54 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-29 04:22:54 [relay] 🧾 sentence #49: its turn — delivering what waited
+09-29 04:22:54 [relay] ⌨️ ttys001 foreground=cat — 201 chars
+09-29 04:22:54 [relay] ⌨️trace ⇧ key 55 pid 4807 flags 0x20100000 — passed (not a keyDown)
+09-29 04:22:54 [relay] ⌨️trace ↓ key 9 pid 4807 flags 0x20100000 — passed
+09-29 04:22:54 [relay] ⌨️trace ↑ key 9 pid 4807 flags 0x20100000 — passed (not a keyDown)
+09-29 04:22:54 [relay] ⌨️trace ⇧ key 55 pid 4807 flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:55 [relay] ⌨️ 0 extra Return(s), 1 read-back(s) — tail: …0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txtadmin@Manageds-Virtual-Machine~%printf'\e]0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txt
+09-29 04:22:55 [relay] 📦 delivery: wispr-history → terminal:ttys001 (route)
+09-29 04:22:55 [relay] ⌨️ delivered to the bound terminal
+09-29 04:22:55 [relay] → sent dictation (657 bytes)
+09-29 04:22:55 [relay] ⌨️trace ⇧ key 55 pid 4807 flags 0x20100000 — passed (not a keyDown)
+09-29 04:22:55 [relay] ⌨️trace ↓ key 9 pid 4807 flags 0x20100000 — passed
+09-29 04:22:55 [relay] ⌨️trace ↑ key 9 pid 4807 flags 0x20100000 — passed (not a keyDown)
+09-29 04:22:55 [relay] ⌨️trace ⇧ key 55 pid 4807 flags 0x20000000 — passed (not a keyDown)
+09-29 04:22:59 [relay] ⌨️trace off

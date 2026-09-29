@@ -1,0 +1,12 @@
+start W6 cap=1800s ids=TW20,TQ2,TW44,TQ3 entry=cases_wispr_explore.py Tue Sep 29 03:55:03 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 50796
+relay on 8917, 4 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-W6.md
+  TW20: PASS (60.9s) — quit noticed in 0.02 s (True), still listening True; first sentence ('local-fallback', 'terminal:ttys001'), voiced 2.6 s, witness True; next sentence 
+  TW44: PASS (79.5s) — (a) exit 0.15 s after the poll's close: held True 0.19 s after the close, grace line True, phase moved by the poll False, listening 1.5 s on True, del
+   SEC TQ2 close→words 0.96 s via local-fallback budget - (- samples on -) fired no voiced 2.6
+   SEC TQ2.next close→words 0.99 s via local-whisper budget - (- samples on -) fired no voiced -
+  TQ2: PASS (60.6s) — delivered once; SEC TQ2 close→words 0.96 s via local-fallback budget - (- samples on -) fired no voiced 2.6; 📦×1 local-fallback; copies 1.0 recall 0.5
+   SEC TQ3 close→words 6.49 s via local-auto budget 5.4 (100 samples on wispr-flow) fired at 5.5 s voiced 4.4
+  TQ3: PASS (60.0s) — delivered once; SEC TQ3 close→words 6.49 s via local-auto budget 5.4 (100 samples on wispr-flow) fired at 5.5 s voiced 4.4; 📦×1 local-auto; copies 1.0
+rc=0 Tue Sep 29 03:59:28 UTC 2026
+PHASEDONE W6

@@ -138,17 +138,22 @@ cmd_look() { open "vnc://admin:admin@$(tart ip "$VM")"; }
 # still up 400 s later (the USB disk: 64 s to >300 s measured) is stopped with `tart stop`.
 cmd_down() {
   [ "$(state "$VM")" = "running" ] || return 0
-  local ip
+  local ip rc=0 t0=$SECONDS
   ip="$(tart ip "$VM" 2>/dev/null || true)"
   if [ -n "$ip" ]; then
+    # **ssh exits 255 when the shutdown works** (2026-09-29): the guest drops the session before
+    # sshd sends an exit status, so 255 here is the normal answer, not a failure. Only a guest
+    # still running at the end of the wait says the shutdown did not take.
     ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-        -o LogLevel=ERROR "admin@$ip" 'sudo -n shutdown -h now' >/dev/null 2>&1 \
-      || echo "⚠️  ssh admin@$ip shutdown failed — waiting, then tart stop" >&2
+        -o LogLevel=ERROR "admin@$ip" 'sudo -n shutdown -h now' >/dev/null 2>&1 || rc=$?
   else
     echo "⚠️  no IP for $VM — waiting, then tart stop" >&2
   fi
-  for _ in $(seq 1 400); do [ "$(state "$VM")" = "running" ] || return 0; sleep 1; done
-  echo "⚠️  $VM still running after 400 s — tart stop" >&2
+  for _ in $(seq 1 400); do
+    [ "$(state "$VM")" = "running" ] || { echo "✅ $VM stopped $((SECONDS - t0)) s after the shutdown (ssh exit $rc)"; return 0; }
+    sleep 1
+  done
+  echo "⚠️  $VM still running after 400 s (ssh admin@$ip shutdown exit $rc) — tart stop" >&2
   tart stop "$VM" 2>/dev/null || true
 }
 

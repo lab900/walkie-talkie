@@ -1,0 +1,9 @@
+start P95b cap=1800s ids=TA9,TA11,TE27,TE28 entry=cases_wispr_explore.py Tue Sep 29 05:22:12 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 59097
+relay on 8917, 4 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-P95b.md
+  TE27: PASS (42.4s) — budget 2.3 s; local ready +3.45 s; Use local on the chip at +5.14 s; ⌘⌃X at -; over-budget 'nothing is inserted' line True; deliveries before the thaw
+  TE28: PASS (40.4s) — budget 2.5 s; local ready +3.48 s; Use local on the chip at +5.17 s; ⌘⌃X at +5.17 s; over-budget 'nothing is inserted' line True; deliveries before th
+  TA9: PASS (32.4s) — [eleven → fake Scribe] Use local up True at +1.09 s (budget 8.0); delivered before the press False; press → words handed over 0.02 s (typed and echoed
+  TA11: PASS (29.7s) — [eleven → fake Scribe] budget 3.0 (forced); +4 s: delivered False, row True; +7 s: delivered False, row True; over line True; press → words handed ove
+rc=0 Tue Sep 29 05:24:40 UTC 2026
+PHASEDONE P95b

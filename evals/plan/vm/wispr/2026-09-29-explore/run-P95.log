@@ -1,0 +1,22 @@
+start P95 cap=3600s ids=TA2,TA4,TA5,TA6,TA7,TA8,TA9,TA10,TA11,TE26,TE27,TE28,TE15,TE16,TX13 entry=cases_wispr_explore.py Tue Sep 29 05:06:33 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 57513
+relay on 8917, 15 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-P95.md
+  TX13: PASS (118.5s) — gate held True; row 553 processing at the freeze; dry-run gate exit 3; Recover → nothing; restart exit 0; app pid 9835 → None; Wispr 7910 thawed; late
+  TE26: PASS (109.2s) — 1 (6 s clip): PASS via wispr-history; budget=1.74(p95,n=100) localEta=1.29 specStart=never localReady=never engineAnswer=0.41 budgetExpired=never outc
+  TE27: PASS (40.5s) — budget 2.1 s; local ready +3.44 s; Use local on the chip at +5.11 s; ⌘⌃X at -; over-budget 'nothing is inserted' line True; deliveries before the thaw
+  TE28: PASS (40.4s) — budget 2.2 s; local ready +3.54 s; Use local on the chip at +5.20 s; ⌘⌃X at +5.20 s; over-budget 'nothing is inserted' line True; deliveries before th
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.5 s), mic now closed)
+  TE15: BUG (105.7s) — tap answer {'tap': None, 'hidden': None, 'ok': True}; firewall mid-sentence tap=blind; Wispr's microphone still open 10 s after (ghost); TextEdit ''; 
+  (chaos cleanup: ghost mic open — Wispr relaunched (20.4 s), mic now closed)
+  TE16: PASS (102.6s) — pmset cap: Capabilities for AC Power:  displaysleep  disksleep  sleep  standby  powernap  ttyskeepawake  tcpkeepalive; ended 33.9 s after the stop whi
+  TA2: PASS (25.2s) — [eleven → fake Scribe] budget 5.1 s (0 on elevenlabs); via elevenlabs-scribe; inside line True; Use local seen False; engine=elevenlabs audio=13.8 bud
+  TA4: PASS (32.6s) — [eleven → fake Scribe] on False; row `Local now` True, `Use local` False; budget line False; decode ahead False; 📊 False; via elevenlabs-scribe
+  TA5: PASS (13.9s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is not running (POST /test/local-auto wisprDown) — ; flash True; borrowedFrom mid Wispr Flow; 
+  TA6: PASS (17.1s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is still starting (its process is 3.0 s old) (POST /test/loca; flash True; delivery ('local-wh
+  TA7: PASS (40.3s) — budget 2.1 s (100 on wispr-flow); local ready 1.83 s after the close; Use local seen True, over-budget row True, over line True; delivered before Wisp
+  TA8: PASS (28.0s) — [eleven → fake Scribe] budget 6.0 s (forced); via elevenlabs-scribe; engine answered 3.98 s = 66 % of the budget; decode ahead from 3.28 s; Use local 
+  TA9: FAIL (32.6s) — [eleven → fake Scribe] Use local up True at +1.18 s (budget 8.0); delivered before the press False; press → words 6.45 s, via local-forced; reused dec
+  TA10: PASS (26.9s) — [eleven → fake Scribe] budget 5.1 s (0 on elevenlabs); decode ahead from +0.12 s (planned +0.0); via elevenlabs-scribe; engine=elevenlabs audio=13.8 b
+  TA11: FAIL (29.7s) — [eleven → fake Scribe] budget 3.0 (forced); +4 s: delivered False, row True; +7 s: delivered False, row True; over line True; press → words 6.52 s via
+rc=0 Tue Sep 29 05:19:20 UTC 2026
+PHASEDONE P95

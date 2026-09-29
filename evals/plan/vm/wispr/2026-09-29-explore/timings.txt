@@ -1,0 +1,20 @@
+# The exploratory run, 2026-09-29 03:33–05:28 UTC (06:33–08:28 EEST). Tart guest wt-lab on the internal disk (TART_HOME=~/tart).
+boot   tools/vm-lab.sh up: 29.1 s to "wt-lab up" (tart exec answering); app control port answered 2 s after the deploy's open
+down   tools/vm-lab.sh down: guest stopped 7 s after the ssh shutdown; ssh exit 255 (the session dropped by the shutdown — the old "failed" message was only this)
+builds git archive + WALKIE_STAGING=<scratch> ./build-app.sh --stage-only (victor-mac-kit symlinked beside it):
+       4bcb250 66 s (E0) · 64c296a 61 s (batch 5: W6, E1–E3, R5) · e1b3155 70 s (p95: P95) · 1efc0ec 62 s (P95b, E4)
+deploy app tar into /Applications over ssh ~1 s; ~/wt-lab mirror (evals, helpers, restart scripts) ~1 s
+mirror evals: 4bcb250 (E0) · 64c296a (W6) · e9cd3be (E1–E3, R5; WT_HARNESS_SLOW=1.5) · e1b3155 (P95) · 1efc0ec (P95b, E4)
+phases (UTC, chain-explore.log):
+  E0   03:36:10–03:50:35  TQ1–TQ4, TA1–TA6, TX13 (the seconds-to-local table)        app 4bcb250
+  W6   03:55:03–03:59:28  TW20, TQ2, TW44, TQ3 (wave6-rerun.txt + TQ3)                 app 64c296a
+  E1   04:01:10–04:06:14  TE1–TE8                                                        app 64c296a
+  E2   04:07:08–04:16:06  TE9–TE16                                                       app 64c296a
+  E3   04:19:28–04:29:04  TE2 (2nd sample), TE24, TE25, TE17–TE23                        app 64c296a
+  R5   04:30:52–05:05:12  wave 5's six phases again on the e9cd3be harness: 34.3 min wall, of which 5.3 min
+                          (04:34:59–04:40:17) the chain's own drain waiting on busy (Recover staged by R5a) → 29.0 min
+                          of harness; wave 5 on build 5661ca4 / the HDD: 48 min (01:17–02:05)
+                          R5a 4.0 · R5b 5.3 · R5c 2.0 · R5t 9.2 · R5e 5.1 · R5d 3.0 min
+  P95  05:06:23–05:20:30  TX13, TE26–TE28, TE15, TE16, TA2, TA4–TA11                    app e1b3155
+  P95b 05:22:01–05:24:40  TE27, TE28 (2nd samples), TA9, TA11 (20e75bc's case fix)       app 1efc0ec
+  E4   05:25:28–05:27:20  TE25 (raise-other fixed), TE19 (takes ≥ 2.2 s)                  app 1efc0ec

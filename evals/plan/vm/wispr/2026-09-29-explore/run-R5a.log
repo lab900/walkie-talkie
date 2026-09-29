@@ -1,0 +1,13 @@
+start R5a cap=2700s ids=TW41,TW42,TW43,TA6,TW4,TW8a,TW11,TW20 entry=cases_wispr_explore.py Tue Sep 29 04:30:57 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 53383
+relay on 8917, 8 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-R5a.md
+  TW4: BUG (20.7s) — 0/151 samples listening+warming+no row (0.0 s); first-5-words hit 0/5; chip named it False; still listening at the stop True
+  TW8a: PASS (21.6s) — outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed True
+  TW11: PASS (19.7s) — outbox +1; 📦 lines 1; held False; witness 379 chars; lost-line False; B refused True (B refused out loud while A settles — not silent)
+  TW20: PASS (60.3s) — quit noticed in 0.22 s (True), still listening True; first sentence ('local-fallback', 'terminal:ttys001'), voiced 2.7 s, witness True; next sentence 
+  TW41: PASS (27.1s) — at 13 s: listening True, ownTake {'why': 'Wispr Flow did not answer the chord', 'for': 1.105665922164917}; delivered before the stop False; delivery (
+  TW42: PASS (49.5s) — (a) held True in 0.01 s, listening 2 s on True, delivery ('local-fallback', 'terminal:ttys001'), voiced 4.4 s, witness 263 chars; (b) close then exit:
+  TW43: PASS (16.1s) — capture let go 0.02 s after the exit; exit line True; delivery ('local-fallback', 'terminal:ttys001'); auto p98 fired first False; witness 221 chars
+  TA6: PASS (17.2s) — borrow 🔁 Whisper (local) for this sentence — Wispr Flow is still starting (its process is 3.0 s old) (POST /test/loca; flash True; delivery ('local-wh
+rc=0 Tue Sep 29 04:34:59 UTC 2026
+PHASEDONE R5a

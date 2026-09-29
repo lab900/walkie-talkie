@@ -1,0 +1,13 @@
+start E1 cap=3600s ids=TE1,TE2,TE3,TE4,TE5,TE6,TE7,TE8 entry=cases_wispr_explore.py Tue Sep 29 04:01:10 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 51184
+relay on 8917, 8 case(s), report → /Users/admin/wt-lab/night/explore/report-lab-E1.md
+  TE1: BUG (27.3s) — his chord 0.19 s after the relay's stop (before-row); odd characters in the witness (modifiers leaked into the typing?) ['️', '📁', '📸', '🖱']; delivere
+  TE2: WISPR (41.8s) — his chord 0.01 s after the relay's stop (during-row); his sentence did not reach TextEdit (Wispr rows for it: 0); relay→witness 0.5, relay→TextEdit 0.
+  TE3: BUG (25.7s) — his chord 1.62 s after the relay's stop (typing); odd characters in the witness (modifiers leaked into the typing?) ['️', '📁', '📸', '🖱']; delivered on
+  TE4: PASS (15.6s) — mid-sentence pick taken False (engine wispr); Wispr-wait pick taken False (engine wispr); engine after wispr; refusal flashes 0; delivered once; 📦×1 w
+  TE5: PASS (40.6s) — 1 wispr (pick waited 0.0 s, taken True): PASS 📦×1 wispr-history; copies 0.5 recall 0.60; rows +1 (formatted); 2.1 s voiced; clipboard writes 1 | 2 ele
+  TE6: PASS (52.6s) — 1 wispr (pick waited 0.0 s, taken True): PASS 📦×1 wispr-history; copies 0.5 recall 0.60; rows +1 (formatted); 2.2 s voiced; clipboard writes 2 | 2 whi
+  TE7: PASS (74.7s) — (a) killed at row 442 status  (seen True): PASS — delivered once; 📦×1 local-fallback; copies 1.0 recall 0.80; rows +1 (); Q14 fallback; 2.0 s voiced; 
+  TE8: PASS (22.1s) — localNow at the press {'row': None, 'loading': False, 'why': 'waiting for Wispr Flow', 'available': True}; delivered once; late row logged only True; 
+rc=0 Tue Sep 29 04:06:14 UTC 2026
+PHASEDONE E1

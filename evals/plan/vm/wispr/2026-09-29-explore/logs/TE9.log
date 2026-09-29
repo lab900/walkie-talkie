@@ -1,0 +1,53 @@
+==== TE9 2026-09-29T04:07:39.977Z
+09-29 04:07:13 [relay] ⏱ auto fallback to local (p98) ON — POST /test/local-auto
+09-29 04:07:13 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 04:07:13 [relay] wispr state: idle → warming — the relay asked for a dictation (off) (0 ms after the chord)
+09-29 04:07:13 [relay] ⚡ the relay asked for a dictation (off) — opening the dictation on the gesture
+09-29 04:07:13 [relay] ◯ caret halo on — the microphone is open, growing out of the pointer
+09-29 04:07:13 [relay] 👁 selection watcher on — reading the highlight every 1.0s
+09-29 04:07:13 [relay] ⏸️ dictation open — pausing audible Chrome tabs
+09-29 04:07:13 [relay] mic: recording through BlackHole 2ch — 48000Hz × 2ch
+09-29 04:07:13 [relay] wispr history: row 446 is this dictation's — 148 ms after the chord (no device named yet)
+09-29 04:07:13 [relay] ⚡ Wispr's own row confirms the ring 153 ms after the gesture
+09-29 04:07:13 [relay] wispr state: warming → listening — Wispr created a row, poll saw it never after the chord, notification never
+09-29 04:07:13 [relay] context screen captured: screenshot-0-original.jpg
+09-29 04:07:13 [relay] 🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)
+09-29 04:07:14 [relay] wispr flow opened the microphone
+09-29 04:07:14 [relay] wispr flow opened the microphone
+09-29 04:07:15 [relay] ⚠️ 🔁 mic: 14 buffers with peak 0 for 1.4 s [mute off, input volume 1.00, nominal 48000 Hz, tap 48000 Hz, running somewhere yes, IO buffer 512] — tap restarted (step 1) on BlackHole 2ch, 48000 Hz × 2 ch (was BlackHole 2ch)
+09-29 04:07:16 [relay] ⚠️ 🔁 mic: audio came back after restart 1 — peak 321, 0.5 s after it
+09-29 04:07:22 [relay] 🖱️ POST /test/gesture forward-right — posting ⌃⌥⌘F10
+09-29 04:07:22 [relay] 🧪 POST /test/wispr-proc — stop pid 3417 in 300 ms, SIGCONT 15000 ms later
+09-29 04:07:22 [relay] wispr state: listening → transcribing — the relay's own stop gesture (9536 ms after the chord)
+09-29 04:07:23 [relay] 🎙️ the microphone is closed — the relay's own stop gesture (9537 ms of speech)
+09-29 04:07:23 [relay] ⚡ ring down: the microphone closed — the words are in flight (the ring coasts, fading)
+09-29 04:07:23 [relay] ◯ the ring coasts while the words are transcribed — fading over ~2 s
+09-29 04:07:23 [relay] 👁 selection watcher off
+09-29 04:07:23 [relay] ▶️ dictation over — resuming them
+09-29 04:07:23 [relay] ⏱ budget 3.9 s (p98 of 100 samples on wispr-flow, cap 3.9 s) — unclamped 3.9 s, floor 1.5 s, 9.5 s of audio — Wispr Flow falls back to this Mac past it
+09-29 04:07:23 [relay] mic: closed — BlackHole 2ch: 94 buffers, peak 16366, 1 tap restart(s), 9.5 s
+09-29 04:07:23 [relay] wispr meter: 2.0 s voiced — BlackHole 2ch: 94 buffers, peak 16366, 1 tap restart(s), 9.5 s
+09-29 04:07:23 [relay] wispr state: transcribing → transcribing(processing) — the row is processing (9611 ms after the chord)
+09-29 04:07:24 [relay] 💻 ⌘⌃X — no longer waiting for Wispr's row; whatever it sends is only logged
+09-29 04:07:24 [relay] wispr state: transcribing → idle — handed to the local model (⌘⌃X) — Wispr's answer is only logged (11364 ms after the chord)
+09-29 04:07:24 [relay] 💻 POST /test/local-now — waiting for Wispr Flow: the take goes to the local model now
+09-29 04:07:24 [relay] ⚠️ wispr: Handed to the local model (⌘⌃X) — 2.0 s voiced on the relay's own recording: the local model takes it
+09-29 04:07:24 [relay] 💻 ⌘⌃X — transcribing the 9.5s recording on this Mac, as asked
+09-29 04:07:25 [relay] decode rate [whisper-local]: 9.5s audio → 1.05s (0.110×, load 2.23) — 50 samples, typical 1.07s + 0.007×, ceiling × 1.31
+09-29 04:07:25 [relay] ↪️ transcribed on this Mac instead of Wispr Flow (⌘⌃X) — 53 chars
+09-29 04:07:25 [relay] ✍️ the words landed: routed to Terminal — 2890 ms after the microphone closed
+09-29 04:07:25 [relay] ◯ caret halo off
+09-29 04:07:25 [relay] corpus: 04-07-25-local889 — 293 KB, 9.5s (whisper-local)
+09-29 04:07:26 [relay] 📋 222 chars on the clipboard — the prompt (Q17)
+09-29 04:07:26 [relay] ⌨️ paste hint — a sentence went to the bound terminal
+09-29 04:07:26 [relay] ⌨️ ttys001 foreground=cat — 222 chars
+09-29 04:07:27 [relay] ⌨️ 0 extra Return(s), 1 read-back(s) — tail: …0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txtadmin@Manageds-Virtual-Machine~%printf'\e]0;wt-witness\a';stty-echo;execcat>>/tmp/wt-plan/witness.txt
+09-29 04:07:27 [relay] 📦 delivery: local-forced → terminal:ttys001 (route)
+09-29 04:07:27 [relay] ⌨️ delivered to the bound terminal
+09-29 04:07:27 [relay] → sent dictation (698 bytes)
+09-29 04:07:38 [relay] wispr flow closed the microphone
+09-29 04:07:38 [relay] wispr flow closed the microphone
+09-29 04:07:38 [relay] 🧪 /test/wispr-proc: pid 3417 resumed after 15000 ms
+09-29 04:07:38 [relay] wispr history: formatted 15761 ms after the microphone closed (Wispr's own e2e 15630 ms) — the row is the delivery
+09-29 04:07:38 [relay] 🗑️ Wispr's History row arrived after the cancel — 33 chars dropped, and the capture can close now
+09-29 04:07:39 [relay] wispr history: late row 446 came back formatted (33 chars) after the relay had given up on it — only logged, never a second delivery (Q2)
