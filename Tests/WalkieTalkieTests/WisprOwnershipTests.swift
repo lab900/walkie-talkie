@@ -104,4 +104,39 @@ final class WisprOwnershipTests: XCTestCase {
         XCTAssertNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 0,
                                              hisKeysHeld: false, hisChordAt: 0))
     }
+
+    // MARK: E-FP (lab wave 4, 2026-09-29): the ghost watch dismissed the relay's NEXT sentence
+
+    /// The wave-4 timeline on a fake clock (seconds after TW4's unanswered chord was given up on,
+    /// 22:17:16): TW8a's relay chord at +8 (22:17:24), Wispr's microphone for it open from +11,
+    /// TW8a's own stop at +15, its capture waiting for row 227; the watch looked at +16 (22:17:32)
+    /// and dismissed it — "16 s after a relay chord it never answered".
+    func testTheNextRelaySentencesMicrophoneIsNotAGhost() {
+        let unanswered = 1_000.0, nextChord = 1_008.0
+        func ghost(_ now: Double, chord: Double, inFlight: Bool, recording: Bool) -> String? {
+            WisprOwnership.ghostMic(now: now, micOpen: true, relayRecording: recording, unansweredAt: unanswered,
+                                    hisKeysHeld: false, hisChordAt: 0, relayChordAt: chord,
+                                    relayCaptureInFlight: inFlight)
+        }
+        // Before the fix the watch knew neither the chord nor the capture: +16 s read as a ghost.
+        XCTAssertNotNil(ghost(1_016, chord: 0, inFlight: false, recording: false))
+        // The next relay chord disarms it, while TW8a records and after its stop.
+        XCTAssertNil(ghost(1_012, chord: nextChord, inFlight: true, recording: true))
+        XCTAssertNil(ghost(1_016, chord: nextChord, inFlight: true, recording: false))
+        XCTAssertNil(ghost(1_016, chord: nextChord, inFlight: false, recording: false))
+        // A microphone that stays open after the relay's own stop while its capture waits for the
+        // row is that sentence finishing — even with no newer chord known.
+        XCTAssertNil(ghost(1_016, chord: 0, inFlight: true, recording: false))
+    }
+
+    /// The true ghost (TX3, TX6b) still fires: no relay chord since, no capture in flight.
+    func testATrueGhostStillFires() {
+        XCTAssertNotNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                                hisKeysHeld: false, hisChordAt: 0, relayChordAt: 988,
+                                                relayCaptureInFlight: false))
+        // The unanswered sentence's own chord came before it was given up on: not a disarm.
+        XCTAssertNotNil(WisprOwnership.ghostMic(now: 1_015, micOpen: true, relayRecording: false, unansweredAt: 1_000,
+                                                hisKeysHeld: false, hisChordAt: 0, relayChordAt: 1_000,
+                                                relayCaptureInFlight: false))
+    }
 }

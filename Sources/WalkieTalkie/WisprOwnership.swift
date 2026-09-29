@@ -115,9 +115,17 @@ enum WisprOwnership {
     ///     (no microphone for that sentence); 0 = none.
     ///   - hisKeysHeld: right ⌥ and right ⇧ (`61+60`, his push-to-talk) held now.
     ///   - hisChordAt: his own last Wispr chord the tap saw (hands-free); 0 = none.
+    ///   - relayChordAt: the relay's own last start chord (unix time); 0 = none.
+    ///     **A relay chord after the unanswered one disarms the watch** (E-FP,
+    ///     lab wave 4): a microphone opening after it is that sentence's.
+    ///   - relayCaptureInFlight: a relay sentence's capture is still waiting for
+    ///     Wispr's row — its microphone may stay open past the relay's stop while
+    ///     Wispr finishes (TW8a: dismissed 1 s after the stop, its row then dead).
     static func ghostMic(now: Double, micOpen: Bool, relayRecording: Bool, unansweredAt: Double,
-                         hisKeysHeld: Bool, hisChordAt: Double, window: Double = 25) -> String? {
+                         hisKeysHeld: Bool, hisChordAt: Double, window: Double = 25,
+                         relayChordAt: Double = 0, relayCaptureInFlight: Bool = false) -> String? {
         guard micOpen, !relayRecording, unansweredAt > 0, now - unansweredAt < window else { return nil }
+        guard relayChordAt <= unansweredAt, !relayCaptureInFlight else { return nil }
         guard !hisKeysHeld else { return nil }
         guard hisChordAt < unansweredAt else { return nil }
         return String(format: "Wispr Flow opened its microphone %.0f s after a relay chord it never answered, with no chord or push-to-talk of his — the relay's own start, late", now - unansweredAt)

@@ -1506,6 +1506,18 @@ final class WisprFlowSource: DictationSource {
         hotkeys.setWisprRelayOwned(true)
         // B-risk (TX6b): a row Wispr opens within 1 s of this start is the relay's.
         WisprOwnership.noteRelayChord()
+        // **E-FP (lab wave 4, 2026-09-29): a new relay chord disarms the ghost
+        // watch.** TW4's unanswered chord armed it; TW8a's relay sentence opened
+        // Wispr's microphone 11 s later, and 1 s after TW8a's own stop — Wispr
+        // still finishing its row — the watch dismissed it as TW4's ghost: row 227
+        // declared dead, the words saved only by the auto p98 fallback.
+        relayChordAt = Date().timeIntervalSince1970
+        if ghostWatch != nil {
+            ghostWatch?.invalidate()
+            ghostWatch = nil
+            Log.info("👻 the ghost watch for the last unanswered chord is disarmed — a new relay chord (E-FP)")
+        }
+        unansweredChordAt = 0
         // B: this sentence's rows — the floor is the row on top at the chord.
         tailWatch?.invalidate(); tailWatch = nil
         ownedRow = nil
@@ -2700,6 +2712,8 @@ final class WisprFlowSource: DictationSource {
     /// His own last Wispr chord the tap saw (unix time) — his, not a ghost.
     private var hisChordAt: Double = 0
     private var unansweredChordAt: Double = 0
+    /// The relay's own last start chord (unix time) — `WisprOwnership.ghostMic`'s disarm.
+    private var relayChordAt: Double = 0
     private var ghostWatch: Timer?
     /// A chip notice (English), wired to `overlay.flash` by `AppDelegate`.
     var onNotice: ((String) -> Void)?
@@ -2725,10 +2739,14 @@ final class WisprFlowSource: DictationSource {
             guard !self.speculative, !(self.isRecording && self.ownTakeOnly == nil) else { return }
             let his = CGEventSource.keyState(.combinedSessionState, key: 61)
                 && CGEventSource.keyState(.combinedSessionState, key: 60)
+            // E-FP: the relay's own capture still waiting for Wispr — that
+            // microphone may be its sentence finishing after the relay's stop.
+            let inFlight = self.capturing && self.relayStarted && !self.discardOnArrival
             guard let why = WisprOwnership.ghostMic(now: now, micOpen: self.watch.sampleIsRunningInput(),
                                                     relayRecording: false, unansweredAt: self.unansweredChordAt,
                                                     hisKeysHeld: his, hisChordAt: self.hisChordAt,
-                                                    window: Self.ghostWindow) else { return }
+                                                    window: Self.ghostWindow, relayChordAt: self.relayChordAt,
+                                                    relayCaptureInFlight: inFlight) else { return }
             timer.invalidate(); self.ghostWatch = nil
             self.unansweredChordAt = 0
             Log.error("👻 \(why) — dismissing it (⌃Escape)")

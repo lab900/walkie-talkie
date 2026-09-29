@@ -14591,3 +14591,13 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   instant (`latchIfNeverClosed`); and the stop gesture that follows such a close is taken as said —
   nothing re-routed, nothing opened (`closedForHimAt`, 30 s). New `POST /test/gesture {"direct": true}`
   (forward-right / forward-click: the handler, no chord — a locked screen hides posted keys). Desk: TW41.
+- **2. E-FP — the ghost watch dismissed the relay's next sentence.** 22:17:32: `👻 … 16 s after a
+  relay chord it never answered … dismissing it` — the unanswered chord was TW4's, the microphone
+  was TW8a's own (chord 22:17:24, open 22:17:27, stop 22:17:31, Wispr still writing row 227); the row
+  was then declared dead and the auto p98 fallback delivered it at 4.9 s. Fix: **a relay chord
+  disarms the watch** (`gestureSeen`, logged `👻 … disarmed — a new relay chord`), and
+  `WisprOwnership.ghostMic` also refuses while a relay capture is in flight (the microphone that stays
+  open after the relay's own stop while Wispr finishes) or when the relay's last chord is newer than
+  the unanswered one. Unit tests on a fake clock replaying the wave-4 timeline
+  (`testTheNextRelaySentencesMicrophoneIsNotAGhost`, `testATrueGhostStillFires`); a desk cannot open
+  Wispr's real microphone, so the lab confirms it (TW4 → TW8a back to back).

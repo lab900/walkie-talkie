@@ -288,6 +288,11 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   `dictationBegan` clears `latchedAtCaret`/`latch`; a fallback for a sentence never closed on this
   side latches then (`latchIfNeverClosed`), and the next stop gesture within 30 s while its words are
   out is taken as its stop — nothing re-routed, nothing opened (`closedForHimAt`).
+- **E, the ghost microphone** (lab wave 3; E-FP fixed batch 4): after a relay chord Wispr never
+  answered, a 25 s watch dismisses (⌃Escape) a Wispr microphone opening with no sentence behind it
+  (`WisprOwnership.ghostMic`). **Disarmed by the next relay chord**, and never while a relay capture
+  is in flight (a microphone still open after the relay's stop while Wispr finishes its row — TW8a in
+  wave 4 was dismissed that way, its row declared dead).
 - **A new dictation retires a standing capture only if its row is terminal**
   (`retireCaptureIfSettled`); otherwise it throws away the sentence in flight.
 
