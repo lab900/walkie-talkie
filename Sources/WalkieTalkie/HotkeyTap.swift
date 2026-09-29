@@ -4293,11 +4293,24 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         DispatchQueue.global().async {
             usleep(settleForOptionsPlus)
             let watched: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+            // **Up to 1.5 s, and said** (2026-09-29, was 200 ms and silent): a
+            // chord posted under a modifier still down is ⌘⌥fn⌃Space to Wispr,
+            // which ignores it — the start is lost and, with From Walkie, the
+            // whole sentence sits in the bridge until the stop chord starts
+            // Wispr instead. Options+ can hold ⌃⌥⌘ for as long as the button is.
             var waited = 0
             while !CGEventSource.flagsState(.combinedSessionState).intersection(watched).isEmpty,
-                  waited < 40 {
+                  waited < 300 {
                 usleep(5_000)
                 waited += 1
+            }
+            let still = CGEventSource.flagsState(.combinedSessionState).intersection(watched)
+            let ms = Int(settleForOptionsPlus / 1000) + waited * 5
+            if still.isEmpty {
+                Log.info("⌨️ fn ⌃ Space posted \(ms) ms after the ask — the wire was bare")
+            } else {
+                Log.error("⌨️ fn ⌃ Space posted \(ms) ms after the ask with modifiers still down "
+                          + "(0x\(String(still.rawValue, radix: 16))) — Wispr may not take it")
             }
             let source = CGEventSource(stateID: .hidSystemState)
             source?.userData = backButtonStamp
