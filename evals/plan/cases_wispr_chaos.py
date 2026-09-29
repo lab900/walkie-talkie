@@ -55,6 +55,10 @@ FAIL_RE = (r"No words came back|No speech|no speech|sentence is lost|kept for Re
 REFUSE_RE = r"dictate gesture refused|start refused|one engine at a time|already open|one sentence at a time"
 RETURN_FALLBACK = "typed keys never showed"      # lab finding 1
 
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV = covers("wispr", "gesture", "recorder", "local", "delivery", "chip")
+_COV_RS = _COV + covers("restart")
+
 
 # ---------------------------------------------------------------- preconditions
 HOOKS = {}
@@ -467,7 +471,7 @@ def _once(o, min_recall=0.3):
 
 
 # ---------------------------------------------------------------- TX1: frozen during the upload (W12, Q24)
-@case("TX1", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(PROC),
+@case("TX1", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(PROC),
       expect="Wispr SIGSTOPped 0.3 s after the stop for 8 s: the late row is waited for (Q24) and delivered once — "
              "one 📦, one copy, never a Q14 fallback beside it")
 def tx1():
@@ -502,7 +506,7 @@ def tx1():
 
 
 # ---------------------------------------------------------------- TX2: killed mid-sentence, relaunched (W3/Q14, W6)
-@case("TX2", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(PROC),
+@case("TX2", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(PROC),
       expect="Wispr killed 5 s into an 8 s sentence: Q14 delivers the relay's own recording once; relaunched, "
              "Wispr's mic stays closed for 30 s with no capture (no ghost)")
 def tx2():
@@ -554,7 +558,7 @@ def tx2():
 
 
 # ---------------------------------------------------------------- TX3: the ghost microphone, first class (W6)
-@case("TX3", tags=("gesture", "audio", "chaos", "cold"), engine="wispr", lab_only=True, pre=needs(PROC),
+@case("TX3", covers=_COV, tags=("gesture", "audio", "chaos", "cold"), engine="wispr", lab_only=True, pre=needs(PROC),
       expect="relaunch Wispr, 🔼→ at once, stop: 30 s later wisprLive.micOpen is false with no capture; no "
              "/test/state answer slower than 2.5 s")
 def tx3():
@@ -614,7 +618,7 @@ def tx3():
 
 
 # ---------------------------------------------------------------- TX4: no network for the whole sentence (W3, W12)
-@case("TX4", tags=("gesture", "audio", "chaos", "net"), engine="wispr", lab_only=True, pre=needs(PROC, pf=True),
+@case("TX4", covers=_COV, tags=("gesture", "audio", "chaos", "net"), engine="wispr", lab_only=True, pre=needs(PROC, pf=True),
       expect="443 cut before the gesture until 45 s after: Q14 fallback or Recover, once; the chip never says "
              "Listening > 35 s; nothing stuck")
 def tx4():
@@ -657,7 +661,7 @@ def tx4():
 
 
 # ---------------------------------------------------------------- TX5: no network for the upload only (W12, Q14/Q24)
-@case("TX5", tags=("gesture", "audio", "chaos", "net"), engine="wispr", lab_only=True, pre=needs(PROC, pf=True),
+@case("TX5", covers=_COV, tags=("gesture", "audio", "chaos", "net"), engine="wispr", lab_only=True, pre=needs(PROC, pf=True),
       expect="443 cut at the stop, back after 25 s: the late row is honoured or the fallback delivers — once, never both")
 def tx5():
     """W12 + Q14/Q24 (W13's double): the sentence heard with the network up, cut at the stop and
@@ -692,7 +696,7 @@ def tx5():
 
 
 # ---------------------------------------------------------------- TX6: the double chord (W6)
-@case("TX6a", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(),
+@case("TX6a", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(),
       expect="🔼→, 🔼→ 0.4 s later, 🔼→ 0.2 s after that, 4 s of speech, 🔼→: the words delivered once, nothing stuck, "
              "Wispr's mic closed 10 s later")
 def tx6a():
@@ -701,7 +705,7 @@ def tx6a():
     one sentence; if either reaches Wispr as a toggle, the relay and Wispr disagree (ghost)."""
     return _tx6(raw=False)
 
-@case("TX6b", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(CHORD),
+@case("TX6b", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(CHORD),
       expect="raw chords start/stop 0.4 s/start 0.2 s, 4 s speech, stop (state + wire): the second sentence's "
              "words delivered once, the first ends quietly, no stuck isRecording, no ghost mic")
 def tx6b():
@@ -775,7 +779,7 @@ def _en6x_wav():
     w.close()
     return out
 
-@case("TX7", tags=("gesture", "audio", "chaos", "long"), engine="wispr", lab_only=True, pre=needs(),
+@case("TX7", covers=_COV, tags=("gesture", "audio", "chaos", "long"), engine="wispr", lab_only=True, pre=needs(),
       expect="a 60 s sentence (CLIP_EN ×6): one Wispr row, one delivery, ≥ 5 of 6 repetitions in the witness, "
              "no ceiling / 30 s cap line")
 def tx7():
@@ -817,7 +821,7 @@ def tx7():
 
 
 # ---------------------------------------------------------------- TX8: his own ptt against the relay (W4, W6, Q19)
-@case("TX8a", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
+@case("TX8a", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
       expect="his 61+60 held 6 s over speech, 🔼→ at +1.5 s: the relay refuses (or runs its own sentence to the "
              "witness); his words land in TextEdit once, never in the witness")
 def tx8a():
@@ -844,7 +848,7 @@ def tx8a():
         if relay_opened:
             _stop_relay()
         _wait_end(mark, 45)
-        wait_for(lambda: te_text().strip(), 30, 0.5)
+        wait_for(lambda: te_text().strip(), tmo("caret"), 0.5)   # was 30 s: TX8b's BUG paid it every run
         time.sleep(3)
         te = te_text()
         o = _after(ctx, mark, ref)
@@ -865,7 +869,7 @@ def tx8a():
     finally:
         _unrig(ctx)
 
-@case("TX8b", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
+@case("TX8b", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
       expect="relay sentence, then his 61+60 sentence 0.3 s after its stop: relay's in the witness once, his at the "
              "caret once (Q19), nothing crossed")
 def tx8b():
@@ -893,7 +897,7 @@ def tx8b():
         play(CLIP_SPEECH, seconds=5)
         time.sleep(1.0)
         _wait_end(mark, 60)
-        wait_for(lambda: te_text().strip(), 30, 0.5)
+        wait_for(lambda: te_text().strip(), tmo("caret"), 0.5)   # was 30 s: TX8b's BUG paid it every run
         time.sleep(4)
         te, wt = te_text(), witness_text()
         o = _after(ctx, mark, ref_r)
@@ -916,7 +920,7 @@ def tx8b():
 
 
 # ---------------------------------------------------------------- TX9: cold, three times (W11)
-@case("TX9", tags=("gesture", "audio", "chaos", "cold"), engine="wispr", lab_only=True, pre=needs(PROC),
+@case("TX9", covers=_COV, tags=("gesture", "audio", "chaos", "cold"), engine="wispr", lab_only=True, pre=needs(PROC),
       expect="3 sentences each 1 s after a Wispr relaunch: all delivered with their head (first 5 words), or said "
              "why — losses counted")
 def tx9():
@@ -970,7 +974,7 @@ def tx9():
 
 
 # ---------------------------------------------------------------- TX10: ten alternating (W4, W6)
-@case("TX10", tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
+@case("TX10", covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(MODS),
       expect="5 relay + 5 standalone sentences alternating, 2 s gaps: relay words only in the witness, his only in "
              "TextEdit; losses counted, 0 misroutes, 0 stuck")
 def tx10():
@@ -1067,7 +1071,7 @@ def _tx11(off):
     return fn
 
 for _i, _off in enumerate((0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)):
-    case("TX11" + "abcdefgh"[_i], tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(),
+    case("TX11" + "abcdefgh"[_i], covers=_COV, tags=("gesture", "audio", "chaos"), engine="wispr", lab_only=True, pre=needs(),
          expect="🔼← at +%.1f s of a 4 s sentence: Recover or nothing, never a delivery, nothing stuck" % _off)(_tx11(_off))
 
 
@@ -1115,7 +1119,7 @@ def _lock_db(path, hold, mode="IMMEDIATE", write=None, ready=None):
     th.start()
     return th, info
 
-@case("TX12", tags=("gesture", "audio", "chaos", "db"), engine="wispr", lab_only=True, pre=needs(db=True),
+@case("TX12", covers=_COV, tags=("gesture", "audio", "chaos", "db"), engine="wispr", lab_only=True, pre=needs(db=True),
       expect="a write transaction held on Wispr's flow.sqlite for 8 s from the stop: the relay survives, the row "
              "(or the Q14 fallback) is delivered once after the release, nothing stuck")
 def tx12():
@@ -1157,7 +1161,7 @@ def tx12():
             th.join(5)
         _unrig(ctx)
 
-@case("TX12d", tags=("desk", "chaos", "db"), engine="wispr", pre=needs_desk,
+@case("TX12d", covers=_COV, tags=("desk", "chaos", "db"), engine="wispr", pre=needs_desk,
       expect="the fake History locked EXCLUSIVE for 8 s with the terminal write inside: no give-up during the lock, "
              "delivered once within 10 s of the release, the app alive")
 def tx12d():
@@ -1227,7 +1231,7 @@ def tx12d():
 
 
 # ---------------------------------------------------------------- TX13: the app relaunched over a row in flight (W17 / W-B5)
-@case("TX13", tags=("gesture", "audio", "chaos", "restart"), engine="wispr", lab_only=True,
+@case("TX13", covers=_COV_RS, tags=("gesture", "audio", "chaos", "restart"), engine="wispr", lab_only=True,
       pre=needs(CHORD, restart=True),
       expect="Wispr frozen with the row in flight: relay-restart.sh's gate holds; after cancel + restart + thaw, the "
              "late row is never delivered, the next sentence carries only its own words")
@@ -1270,7 +1274,9 @@ def tx13():
         # Lab wave 2: the gate held on `audio staged for Recover` — the WAV is staged a beat
         # after the cancel, so wait for it, deliver it, and wait until nothing is staged.
         for _ in range(3):
-            if not wait_for(lambda: state().get("recoverable"), 8, 0.3):
+            # staged in the cancel's own log second (tmo ≈ 2.5 s); 8 s was paid once per run
+            # after the last Recover, on the pass that finds nothing more to drain
+            if not wait_for(lambda: state().get("recoverable"), tmo("recover_staged"), 0.3):
                 break
             m = log_mark()
             post("/test/recover")

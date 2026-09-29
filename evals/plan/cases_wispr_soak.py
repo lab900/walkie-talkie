@@ -44,7 +44,8 @@ relay is let settle (`_quiet`: `busy` false, *audio staged for Recover* aside �
 sentence, TextEdit's document, the clipboard, Wispr's ghost microphone); the harness's `cleanup`
 does the bind and the mic override. Per-sentence records land in `WORK/soak-<id>-<time>.json`.
 
-Knobs: `WT_SOAK_SCALE` (0.1–1, shrinks every loop for a smoke run), `WT_SOAK_SEED` (TS3),
+Knobs: `WT_SOAK_N` (2026-09-29: `12` for every loop, or `TS1=10,TS3=8`; unset = the wave-5 counts
+30 / 20 / 20 / 10 / 10), `WT_SOAK_SCALE` (0.1–1, shrinks every loop for a smoke run; `WT_SOAK_N` wins), `WT_SOAK_SEED` (TS3),
 `WT_SOAK_IDLE_MIN` (TS4, default 10), `WT_CLIP_RO` (a Romanian corpus WAV with its `.txt`).
 **CLIP_RO in the guest**: the lab corpus holds three clips; copy
 `voice-corpus/2026-09-11/17-08-41-98d90459.{wav,txt}` in (or set `WT_CLIP_RO`), else the cases
@@ -63,9 +64,27 @@ STUCK_S = 60
 # 5.9 s Romanian, "Postman știe să ruleze teste automate pe pipeline." (8 words).
 CLIP_RO_DEFAULT = CORPUS + "/2026-09-11/17-08-41-98d90459.wav"
 
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV = covers("wispr", "gesture", "recorder", "local", "delivery", "chip")
 
-def _n(default):
-    return max(1, int(round(default * SCALE)))
+
+def _soak_n():
+    """`WT_SOAK_N`: `12` (every soak loop) or `TS1=10,TS3=8` (per case); unset = the wave-5 counts."""
+    raw = (os.environ.get("WT_SOAK_N") or "").strip()
+    if not raw:
+        return {}
+    if "=" not in raw:
+        return {"*": max(1, int(raw))}
+    return {k.strip(): max(1, int(v)) for k, v in (p.split("=", 1) for p in raw.split(",") if "=" in p)}
+
+SOAK_N = _soak_n()
+
+def _n(default, cid=None):
+    """The loop's sentence count: `WT_SOAK_N` if it names this case (or all), else the wave-5 count
+    shrunk by `WT_SOAK_SCALE`. A shorter loop measures the same rates on fewer sentences — the
+    thresholds are shares, so it passes and fails on the same criteria, with wider error bars."""
+    n = SOAK_N.get(cid, SOAK_N.get("*"))
+    return n if n else max(1, int(round(default * SCALE)))
 
 
 # ---------------------------------------------------------------- clips and their words
@@ -530,14 +549,14 @@ def _restore():
 
 
 # ---------------------------------------------------------------- TS1: 30 relay sentences
-@case("TS1", tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TS1", covers=_COV, tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="30 relay sentences (EN/RO, 3 s gaps) to the bound witness: delivered ≥ 95 %, 0 silent losses")
 def ts1():
     """Loss, fallback and latency rates over 30 consecutive relay sentences to the bound witness,
     CLIP_EN and CLIP_RO alternating, a 3 s gap after each settles."""
     clock, recs, stuck_log = Clock(), [], []
     ro, ro_note = clip_ro()
-    N = _n(30)
+    N = _n(30, "TS1")
     bind_witness()
     mic_override(LOOPBACK)
     ghost = _clear_ghost()
@@ -561,14 +580,14 @@ def ts1():
 
 
 # ---------------------------------------------------------------- TS2: 20 standalone sentences
-@case("TS2", tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TS2", covers=_COV, tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="20 standalone sentences (Wispr's ptt 61+60, TextEdit in front): rows created, ≥ 95 % at the caret, 0 into the terminal")
 def ts2():
     """Wispr's own sentences left to Wispr (Q9) over 20 tries: a row each, the words at TextEdit's
     caret, nothing into the bound witness and no outbox line."""
     clock, recs, stuck_log = Clock(), [], []
     ro, ro_note = clip_ro()
-    N = _n(20)
+    N = _n(20, "TS2")
     bind_witness()
     mic_override(LOOPBACK)
     ghost = _clear_ghost()
@@ -595,7 +614,7 @@ def ts2():
 
 
 # ---------------------------------------------------------------- TS3: 20 mixed, seeded
-@case("TS3", tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TS3", covers=_COV, tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="20 relay/standalone sentences in seeded random order, 1–6 s gaps: ≥ 90 % routed right, 0 misroutes, 0 silent, 0 stuck")
 def ts3():
     """Routing under a mix: a relay sentence belongs in the witness and not in TextEdit; a
@@ -606,7 +625,7 @@ def ts3():
     rng = random.Random(seed)
     clock, recs, stuck_log = Clock(), [], []
     ro, ro_note = clip_ro()
-    N = _n(20)
+    N = _n(20, "TS3")
     plan = [(rng.choice(("relay", "standalone")), rng.choice((CLIP_EN, ro)), (float(os.environ["WT_SOAK_GAP"]) if os.environ.get("WT_SOAK_GAP") else round(rng.uniform(1.0, 6.0), 1)))
             for _ in range(N)]
     bind_witness()
@@ -650,7 +669,7 @@ def ts3():
 
 
 # ---------------------------------------------------------------- TS4: idle soak
-@case("TS4", tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TS4", covers=_COV, tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="10 min idle: Wispr's mic never open (sampled every 30 s); then one relay sentence: row ≤ 12 s, delivered")
 def ts4():
     """Nothing for `WT_SOAK_IDLE_MIN` (10) minutes — Wispr's microphone sampled every 30 s
@@ -696,7 +715,7 @@ def ts4():
 
 
 # ---------------------------------------------------------------- TS5: cold, after a relaunch
-@case("TS5", tags=("gesture", "audio", "soak", "cold"), engine="wispr", lab_only=True,
+@case("TS5", covers=_COV, tags=("gesture", "audio", "soak", "cold"), engine="wispr", lab_only=True,
       pre=lambda: needs_wispr() or (None if KILL_OK else "relaunches his Wispr: WT_ALLOW_WISPR_KILL=1 or the lab"),
       expect="10 relay sentences each 5 s after a Wispr relaunch: delivered ≥ 80 % (informational: W11 head loss, ghost mic)")
 def ts5():
@@ -705,7 +724,7 @@ def ts5():
     quiet (finding 2 saw it open 10–20 s after). Head loss = of the first 8 reference words, how
     many are missing from what landed."""
     clock, recs, stuck_log = Clock(), [], []
-    N = _n(10)
+    N = _n(10, "TS5")
     bind_witness()
     mic_override(LOOPBACK)
     ghosts, relaunch_s, fails = [], [], 0
@@ -752,7 +771,7 @@ def ts5():
 
 
 # ---------------------------------------------------------------- TS6: the clipboard holds the sentence (Q17)
-@case("TS6", tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TS6", covers=_COV, tags=("gesture", "audio", "soak"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="10 relay sentences over a known clipboard string: after each the clipboard holds the sentence, never the preset again")
 def ts6():
     """Q17 (2026-09-28) against Wispr's clipboard dance (W8): before each relay sentence the
@@ -769,7 +788,7 @@ def ts6():
         return "ERROR", "the clipboard cannot be read back from this process (pbpaste / osascript)"
     clock, recs, stuck_log = Clock(), [], []
     ro, ro_note = clip_ro()
-    N = _n(10)
+    N = _n(10, "TS6")
     bind_witness()
     mic_override(LOOPBACK)
     ghost = _clear_ghost()

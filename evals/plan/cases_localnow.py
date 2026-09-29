@@ -18,6 +18,9 @@ from cases_audio import pre, rig, start, stop, when, last_delivery, settle_out, 
 
 LOCAL_FORCED = r"📦 delivery:|words landed"
 
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV = covers("eleven", "local", "recorder", "delivery", "gesture", "chip")
+
 
 def _batch_uploads():
     """The fake Scribe's batch-upload count, or None with the fake off."""
@@ -37,7 +40,7 @@ def _forced_delivery(since_iso, timeout):
     return (time.time(), t) if t else (None, None)
 
 
-@case("TN1", ("audio", "gesture"), engine="eleven",
+@case("TN1", ("audio", "gesture"), covers=_COV, engine="eleven",
       expect="⌘⌃X mid-recording → via local-forced, no upload (fake batch count and elevenCost unchanged); no row while recording (it waits 1 s into the transcription)")
 def tn1():
     """⌘⌃X while recording on ElevenLabs: the take never leaves the Mac."""
@@ -69,7 +72,7 @@ def tn1():
         return ("PASS" if ok else "FAIL"), note
 
 
-@case("TN2", ("audio", "gesture", "slow"), engine="eleven",
+@case("TN2", ("audio", "gesture", "slow"), covers=_COV, engine="eleven",
       expect="⌘⌃X while Scribe is 20 s late → local-forced ≤ ~5 s after the press; the late answer logged, not delivered")
 def tn2():
     """⌘⌃X during the settle: the wait is abandoned, the late Scribe answer only logged."""
@@ -113,7 +116,7 @@ def tn2():
         return ("PASS" if ok else "FAIL"), note
 
 
-@case("TN3", (), engine="eleven",
+@case("TN3", (), covers=_COV, engine="eleven",
       expect="⌘⌃X at rest → one flash 'Nothing to transcribe locally', nothing recorded, nothing delivered")
 def tn3():
     """⌘⌃X with nothing recording or in flight."""
@@ -133,7 +136,7 @@ def tn3():
     return ("PASS" if ok else "FAIL"), note
 
 
-@case("TN4", ("audio", "gesture"), engine="eleven",
+@case("TN4", ("audio", "gesture"), covers=_COV, engine="eleven",
       expect="Scribe 401 → the local model decodes sentence A (45 s); a new sentence B 1 s into that decode parks A "
              "(D, wave 3): both delivered, A first, no 'which is over — dropped'")
 def tn4():

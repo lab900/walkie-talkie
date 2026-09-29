@@ -22,6 +22,9 @@ BUDGET = r"⏱ budget ([\d.]+) s \(p98 of (\d+) samples on ([\w-]+)"
 OVER = r"⏱ .+ over budget — ([\d.]+) s since the close"
 LANDED = r"the words landed: routed to .*? — (\d+) ms after the microphone closed"
 
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV = covers("wispr", "gesture", "recorder", "local", "delivery", "chip")
+
 
 def _auto_on():
     return (post("/test/local-auto", {"on": True, "wisprDown": False, "fakeLaunch": False})[1] or {}).get("localAuto") or {}
@@ -77,7 +80,7 @@ def _wispr_up(timeout=60):
     return wait_for(lambda: cw.wispr_pid() and engine().get("ready"), timeout, 0.3)
 
 
-@case("TQ1", tags=("gesture", "audio", "wave4"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
+@case("TQ1", covers=_COV, tags=("gesture", "audio", "wave4"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
       expect="6 warm relay sentences on real Wispr, auto ON: each delivered once via wispr-history; the budget "
              "line at every close; local-auto only if Wispr really ran over it")
 def tq1():
@@ -95,7 +98,7 @@ def tq1():
     return ("PASS" if ok == 6 else "FAIL"), "auto %s; %d/6 once; " % (la.get("on"), ok) + " | ".join(x for _, x in res)
 
 
-@case("TQ2", tags=("gesture", "audio", "wave4", "chaos"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
+@case("TQ2", covers=_COV, tags=("gesture", "audio", "wave4", "chaos"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
       expect="Wispr SIGKILLed 3 s into the sentence: the relay's own audio decoded locally, delivered once, "
              "close→words a few seconds; the next start does not wait for Wispr")
 def tq2():
@@ -115,7 +118,7 @@ def tq2():
         why + "; " + note
 
 
-@case("TQ3", tags=("gesture", "audio", "wave4", "chaos"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
+@case("TQ3", covers=_COV, tags=("gesture", "audio", "wave4", "chaos"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
       expect="Wispr SIGSTOPped 0.3 s after the stop for 20 s: local-auto at the budget (≤ budget + 1 s), delivered "
              "once via local-auto; the row finishing after the thaw is only logged, no second copy")
 def tq3():
@@ -129,7 +132,7 @@ def tq3():
     return ("PASS" if ok else ("FAIL" if v != "PASS" else "BUG")), why + "; " + note
 
 
-@case("TQ4", tags=("gesture", "audio", "wave4", "cold"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
+@case("TQ4", covers=_COV, tags=("gesture", "audio", "wave4", "cold"), engine="wispr", lab_only=True, pre=cw.needs_wispr,
       expect="Wispr killed, then 🔼→: the local model borrowed at once (`Wispr Flow is starting`), delivered once, "
              "Wispr launched by the relay; sentences at +2 s and +15 s after Wispr is up voiced and delivered once")
 def tq4():

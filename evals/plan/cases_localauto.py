@@ -29,6 +29,10 @@ BUDGET_LINE = r"⏱ budget ([\d.]+) s \(p98 of (\d+) samples on ([\w-]+)"
 OVER_LINE = r"⏱ .+ over budget — ([\d.]+) s since the close, budget ([\d.]+) s"
 LATE_ELEVEN = r"ElevenLabs answered [\d.]+ s after ⌘⌃X .* only logged"
 
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV_EL = covers("eleven", "local", "recorder", "delivery", "gesture", "chip")
+_COV_W = covers("wispr", "local", "recorder", "delivery", "gesture", "chip")
+
 
 def auto(**body):
     """POST /test/local-auto; answers state.localAuto."""
@@ -76,7 +80,7 @@ def _budget(mark, timeout=10):
 
 
 # ---------------------------------------------------------------- TA1
-@case("TA1", ("audio", "gesture", "slow"), engine="eleven",
+@case("TA1", ("audio", "gesture", "slow"), covers=_COV_EL, engine="eleven",
       expect="ElevenLabs (fake) 20 s late → the row counts down (`Local in …`), local-auto fires within budget + 1 s "
              "of the close, `over budget` flash, via local-auto; the late answer only logged; one outbox line")
 def ta1():
@@ -122,7 +126,7 @@ def ta1():
 
 
 # ---------------------------------------------------------------- TA2
-@case("TA2", ("audio", "gesture"), engine="eleven",
+@case("TA2", ("audio", "gesture"), covers=_COV_EL, engine="eleven",
       expect="ElevenLabs (fake) answers 0.8 s late, inside the budget → `inside its … budget`, nothing fired, "
              "via elevenlabs-scribe")
 def ta2():
@@ -156,7 +160,7 @@ def ta2():
 
 
 # ---------------------------------------------------------------- TA3
-@case("TA3", ("desk", "audio", "gesture"), engine="wispr", pre=cw.needs_desk,
+@case("TA3", ("desk", "audio", "gesture"), covers=_COV_W, engine="wispr", pre=cw.needs_desk,
       expect="Wispr's row stalls `processing` (Q24 would wait ≤ 300 s) → local-auto at the budget; the row "
              "finishing later is only logged, never a second copy")
 def ta3():
@@ -203,7 +207,7 @@ def ta3():
 
 
 # ---------------------------------------------------------------- TA4
-@case("TA4", ("audio", "gesture"), engine="eleven",
+@case("TA4", ("audio", "gesture"), covers=_COV_EL, engine="eleven",
       expect="checkbox OFF → no `⏱ budget`, the row says `Local now` (no countdown), nothing fires; the 8 s-late "
              "answer is delivered via elevenlabs-scribe, as before")
 def ta4():
@@ -239,7 +243,7 @@ def ta4():
 
 
 # ---------------------------------------------------------------- TA5
-@case("TA5", ("audio", "gesture"), engine="wispr",
+@case("TA5", ("audio", "gesture"), covers=_COV_W, engine="wispr",
       expect="Engine = Wispr, Wispr read as not running (fake) → the sentence opens on the local model at once "
              "(`Wispr Flow is starting` flash), delivered via local-whisper at the close; Wispr launched "
              "(fake exec, one launch); the Engine is Wispr again after")
@@ -290,7 +294,7 @@ def ta5():
 
 
 # ---------------------------------------------------------------- TA6 (batch 4, item 4)
-@case("TA6", ("audio", "desk"), engine="wispr", pre=cw.needs_desk,
+@case("TA6", ("audio", "desk"), covers=_COV_W, engine="wispr", pre=cw.needs_desk,
       expect="Wispr Flow's process 3 s old (faked age; the relay did not launch it) → a start on Engine = Wispr borrows "
              "the local model (`its process is 3.0 s old`), delivered via local-whisper into the witness; with the real "
              "(old) age the next start is Wispr's, not borrowed")

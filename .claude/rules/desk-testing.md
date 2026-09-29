@@ -98,6 +98,12 @@ upload made n ms late (Q12's order cases); `delayx2` delays the next two.
 - **`evals/test_stale_modifier.py`** fails any function that posts a key with flags and neither posts
   `flagsChanged` nor uses `postToPid` (rule and history in `area-crop.md`).
 - `/test/dictation` enters below the recogniser; `/test/dictation/start` opens no mic, so the halo rests.
+- **Harness timing and skipping** (2026-09-29, `evals/plan/README.md`, `evals/plan/timing-audit.md`):
+  a condition wait's timeout is `tmo(path)` = measured p99 × 1.5 + 1 s × `WT_HARNESS_SLOW` (1.0 desk,
+  1.5 guest) — never a new round number in a case. Settle waits read `relay_busy()`, never
+  `state()["busy"]`: a cancelled take's *audio staged for Recover* holds `busy` five minutes and cost
+  wave 5 ~750 of its 2 762 s. `harness.py --changed-since <sha>` SKIPs cases whose `covers=(…)` did not
+  change (`--list` to preview, no app needed); `WT_SOAK_N` sets the soak loop lengths.
 - **Local tests prefer the local engine; ElevenLabs is capped** (2026-09-27, Victor: *"pune plafon +
   regula ca testele locale sa prefere intotdeauna motor local"* · *"poti emula daca vrei apiul lor de
   streaming pt testele de live subtitles"*; on 26 Sep the suite alone burned 4 561 of the month's

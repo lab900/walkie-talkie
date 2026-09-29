@@ -2,7 +2,17 @@
 """The test plan's runner (docs/test-plan.md). One process drives the installed app over the
 loopback routes; cases are small functions that return a verdict. Nothing here edits the app.
 
-    evals/plan/harness.py [--only PREFIX,...] [--skip PREFIX,...] [--list] [--report PATH]
+    evals/plan/harness.py [--only PREFIX,...] [--skip PREFIX,...] [--changed-since SHA] [--list] [--report PATH]
+
+`--changed-since SHA` SKIPs every case tagged `covers=(…)` whose covered files did not change between
+SHA and the working tree (`unchanged since SHA`); a case without `covers` always runs. With `--list`
+it only prints what would run. The rules (names, `File:regex`, the implicit covers): `evals/plan/README.md`.
+
+**One timing knob** (2026-09-29, `evals/plan/timing-audit.md`): every wait that ends on a condition
+uses `tmo(<path>)` = (measured p99 of that path × 1.5 + 1 s) × `WT_HARNESS_SLOW` (default 1.0; the
+Tart guest driver sets 1.5). Deliberate stalls — a SIGSTOP's length, a soak's gap, a watch window
+for something that must NOT happen — are not timeouts and are never scaled. Soak loop lengths:
+`WT_SOAK_N` (`cases_wispr_soak.py`).
 
 Every case leaves the relay as it found it (bind, override, faults, cancel). A case that needs a
 gesture is tagged `gesture` and only runs when the process was started under `hands-off`
@@ -92,6 +102,33 @@ RUN = {"credits_before": None, "usage_error": None, "engine0": None, "fake": Non
        "credits_after": None}
 
 
+# ---------------------------------------------------------------- timing (2026-09-29, timing-audit.md)
+# Victor, 2026-09-29: *"why do these tests take so long?"* — most of a wave was the harness waiting on
+# round numbers and on its own Recover staging, not on the app. One knob scales every condition
+# timeout for a slower machine; nothing else in a case carries its own slack.
+SLOW = max(0.5, float(os.environ.get("WT_HARNESS_SLOW", "1.0") or 1.0))
+# Measured p99 (seconds) of what the waits wait on — the lab's waves 3–5 (quiet guest, n in
+# timing-audit.md; the max of the small samples stands in for the p99) and the desk.
+P99 = {
+    "mic_open": 10.0,       # gesture → `mic: recording through`: < 1 s warm, 10 s behind the 6 s main-thread
+                            # stall after a Wispr relaunch (W5a TW4, finding 4) — the waits that follow a relaunch
+    "wispr_row": 3.0,       # close → words from Wispr's row, relay sentence (p90 1.8–2.2, max 2.92 s)
+    "caret": 3.0,           # his standalone sentence → pasted at TextEdit's caret (p90 1.5–2.6 s)
+    "local": 8.5,           # a local decode alone, warm (p50 1.5 s, max 8.45 s)
+    "q14": 11.1,            # close → words through Q14 / local-auto (p50 4.5–4.6 s, wave 3 max 11.1 s)
+    "terminal": 7.0,        # close → the words IN the witness tab (settle + typing; p90 6.2–6.4 s)
+    "q14_terminal": 16.0,   # Q14 words + the typing into the witness (11.1 + ~5 s)
+    "wispr_relaunch": 15.0, # `/test/wispr-proc relaunch` → a new pid and `/engine.ready` (W5a TW4: 14.5 s)
+    "recover_staged": 1.0,  # a cancel → `state.recoverable` (same log second)
+}
+
+def tmo(p99):
+    """A condition wait's timeout: the measured p99 × 1.5 + 1 s, times `WT_HARNESS_SLOW`. `p99` is a
+    key of `P99` or seconds."""
+    s = P99[p99] if isinstance(p99, str) else float(p99)
+    return (s * 1.5 + 1.0) * SLOW
+
+
 # ---------------------------------------------------------------- transport
 def _port():
     for p in (8917, 8918, 8919):
@@ -101,18 +138,25 @@ def _port():
                     return p
         except Exception:
             pass
-    raise SystemExit("no relay on 8917-8919")
+    return None
 
+# No relay is not fatal at import: `--help`, `--list` and `--changed-since … --list` need none.
+# The first request without one exits as before.
 PORT = _port()
-B = f"http://127.0.0.1:{PORT}"
+B = f"http://127.0.0.1:{PORT}" if PORT else None
+
+def _base():
+    if not B:
+        raise SystemExit("no relay on 8917-8919")
+    return B
 
 def get(path, timeout=6):
-    with urllib.request.urlopen(B + path, timeout=timeout) as r:
+    with urllib.request.urlopen(_base() + path, timeout=timeout) as r:
         return json.load(r)
 
 def post(path, body=None, timeout=25):
     data = json.dumps(body if body is not None else {}).encode()
-    req = urllib.request.Request(B + path, data, {"content-type": "application/json"})
+    req = urllib.request.Request(_base() + path, data, {"content-type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, json.load(r)
@@ -176,12 +220,55 @@ def wait_for(cond, timeout=30, step=0.1, what="condition"):
         time.sleep(step)
     return None
 
+def when(mark, pattern, timeout, step=0.05):
+    """Wall-clock time the pattern first shows in the log after `mark`, or None."""
+    return wait_for(lambda: time.time() if log_has(mark, pattern) else None, timeout, step)
+
+# ---------------------------------------------------------------- busy, the harness's own Recover aside
+# **Audio staged for Recover holds `busy` for five minutes** (`restartBlockers`: a restart would wipe
+# `cancelled/`). It is a restart gate, not a sentence: nothing the harness does next is refused by it.
+# Waves 4–5 waited it out after every case that ended in a cancel — 60 s in `engine_back` (inside the
+# case's time), the rest of the five minutes in `wait_idle`, 180 s more at exit: 1 613 s of wave 4's
+# 5 133 and ~750 s of wave 5's 2 762. The harness's OWN staging is ignored now; staging it did not do
+# (Victor's cancel before the run, or between two cases) is still waited out, because the next case's
+# cancel would replace his file (`keepCancelled` keeps one). In the Tart guest every staging is ours.
+OWN_RECOVER = set()
+RECOVER_WHY = "audio staged for Recover"
+
+def _staged_at(rec):
+    try:
+        exp = datetime.datetime.fromisoformat(str(rec.get("expiresAt")).replace("Z", "+00:00")).timestamp()
+        return exp - 300.0
+    except Exception:
+        return None
+
+def recover_is_ours(s):
+    rec = s.get("recoverable") or {}
+    if not rec:
+        return False
+    if IN_LAB or rec.get("path") in OWN_RECOVER:
+        return True
+    t0, at = RUN.get("case_t0"), _staged_at(rec)
+    return t0 is not None and at is not None and at >= t0 - 0.5
+
+def busy_why(s=None):
+    """`busyWhy` without the harness's own Recover staging."""
+    s = s if s is not None else state()
+    why = list(s.get("busyWhy") or [])
+    if recover_is_ours(s):
+        why = [w for w in why if not str(w).startswith(RECOVER_WHY)]
+    return why
+
+def relay_busy(s=None):
+    """`state.busy`, the harness's own Recover staging aside — what every settle wait reads."""
+    return bool(busy_why(s))
+
 def wait_idle(timeout=600):
     """Victor may be dictating: never start a case over his sentence."""
     paused_since = [None]
     def idle():
         s = state()
-        if not s["busy"]:
+        if not relay_busy(s):
             return True
         # A prompt paused by a pointer that never moves (a huge panel unfolding under it) never
         # resolves on its own: after 20 s cancel it through POST /test/prompt (batch 4, G5).
@@ -376,7 +463,7 @@ def dictate_loopback(wav, wait_after=2.0, seconds=None, stop=True):
     """F10, play the WAV into the Loopback, F10; returns (mark, played seconds)."""
     mark = log_mark()
     gesture("forward-right")
-    if not wait_for(lambda: log_has(mark, r"mic: recording through"), 8):
+    if not wait_for(lambda: log_has(mark, r"mic: recording through"), tmo("mic_open")):
         post("/test/cancel")
         raise RuntimeError("the microphone never opened")
     time.sleep(0.4)
@@ -386,7 +473,10 @@ def dictate_loopback(wav, wait_after=2.0, seconds=None, stop=True):
         gesture("forward-right")
     return mark, played
 
-def wait_delivered(mark, timeout=60):
+def wait_delivered(mark, timeout=None):
+    """Until the sentence's words landed or it ended without them; `timeout` defaults to Q14's p99
+    (the slowest way words land) through `tmo`."""
+    timeout = tmo("q14") if timeout is None else timeout
     return wait_for(lambda: log_has(mark, r"📦 delivery:|words landed|dictation abandoned|No words|held"), timeout, 0.3)
 
 
@@ -486,8 +576,10 @@ def fake_env(on):
     os.replace(tmp, ELEVEN_ENV)
 
 def set_engine(eid, timeout=60):
-    """POST /engine once the relay is idle (a switch mid-sentence is refused); True when taken."""
-    wait_for(lambda: not state()["busy"], timeout, 0.5)
+    """POST /engine once the relay is idle (a switch mid-sentence is refused); True when taken.
+    Idle = `relay_busy` false: the harness's own Recover staging never held a switch back
+    (`setEngine` refuses only mid-sentence), yet it cost 60 s after every cancelling case."""
+    wait_for(lambda: not relay_busy(), timeout, 0.5)
     for _ in range(3):
         _, r = post("/engine", {"id": eid})
         if r.get("engine") == eid:
@@ -567,7 +659,7 @@ def eleven_teardown():
     e0 = RUN["engine0"]
     try:
         if e0 and engine()["engine"] != e0:
-            wait_for(lambda: not state()["busy"], 120, 0.5)
+            wait_for(lambda: not relay_busy(), 120, 0.5)
             set_engine(e0)
     except Exception as e:
         print(f"  (engine not restored to {e0}: {type(e).__name__}: {e})")
@@ -580,20 +672,129 @@ def eleven_teardown():
 # ---------------------------------------------------------------- the registry
 CASES = []
 
-def case(id, tags=(), expect="", engine=None, lab_only=False, pre=None):
+def case(id, tags=(), expect="", engine=None, lab_only=False, pre=None, covers=None):
     """`engine`: the engine the case needs for its duration (`eleven`｜`eleven-live`｜`wispr`);
     the cases written before 2026-09-27 get it from `ELEVEN_ENGINE`. Tagged `eleven` (+ `live`)
     or `wispr`. `lab_only`: SKIP outside the Tart guest (`IN_LAB`), tagged `lab`. `pre`: a
-    callable answering a SKIP reason (or None), asked before the engine is switched."""
+    callable answering a SKIP reason (or None), asked before the engine is switched.
+    `covers`: what in the repo this case exercises, for `--changed-since` — a Sources file's stem
+    (`"WisprFlowSource"`), a repo path or prefix (`"helpers/whisper_helper.py"`), or `"Stem:regex"`
+    (only a change whose added/removed lines match the regex counts — for `AppDelegate`, which
+    every change touches). None = always runs."""
     def deco(fn):
         eng = engine or ELEVEN_ENGINE.get(id)
         el = str(eng or "").startswith("eleven")
         t = (set(tags) | ({"eleven"} if el else set()) | ({"live"} if eng == "eleven-live" else set())
              | ({"wispr"} if eng == "wispr" else set()) | ({"lab"} if lab_only else set()))
         CASES.append({"id": id, "fn": fn, "tags": t, "expect": expect, "doc": (fn.__doc__ or "").strip(),
-                      "engine": eng, "lab_only": lab_only, "pre": pre})
+                      "engine": eng, "lab_only": lab_only, "pre": pre,
+                      "covers": tuple(covers) if covers else None,
+                      "module": getattr(fn, "__module__", None)})
         return fn
     return deco
+
+
+# ---------------------------------------------------------------- what a case covers (`covers=`)
+# The areas the Wispr / lab cases are tagged with, composed per case (`COVER["wispr"] + …`). A
+# `Stem:regex` entry counts a change to that file only when a changed line matches — AppDelegate,
+# HotkeyTap and ElementPicker are touched by nearly every commit, and only some of it is the area.
+COVER = {
+    "wispr": ("WisprFlowSource", "WisprState", "WisprHistory", "WisprHistoryWatch", "WisprOwnership",
+              "WisprWatch", "WisprNotes", "WisprSink", "WisprTestHooks", "ProcessClock", "DictationSource",
+              r"AppDelegate:(?i)wispr|history|ownTake|borrow|standalone|firewall"),
+    "gesture": (r"HotkeyTap:(?i)gesture|forward|wispr|chord|ptt|modifier|cmdv|⌘V|paste|firewall|swallow|redirect",
+                "ElementPicker"),               # every /test/* route lives in ElementPicker
+    "recorder": ("MicRecorder", "InputDevice", "AudioDevices", "VoicePrep",
+                 r"AppDelegate:(?i)\bmic\b|recorder|DEAF|meter|voiced|override"),
+    "local": ("LocalWhisperSource", "Transcriber", "DecodeRate", "AutoLocal", "helpers/whisper_helper.py",
+              r"AppDelegate:(?i)local|fallback|whisper|decode|budget|forced"),
+    "eleven": ("ElevenLabsSource", "ElevenLabsLive", r"AppDelegate:(?i)eleven|scribe"),
+    "delivery": ("TerminalBinding", "Outbox", "PasteHint",
+                 r"AppDelegate:(?i)deliver|latch|sentence|park|queue|recover|cancel|route|bind|prompt|outbox|clipboard"),
+    "chip": (r"RelayWindow:(?i)wispr|listening|opening|starting|local|budget|wait|transcrib|refus", "OverlayStates"),
+    "restart": ("RestartGate", "QuitGate", "Relaunch", "relay-restart.sh", "tools/restart_gate.py"),
+}
+
+def covers(*areas, extra=()):
+    """`covers=covers("wispr", "local")`: the union of those `COVER` areas, plus `extra` entries."""
+    out = []
+    for a in areas:
+        out += [e for e in COVER[a] if e not in out]
+    return tuple(out) + tuple(extra)
+
+
+# ---------------------------------------------------------------- --changed-since (skip what did not change)
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CHANGED = {"sha": None, "files": None, "diff": {}}
+
+def _git(*args):
+    r = subprocess.run(["git", "-C", REPO] + list(args), capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit(f"git {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout
+
+def changed_files(sha):
+    """Repo paths that differ between `sha` and the working tree (committed or not), plus untracked
+    files — what a build from here would carry that `sha` did not."""
+    if CHANGED["sha"] != sha:
+        _git("rev-parse", "--verify", sha + "^{commit}")
+        files = set(_git("diff", "--name-only", sha, "--").split())
+        files |= set(_git("ls-files", "--others", "--exclude-standard").split())
+        CHANGED.update(sha=sha, files=sorted(files), diff={})
+    return CHANGED["files"]
+
+def _diff_lines(path):
+    if path not in CHANGED["diff"]:
+        out = _git("diff", "-U0", CHANGED["sha"], "--", path)
+        CHANGED["diff"][path] = [l[1:] for l in out.splitlines()
+                                 if l[:1] in "+-" and not l.startswith(("+++", "---"))]
+    return CHANGED["diff"][path]
+
+def _matches(entry, path):
+    stem = os.path.splitext(os.path.basename(path))[0]
+    name, _, rx = entry.partition(":")
+    hit = name == stem or name == path or ("/" in name and path.startswith(name.rstrip("/") + "/"))
+    if not hit:
+        return False
+    if not rx:
+        return True
+    try:
+        lines = _diff_lines(path)
+    except SystemExit:
+        return True                # an untracked file: no diff to filter, it changed
+    return not lines or any(re.search(rx, l) for l in lines)
+
+_IMPLICIT = {}
+
+def _implicit(module):
+    """This runner, the case's module and every `cases_*` / `fake_*` module it imports, transitively
+    (a helper edited in `cases_wispr_soak` changes the chaos cases that use it)."""
+    if module not in _IMPLICIT:
+        here, seen, todo = os.path.dirname(os.path.abspath(__file__)), set(), [module] if module else []
+        while todo:
+            m = todo.pop()
+            if m in seen:
+                continue
+            seen.add(m)
+            try:
+                src = open(os.path.join(here, m + ".py"), encoding="utf-8").read()
+            except OSError:
+                continue
+            todo += re.findall(r"^\s*(?:from|import)\s+((?:cases|fake)_\w+)", src, re.M)
+        _IMPLICIT[module] = ["evals/plan/harness.py"] + sorted(f"evals/plan/{m}.py" for m in seen)
+    return _IMPLICIT[module]
+
+def unchanged_since(c, sha):
+    """The SKIP note when nothing `c` covers changed since `sha`, else None. This runner, the case's
+    own module and the case modules it imports are always covered: a case edited since `sha` runs."""
+    if not c.get("covers"):
+        return None
+    files = changed_files(sha)
+    implicit = _implicit(c.get("module")) + (["evals/plan/fake_scribe.py"] if is_eleven(c) else [])
+    for path in files:
+        if path in implicit or any(_matches(e, path) for e in c["covers"]):
+            return None
+    return f"unchanged since {sha}"
 
 def cleanup():
     """The relay as it was found: no bind, no override, no faults, nothing held, nothing open."""
@@ -634,6 +835,16 @@ def release_lock():
     except Exception:
         pass
 
+def _note_own_recover():
+    """The file this case staged for Recover (if any) is the harness's: later waits ignore it."""
+    try:
+        rec = state().get("recoverable") or {}
+        at, t0 = _staged_at(rec), RUN.get("case_t0")
+        if rec.get("path") and at is not None and t0 is not None and at >= t0 - 0.5:
+            OWN_RECOVER.add(rec["path"])
+    except Exception:
+        pass
+
 def run(selected, report_path):
     results = RUN["results"]
     t_start = RUN.setdefault("t_start", datetime.datetime.now())
@@ -642,6 +853,8 @@ def run(selected, report_path):
         if "gesture" in c["tags"] and not os.environ.get("HANDS_OFF"):
             results.append((c, "SKIP", "needs hands-off", 0)); print(f"  {c['id']}: SKIP (gesture, no hands-off)"); continue
         why = "needs the Tart guest (lab_only)" if c.get("lab_only") and not IN_LAB else None
+        if not why and RUN.get("changed_since"):
+            why = unchanged_since(c, RUN["changed_since"])
         if not why and c.get("pre"):
             try:
                 why = c["pre"]()
@@ -668,6 +881,7 @@ def run(selected, report_path):
                 f.write(render(results, t_start))
             break
         t0 = time.time()
+        RUN["case_t0"] = t0
         try:
             if c.get("engine") and not engine_for_case(c):
                 raise RuntimeError(f"POST /engine {c['engine']} was not taken (engine {engine()['engine']})")
@@ -681,7 +895,9 @@ def run(selected, report_path):
             verdict, note = "ERROR", f"{type(e).__name__}: {e}\n{traceback.format_exc(limit=2)}"
         finally:
             cleanup()
+            _note_own_recover()
             engine_back()
+            RUN["case_t0"] = None
         dt = time.time() - t0
         results.append((c, verdict, note, dt))
         print(f"  {c['id']}: {verdict} ({dt:.1f}s) — {str(note).splitlines()[0][:150] if note else ''}")
@@ -743,15 +959,14 @@ def main():
             if mod not in str(e):
                 raise
     args = sys.argv[1:]
-    only = skip = None; report = f"{here}/report-{datetime.datetime.now():%Y-%m-%d-%H%M}.md"
+    only = skip = None; listing = False; report = f"{here}/report-{datetime.datetime.now():%Y-%m-%d-%H%M}.md"
     i = 0
     while i < len(args):
         if args[i] == "--only": only = args[i + 1].split(","); i += 2
         elif args[i] == "--skip": skip = args[i + 1].split(","); i += 2
         elif args[i] == "--report": report = args[i + 1]; i += 2
-        elif args[i] == "--list":
-            for c in CASES: print(c["id"], sorted(c["tags"]), "—", c["doc"].splitlines()[0] if c["doc"] else "")
-            return
+        elif args[i] == "--changed-since": RUN["changed_since"] = args[i + 1]; i += 2
+        elif args[i] == "--list": listing = True; i += 1
         elif args[i] in ("-h", "--help"):
             print(__doc__); return
         # An unknown flag used to be skipped, so `harness.py --help` ran all 146 cases (2026-09-27,
@@ -760,6 +975,16 @@ def main():
     # `--only TD2,LC*`: an exact id, or a glob (`TD2*`, `T[LD]*`).
     def picked(cid, pats): return any(cid == p or fnmatch.fnmatch(cid, p) for p in pats)
     sel = [c for c in CASES if (not only or picked(c["id"], only)) and not (skip and picked(c["id"], skip))]
+    if RUN.get("changed_since"):
+        n = len(changed_files(RUN["changed_since"]))
+        print(f"--changed-since {RUN['changed_since']}: {n} file(s) changed")
+    if listing:
+        for c in sel:
+            skip_note = unchanged_since(c, RUN["changed_since"]) if RUN.get("changed_since") else None
+            print(c["id"], sorted(c["tags"]), "—", c["doc"].splitlines()[0] if c["doc"] else "",
+                  f"· covers {len(c['covers'])} entries" if c.get("covers") else "· no covers (always runs)",
+                  f"· SKIP {skip_note}" if skip_note else "")
+        return
     take_lock()
     # run-phase.sh stops a phase with SIGINT, then SIGKILL; a SIGTERM must reach the `finally` too
     # (the fake's lines in elevenlabs.env, his engine).

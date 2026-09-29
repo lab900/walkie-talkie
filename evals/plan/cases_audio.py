@@ -49,7 +49,7 @@ def rig():
         yield
     finally:
         _quiet(post, "/test/eleven", {"clear": True})
-        _quiet(wait_for, lambda: not state()["busy"], 30, 0.5)
+        _quiet(wait_for, lambda: not relay_busy(), 30, 0.5)
         _quiet(mic_override, None)
         _quiet(unbind)
 
@@ -62,13 +62,11 @@ def engine_as(eid):
             post("/engine", {"id": eid})
         yield e0
     finally:
-        _quiet(wait_for, lambda: not state()["busy"], 60, 0.5)
+        _quiet(wait_for, lambda: not relay_busy(), 60, 0.5)
         if _quiet(lambda: engine()["engine"]) != e0:
             _quiet(post, "/engine", {"id": e0})
 
-def when(mark, pattern, timeout, step=0.05):
-    """Wall-clock time the pattern first shows in the log after `mark`, or None."""
-    return wait_for(lambda: time.time() if log_has(mark, pattern) else None, timeout, step)
+# `when(mark, pattern, timeout)` is the harness's (2026-09-29); still importable from here.
 
 def delivered(mark, timeout=120):
     return when(mark, END, timeout, 0.2)
@@ -109,7 +107,9 @@ def last_delivery(since_iso):
     return d if d and d.get("at", "") >= since_iso else None
 
 def settle_out(timeout=60):
-    return wait_for(lambda: not state()["busy"], timeout, 0.5)
+    """Until the relay is idle — its own Recover staging aside (`harness.relay_busy`): a cancelled
+    take held this for the full `timeout` in waves 4–5."""
+    return wait_for(lambda: not relay_busy(), timeout, 0.5)
 
 def helper():
     return state().get("whisper") or {}
@@ -976,7 +976,10 @@ def b5():
 # ================================================================ A: the peak-0 watch (2026-09-28, wave 3)
 PEAK0 = r"🔁 mic: \d+ buffers with peak 0 for [\d.]+ s"
 
-@case("TM1", ("audio", "gesture"),
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV_TM = covers("recorder", "local", "gesture")
+
+@case("TM1", ("audio", "gesture"), covers=_COV_TM,
       expect="a take on a device feeding digital zeros (the Loopback with nothing played): three `🔁 mic: N buffers "
              "with peak 0` restarts (step 1 tap, steps 2–3 a new AVAudioEngine), `did not bring audio back … stays "
              "DEAF`, and `mic: closed — … peak 0 … — DEAF`")
@@ -1005,7 +1008,7 @@ def tm1():
     return ("PASS" if ok else "FAIL"), note
 
 
-@case("TM2", ("audio", "gesture"),
+@case("TM2", ("audio", "gesture"), covers=_COV_TM,
       expect="2 s of digital zeros, then the clip: one peak-0 restart (step 1, the tap), `audio came back after "
              "restart 1`, the take not DEAF, and the clip's words delivered whole (the restart cost no word)")
 def tm2():

@@ -6,6 +6,8 @@ name=$1; cap=$2; ids=$3
 N=$HOME/wt-lab/night/wispr5; mkdir -p "$N"
 cd "$HOME/wt-lab/evals/plan" || exit 9
 export WT_LAB=1 WT_LOOPBACK="BlackHole 2ch" HANDS_OFF=1 WT_ALLOW_WISPR_KILL=1 WT_COLD_WHISPER=kill WT_ALLOW_SPAWN=1 WT_ALLOW_RELAUNCH=1 WT_KEEP_TAKES=1
+# The guest is slower than the desk: every condition timeout × 1.5 (harness.py `tmo`, timing-audit.md).
+export WT_HARNESS_SLOW="${WT_HARNESS_SLOW:-1.5}"
 export PATH="$HOME/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$HOME/Library/Python/3.9/bin"
 echo "start $name cap=${cap}s ids=$ids gap=${WT_SOAK_GAP:-} $(date)" >> "$N/run-$name.log"
 ( while true; do echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30; done ) &

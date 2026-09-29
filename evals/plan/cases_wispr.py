@@ -28,6 +28,12 @@ FAKE_DB = os.path.join(WORK, "fake-wispr", "flow.sqlite")
 WMARK = "# fake-wispr: written by evals/plan/cases_wispr.py, removed after each case"
 CACHES = os.path.expanduser("~/Library/Caches/ro.victorrentea.wispr-relay")
 KILL_OK = IN_LAB or os.environ.get("WT_ALLOW_WISPR_KILL") == "1"
+# A sentence that ended with no words, for good — nothing will reach the witness after it.
+NO_WORDS = r"kept for Recover|dictation abandoned|No words heard|No words came back|No speech"
+
+# What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
+_COV = covers("wispr", "gesture", "recorder", "local", "delivery", "chip")
+_COV_EL = covers("eleven", "gesture", "recorder", "delivery")
 
 
 # ---------------------------------------------------------------- preconditions
@@ -163,7 +169,7 @@ def wav_count():
 
 
 # ---------------------------------------------------------------- TW1–TW3: the held right ⌘⌥ (W-D1, W-C6)
-@case("TW1", tags=("gesture", "desk"), engine="wispr", pre=needs_standalone(True),
+@case("TW1", covers=_COV, tags=("gesture", "desk"), engine="wispr", pre=needs_standalone(True),
       expect="right ⌘⌥ held 3 s on Engine=Wispr stays one sentence: no 🧼 release before the real one, listening ≥ 2.5 s")
 def tw1():
     """W-D1 / W-C6a (desk). Standalone ON, Engine = Wispr: the held pair is `onCleanHold` →
@@ -202,7 +208,7 @@ def tw1():
     note += f"; listening from {up[0]} s to the end of sampling, never dropped"
     return "PASS", note
 
-@case("TW2", tags=("gesture", "desk", "unit"), pre=lambda: None if "wisprLive" in state() else "no Wispr hooks in this build",
+@case("TW2", covers=_COV, tags=("gesture", "desk", "unit"), pre=lambda: None if "wisprLive" in state() else "no Wispr hooks in this build",
       expect="a stamped flagsChanged [] under a held right ⌘⌥ is not its release")
 def tw2():
     """W-D1 as a unit test (GW6 → `/test/modifiers {"keys": [], "stamped": true}`): hold right
@@ -231,7 +237,7 @@ def _retired_tw3():
             "Wispr push-to-talk branch — the held right ⌘⌥ is always Walkie's clean hold, which TW1 covers; "
             "the ptt-mismatch check is HK11's (README §4.2)")
 
-@case("TW3", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=_retired_tw3,
+@case("TW3", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=_retired_tw3,
       expect="RETIRED — was: standalone OFF, right ⌘⌥ held 2 s: a Wispr row within 1 s, or a flash")
 def tw3():
     """W-D1 (standalone OFF) / W-C7 — **retired** with Q9 step 2 (the standalone-off world is
@@ -251,7 +257,7 @@ def tw3():
 
 
 # ---------------------------------------------------------------- TW4–TW5: the cold, deaf opening (W-D2, W-A1)
-@case("TW4", tags=("gesture", "audio", "cold"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW4", covers=_COV, tags=("gesture", "audio", "cold"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="a cold Wispr: the first 3 s he says reach the witness; the chip names the warming")
 def tw4():
     """W-D2 (lab): relaunch Wispr, 🔼→ within 1 s of `ready`, 12 s of speech; sample the state
@@ -261,8 +267,8 @@ def tw4():
     # Lab wave 2 (2026-09-28): `wispr_pid()` answered the OLD pid for ~2 s after the relaunch
     # request, so W1/W1r/W3r1 chorded a Wispr that did not exist yet (16:03:58 chord, new pid at
     # 16:04:00). Wait for a NEW pid, as the docstring says ("within 1 s of ready").
-    if not wait_for(lambda: engine()["ready"] and wispr_pid() not in (0, old), 30, 0.2):
-        return "ERROR", "Wispr did not come back within 30 s"
+    if not wait_for(lambda: engine()["ready"] and wispr_pid() not in (0, old), tmo("wispr_relaunch"), 0.2):
+        return "ERROR", "Wispr did not come back within %.0f s" % tmo("wispr_relaunch")
     time.sleep(0.5)
     bind_witness(); witness_clear()
     mic_override(LOOPBACK)
@@ -285,7 +291,7 @@ def tw4():
     still = state()["listening"]
     if still:
         gesture("forward-right")
-    wait_delivered(mark, 45); stop.set(); th.join(2)
+    wait_delivered(mark); stop.set(); th.join(2)
     lie = [x for x in samples if x[0] and x[1] == "warming" and x[2] is None]
     first = open(os.path.splitext(CLIP_EN_LONG)[0] + ".txt", errors="replace").read().split()[:5] \
         if os.path.exists(os.path.splitext(CLIP_EN_LONG)[0] + ".txt") else []
@@ -295,7 +301,7 @@ def tw4():
     note = f"{len(lie)}/{len(samples)} samples listening+warming+no row ({len(lie) * 0.05:.1f} s); first-5-words hit {head}/{len(first)}; chip named it {named}; still listening at the stop {still}"
     return ("PASS" if head >= max(1, len(first) - 1) and (not lie or named) else "BUG"), note
 
-@case("TW5", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW5", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="while Wispr has no row and no microphone, the chip does not say Listening (or names the warming)")
 def tw5():
     """W-D2 / W-A1 (desk): the relay's own gesture with the chord muted and no row — Wispr
@@ -368,10 +374,10 @@ def _tw6(kind):
     return fn
 
 for _k in "abcd":
-    case("TW6" + _k, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
+    case("TW6" + _k, covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
          expect="the relay's WAV reaches Recover; no orphan wispr-*.wav" + ("; no bare screenshot message" if _k == "d" else ""))(_tw6(_k))
 
-@case("TW7", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW7", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="a cancelled / abandoned Wispr sentence leaves its WAV to Recover, no orphan file, no false 'nothing recorded'")
 def tw7():
     """W-D3 / W-B3 (desk): (a) cancel while listening — the relay's meter WAV is deleted and the
@@ -435,14 +441,14 @@ def _his_ptt(seconds, clip=None):
         time.sleep(0.4); play(clip)
     time.sleep(max(0, seconds - (0.4 if clip else 0)) + 0.3)
 
-@case("TW8a", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
+@case("TW8a", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
       expect="his own ptt sentence 1 s after the relay's lands at the caret, not in the witness or the outbox")
 def tw8a():
     """W-D4 / W-C4 (lab): inside the relay-owned window (gesture → idle + 10 s) his own Wispr ⌘V
     is dropped and rescued into the bound terminal."""
     return _tw8(1.0)
 
-@case("TW8b", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
+@case("TW8b", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
       expect="his sentence 5 s after the relay's delivery (the 10 s tail) is Wispr's paste, no 🛡️ rescue")
 def tw8b():
     """W-D4 (lab): the 10 s tail after the relay's sentence went idle."""
@@ -454,7 +460,7 @@ def _tw8(delay, after_delivery=False):
     dictate_loopback(CLIP_EN)
     t_close = time.time()
     if after_delivery:
-        wait_delivered(mark, 40)
+        wait_delivered(mark)
     else:
         # Lab wave 2 (2026-09-28): the relay's OWN ⌘V is dropped ~1.1 s after the close; with the
         # mark taken at +1.0 s W1 counted that drop as a rescue of his sentence. Take the mark
@@ -463,7 +469,10 @@ def _tw8(delay, after_delivery=False):
     time.sleep(max(0.0, delay - (time.time() - t_close)) if not after_delivery else delay)
     m2 = log_mark()
     _his_ptt(4.5, CLIP_EN)
-    time.sleep(6)
+    # Was a flat 6 s. His ⌘V is one event and the firewall logs its verdict either way (`passed`, or
+    # a drop): wait for that line (his sentence at the caret, p99 3 s), then 1 s for anything after.
+    when(m2, r"⌘V from Wispr Flow passed|⌘V[^\n]*dropped|the dropped ⌘V", tmo("caret"), 0.1)
+    time.sleep(1.0)
     txt = log_since(m2)
     rescued = "🛡️ ⌘V from" in txt and "dropped" in txt
     # Lab wave 3: inside the tail the pass line says "(B, Q19)", not "(standalone, Q9)".
@@ -472,7 +481,7 @@ def _tw8(delay, after_delivery=False):
     note = f"outbox +{extra} (the relay's sentence is 1); rescue/drop line {rescued}; Wispr's own paste passed {passed}"
     return ("PASS" if passed and not rescued and extra <= 1 else "BUG"), note
 
-@case("TW9", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
+@case("TW9", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_standalone(True),
       expect="🔼→ during his own Wispr sentence (his ptt held): 'one engine at a time', no chord posted")
 def tw9():
     """W-D5 (lab): `startDictation`'s exclusivity check is skipped on Engine = Wispr, and under Q9
@@ -490,7 +499,7 @@ def tw9():
     opened = "opening the dictation on the gesture" in txt
     return ("PASS" if refused and not opened else "BUG"), f"refused {refused}; relay opened a sentence {opened}"
 
-@case("TW10", tags=("gesture", "cold"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW10", covers=_COV, tags=("gesture", "cold"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="a stop 1 s into a cold Wispr leaves no ghost dictation: no row with words, nothing delivered for 40 s")
 def tw10():
     """W-D6 / W-A4 / W-B8 (lab): the toggle posted blind before a cold Wispr opened anything."""
@@ -506,7 +515,7 @@ def tw10():
     note = f"new row with words {ghost}; lastDelivery changed {s['lastDelivery'] != last0}; witness {len(witness_text())} chars"
     return ("PASS" if not ghost and s["lastDelivery"] == last0 and not witness_text().strip() else "BUG"), note
 
-@case("TW11", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW11", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="relay 🔼→ A (with a shot) then relay 🔽 B 0.3 s after A's stop, during A's settle: A in the witness, B delivered or held, never lost")
 def tw11():
     """W-D7 / W-B1 (lab). **Rewritten 2026-09-28 (lab wave 2)** as README §4.2 asked: the old
@@ -522,7 +531,13 @@ def tw11():
     # 🔽 → = the plain dictation (b2d9bbd, 2026-09-28: the back click is Return again)
     gesture("back-right"); time.sleep(0.4); play(CLIP_EN, seconds=3)
     time.sleep(0.5); gesture("back-right")
-    wait_for(lambda: len(re.findall(r"📦 delivery:|held for the next bind", log_since(mark))) >= 2, 45, 0.5)
+    # Both sentences landed (or held) — or B was refused out loud and A is in the witness, which is
+    # the other PASS below: B never opened, so nothing more can come (wave 5: this waited out 45 s).
+    def settled():
+        t = log_since(mark)
+        n_ = len(re.findall(r"📦 delivery:|held for the next bind", t))
+        return n_ >= 2 or (n_ >= 1 and re.search(r"refused|one engine at a time", t) and witness_text().strip())
+    wait_for(settled, tmo("q14_terminal"), 0.5)
     time.sleep(3)
     txt = log_since(mark)
     lost = re.search(r"No words came back|the sentence is lost|No speech", txt) is not None
@@ -538,7 +553,7 @@ def tw11():
     return ("PASS" if (deliveries >= 2 or (deliveries >= 1 and held)) and not lost and wt else "BUG"), note
 
 
-@case("TW12", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW12", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="two Wispr sentences overlapping on an ungated path: both delivered, in spoken order")
 def tw12():
     """W-D7 / W-B1 / W-A5 (desk): sentence A in the settle (row `processing`), a second sentence
@@ -569,7 +584,7 @@ def tw12():
 
 
 # ---------------------------------------------------------------- TW13–TW16: panel, refusals, not running (W-D8..D10)
-@case("TW13", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW13", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="a Wispr sentence does not force-send a held panel being edited; A then B, in order")
 def tw13():
     """W-D8 / W-C11 (desk): Autosend off, panel A held (`/test/dictation`) and opened for
@@ -601,7 +616,7 @@ def tw13():
         if (state().get("prompt") or {}).get("held"):
             post("/test/prompt", {"do": "cancel"})
 
-@case("TW14", tags=("desk", "gesture"), engine="wispr", pre=needs_desk,
+@case("TW14", covers=_COV, tags=("desk", "gesture"), engine="wispr", pre=needs_desk,
       expect="🔼→ during Wispr's settle is refused on the chip (the wait named), not only in the log")
 def tw14():
     """W-D9 (desk): Engine = Wispr does not queue (F3) — a start in the settle is refused with a
@@ -621,7 +636,7 @@ def tw14():
         rows.update(r for r in state()["chip"] if r); time.sleep(0.1)
     txt = log_since(mark)
     db.finish(rid, "tw fourteen")
-    wait_for(lambda: not state()["busy"], 10)
+    wait_for(lambda: not relay_busy(), 10)
     second = "opening the dictation on the gesture" in txt
     named = any(re.search(r"in flight|one sentence at a time|still (coming|transcribing)|wait", r, re.I) for r in rows)
     note = f"second sentence opened {second}; chip named the wait {named}; refusal logged {'refused' in txt or 'in flight' in txt}"
@@ -629,7 +644,7 @@ def tw14():
         return "FAIL", note
     return ("PASS" if named else "BUG"), note
 
-@case("TW15", tags=("gesture",), engine="wispr", pre=lambda: needs_wispr() or (None if KILL_OK else "stops his Wispr: WT_ALLOW_WISPR_KILL=1 or the lab"),
+@case("TW15", covers=_COV, tags=("gesture",), engine="wispr", pre=lambda: needs_wispr() or (None if KILL_OK else "stops his Wispr: WT_ALLOW_WISPR_KILL=1 or the lab"),
       expect="with Wispr quit, 🔼↑ leaves no spawnPending and no folder menu; ⌘⌃D flashes 'not running'")
 def tw15():
     """W-D10 (lab, or the desk with `WT_ALLOW_WISPR_KILL=1`): `startDictation` sets the spawn /
@@ -647,7 +662,7 @@ def tw15():
     finally:
         post("/test/wispr-proc", {"relaunch": True}); wait_for(lambda: wispr_pid(), 30)
 
-@case("TW16", tags=("gesture",), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW16", covers=_COV, tags=("gesture",), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="only Wispr's helper alive: ⌘⌃D says 'not running', never 'the sentence is lost'")
 def tw16():
     """W-D10 (lab): `isReady` matches the bundle-id prefix (the helper too) while death is judged
@@ -666,7 +681,7 @@ def tw16():
 
 
 # ---------------------------------------------------------------- TW17–TW21
-@case("TW17", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW17", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="a Wispr corpus row is written only when Wispr's micDevice is the relay's device")
 def tw17():
     """W-D11 (lab): the corpus pairs the relay meter's WAV with Wispr's text from another mic."""
@@ -681,14 +696,14 @@ def tw17():
     note = f"new wispr corpus rows {len(wis)}; micOpened {s['micOpened']}; Wispr's mic {rows and wis and wis[-1].get('device')}"
     return ("BUG" if wis else "PASS"), note
 
-@case("TW18", tags=("desk",), pre=needs_desk,
+@case("TW18", covers=_COV, tags=("desk",), pre=needs_desk,
       expect="after a pick away from Wispr the Engine list still offers Wispr")
 def tw18():
     """W-D12 (host, Codex): the Engine submenu lists Wispr only while it is the engine. No route
     reads the menu's rows (only `micRowsForTest`), so this stays a Codex check (S1)."""
     return "SKIP", "no route reads the Engine menu's rows — a Codex menu check (D-state S1)"
 
-@case("TW19", tags=("desk",), pre=needs_desk,
+@case("TW19", covers=_COV, tags=("desk",), pre=needs_desk,
       expect="/engine refused while listening / settling; accepted in state X with the swallow standing and nothing delivered")
 def tw19():
     """Engine switch × Wispr state (desk, D §1 row `POST /engine`): mid `listening` and in the
@@ -721,7 +736,7 @@ def tw19():
         bad.append("X")
     return ("PASS" if not bad else "FAIL"), "; ".join(parts)
 
-@case("TW20", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
+@case("TW20", covers=_COV, tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
       expect="Wispr killed mid-sentence: the quit noticed within 0.6 s (`wisprLive.ownTake`, a flash) and NOT taken as "
              "his stop — the relay records on; his stop after the clip delivers the whole take via local-fallback "
              "into the witness; the next 🔼→ delivers")
@@ -744,25 +759,30 @@ def tw20():
     th.join(15)
     if state()["listening"]:
         gesture("forward-right")
-    ok1 = bool(wait_for(lambda: witness_text().strip(), 40, 0.5))
-    wait_for(lambda: log_has(mark, r"📦 delivery: "), 10, 0.3)
+    # The words in the witness, or a line saying none will come (Recover / no words) — waves 4–5 sat
+    # out the full 40 s + 10 s on that second outcome.
+    wait_for(lambda: witness_text().strip() or log_has(mark, NO_WORDS), tmo("q14_terminal"), 0.5)
+    ok1 = bool(witness_text().strip())
+    if ok1:
+        wait_for(lambda: log_has(mark, r"📦 delivery: "), tmo("terminal"), 0.3)
     txt = log_since(mark)
     d = re.search(r"📦 delivery: (\S+) → (\S+)", txt)
     v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
     post("/test/wispr-proc", {"relaunch": True})
-    wait_for(lambda: engine()["ready"] and wispr_pid() not in (0, old_pid), 30)   # a NEW pid (wave 2)
+    wait_for(lambda: engine()["ready"] and wispr_pid() not in (0, old_pid), tmo("wispr_relaunch"))   # a NEW pid (wave 2)
     time.sleep(3)
     witness_clear(); m2 = log_mark()
     dictate_loopback(CLIP_EN)
     # Lab wave 2 (2026-09-28): W1r read the witness at `words landed`, 6 s before the local
     # fallback's `📦 delivery` reached the tab — wait for the witness text itself.
-    ok2 = bool(wait_for(lambda: witness_text().strip(), 40, 0.5))
+    ok2 = bool(wait_for(lambda: witness_text().strip() or log_has(m2, NO_WORDS), tmo("q14_terminal"), 0.5)) \
+        and bool(witness_text().strip())
     note = (f"quit noticed in {dt:.2f} s ({bool(held)}), still listening {still}; first sentence {d.groups() if d else None}, "
             f"voiced {v[-1] if v else '-'} s, witness {ok1}; next sentence delivered {ok2}; capture {live()['captureOpen']}")
     ok = held and dt <= 0.6 and still and ok1 and d and d.group(1) == "local-fallback" and ok2
     return ("PASS" if ok else "BUG"), note
 
-@case("TW21", tags=("gesture", "audio"), engine="eleven", pre=lambda: None if "wisprLive" in state() else "no hooks",
+@case("TW21", covers=_COV_EL, tags=("gesture", "audio"), engine="eleven", pre=lambda: None if "wisprLive" in state() else "no hooks",
       expect="after /test/dictation/start {clock} + cancel, a real sentence's marker cue is on the recorder's ruler")
 def tw21():
     """D §W-D13 note (desk, Engine ElevenLabs → the fake Scribe): `/test/dictation/start
@@ -802,7 +822,7 @@ def tw21():
 
 
 # ---------------------------------------------------------------- TW22: W2 + Q14 (2026-09-28)
-@case("TW22", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW22", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="a NULL row with no microphone behind it gives up within ~3 s of the close and the relay's own "
              "recording (≥ 1.5 s voiced) is transcribed by the local model and delivered (Q14), not a 30 s wait")
 def tw22():
@@ -834,7 +854,7 @@ def tw22():
 
 
 # ---------------------------------------------------------------- TW32: B, the row-aware tail (2026-09-28, wave 3)
-@case("TW32", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW32", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="in the relay's 10 s tail: a Wispr ⌘V with no newer row is the relay's (dropped, said so); "
              "once his newer row exists, his ⌘V passes (B / Q19) — never dropped silently")
 def tw32():
@@ -872,7 +892,7 @@ def tw32():
 
 
 # ---------------------------------------------------------------- TW33: D, a fallback in flight is parked (wave 3)
-@case("TW33", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW33", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="sentence A's Wispr row never moves → Q14 local fallback; 🔼→ B 1 s into that decode: A is parked, "
              "not closed; both in the witness, A first; no 'which is over — dropped'")
 def tw33():
@@ -904,7 +924,7 @@ def tw33():
     opened = wait_for(lambda: state()["listening"], 4)
     if not opened:
         wait_for(lambda: len(witness_text().strip()) > 20, 60, 0.5)
-        wait_for(lambda: not state()["busy"], 60, 0.5)
+        wait_for(lambda: not relay_busy(), 60, 0.5)
         txt = log_since(mark)
         loud = re.search(r"🚫 start refused[^\n]*still being transcribed locally[^\n]*", log_since(m2))
         dropped = "which is over — dropped" in txt
@@ -920,7 +940,7 @@ def tw33():
     db.update(rb, status="processing", speech=1.5); time.sleep(0.3)
     db.finish(rb, "tw thirty three sentence bee")
     wait_for(lambda: "sentence bee" in witness_text() and len(witness_text()) > 60, 90, 0.5)
-    wait_for(lambda: not state()["busy"], 60, 0.5)
+    wait_for(lambda: not relay_busy(), 60, 0.5)
     got = witness_text()
     txt = log_since(mark)
     ib = got.find("sentence bee")
@@ -962,7 +982,7 @@ def _keep_takes(on):
 
 CLEANUPS.append(lambda: _keep_takes(False))
 
-@case("TW34", tags=("desk", "audio", "cold"), engine="wispr",
+@case("TW34", covers=_COV, tags=("desk", "audio", "cold"), engine="wispr",
       pre=lambda: needs_desk() or (None if KILL_OK else "relaunches his Wispr: WT_ALLOW_WISPR_KILL=1 or the lab"),
       expect="a relay sentence opened +1/+3/+5 s after a Wispr relaunch records the clip (≥ 1.5 s voiced, "
              "never DEAF, never 'No speech was heard'); any mid-take device change restarts the tap, logged")
@@ -990,7 +1010,7 @@ def tw34():
         play(CLIP_SPEECH, seconds=6)
         chord(state_="stop")
         wait_for(lambda: log_has(mark, r"wispr meter: "), 15, 0.2)
-        wait_for(lambda: not state()["busy"], 90, 0.5)
+        wait_for(lambda: not relay_busy(), 90, 0.5)
         txt = log_since(mark)
         m = re.search(r"wispr meter: ([\d.]+) s voiced — ([^\n]*)", txt)
         voiced = float(m.group(1)) if m else -1.0
@@ -1021,7 +1041,7 @@ def _ended(t0, timeout):
     """Seconds from t0 until the capture let go (None: it did not within `timeout`)."""
     return (time.time() - t0) if wait_for(lambda: not live()["captureOpen"], timeout, 0.05) else None
 
-@case("TW35", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW35", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="raw_transcript with no words ends the sentence at once (Q14 path, not an 8 s wait); "
              "`fallback` with words is delivered at once from the row (it used to be an unknown status → failure)")
 def tw35():
@@ -1039,7 +1059,7 @@ def tw35():
     chord(state_="stop"); db.update(ra, status="processing", duration=1.5); time.sleep(0.3)
     t0 = time.time(); db.update(ra, status="raw_transcript", asr="", formatted="", pasted="", e2e=300.0)
     da = _ended(t0, 10)
-    wait_for(lambda: not state()["busy"], 15, 0.2)
+    wait_for(lambda: not relay_busy(), 15, 0.2)
     txt_a = log_since(mark)
     a_line = re.search(r"raw_transcript with no words[^\n]*", txt_a)
     time.sleep(2.2)                                     # past the 2 s stop dwell
@@ -1060,7 +1080,7 @@ def tw35():
         and via and via.group(1) == "wispr-history" and not unknown
     return ("PASS" if ok else "BUG"), note
 
-@case("TW36", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW36", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="the relay's row still `processing` when a newer row appears (his own dictation) is dead at once: "
              "the sentence ends through Q14 within ~1 s, no 'waiting on (Q2)', and Wispr's ⌘V is not held for 5 min")
 def tw36():
@@ -1079,7 +1099,7 @@ def tw36():
     t0 = time.time(); rb = db.insert(at=time.time())
     d = _ended(t0, 10)
     wait_for(lambda: log_has(mark, r"its hold on Wispr's ⌘V is let go"), 5, 0.1)
-    wait_for(lambda: not state()["busy"], 15, 0.2)
+    wait_for(lambda: not relay_busy(), 15, 0.2)
     txt = log_since(mark)
     dead = re.search(r"row %d is still processing and row %d is newer[^\n]*" % (ra, rb), txt)
     let_go = "its hold on Wispr's ⌘V is let go" in txt
@@ -1093,7 +1113,7 @@ def tw36():
     ok = d is not None and d < 1.5 and dead and let_go and not q2 and not held
     return ("PASS" if ok else "BUG"), note
 
-@case("TW37", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW37", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="a cancel during the settle (the relay's own ⌃Escape) with the row still `processing`: "
              "the discard capture closes ~1 s after the dismiss, not at the 30 s capture timeout")
 def tw37():
@@ -1115,7 +1135,7 @@ def tw37():
     db.update(ra, status="dismissed")
     return ("PASS" if d is not None and 0.9 <= d < 2.5 and line else "BUG"), note
 
-@case("TW38", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW38", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="WAL watch: every row change the capture reads is seen ≤ 50 ms after the fake's commit "
              "(Wispr's journal mode), woken by `flow.sqlite-wal`, not the 1 s tick")
 def tw38():
@@ -1150,7 +1170,7 @@ def tw38():
         # `formatted` ends the capture in the same pass that sees it: rowSeen is set first.
         t = time.time(); db.finish(rid, "tw thirty eight sentence %d" % i); seen(rid, "formatted", t)
         wait_for(lambda: "sentence %d" % i in witness_text(), 10, 0.1)
-        wait_for(lambda: not state()["busy"], 15, 0.2)
+        wait_for(lambda: not relay_busy(), 15, 0.2)
         time.sleep(2.2)
     wake1 = live().get("historyWake") or {}
     ev = wake1.get("events", 0) - wake0.get("events", 0)
@@ -1160,7 +1180,7 @@ def tw38():
     ok = len(lat) == 6 and max(lat) <= 50 and watching and "flow.sqlite-wal" in watching and ev > 0
     return ("PASS" if ok else "BUG"), note
 
-@case("TW39", tags=("desk",), engine="wispr", pre=needs_desk,
+@case("TW39", covers=_COV, tags=("desk",), engine="wispr", pre=needs_desk,
       expect="a ⌘V dropped in the relay's tail while his newer row is still NULL: the pasteboard is read once "
              "and kept; the row's words win if they come, the pasteboard's only if they do not; never pasted twice")
 def tw39():
@@ -1198,7 +1218,7 @@ def tw39():
         wait_for(lambda: (live().get("lastForeignClaim") or {}).get("row") == rb, 6, 0.1)
         ca = live().get("lastForeignClaim") or {}
         wait_for(lambda: "tw thirty nine relay a" in witness_text(), 15, 0.1)
-        wait_for(lambda: not state()["busy"], 15, 0.2)
+        wait_for(lambda: not relay_busy(), 15, 0.2)
         time.sleep(2.2)
         rc, _, vc = claim_after("tw thirty nine relay c", lambda rid: pb("PB-C pasteboard words"))
         wait_for(lambda: (live().get("lastForeignClaim") or {}).get("row") == rc, 8, 0.1)
@@ -1228,7 +1248,7 @@ def tw39():
 
 
 # ---------------------------------------------------------------- TW40: D2, the sentence behind a parked fallback (lab wave 3)
-@case("TW40", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW40", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="A's Wispr row never moves → Q14 local decode, parked by B; B's row formatted BEFORE A's decode ends: "
              "when A is delivered, B follows at once — both in the witness, A first; no 'wait for the one before' past A")
 def tw40():
@@ -1275,7 +1295,7 @@ def tw40():
     got_b = wait_for(lambda: "sentence bee" in witness_text(), 20, 0.3)
     queue = state().get("sentences")
     dt = time.time() - t_cont
-    wait_for(lambda: not state()["busy"], 30, 0.5)
+    wait_for(lambda: not relay_busy(), 30, 0.5)
     got = witness_text()
     ib = got.find("sentence bee")
     a_len = len(got[:ib].strip()) if ib >= 0 else len(got.strip())
@@ -1305,7 +1325,7 @@ def _bg_play(clip, seconds=None):
     th.start()
     return th
 
-@case("TW41", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW41", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="F1: after a cancelled caret sentence, a bound relay sentence Wispr never answers (no row, no microphone) "
              "is NOT ended at 12 s — the relay's own recording carries it (listening, `ownTake`); his stop 🔼→ at ~15 s "
              "closes it and latches the witness; the Q14 answer lands in the witness via local-fallback, never at the caret")
@@ -1376,7 +1396,7 @@ def _open_with_mic(db):
         raise RuntimeError(f"fake row {rid} was not adopted")
     return rid
 
-@case("TW42", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW42", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="item 3: Wispr quitting mid-sentence (fakeExit + its microphone closing) is not his stop — the relay's "
              "own recording goes on (`ownTake` ≤ 0.6 s), his stop closes it, the WHOLE take is decoded locally into the "
              "witness; the exit a beat after the close (inside the grace) is caught too; a close with Wispr alive still ends the "
@@ -1463,7 +1483,7 @@ def _open_with_poll(db):
         raise RuntimeError(f"fake row {rid} was not adopted")
     return rid
 
-@case("TW44", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW44", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="batch 5: the real kill's order — the 100 ms POLL sees Wispr's microphone close FIRST and the exit "
              "comes 0.15 / 0.3 / 0.4 s later: held (`ownTake`), the phase never left listening (no `listening → "
              "transcribing — the 100 ms poll`), his stop after the clip → the WHOLE take `local-fallback → "
@@ -1523,7 +1543,7 @@ def tw44():
         bad.append("d")
     return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
 
-@case("TW43", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+@case("TW43", covers=_COV, tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="item 5: Wispr's process exiting while the relay's words are in flight is told at once — the capture lets "
              "go ≤ 0.3 s after the exit (not at the next WAL commit / 1 s tick) and the take goes to Q14: "
              "`local-fallback → terminal`, before the auto p98 budget")
