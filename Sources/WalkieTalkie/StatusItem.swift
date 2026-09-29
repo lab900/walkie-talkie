@@ -1550,9 +1550,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// **Whether the list offers Wispr Flow as a row of its own** — hidden since
     /// 2026-09-25 (*"ascunde pt moment wispr flow"*), back behind
     /// `WT_WISPR_ENGINE=1` since 2026-09-28 while the VM lab decides whether its
-    /// words are caught as surely as the other engines'. Off by default: the
-    /// flip, once the verdict is in, is this one constant.
-    static let wisprEngineDefault = false
+    /// words are caught as surely as the other engines'. **On since 2026-09-29
+    /// 05:10** — the lab's wave 5 said YES on all seven criteria (build 5661ca4:
+    /// relay delivery 96.8 %, 0 cross-destination pastes, 0 doubled, his own
+    /// sentences 19/19; `evals/plan/vm/wispr/report-wave5-2026-09-29.md`), and
+    /// Victor's order was *"once you're convinced, restore Wispr Flow as a
+    /// transcription engine"*. `WT_WISPR_ENGINE=0` hides it again.
+    static let wisprEngineDefault = true
 
     /// `WT_WISPR_ENGINE` — the environment, then `elevenlabs.env` **re-read on
     /// every call**, so the menu built next shows what the file says now, the

@@ -14678,3 +14678,26 @@ back: the disarm line, row 227-style delivered by Wispr, not local-auto) and tha
 ghosts are still dismissed; item 3 + 5 on a real SIGKILL (TW20 ≤ 0.6 s, TQ2's whole take delivered;
 whether the kernel's exit or the poll's close comes first); item 4 on a real outside relaunch (TX9
 1.3–1.6 s, not 4.3–6.3 s); criterion (g) (TW11) and TS3 with 2 s gaps. Finding A stays the rig's.
+
+## 2026-09-29 05:10 — Wispr Flow restored as an engine
+
+Victor (28 Sep): *"restore Wispr Flow as an engine if and only if you are able to block it … raise
+another army of agents to test it in the VM, once you're convinced, restore."* Five lab waves on the
+Tart guest with the real Wispr Flow: wave 2 90.8 % relay delivery (NOT YET), wave 3 95.5 % (NOT YET,
+close), wave 4 96.1 % excluding BlackHole-only DEAF takes (one defect from GO), **wave 5 on build
+5661ca4: YES on all seven criteria** — 60/62 = 96.8 % (98.4 % without the one BlackHole DEAF take),
+0 cross-destination pastes, 0 doubled, his own `61+60` sentences 19/19, nothing dropped or stranded,
+voiced audio within 5 s of a launch 6/6, a refused 🔽→ never flips the toggle. Fix batches 2–4
+between the waves: B/B2 (the firewall's tail keyed on rows, his ⌘V passed even after the relay's
+delivery), D/D2 (a decoding local fallback parked; nothing stranded behind it), C, W19, A (peak-0
+watchdog; the cause is BlackHole's shared ring in the lab, not his microphones), E (the ghost mic
+dismissed) + E-FP, F1 (a Q14 answer latched to the terminal, never the caret), terminal statuses
+and the dead-row verdict, the WAL wake (4–6 ms), the pasteboard at the dropped ⌘V, Wispr's quit told
+by the kernel, a Wispr younger than 12 s never waited for, and the auto fallback (p98). `StatusItem.
+wisprEngineDefault = true`: the `☁️ Wispr Flow` row is back in the Engine list.
+
+**Open after wave 5:** batch 4's item 3 (a real SIGKILL of Wispr mid-sentence still ends the relay's
+take at the mic close — TW20/TQ2, 0.5 s voiced → Recover, said out loud; probable cause the `pollMs`
+guard in `closeFromWisprSide`); finding A stays a lab-rig item (a separate `blackhole-16ch` driver
+bundle for the relay); Wispr-side no-row losses (TX8b) are Wispr's. Reports:
+`evals/plan/vm/wispr/report-wave{2,3,4,5}-2026-09-2{8,9}.md`.
