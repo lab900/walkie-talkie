@@ -1,13 +1,13 @@
 import Foundation
 
-/// **Auto fallback to local (p98)** — the Engine submenu's checkbox
+/// **Auto fallback to local (p95)** — the Engine submenu's checkbox
 /// (2026-09-28). Victor, 22:25: *"I don't think I will ever have the patience to
 /// wait for 36 seconds. I will probably hit ⌘⌃X and use the local model
 /// fallback. Plus, 10 s startup time is killing. … (Auto fallback to local model
 /// should be a checkbox in the Engine submenu.)"*
 ///
 /// ON (the default): a sentence waiting on ElevenLabs or Wispr Flow longer than
-/// its budget (`DecodeRate.budget`, the engine's p98 for that length, clamped)
+/// its budget (`DecodeRate.budget`, the engine's p95 for that length, clamped — p98 until 2026-09-29)
 /// is handed to this Mac exactly as ⌘⌃X hands it (`via: local-auto`); the local
 /// weights are kept warm while another engine is picked; and a sentence started
 /// on Engine = Wispr while Wispr Flow is not running (or still starting) goes to
@@ -25,7 +25,7 @@ enum AutoLocal {
     }
 
     /// The Engine submenu's row title.
-    static let menuTitle = "Auto fallback to local (p98)"
+    static let menuTitle = "Auto fallback to local (p95)"
 
     /// **The chip's row while the budget runs** — `Local in 2.1 s  ⌘⌃X`
     /// (tenths; never below 0.0). Nil countdown is ⌘⌃X's own `Local now`.

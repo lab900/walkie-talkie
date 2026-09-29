@@ -426,7 +426,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// back with whatever is actually running afterwards.
     var onPickEngine: ((String) -> Void)?
 
-    /// **`Auto fallback to local (p98)`** (2026-09-28) — the checkbox under the
+    /// **`Auto fallback to local (p95)`** (2026-09-28; p95 since 2026-09-29) — the checkbox under the
     /// engines; the new value. `AutoLocal.isOn` is the truth, read at every build.
     var onToggleAutoLocal: ((Bool) -> Void)?
 
@@ -1516,7 +1516,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
             row.image = id == engineId ? Self.symbolIcon("checkmark") : Self.blankIcon
             engineSubmenu.addItem(row)
         }
-        // **⏱ Auto fallback to local (p98)** (2026-09-28, Victor: *"Auto fallback
+        // **⏱ Auto fallback to local (p95)** (2026-09-28, Victor: *"Auto fallback
         // to local model should be a checkbox in the Engine submenu"*) — a switch
         // about the engines, so under them, between two lines; the tick drawn as
         // every other switch here draws it.
@@ -1525,8 +1525,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         auto.target = self
         auto.image = AutoLocal.isOn ? Self.symbolIcon("checkmark") : Self.blankIcon
         let ram = whisperFootprint?().map { String(format: "%.1f GB", Double($0) / 1_073_741_824) }
-        auto.toolTip = "When ElevenLabs or Wispr Flow takes longer than its p98 for the sentence's length "
-            + "(at least 1.5 s, at most 0.3 × the audio + 1 s), this Mac transcribes it — as ⌘⌃X does.\n"
+        auto.toolTip = "When ElevenLabs or Wispr Flow takes longer than its p95 for the sentence's length "
+            + "(at least 1.5 s, at most 0.3 × the audio + 1 s), this Mac's words go in instead — "
+            + "decoded ahead, so they are ready by then. ⌘⌃X takes them as soon as the chip says Local ready.\n"
             + "A Wispr sentence started while Wispr Flow is not running goes to this Mac at once.\n"
             + "Keeps the local model loaded while another engine is picked"
             + (ram.map { " (\($0) now)" } ?? "") + "."

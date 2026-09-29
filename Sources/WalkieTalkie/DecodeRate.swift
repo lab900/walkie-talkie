@@ -278,6 +278,13 @@ enum DecodeRate {
         return fit(usableWindow(e), prior: prior(for: e)).seconds(for: audio)
     }
 
+    /// **The middle, not the near-worst, without remembering it** — what the
+    /// speculative decode schedules against (`AutoLocal.localEta`, 2026-09-29):
+    /// the local model's typical decode for `audio` seconds.
+    static func typical(for audio: TimeInterval, engine: String) -> TimeInterval {
+        fit(usableWindow(engine), prior: prior(for: engine)).typical(for: audio)
+    }
+
     /// The typical round trip, and remembered as this sentence's prediction.
     static func predict(audio: TimeInterval, engine: String? = nil) -> TimeInterval {
         let e = engine ?? activeEngine
@@ -393,7 +400,10 @@ enum DecodeRate {
         let predicted = pending.flatMap { p in
             p.engine == engine && CFAbsoluteTimeGetCurrent() - p.at < 120 ? p : nil
         }
-        pending = nil
+        // Only its own engine's answer spends the prediction (2026-09-29): the
+        // speculative local decode files a `whisper-local` sample while the
+        // cloud engine's words are still out, and must not wipe theirs.
+        if pending?.engine == engine { pending = nil }
         lock.unlock()
 
         let ratio = decode / audio
@@ -432,7 +442,7 @@ enum DecodeRate {
     /// samples and only 94 ElevenLabs ones. 2000 lines is ~300 kB.
     private static let kept = 2000
 
-    // MARK: - The auto fallback's budget (2026-09-28)
+    // MARK: - The auto fallback's budget (2026-09-28; p95 since 2026-09-29)
 
     /// **How long a sentence may wait on a cloud engine before this Mac takes
     /// it** — `AppDelegate`'s auto fallback. Victor, 2026-09-28 22:25: *"I don't
@@ -440,17 +450,18 @@ enum DecodeRate {
     /// probably hit ⌘⌃X … gate the Wispr engine to its p98 … Allowing a p99
     /// time based on the clip duration. The goal is that ElevenLabs or Wispr
     /// Flow should fall back to local in a few seconds in practice."*
+    /// **2026-09-29 morning: *"We go with p95"*** — and the local model's words
+    /// are to be ready *by* that moment (the speculative decode, `AutoLocal.specStart`).
     ///
-    /// **The engine's own p98 for this length, clamped.** The line is the same
+    /// **The engine's own p95 for this length, clamped.** The line is the same
     /// Theil–Sen fit the chip's bar uses, over the newest `budgetWindow` warm
-    /// samples of that engine (a p98 needs more than the bar's fifty — at 50 it
-    /// is the second-largest sample); the tail is the 0.98 quantile of the
-    /// window's residual *ratios* against that line (decode / line), the
-    /// same shape as `headroom`, one quantile further out. Ratios rather than
-    /// seconds because a hosted engine's round trip is mostly fixed and a line
-    /// through it carries that; a plain decode/audio ratio promised a 2 s
-    /// sentence nothing. Under `budgetMinimumSamples` the engine's `prior` line
-    /// times `priorTail` stands in.
+    /// samples of that engine (a tail quantile needs more than the bar's fifty);
+    /// the tail is the 0.95 quantile of the window's residual *ratios* against
+    /// that line (decode / line), the same shape as `headroom`, one quantile
+    /// further out. Ratios rather than seconds because a hosted engine's round
+    /// trip is mostly fixed and a line through it carries that; a plain
+    /// decode/audio ratio promised a 2 s sentence nothing. Under
+    /// `budgetMinimumSamples` the engine's `prior` line times `priorTail` stands in.
     ///
     /// Then **`[budgetFloor, budgetCapSlope × audio + budgetCapIntercept]`**:
     /// the floor so a jittery network is not a fallback on every short
@@ -458,16 +469,17 @@ enum DecodeRate {
     /// duration"*) so a window with a stall in it cannot promise him half a
     /// minute. The floor wins over the cap for a clip under 1.7 s.
     ///
-    /// Replayed over `decode-rate.jsonl` on 2026-09-28 (100 newest warm samples):
-    /// ElevenLabs 0.49 + 0.058 × a, tail × 3.04 → 5 s 2.4 s, 15 s 4.2 s, 30 s
-    /// 6.8 s (2 of 100 answers would have been over it); Wispr 0.54 + 0.026 × a,
-    /// tail × 2.96 → 2.0 s, 2.8 s, 4.0 s (3 of 100). `eleven-live` files under
-    /// `elevenLabs` — its delivered words are the same batch upload.
+    /// Replayed over `decode-rate.jsonl` on 2026-09-28 at p98 (100 newest warm
+    /// samples): ElevenLabs 0.49 + 0.058 × a, tail × 3.04 → 5 s 2.4 s, 15 s
+    /// 4.2 s, 30 s 6.8 s; Wispr 0.54 + 0.026 × a, tail × 2.96 → 2.0 s, 2.8 s,
+    /// 4.0 s. The p95 replay is in the journal (*p95 + speculative local*) and
+    /// `evals/fallback-report.py --budgets` recomputes it. `eleven-live` files
+    /// under `elevenLabs` — its delivered words are the same batch upload.
     struct Budget {
         /// The clamped budget, seconds after the close.
         let seconds: TimeInterval
-        /// The unclamped p98 for this audio length.
-        let p98: TimeInterval
+        /// The unclamped p95 for this audio length.
+        let unclamped: TimeInterval
         /// Samples it was read from; 0 = the prior.
         let samples: Int
         /// `budgetCapSlope × audio + budgetCapIntercept`.
@@ -477,17 +489,21 @@ enum DecodeRate {
 
         var fromPrior: Bool { samples < DecodeRate.budgetMinimumSamples }
 
+        /// `p95` — the quantile's name as the log and the menu say it.
+        static var quantileName: String { "p\(Int((DecodeRate.budgetQuantile * 100).rounded()))" }
+
         /// The line `AppDelegate` logs at every close.
         var logLine: String {
-            String(format: "⏱ budget %.1f s (p98 of %d samples on %@%@, cap %.1f s) — unclamped %.1f s, floor %.1f s, %.1f s of audio",
-                   seconds, samples, engine, fromPrior ? " — too few, the prior × 3" : "",
-                   cap, p98, DecodeRate.budgetFloor, audio)
+            String(format: "⏱ budget %.1f s (%@ of %d samples on %@%@, cap %.1f s) — unclamped %.1f s, floor %.1f s, %.1f s of audio",
+                   seconds, Budget.quantileName, samples, engine, fromPrior ? " — too few, the prior × 3" : "",
+                   cap, unclamped, DecodeRate.budgetFloor, audio)
         }
     }
 
     static let budgetWindow = 100
     static let budgetMinimumSamples = 20
-    static let budgetQuantile = 0.98
+    /// 0.98 until 2026-09-29 (*"We go with p95"*).
+    static let budgetQuantile = 0.95
     /// What the prior line is multiplied by when there are too few samples —
     /// the tails measured on 2026-09-28 were × 2.4–3.0.
     static let priorTail = 3.0
@@ -515,17 +531,17 @@ enum DecodeRate {
     /// The pure half — `AutoLocalBudgetTests`.
     static func budget(window: [Sample], prior: Prior, audio: TimeInterval, engine: String) -> Budget {
         let a = max(0, audio)
-        let p98: TimeInterval
+        let tailSeconds: TimeInterval
         if window.count < budgetMinimumSamples {
-            p98 = (prior.intercept + prior.slope * a) * priorTail
+            tailSeconds = (prior.intercept + prior.slope * a) * priorTail
         } else {
             let line = theilSen(window)
             let tail = clamp(quantile(window.map { $0.decode / max(0.05, line.intercept + line.slope * $0.audio) },
                                       budgetQuantile), to: tailBounds)
-            p98 = (line.intercept + line.slope * a) * tail
+            tailSeconds = (line.intercept + line.slope * a) * tail
         }
         let cap = budgetCapSlope * a + budgetCapIntercept
-        return Budget(seconds: max(budgetFloor, min(cap, p98)), p98: p98, samples: window.count,
+        return Budget(seconds: max(budgetFloor, min(cap, tailSeconds)), unclamped: tailSeconds, samples: window.count,
                       cap: cap, engine: engine, audio: a)
     }
 

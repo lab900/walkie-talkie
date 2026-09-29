@@ -3929,7 +3929,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let token = fallbackToken
         fallbackAudio = (wav, duration)
         if auto {
-            Log.info("💻 auto p98 — transcribing the \(String(format: "%.1f", duration))s recording on this Mac, \(failed) over its budget\(whisperSource.isReady ? "" : " (the weights are loading — the WAV waits for them)")")
+            Log.info("💻 auto p95 — transcribing the \(String(format: "%.1f", duration))s recording on this Mac, \(failed) over its budget\(whisperSource.isReady ? "" : " (the weights are loading — the WAV waits for them)")")
         } else if forced {
             Log.info("💻 ⌘⌃X — transcribing the \(String(format: "%.1f", duration))s recording on this Mac, as asked\(whisperSource.isReady ? "" : " (the weights are loading — the WAV waits for them)")")
         } else {
@@ -3998,7 +3998,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// ⌘⌃X, the menu row, `POST /test/local-now`, the auto fallback's expiry
-    /// (`from: "auto p98"`) — main queue. True when the take was handed over.
+    /// (`from: "auto p95"`) — main queue. True when the take was handed over.
     @discardableResult
     func transcribeLocallyNow(from gesture: String) -> Bool {
         // Only the auto fallback's own call keeps the flag `fallBackToLocal` reads.
@@ -4104,7 +4104,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Set by `fireAutoLocal` for the `localForced` end it causes; read and
     /// cleared by `fallBackToLocal` (`via: local-auto`).
     private var autoLocalHandOver = false
-    static let autoLocalGesture = "auto p98"
+    static let autoLocalGesture = "auto p95"
 
     /// `DecodeRate`'s key for the engine `source` is — the close is ours only
     /// when the source filed that key as the one in flight (a Wispr sentence his
@@ -4160,7 +4160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The Engine submenu's checkbox (and `POST /test/local-auto {"on"}`).
     private func setAutoLocal(_ on: Bool, from: String) {
         AutoLocal.isOn = on
-        Log.info("⏱ auto fallback to local (p98) \(on ? "ON" : "OFF") — \(from)")
+        Log.info("⏱ auto fallback to local (p95) \(on ? "ON" : "OFF") — \(from)")
         if on { keepLocalWarm("the checkbox") } else { autoLocalWait = nil; autoLocalHandOver = false }
         status.refreshAutoLocal()
         syncLocalNow()
@@ -4227,7 +4227,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var out: [String: Any] = ["on": AutoLocal.isOn]
         if let w = autoLocalWait {
             out["budget"] = w.budget.seconds
-            out["p98"] = w.budget.p98
+            out["p95"] = w.budget.unclamped
+            out["quantile"] = DecodeRate.budgetQuantile
             out["cap"] = w.budget.cap
             out["samples"] = w.budget.samples
             out["engine"] = w.budget.engine
@@ -4293,7 +4294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                     DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(started),
                                       chars: r.text.count, compression: r.compressionRatio)
-                    Log.info("↪️ transcribed on this Mac instead of \(failed)\(auto ? " (auto p98)" : forced ? " (⌘⌃X)" : "") — \(r.text.count) chars")
+                    Log.info("↪️ transcribed on this Mac instead of \(failed)\(auto ? " (auto p95)" : forced ? " (⌘⌃X)" : "") — \(r.text.count) chars")
                     done(DictationResult(
                         text: r.text, language: r.language, audio: wav, duration: duration,
                         engine: "whisper-local",
