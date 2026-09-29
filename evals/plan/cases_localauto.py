@@ -407,7 +407,7 @@ def ta8():
 # ---------------------------------------------------------------- TA9
 @case("TA9", ("audio",), covers=_COV_EL, engine="eleven",
       expect="budget forced 8 s, localEta 8 s (decode ahead from the close); ElevenLabs (fake) 15 s late → "
-             "`Use local  ⌘⌃X` before the budget; ⌘⌃X (POST /test/local-now) → delivered ≤ 1 s after the press "
+             "`Use local  ⌘⌃X` before the budget; ⌘⌃X (POST /test/local-now) → words handed over ≤ 0.5 s after the press "
              "via local-forced (`decoded ahead, ready … before it was asked for`); 📊 outcome=local-forced "
              "wasted=false budgetExpired=never; nothing uploaded twice")
 def ta9():
@@ -432,11 +432,17 @@ def ta9():
         txt = log_since(m)
         reused = re.search(r"decoded ahead, ready ([\d.]+) s before it was asked for", txt)
         via = (d or {}).get("via")
-        lag = (t_seen - t_press) if t_seen else None
+        # **Instant = the words handed to delivery at the press** — the 📊 line's toWords against the
+        # press, both from the close. `lastDelivery` is stamped after the terminal has echoed the typing
+        # (~2 s for this clip whatever the engine), so it measures the typing, not the wait.
+        typed = (t_seen - t_press) if t_seen else None
+        tw = _num(tr, "toWords")
+        lag = (tw - (t_press - t_close)) if (tw is not None and t_close) else None
         note = (f"Use local up {bool(up)} at +{round(t_up - (t_close or t_up), 2)} s (budget {budget}); delivered before "
-                f"the press {bool(early)}; press → words {None if lag is None else round(lag, 2)} s, via {via}; "
+                f"the press {bool(early)}; press → words handed over {None if lag is None else round(lag, 2)} s "
+                f"(typed and echoed {None if typed is None else round(typed, 2)} s), via {via}; "
                 f"reused {reused.group(0) if reused else None}; late Scribe logged {bool(late)}; {_say(tr)}")
-        ok = (up and not early and lag is not None and lag <= 1.0 and via == "local-forced" and reused and tr
+        ok = (up and not early and lag is not None and lag <= 0.5 and via == "local-forced" and reused and tr
               and tr.get("outcome") == "local-forced" and tr.get("wasted") == "false"
               and tr.get("budgetExpired") == "never")
         return ("PASS" if ok else "FAIL"), note
@@ -475,7 +481,7 @@ def ta10():
 @case("TA11", ("audio",), covers=_COV_EL, engine="eleven",
       expect="budget forced 3 s, ElevenLabs (fake) 15 s late → at +4 s nothing delivered, `⏱ … over budget … nothing "
              "is inserted`, the row reads `Use local  ⌘⌃X — ElevenLabs over budget` and stays (still at +7 s); ⌘⌃X → "
-             "delivered ≤ 1 s via local-forced; 📊 budgetExpired≈3 outcome=local-forced wasted=false")
+             "words handed over ≤ 0.5 s after the press via local-forced; 📊 budgetExpired≈3 outcome=local-forced wasted=false")
 def ta11():
     """The engine that never comes: the relay does not choose for him — the offer stands until he takes it."""
     why = _pre_eleven()
@@ -501,13 +507,16 @@ def ta11():
         tr = _trace(m, 10)
         settle_out(40)
         via = (d or {}).get("via")
-        lag = (t_seen - t_press) if t_seen else None
+        typed = (t_seen - t_press) if t_seen else None
+        tw = _num(tr, "toWords")
+        lag = (tw - (t_press - t_close)) if tw is not None else None   # see TA9: toWords against the press
         row_over = lambda rows: any(re.search(USE_LOCAL + r" — ElevenLabs over budget", r) for r in rows)
         note = (f"budget {budget} (forced); +4 s: delivered {bool(early4)}, row {row_over(rows4)}; +7 s: delivered "
-                f"{bool(early7)}, row {row_over(rows7)}; over line {bool(over)}; press → words "
-                f"{None if lag is None else round(lag, 2)} s via {via}; {_say(tr)}")
+                f"{bool(early7)}, row {row_over(rows7)}; over line {bool(over)}; press → words handed over "
+                f"{None if lag is None else round(lag, 2)} s (typed and echoed {None if typed is None else round(typed, 2)} s) "
+                f"via {via}; {_say(tr)}")
         be = _num(tr, "budgetExpired")
         ok = (budget == 3.0 and not early4 and not early7 and row_over(rows4) and row_over(rows7) and over
-              and lag is not None and lag <= 1.0 and via == "local-forced" and tr and be is not None
+              and lag is not None and lag <= 0.5 and via == "local-forced" and tr and be is not None
               and 3.0 <= be <= 3.5 and tr.get("outcome") == "local-forced" and tr.get("wasted") == "false")
         return ("PASS" if ok else "FAIL"), note

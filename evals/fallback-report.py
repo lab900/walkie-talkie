@@ -186,17 +186,22 @@ def main():
     ap.add_argument("--tail", type=int, help="print the last N sentences, one line each")
     ap.add_argument("--budgets", action="store_true", help="replay decode-rate.jsonl: p95 budgets for 5/15/30 s")
     ap.add_argument("--decode-rate", default=os.path.join(HOME, "decode-rate.jsonl"))
+    ap.add_argument("--include-test", action="store_true",
+                    help="keep desk runs' sentences (\"test\": true — the fake Scribe, a fake History, a forced budget)")
     args = ap.parse_args()
     if args.budgets:
         budgets(args.decode_rate)
         return
     rows = load_jsonl(args.file)
+    skipped = 0 if args.include_test else sum(1 for r in rows if r.get("test"))
+    if not args.include_test:
+        rows = [r for r in rows if not r.get("test")]
     if args.since:
         rows = [r for r in rows if str(r.get("at", "")) >= args.since]
     if args.tail:
         tail(rows, args.tail)
         return
-    print(f"{args.file}: {len(rows)} sentences")
+    print(f"{args.file}: {len(rows)} sentences" + (f" ({skipped} desk-run lines left out; --include-test)" if skipped else ""))
     summary(rows)
 
 

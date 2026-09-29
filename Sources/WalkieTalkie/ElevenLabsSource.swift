@@ -579,10 +579,8 @@ final class ElevenLabsSource: DictationSource {
             // `WT_ELEVEN_BATCH_URL` are filed under their own key, so the
             // harness never teaches the real ElevenLabs line — nor the auto
             // fallback's p98 budget, which reads the same window.
-            let batchOverridden = (ProcessInfo.processInfo.environment["WT_ELEVEN_BATCH_URL"]
-                                   ?? Self.config["WT_ELEVEN_BATCH_URL"]) != nil
             DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(stoppedAt ?? startedAt),
-                              engine: batchOverridden ? DecodeRate.elevenLabsTest : DecodeRate.elevenLabs,
+                              engine: Self.batchOverridden ? DecodeRate.elevenLabsTest : DecodeRate.elevenLabs,
                               chars: r.text.count)
             self.didTranscribe?(DictationResult(
                 text: r.text, language: r.language, audio: wav, duration: duration,
@@ -630,6 +628,13 @@ final class ElevenLabsSource: DictationSource {
         Log.info("💻 ⌘⌃X — the ElevenLabs upload of take \(t) is abandoned; its answer, if it comes, is only logged")
         answer(t) { finishHandedToLocal(up.wav, up.duration, voiced: up.voiced) }
         return true
+    }
+
+    /// **A stand-in answers the batch uploads** (`WT_ELEVEN_BATCH_URL`, the
+    /// harness's fake Scribe): its round trips file under `elevenlabs-test`, and
+    /// its sentences' `📊 fallback:` traces are marked `test`.
+    static var batchOverridden: Bool {
+        (ProcessInfo.processInfo.environment["WT_ELEVEN_BATCH_URL"] ?? config["WT_ELEVEN_BATCH_URL"]) != nil
     }
 
     /// The take's upload in flight — its WAV, for the speculative local decode

@@ -4207,7 +4207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sentence = liveSentence
         let name = source === wisprSource ? "Wispr Flow" : "ElevenLabs"
         autoLocalWait = AutoLocalWait(budget: b, since: now, sinceDate: Date(), engineName: name, sentence: sentence)
-        let trace = AutoLocal.Trace(budget: b, localEta: eta)
+        var trace = AutoLocal.Trace(budget: b, localEta: eta)
+        trace.test = testBudget != nil || testLocalEta != nil
+            || (source === wisprSource ? WisprFlowDB.overridePath != nil : ElevenLabsSource.batchOverridden)
         if let sentence { sentence.fallback = trace } else { looseTrace = trace }
         spec = SpecLocal(sentence: sentence, take: source.take, closeAt: now, startAt: trace.specPlanned)
         Log.info(b.logLine + String(format: " — the local transcript is prepared from +%.2f s (localEta %.2f s%@) and offered on ⌘⌃X when ready; nothing is inserted on its own",

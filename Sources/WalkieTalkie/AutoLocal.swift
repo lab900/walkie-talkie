@@ -146,6 +146,9 @@ enum AutoLocal {
         var toWords: TimeInterval?
         /// Why no decode ran ahead (under the voiced floor, no WAV, failed).
         var specNote: String?
+        /// A desk run's sentence (the fake Scribe, a fake `History`, a forced
+        /// budget) — written with `"test": true`, which `fallback-report.py` skips.
+        var test = false
         let at: Date
 
         init(budget b: DecodeRate.Budget, localEta: TimeInterval, at: Date = Date()) {
@@ -167,6 +170,7 @@ enum AutoLocal {
                 + "localReady=\(Self.s(localReady)) engineAnswer=\(Self.s(engineAnswer)) "
                 + "budgetExpired=\(Self.s(budgetExpired)) outcome=\(outcome ?? "?") wasted=\(wasted) "
                 + "toWords=\(Self.s(toWords))"
+                + (test ? " [test]" : "")
                 + (specNote.map { " — \($0)" } ?? "")
         }
 
@@ -179,7 +183,7 @@ enum AutoLocal {
                     "specStart": n(specStart), "localReady": n(localReady), "engineAnswer": n(engineAnswer),
                     "engineFailed": engineFailed, "budgetExpired": n(budgetExpired), "rowShown": n(rowShown),
                     "outcome": outcome ?? NSNull(), "wasted": wasted, "toWords": n(toWords),
-                    "note": specNote ?? NSNull()]
+                    "note": specNote ?? NSNull(), "test": test]
         }
 
         /// `wasted` from what ran: a decode that started, for a sentence whose
