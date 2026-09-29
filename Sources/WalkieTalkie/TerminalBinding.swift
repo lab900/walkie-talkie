@@ -1409,7 +1409,7 @@ final class TerminalBinding {
                             -- dereference, and hands back the tab itself.
                             try
                                 set c to (history of t) as text
-                                if (count c) > 600 then set c to text -600 thru -1 of c
+                                if (count c) > 1500 then set c to text -1500 thru -1 of c
                                 return "ok" & linefeed & c
                             end try
                             return "ok"
@@ -1436,7 +1436,7 @@ final class TerminalBinding {
                     try
                         if tty of t is "\(escape(tty))" then
                             set c to (history of t) as text
-                            if (count c) > 600 then set c to text -600 thru -1 of c
+                            if (count c) > 1500 then set c to text -1500 thru -1 of c
                             return "ok" & linefeed & c
                         end if
                     end try
@@ -1478,10 +1478,13 @@ final class TerminalBinding {
         var reads = 1
         let deadline = Date().addingTimeInterval(4)
         while true {
+            // The review hint is read in the last 600 (a collapsed paste has no
+            // echo to anchor on, and an older hint further up must not count);
+            // the box in 1500, since a long envelope fills more than 600.
             let shown = String(tail.suffix(600))
             var why: String?
             if asksForReview(tail: shown, sent: text) { why = "Claude Code read the block as a paste and asked to review it" }
-            else if stillInPrompt(tail: shown, sent: text) { why = "the sentence was still in the prompt box" }
+            else if stillInPrompt(tail: tail, sent: text) { why = "the sentence was still in the prompt box" }
             if let why, presses < 4 {
                 guard osascript(again) == "ok" else { break }
                 presses += 1
@@ -1496,10 +1499,10 @@ final class TerminalBinding {
             guard let more = osascript(read), more.hasPrefix("ok\n") else { break }
             tail = String(more.dropFirst(3))
         }
-        if presses == 0 || stillInPrompt(tail: String(tail.suffix(600)), sent: text) {
+        if presses == 0 || stillInPrompt(tail: tail, sent: text) {
             // From the last `❯` on, not the last 160 characters: those were
             // always the status line, which never said what the box held.
-            let shown = String(tail.suffix(600))
+            let shown = tail
             let box = shown.range(of: "❯", options: .backwards).map { String(shown[$0.lowerBound...]) } ?? shown
             let seen = box.filter { !$0.isWhitespace }.prefix(200)
             Log.info("⌨️ \(presses) extra Return(s), \(reads) read-back(s) — tail: …\(seen)")
@@ -1531,15 +1534,26 @@ final class TerminalBinding {
     /// Return(s), 5 read-back(s)` and sat unsent, the review hint never came.
     /// A collapsed paste in the box right after this delivery is this
     /// delivery.
+    ///
+    /// **Any line of the sentence, not only its first** (2026-09-29 15:30,
+    /// *"iarăși a ratat"*): the box of a long envelope read `❯ [Dictated in RO
+    /// or EN] [📁=…/15-29-57] …` — its first lines were not where the prompt
+    /// mark is. The `📁` line is unique to each delivery. And **`paste again
+    /// to expand`** under the box (15:26, box drawn empty) is Claude Code
+    /// saying a paste is still being held.
     static func stillInPrompt(tail: String, sent: String) -> Bool {
         func squash(_ s: String) -> String { s.filter { !$0.isWhitespace } }
         let screen = squash(tail)
         guard let prompt = screen.range(of: "❯", options: .backwards) else { return false }
         let box = screen[prompt.upperBound...]
         if box.range(of: "[Pastedtext#", options: .caseInsensitive) != nil { return true }
-        let firstLine = sent.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).first.map(String.init) ?? sent
-        let opening = String(squash(firstLine).prefix(20))
-        return !opening.isEmpty && box.contains(opening)
+        if box.range(of: "pasteagaintoexpand", options: .caseInsensitive) != nil { return true }
+        // 16 non-blank characters at least, so a short line cannot match the
+        // status line by accident.
+        return sent.split(whereSeparator: { $0 == "\n" || $0 == "\r" })
+            .map { String(squash(String($0)).prefix(20)) }
+            .filter { $0.count >= 16 }
+            .contains { box.contains($0) }
     }
 
     // MARK: - tmux
