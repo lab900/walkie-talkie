@@ -1,0 +1,16 @@
+chain start 01:15:22 5661ca4
+440 Hz before W5a: W5a 1 peak 0.3 nonzero 59711
+W5a start 01:17:19
+440 Hz before W5b: W5b 1 peak 0.3 nonzero 59711
+W5b start 01:37:30
+pf rules after W5b:        0 in the anchor
+440 Hz before W5c: W5c 1 peak 0.3 nonzero 59711
+W5c start 01:43:38
+440 Hz before W5t: W5t 1 peak 0.3 nonzero 59711
+W5t start 01:46:07
+440 Hz before W5e: W5e 1 peak 0.3 nonzero 59711
+W5e start 01:55:45
+440 Hz before W5d: W5d 1 peak 0.3 nonzero 59711
+W5d start 02:01:19
+pf rules after end:        0 in the anchor
+CHAINDONE 02:05:00

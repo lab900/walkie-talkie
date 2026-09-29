@@ -1,0 +1,12 @@
+start W5c cap=1800s ids=TQ2,TQ4 gap= Tue Sep 29 01:43:38 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 52006
+relay on 8917, 2 case(s), report → /Users/admin/wt-lab/night/wispr5/report-lab-W5c.md
+   SEC TQ2 close→words - s via - budget 2.2 (100 samples on wispr-flow) fired no voiced 0.0 DEAF
+   SEC TQ2.next close→words 1.35 s via local-whisper budget - (- samples on -) fired no voiced -
+  TQ2: BUG (78.2s) — nothing delivered, said so (Recover / failure / refusal); SEC TQ2 close→words - s via - budget 2.2 (100 samples on wispr-flow) fired no voiced 0.0 DEA
+   SEC TQ4.cold close→words 1.74 s via local-whisper budget - (- samples on -) fired no voiced -
+   SEC TQ4.+2s close→words 0.54 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.7
+   SEC TQ4.+15s close→words 0.51 s via wispr-history budget 2.9 (100 samples on wispr-flow) fired no voiced 1.7
+  TQ4: PASS (58.4s) — cold: SEC TQ4.cold close→words 1.74 s via local-whisper budget - (- samples on -) fired no voiced -; borrowed True; 📦×1 local-whisper; copies 1.0 reca
+rc=0 Tue Sep 29 01:45:59 UTC 2026
+PHASEDONE W5c

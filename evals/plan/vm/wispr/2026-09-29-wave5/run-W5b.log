@@ -1,0 +1,10 @@
+start W5b cap=2700s ids=TW4,TX3,TX6b,TX9,TX13 gap= Tue Sep 29 01:37:30 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 51168
+relay on 8917, 5 case(s), report → /Users/admin/wt-lab/night/wispr5/report-lab-W5b.md
+  TW4: BUG (56.3s) — 0/276 samples listening+warming+no row (0.0 s); first-5-words hit 0/5; chip named it False; still listening at the stop True
+  TX3: PASS (39.2s) — relaunch 1.2 s; first sentence opened True, 📦×1 local-whisper; copies 1.0 recall 1.00; rows +0 (); clipboard writes 1; mic with no capture first at ne
+  TX6b: PASS (22.0s) — delivered once: 📦×1 local-forced; copies 1.0 recall 1.00; rows +2 (formatted); 2.0 s voiced; clipboard writes 1; dwell-guard swallows 0; Wispr mic 10 
+  TX9: PASS (58.8s) — losses 0/3 (silent 0), head losses 0; 
+  TX13: PASS (169.7s) — gate held True; row 351 processing at the freeze; dry-run gate exit 3; restart exit 0; app pid 965 → None; Wispr 2638 thawed; late row 351 → formatted
+rc=0 Tue Sep 29 01:43:29 UTC 2026
+PHASEDONE W5b

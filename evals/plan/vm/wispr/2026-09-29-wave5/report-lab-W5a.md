@@ -1,0 +1,20 @@
+# Test plan run — 2026-09-29 01:17
+
+Verdicts: **PASS** = the app does what the plan expects · **BUG** = the plan's prediction of a defect was confirmed · **FAIL** = neither the expectation nor the prediction · **SKIP** / **ERROR**.
+
+BUG 2 · PASS 6
+
+ElevenLabs: credits unreadable (no ELEVENLABS_API_KEY); cap 3000 → cases that would spend real credits **SKIP**. Engine for the run: `whisper` (was `wispr`, put back at exit); only `eleven`-tagged cases switch. fake Scribe on port 49219 (live + batch, `WT_FAKE_SCRIBE=1`).
+
+| case | verdict | s | expectation | observed |
+|---|---|---|---|---|
+| TW4 | **BUG** | 96 | a cold Wispr: the first 3 s he says reach the witness; the chip names the warming | 155/189 samples listening+warming+no row (7.8 s); first-5-words hit 0/5; chip named it True; still listening at the stop True |
+| TW8a | **PASS** | 28 | his own ptt sentence 1 s after the relay's lands at the caret, not in the witness or the outbox | outbox +1 (the relay's sentence is 1); rescue/drop line False; Wispr's own paste passed True |
+| TW11 | **PASS** | 65 | relay 🔼→ A (with a shot) then relay 🔽 B 0.3 s after A's stop, during A's settle: A in the witness, B delivered or held, never lost | outbox +1; 📦 lines 1; held False; witness 379 chars; lost-line False; B refused True (B refused out loud while A settles — not silent) |
+| TW20 | **BUG** | 138 | Wispr killed mid-sentence: the quit noticed within 0.6 s (`wisprLive.ownTake`, a flash) and NOT taken as his stop — the relay records on; his stop after the clip delivers the whole take via local-fallback into the witness; the next 🔼→ delivers | quit noticed in 5.06 s (False), still listening False; first sentence None, voiced 0.5 s, witness False; next sentence delivered True; capture False |
+| TW41 | **PASS** | 91 | F1: after a cancelled caret sentence, a bound relay sentence Wispr never answers (no row, no microphone) is NOT ended at 12 s — the relay's own recording carries it (listening, `ownTake`); his stop 🔼→ at ~15 s closes it and latches the witness; the Q14 answer lands in the witness via local-fallback, never at the caret | at 13 s: listening True, ownTake {'for': 1.020851969718933, 'why': 'Wispr Flow did not answer the chord'}; delivered before the stop False; delivery ('local-fallback', 'terminal:ttys001'); witness 263 chars; voiced 4.4 s; stuck line False; caret False |
+| TW42 | **PASS** | 50 | item 3: Wispr quitting mid-sentence (fakeExit + its microphone closing) is not his stop — the relay's own recording goes on (`ownTake` ≤ 0.6 s), his stop closes it, the WHOLE take is decoded locally into the witness; the exit a beat after the close (≤ 0.3 s) is caught too; a close with Wispr alive still ends the sentence at once (control) | (a) held True in 0.01 s, listening 2 s on True, delivery ('local-fallback', 'terminal:ttys001'), voiced 4.3 s, witness 263 chars; (b) close then exit: held True, delivery ('local-fallback', 'terminal:ttys001'); (c) Wispr alive: closed True in 0.40 s, ownTake None, row delivered True |
+| TW43 | **PASS** | 16 | item 5: Wispr's process exiting while the relay's words are in flight is told at once — the capture lets go ≤ 0.3 s after the exit (not at the next WAL commit / 1 s tick) and the take goes to Q14: `local-fallback → terminal`, before the auto p98 budget | capture let go 0.02 s after the exit; exit line True; delivery ('local-fallback', 'terminal:ttys001'); auto p98 fired first False; witness 228 chars |
+| TA6 | **PASS** | 79 | Wispr Flow's process 3 s old (faked age; the relay did not launch it) → a start on Engine = Wispr borrows the local model (`its process is 3.0 s old`), delivered via local-whisper into the witness; with the real (old) age the next start is Wispr's, not borrowed | borrow 🔁 Whisper (local) for this sentence — Wispr Flow is still starting (its process is 3.0 s old) (POST /test/loca; flash True; delivery ('local-whisper', 'terminal:ttys001'); witness 225 chars; real age: opened True, not borrowed True (processAge 640.4202921390533) |
+
+Fake Scribe: 0 live session(s), 0 chunks (0.0 s), 0 partials, 0 commits, 0 batch upload(s), 0 error(s) sent.

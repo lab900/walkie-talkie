@@ -1,0 +1,6 @@
+start W5e cap=2400s ids=TS3 gap=2 Tue Sep 29 01:55:45 UTC 2026
+ElevenLabs: ? credits used this month, ? of 10000 left (cap 3000) — no ELEVENLABS_API_KEY; engine wispr → whisper for the run; fake Scribe on port 53700
+relay on 8917, 1 case(s), report → /Users/admin/wt-lab/night/wispr5/report-lab-W5e.md
+  TS3: PASS (322.8s) — 20/20 · delivered 20 (100.0 %) · truncated 0 · lost 0 (silent 0) · rows 20/20 (NULL 0) · via wispr-history 7 · recall mean 0.99 min 0.88 · close→lande
+rc=0 Tue Sep 29 02:01:13 UTC 2026
+PHASEDONE W5e

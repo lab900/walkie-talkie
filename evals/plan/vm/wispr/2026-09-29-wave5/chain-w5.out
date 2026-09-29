@@ -1,0 +1,24 @@
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  1172 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  1169 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  2277 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  2280 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  3070 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  3072 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  3460 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  3463 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  4152 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  4154 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 19:  4793 Terminated: 15          ( sleep "$cap"; echo "CAP hit $(date)" >> "$N/run-$name.log"; kill -INT $p 2> /dev/null; sleep 30; kill -9 $p 2> /dev/null )
+/Users/admin/wt-lab/run-w5phase.sh: line 20:  4790 Terminated: 15          ( while true; do
+    echo "$(date +%H:%M:%S) $(uptime | sed "s/.*load averages*: //")" >> "$N/load-$name.log"; sleep 30;
+done )
