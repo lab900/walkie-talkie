@@ -14633,3 +14633,18 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   relay's recording. Unit tests: a SIGKILLed child is told in < 0.2 s, a cancelled watch says nothing.
   `wisprLive {exitWatchPid, exited}`. Desk TW43 (exit 0.5 s into the settle: the capture lets go
   ≤ 0.3 s, `local-fallback → terminal`, before the p98 budget); the lab's TW20 measures the real kill.
+- **6. The rig, into the repo.** The wave-4 guest patches are merged (`cases_w4real.py` — TQ1–TQ4, the
+  auto fallback against the real Wispr — now in `evals/plan` and the harness's module list; the
+  `WT_SOAK_GAP` knob for TS3; TX8b/TX10 print TextEdit's text in their evidence). Case fixes from the
+  report's re-reads: **TM1** waited on `did not bring audio back`, which step 2's line also says —
+  now the final `N restart(s) did not bring audio back`, 15 s; **TM2** accepts 2–3 restarts when the
+  last one is the one that saw the clip arrive (a slow guest's `play()` started ~8 s late); **TW39**
+  claims as soon as the capture lets go instead of after the words reach the witness (the tail's
+  1.5 s had run out on the guest's 4 s prompt panel), and an (a) that passed by B is said, not
+  failed; **TX8b/TX10**'s marker counts either number (*assumption*/*assumptions*). Docs: the
+  harness runs only through `tart exec` — over SSH its reads of BlackHole are exact zeros (no
+  microphone grant for `sshd-keygen-wrapper`'s chain; wave 4's `aborted1/`), and `docs/vm-wispr.md`'s
+  "SSH does everything … `sounddevice`" is corrected; finding A's recommendation (a second BlackHole
+  from a separate driver bundle for the relay, e.g. `blackhole-16ch`; **not installed**). Wave 5:
+  `evals/plan/vm/wispr/wave5-rerun.txt`, `chain-wave5.sh` (its `warm()` restarts a helper that is
+  neither ready nor loading — `{}` only reads), `run-w5phase.sh`, `bhcheck.py`.

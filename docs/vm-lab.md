@@ -191,7 +191,10 @@ stay) — untested, and a resume would still read 8 GiB of RAM image off the dis
   `GRPCConnectionPoolError` for a while. Copy files, poll logs, `open` the app and shut down over
   SSH. **The harness itself must go through `tart exec`**: it drives Terminal with `osascript`,
   and the Automation grant belongs to `tart-guest-agent` — from SSH it would be
-  `sshd-keygen-wrapper` asking, with nobody to click.
+  `sshd-keygen-wrapper` asking, with nobody to click. **And the microphone grant** (wave 4,
+  2026-09-29): over SSH the harness's reads of BlackHole are exact zeros — `loopback_alive()` says
+  the pass-thru is dead and TM1/TM2 SKIP (`evals/plan/vm/wispr/2026-09-29-wave4/aborted1/`). Never
+  launch a phase over SSH, even when `tart exec` is slow to come up: wait for it, or reboot.
 - **`down` must use SSH** (`ssh … 'sudo shutdown -h now'`, then wait for `tart list` to say
   `stopped`). `vm-lab.sh down` sends the shutdown through `tart exec`; with the agent down that
   call fails silently and the loop waits 600 s before the pulled plug.
@@ -291,6 +294,12 @@ D 96 min (23 processes, 30 s idle before each).
   under `--no-audio` (and is Victor's real microphone without it), so it is not a candidate.
   BlackHole is one device with 2 in + 2 out wired straight through — what `loopback_alive()`'s
   `playrec(device=(idx, idx))` and `play()` expect.
+- **Finding A lives in BlackHole, not the relay** (waves 3–4): BlackHole 0.7.1's function-static
+  write clock is shared by every reader, so a second reader (Wispr) can turn the relay's stream into
+  flowing zeros; none of `MicRecorder`'s three restart steps brings it back. **Recommended, not
+  installed:** a second BlackHole from a separate driver bundle for the relay (e.g. the
+  `blackhole-16ch` cask), each clip played into both — details in `docs/vm-wispr.md`, *Corrected
+  2026-09-29*. Until then a DEAF take in the lab is the rig's, and the app says so.
 - **`WT_LOOPBACK`** (added to `harness.py`, default `"🧪 WT Inject"`) names the device the
   harness plays into and self-tests.
 - **`INJECT`**: `cases_audio.py` and `cases_lifecycle.py` derive it from `harness.LOOPBACK`

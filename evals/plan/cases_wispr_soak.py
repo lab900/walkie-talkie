@@ -607,7 +607,7 @@ def ts3():
     clock, recs, stuck_log = Clock(), [], []
     ro, ro_note = clip_ro()
     N = _n(20)
-    plan = [(rng.choice(("relay", "standalone")), rng.choice((CLIP_EN, ro)), round(rng.uniform(1.0, 6.0), 1))
+    plan = [(rng.choice(("relay", "standalone")), rng.choice((CLIP_EN, ro)), (float(os.environ["WT_SOAK_GAP"]) if os.environ.get("WT_SOAK_GAP") else round(rng.uniform(1.0, 6.0), 1)))
             for _ in range(N)]
     bind_witness()
     mic_override(LOOPBACK)

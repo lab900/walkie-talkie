@@ -736,7 +736,7 @@ def main():
     here = os.path.dirname(os.path.abspath(__file__))
     sys.path.insert(0, here)
     for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue",
-                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto"):
+                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto", "cases_w4real"):
         try:
             importlib.import_module(mod)
         except ModuleNotFoundError as e:

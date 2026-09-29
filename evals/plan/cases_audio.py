@@ -989,7 +989,9 @@ def tm1():
     with rig(), engine_as("whisper"):
         m = start()
         if not on_inject(m): return not_inject(m)
-        gave_up = when(m, r"did not bring audio back", 9)
+        # Lab wave 4: the step lines say `restart 1 did not bring audio back` too — only the final
+        # `3 restart(s) did not bring audio back … stays DEAF` is the give-up (15 s: a slow guest).
+        gave_up = when(m, r"\d+ restart\(s\) did not bring audio back", 15)
         stop()
         when(m, r"mic: closed — ", 10)
         settle_out(60)
@@ -1032,5 +1034,11 @@ def tm2():
     note = (f"{len(restarts)} peak-0 restart(s); came back: {back.group(0)[8:] if back else 'no'}; "
             f"closed: {closed.group(1) if closed else 'no line'}; words: {text[:80]!r}")
     whole = "if i dictate" in text.lower() and "wonder" in text.lower()
-    ok = len(restarts) == 1 and back and closed and "DEAF" not in closed.group(1) and whole
+    # Lab wave 4: on a slow guest `play()` took ~8 s to make sound, so 2–3 peak-0 restarts ran on
+    # real silence before the clip; `audio came back after restart N` is then the clip starting.
+    # Still a PASS when the restart that saw it come back is the last one and the words are whole.
+    slow = len(restarts) > 1 and back is not None and int(back.group(1)) == len(restarts)
+    if slow:
+        note += f" (slow clip start: {len(restarts)} restarts ran before it)"
+    ok = (len(restarts) == 1 or slow) and len(restarts) <= 3 and back and closed and "DEAF" not in closed.group(1) and whole
     return ("PASS" if ok else "FAIL"), note

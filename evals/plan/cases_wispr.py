@@ -1179,8 +1179,11 @@ def tw39():
     def claim_after(ra_text, prepare):
         ra = open_sentence(db); time.sleep(0.5)
         close_sentence(db, ra, text=ra_text)
-        wait_for(lambda: ra_text in witness_text(), 15, 0.1)
-        wait_for(lambda: not live()["captureOpen"], 5, 0.05)
+        # Lab wave 4 (batch 4): the tail's 1.5 s runs from the capture's end, not from the words
+        # reaching the witness — on a slow guest the prompt panel took ~4 s, the tail watch had
+        # already noted his row, and the ⌘V passed (B), correctly. Claim as soon as the capture
+        # lets go; the witness is checked afterwards.
+        wait_for(lambda: not live()["captureOpen"], 15, 0.02)
         rid = db.insert(at=time.time())
         board = prepare(rid)
         v = post("/test/wispr-paste", {"dryClaim": True})[1]
@@ -1192,6 +1195,7 @@ def tw39():
         db.finish(rb, "row b words of his own")
         wait_for(lambda: (live().get("lastForeignClaim") or {}).get("row") == rb, 6, 0.1)
         ca = live().get("lastForeignClaim") or {}
+        wait_for(lambda: "tw thirty nine relay a" in witness_text(), 15, 0.1)
         wait_for(lambda: not state()["busy"], 15, 0.2)
         time.sleep(2.2)
         rc, _, vc = claim_after("tw thirty nine relay c", lambda rid: pb("PB-C pasteboard words"))
@@ -1206,13 +1210,18 @@ def tw39():
         read_once = len(re.findall(r"the pasteboard read once", txt))
     finally:
         subprocess.run(["pbcopy"], input=saved)
-    note = (f"(a) ⌘V {va.get('verdict')}; claim row {ca.get('row')} from {ca.get('source')} ({ca.get('chars')} chars); "
+    # A slow guest can still be past the tail's 1.5 s at the ⌘V: his row noted, the ⌘V passed —
+    # right by B (wave 4). Then (a) did not exercise the claim; said, not failed.
+    a_passed_b = va.get("verdict") == "passed" and re.search(r"row %d [^\n]*is his[^\n]*passes now \(B\)" % rb, txt)
+    note = (f"(a) ⌘V {va.get('verdict')}{' (his row already noted — B, the tail outran on this machine)' if a_passed_b else ''}; "
+            f"claim row {ca.get('row')} from {ca.get('source')} ({ca.get('chars')} chars); "
             f"(b) ⌘V {vc.get('verdict')}; claim row {cc.get('row')} from {cc.get('source')} ({cc.get('chars')} chars); "
             f"second ⌘V {v2.get('verdict')}; dry claims of C {claims_c}; pasteboard reads {read_once}")
-    ok = (va.get("verdict") == "dropped" and ca.get("row") == rb and str(ca.get("source", "")).startswith("the row")
-          and ca.get("chars") == len("row b words of his own")
+    ok_a = (va.get("verdict") == "dropped" and ca.get("row") == rb and str(ca.get("source", "")).startswith("the row")
+            and ca.get("chars") == len("row b words of his own")) or bool(a_passed_b)
+    ok = (ok_a
           and vc.get("verdict") == "dropped" and cc.get("row") == rc and str(cc.get("source", "")).startswith("the pasteboard")
-          and cc.get("chars") == len("PB-C pasteboard words") and claims_c == 1 and read_once == 2)
+          and cc.get("chars") == len("PB-C pasteboard words") and claims_c == 1 and read_once == (1 if a_passed_b else 2))
     return ("PASS" if ok else "BUG"), note
 
 

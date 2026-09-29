@@ -381,10 +381,16 @@ def _wait_end(mark, timeout=60):
     """Until the sentence ended (a delivery or a failure line) and the relay let go of it."""
     return bool(wait_for(lambda: _ended(mark) and not _still_up(), timeout, 0.3))
 
+def _variants(w):
+    """The word and its plural/singular: Wispr wrote *assumption* for the corpus's *assumptions*
+    (lab wave 4, TX8b/TX10 marked PASS by hand) — the marker counts either."""
+    return {w, w[:-1]} if w.endswith("s") and len(w) > 4 else {w, w + "s"}
+
 def _marker(ref, avoid=()):
-    """The clip's most telling word: long, rare in the clip, absent from `avoid` — its count in a
-    destination is the number of copies that landed there."""
-    cand = [w for w in ref if len(w) >= 5 and w not in avoid] or [w for w in ref if w not in avoid] or ref
+    """The clip's most telling word: long, rare in the clip, absent from `avoid` (in either
+    number) — its count in a destination is the number of copies that landed there."""
+    av = set().union(*[_variants(a) for a in avoid]) if avoid else set()
+    cand = [w for w in ref if len(w) >= 5 and not (_variants(w) & av)] or [w for w in ref if w not in av] or ref
     if not cand:
         return None, 1
     w = sorted(cand, key=lambda x: (ref.count(x), -len(x)))[0]
@@ -394,7 +400,8 @@ def copies(text, ref, avoid=()):
     w, per = _marker(ref, avoid)
     if not w:
         return 0
-    return _tokens(text).count(w) / float(per)
+    vs = _variants(w)
+    return sum(1 for t in _tokens(text) if t in vs) / float(per)
 
 def _pb_walkie(cc0):
     ev = (state().get("pasteboard") or {}).get("events") or []
@@ -894,7 +901,7 @@ def tx8b():
         r_w, r_c = copies(wt, ref_r), copies(te, ref_r, avoid=ref_h)
         h_c, h_w = copies(te, ref_h), copies(wt, ref_h)
         note = ("relay: witness %.1f, TextEdit %.1f · his: TextEdit %.1f, witness %.1f · Q19 line %s · drop line %s; %s"
-                % (r_w, r_c, h_c, h_w, re.search(r"\((?:B, )?Q19\)", txt) is not None, "dropped" in txt, _fmt(o)))
+                % (r_w, r_c, h_c, h_w, re.search(r"\((?:B, )?Q19\)", txt) is not None, "dropped" in txt, _fmt(o))) + " · TE=%r" % te[:300]
         if h_w > 0 or r_c > 0:
             return "FAIL", "crossed: " + note
         if o["up"] or r_w > 1.4 or h_c > 1.4:
@@ -1009,7 +1016,7 @@ def tx10():
         lost_r = max(0.0, 5 - r_w)
         lost_h = max(0.0, 5 - h_c)
         note = ("relay: %d opened, %d refused, witness %.1f/5, TextEdit %.1f · his: TextEdit %.1f/5, witness %.1f · "
-                "losses relay %.0f his %.0f; %s" % (opened, refused, r_w, r_c, h_c, h_w, lost_r, lost_h, _fmt(o)))
+                "losses relay %.0f his %.0f; %s" % (opened, refused, r_w, r_c, h_c, h_w, lost_r, lost_h, _fmt(o))) + " · TE=%r" % te[:400]
         if r_c > 0 or h_w > 0:
             return "FAIL", "misrouted: " + note
         if o["up"] or not o["pidSame"] or r_w > 5.4 or h_c > 5.4:

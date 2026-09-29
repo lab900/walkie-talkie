@@ -1,0 +1,46 @@
+# Wispr as engine — wave 5: the cases the next VM run must run (2026-09-29, fix batch 4)
+#
+# Build: master after fix batch 4 (the report's first line names the hash). Chain:
+# evals/plan/vm/wispr/chain-wave5.sh + run-w5phase.sh (+ bhcheck.py), launched THROUGH `tart exec`
+# (over SSH BlackHole reads zeros — docs/vm-lab.md). One id per line; `--only` takes exact ids or globs.
+# The harness runs a selection in registry order, so TW4 → TW8a stay back to back (E-FP's sequence).
+#
+# F1, criterion (b) — the one misroute: TW4 twice (two phases). Read: `💻 Wispr Flow did not answer
+# the chord — … carries it on until his stop` at 12 s, NO `🧷 stuck`, `📦 delivery: local-fallback →
+# terminal:…`, never `→ caret`; the first 5 words in the witness.
+TW4
+TW4
+# E-FP: TW8a right after TW4 — `👻 … disarmed — a new relay chord (E-FP)` at TW8a's chord, no
+# `👻 … dismissing it` during TW8a, row delivered via wispr-history (not local-auto).
+TW8a
+# Item 3 + 5 — the quit mid-sentence: TW20 (new bar: `ownTake` ≤ 0.6 s after the kill, the whole take
+# via local-fallback), TQ2 (the SIGKILL 3 s in: now ≥ 5 s voiced, delivered, not Recover).
+TW20
+TQ2
+# E still fires on a true ghost (TX3, TX6b); the frozen row (TX13).
+TX3
+TX6b
+TX13
+# Item 4 — a Wispr relaunched from outside, +1 s: now borrowed (`its process is N s old`), 1.3–1.6 s,
+# not Q14's 4.3–6.3 s. TQ4: Wispr not running, then +2 s (now borrowed too — Wispr is 2 s old) and +15 s.
+TX9
+TQ4
+# The soak with 2 s gaps (run-w5phase with WT_SOAK_GAP=2).
+TS3
+# Criterion (g), not re-run since wave 3: a refused 🔽→ does not flip the toggle.
+TW11
+# Batch 4's new cases (desk; they run in the lab too — fake History, chords muted):
+TW41
+TW42
+TW43
+TA6
+#
+# One line per phase (chain-wave5.sh):
+# W5a --only TW41,TW42,TW43,TA6,TW4,TW8a,TW11,TW20
+# W5b --only TW4,TX3,TX6b,TX9,TX13
+# W5c --only TQ2,TQ4
+# W5e --only TS3   (WT_SOAK_GAP=2)
+#
+# Optional (W5d) — the rig fixes of batch 4, to see them pass on the slow guest: TM1 (regex), TM2 and
+# TW39 (timing), TX8b and TX10 (marker *assumption*).
+# W5d --only TM1,TM2,TW39,TX8b,TX10

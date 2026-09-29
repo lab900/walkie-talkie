@@ -408,6 +408,28 @@ socket: NIOFcntlFailedError()` and no `control.sock` existed, so every `tart exe
 everything — `osascript`, `CGEventPost`, `screencapture -x`, `sounddevice`, `open`
 (`launchctl asuser 501` from SSH is refused: *Could not switch to audit session*).
 
+**Corrected 2026-09-29 (wave 4): the harness runs only through `tart exec`.** `sounddevice`
+*plays* over SSH, but a process in the `sshd-keygen-wrapper` chain has **no microphone grant**, so
+the harness's own reads of BlackHole (`loopback_alive()`'s 440 Hz check, TM1/TM2's evidence) get
+**exact zeros** — the first wave-4 attempt (`2026-09-29-wave4/aborted1/`) SKIPped TM1/TM2 on a
+"dead" pass-thru that was fine. Through `tart exec` (the `tart-guest-agent` chain holds the grant)
+the same check passes. SSH stays right for copying files, polling logs, `open` and shutdown. The
+chain's `warm()` must post `{"restart": true}` to `/test/whisper` — `{}` only reads the helper's
+state and never loads it (`evals/plan/vm/wispr/chain-wave5.sh`).
+
+**Finding A is BlackHole's, and the fix belongs to the rig** (wave 3 → wave 4: none of the three
+restart steps ever brought audio back; every `audio came back` line was the clip starting late).
+BlackHole 0.7.1 keeps `lastOutputSampleTime` / `isBufferClear` as function statics shared by every
+client of the driver, so Wispr's Chromium reader, with its own IO cycle, can wipe the ring the
+relay reads — the relay's stream flows, all zeros, no configuration change. A hardware microphone
+has no such test (host probe, `report-wave3-2026-09-28.md`). **Recommendation, not installed:**
+give the relay its own BlackHole from a **separate driver bundle** — e.g. the `blackhole-16ch`
+cask (a different `.driver`, so its statics are its own) — point the relay's recorder at it
+(`WT_LOOPBACK` for the harness, `/test/mic {"device"}` for the relay), and play each clip into
+both devices (or through a multi-output aggregate of the two). Needs a guest reboot (or `sudo
+killall -9 coreaudiod`) and a new 440 Hz check on both devices; the app already reports a DEAF
+take and keeps it for Recover.
+
 ## The step list, for the day the VM is up
 
 `TART_HOME=/Volumes/Vic/tart` throughout, as `vm-lab.sh` sets it.
