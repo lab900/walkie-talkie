@@ -1,0 +1,827 @@
+diff --git a/Sources/WalkieTalkie/AppDelegate.swift b/Sources/WalkieTalkie/AppDelegate.swift
+index 8454dbf..30fcd37 100644
+--- a/Sources/WalkieTalkie/AppDelegate.swift
++++ b/Sources/WalkieTalkie/AppDelegate.swift
+@@ -7736,6 +7736,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
+         case .failed(let why):
+             Log.error("⌨️ delivery failed: \(why)")
+             overlay.flash("⚠️ \(why)", duration: 5)
++        case .returnLost(let why):
++            // **TE25 (2026-09-29): typed, not submitted — not a delivery.** No
++            // outbox line and no `lastDelivery` (`deliverToTerminal` writes them
++            // on `.delivered` only); the clipboard holds the sentence (Q17), so
++            // the hint says ⌘V, and the binding went with the tab.
++            Log.error("⌨️ \(why) — NOT delivered: the sentence was typed and never submitted; ⌘V has it")
++            if terminal.target == nil { showBound(nil) }
++            overlay.flash("⚠️ \(why) — not sent; ⌘V pastes it", duration: 6)
++            pasteHint.pulse(reason: "the bound tab's Return was lost (TE25)")
+         }
+     }
+ 
+diff --git a/Sources/WalkieTalkie/HotkeyTap.swift b/Sources/WalkieTalkie/HotkeyTap.swift
+index 7fd5782..3effc73 100644
+--- a/Sources/WalkieTalkie/HotkeyTap.swift
++++ b/Sources/WalkieTalkie/HotkeyTap.swift
+@@ -3402,6 +3402,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
+                 // thing it could do here is undo it.
+                 if let age = openSentenceAge, age < Self.gestureStopDwellSeconds {
+                     Log.info("🎯 ➡️ F10 \(String(format: "%.0f", sinceLastF10 * 1000))ms on, but the sentence is only \(String(format: "%.0f", age * 1000))ms old — not stopping it")
++                    // TE19 (2026-09-29): said on the chip, or a stop inside the dwell is silently lost.
++                    onEngineBusy?("Stop ignored — the sentence is under 2 s old; flick again to stop it")
+                     return swallow("\(gesture) — the sentence is too young to stop", type, event)
+                 }
+                 queueToggle()
+diff --git a/Sources/WalkieTalkie/ProcessClock.swift b/Sources/WalkieTalkie/ProcessClock.swift
+index c582226..cf0fbcf 100644
+--- a/Sources/WalkieTalkie/ProcessClock.swift
++++ b/Sources/WalkieTalkie/ProcessClock.swift
+@@ -38,6 +38,13 @@ enum ProcessClock {
+         return Int32(i.kp_proc.p_stat) != SZOMB
+     }
+ 
++    /// **Stopped by a signal** (`SSTOP`: SIGSTOP / SIGTSTP) — a frozen Wispr is
++    /// not one that ignored a chord (TE15/TE16, 2026-09-29). False when gone.
++    static func isStopped(_ pid: pid_t) -> Bool {
++        guard let i = info(pid) else { return false }
++        return Int32(i.kp_proc.p_stat) == SSTOP
++    }
++
+     /// **Exiting, a zombie, or gone** (batch 5): `P_WEXIT` is set the moment a
+     /// SIGKILL is acted on, while `p_stat` still reads `SRUN` for the whole
+     /// teardown — measured 0.25 ms vs 25 ms for a 1.5 GB process at a desk, and
+diff --git a/Sources/WalkieTalkie/TerminalBinding.swift b/Sources/WalkieTalkie/TerminalBinding.swift
+index d26aeac..1ac7627 100644
+--- a/Sources/WalkieTalkie/TerminalBinding.swift
++++ b/Sources/WalkieTalkie/TerminalBinding.swift
+@@ -244,6 +244,11 @@ final class TerminalBinding {
+         /// Nothing is sent, and nothing is written to the outbox.
+         case wouldRunAsShell(String)
+         case failed(String)
++        /// **The text was typed, its Return could not be sent** (TE25, 2026-09-29):
++        /// the tab was not on its tty any more when the Return was due. The
++        /// sentence sits in (or went with) that tab unsent — **not delivered**:
++        /// no outbox line, no `lastDelivery`; the clipboard has it (Q17).
++        case returnLost(String)
+     }
+ 
+     private var current: Target?
+@@ -753,11 +758,16 @@ final class TerminalBinding {
+             case .some:
+                 break
+             }
+-            guard Self.writeToTerminalApp(line, tty: tty) else {
++            switch Self.writeToTerminalApp(line, tty: tty) {
++            case .gone:
+                 unbind()
+                 return .targetGone("no Terminal.app tab on \(target.address)")
++            case .returnLost:
++                unbind()
++                return .returnLost("the Return did not reach \(target.address) — the tab was gone after its text")
++            case .submitted:
++                return .delivered
+             }
+-            return .delivered
+ 
+         case .tmux(let pane, _):
+             switch Self.tmuxPaneCommand(pane) {
+@@ -1340,6 +1350,53 @@ final class TerminalBinding {
+         return s
+     }
+ 
++    /// What one `writeToTerminalApp` did.
++    enum TerminalWrite: Equatable {
++        /// The text and its Return went to the tab on that tty.
++        case submitted
++        /// No tab on that tty before anything was typed.
++        case gone
++        /// The text was typed; the tab was not to be found for its Return (TE25).
++        case returnLost
++    }
++
++    /// **The tab on that tty, as a reference that does not move** (TE25,
++    /// 2026-09-29): `tab k of window id W`. The loop it replaces handed back
++    /// `t` from `repeat with w in windows` / `repeat with t in tabs of w`, which
++    /// AppleScript keeps as `item k of every tab of item j of every window` and
++    /// **re-resolves at every use** — so a window opened or raised during the
++    /// 0.5 s between the text and its Return shifted `item j` onto another
++    /// window, and the Return (and the read-back) went there: 4/4 in the lab,
++    /// the sentence left unsent in the bound tab, a bare Return in the new one,
++    /// and `📦 delivery … route` logged all the same. A window's `id` is fixed
++    /// for its life; `tab k` moves only when a tab of that same window is added
++    /// or closed before it, which `isTab` catches before every use.
++    private static let tabHandlers = """
++    on boundTab(theTTY)
++        tell application "Terminal"
++            set wids to id of every window
++            repeat with j from 1 to (count wids)
++                set wid to item j of wids
++                try
++                    set ttys to tty of every tab of window id wid
++                    repeat with k from 1 to (count ttys)
++                        if item k of ttys is theTTY then return tab k of window id wid
++                    end repeat
++                end try
++            end repeat
++        end tell
++        return missing value
++    end boundTab
++    on isTab(t, theTTY)
++        try
++            tell application "Terminal" to return ((tty of t) is theTTY)
++        end try
++        return false
++    end isTab
++
++    """
++
++
+     /// `do script … in <that tab>` — which, despite the name, types the string
+     /// into the tab and presses Return rather than starting anything. That is
+     /// exactly the gesture wanted here, and it reaches a tab that is not in
+@@ -1384,44 +1441,51 @@ final class TerminalBinding {
+     /// on an empty Claude Code prompt is not provably nothing (prompt
+     /// suggestions sit there as ghost text), and because a tab that did not
+     /// ask must not be pressed again.
+-    private static func writeToTerminalApp(_ text: String, tty: String) -> Bool {
+-        let script = """
+-        tell application "Terminal"
+-            repeat with w in windows
+-                repeat with t in tabs of w
+-                    try
+-                        if tty of t is "\(escape(tty))" then
+-                            do script "\(escape(text))" in t
+-                            -- 0.5 s, not 0.12 (2026-09-28): Claude Code folds a
+-                            -- key that arrives within ~150 ms of a large chunk
+-                            -- into the paste, and a Return inside a paste is a
+-                            -- newline. Both Returns became blank lines under the
+-                            -- sentence, which sat unsent (Victor's screenshot).
+-                            delay 0.5
+-                            do script "" in t
+-                            delay 0.35
+-                            -- Its own try: the text is already in the tab, and a
+-                            -- read-back that fails must not turn a delivery into
+-                            -- "gone" and drop the binding (it did, once, on
+-                            -- `length of` resolving against Terminal instead
+-                            -- of the string). `history`, not `contents`: on a
+-                            -- loop variable `contents of t` is AppleScript's
+-                            -- dereference, and hands back the tab itself.
+-                            try
+-                                set c to (history of t) as text
+-                                if (count c) > 600 then set c to text -600 thru -1 of c
+-                                return "ok" & linefeed & c
+-                            end try
+-                            return "ok"
+-                        end if
+-                    end try
+-                end repeat
+-            end repeat
+-            return "gone"
+-        end tell
++    private static func writeToTerminalApp(_ text: String, tty: String) -> TerminalWrite {
++        let script = tabHandlers + """
++        set theTTY to "\(escape(tty))"
++        set t to my boundTab(theTTY)
++        if t is missing value then return "gone"
++        tell application "Terminal" to do script "\(escape(text))" in t
++        -- 0.5 s, not 0.12 (2026-09-28): Claude Code folds a key that arrives
++        -- within ~150 ms of a large chunk into the paste, and a Return inside a
++        -- paste is a newline. Both Returns became blank lines under the
++        -- sentence, which sat unsent (Victor's screenshot).
++        delay 0.5
++        -- TE25: the tab is asked again before its Return — by its tty, never
++        -- by where it sits among the windows.
++        set moved to "same"
++        if not my isTab(t, theTTY) then
++            set t to my boundTab(theTTY)
++            if t is missing value then return "lost"
++            set moved to "moved"
++        end if
++        tell application "Terminal" to do script "" in t
++        delay 0.35
++        -- Its own try: the text is already in the tab, and a read-back that
++        -- fails must not turn a delivery into "gone" and drop the binding.
++        -- `history`, not `contents` (on a reference `contents of t` is
++        -- AppleScript's dereference and hands back the tab itself); `count`
++        -- outside the tell, where it counts the string and not Terminal.
++        try
++            tell application "Terminal" to set c to (history of t) as text
++            if (count c) > 600 then set c to text -600 thru -1 of c
++            return "ok " & moved & linefeed & c
++        end try
++        return "ok " & moved
+         """
+-        guard let answer = osascript(script), answer == "ok" || answer.hasPrefix("ok\n") else { return false }
+-        var tail = answer == "ok" ? "" : String(answer.dropFirst(3))
++        guard let answer = osascript(script) else { return .gone }
++        if answer == "gone" { return .gone }
++        if answer == "lost" {
++            Log.error("⚠️ ⌨️ the Return was NOT sent: the tab on \(tty) was gone 0.5 s after its text — the sentence is typed there (or went with it), not submitted; counted as not delivered (TE25)")
++            return .returnLost
++        }
++        guard answer.hasPrefix("ok ") else { return .gone }
++        let head = answer.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
++        if head.first.map(String.init) == "ok moved" {
++            Log.error("⚠️ ⌨️ the tab on \(tty) moved between its text and its Return (a tab of its window opened or closed) — found again by its tty, the Return went there (TE25)")
++        }
++        var tail = head.count > 1 ? String(head[1]) : ""
+         // The tab's last 600 characters, decided here rather than in the script
+         // so the echo can be told from the hint (`asksForReview`). **Read up to
+         // three times** (2026-09-28: the hint is a notification Claude Code
+@@ -1429,36 +1493,18 @@ final class TerminalBinding {
+         // Victor: *"tot nu dă Enter după dictare bound"*); the last read that
+         // showed nothing is logged, squashed, so a stalled sentence leaves
+         // the screen it stalled on in `relay.log`.
+-        let read = """
+-        tell application "Terminal"
+-            repeat with w in windows
+-                repeat with t in tabs of w
+-                    try
+-                        if tty of t is "\(escape(tty))" then
+-                            set c to (history of t) as text
+-                            if (count c) > 600 then set c to text -600 thru -1 of c
+-                            return "ok" & linefeed & c
+-                        end if
+-                    end try
+-                end repeat
+-            end repeat
+-            return "gone"
+-        end tell
++        let read = tabHandlers + """
++        set t to my boundTab("\(escape(tty))")
++        if t is missing value then return "gone"
++        tell application "Terminal" to set c to (history of t) as text
++        if (count c) > 600 then set c to text -600 thru -1 of c
++        return "ok" & linefeed & c
+         """
+-        let again = """
+-        tell application "Terminal"
+-            repeat with w in windows
+-                repeat with t in tabs of w
+-                    try
+-                        if tty of t is "\(escape(tty))" then
+-                            do script "" in t
+-                            return "ok"
+-                        end if
+-                    end try
+-                end repeat
+-            end repeat
+-            return "gone"
+-        end tell
++        let again = tabHandlers + """
++        set t to my boundTab("\(escape(tty))")
++        if t is missing value then return "gone"
++        tell application "Terminal" to do script "" in t
++        return "ok"
+         """
+         // **Press again while the sentence is still in the prompt box** (2026-09-28),
+         // up to twice more, 0.5 s apart: the hint (`asksForReview`) is one
+@@ -1485,7 +1531,7 @@ final class TerminalBinding {
+             let seen = tail.suffix(600).filter { !$0.isWhitespace }.suffix(160)
+             Log.info("⌨️ \(presses) extra Return(s), \(reads) read-back(s) — tail: …\(seen)")
+         }
+-        return true
++        return .submitted
+     }
+ 
+     /// The tab's prompt line — after its last `❯` — still carries the
+@@ -1827,7 +1873,7 @@ final class TerminalBinding {
+     static func submitPrompt(_ text: String, toTTY tty: String) -> Bool {
+         let line = singleLine(text)
+         guard !line.isEmpty else { return false }
+-        return writeToTerminalApp(line, tty: tty)
++        return writeToTerminalApp(line, tty: tty) == .submitted
+     }
+ 
+     /// Would typing here run a command rather than talk to a program?
+@@ -2337,7 +2383,9 @@ final class TerminalBinding {
+     /// Which script failed, in a log line: its first line that says something
+     /// beyond `tell application`.
+     private static func firstLine(of script: String) -> String {
+-        let lines = script.components(separatedBy: "\n")
++        // Past the shared tab handlers (TE25), which open every delivery script.
++        let body = script.range(of: "end isTab").map { String(script[$0.upperBound...]) } ?? script
++        let lines = body.components(separatedBy: "\n")
+             .map { $0.trimmingCharacters(in: .whitespaces) }
+             .filter { !$0.isEmpty }
+         let telling = lines.first { !$0.hasPrefix("tell application") } ?? lines.first ?? ""
+diff --git a/Sources/WalkieTalkie/WisprFlowSource.swift b/Sources/WalkieTalkie/WisprFlowSource.swift
+index 6cc2b24..f285cab 100644
+--- a/Sources/WalkieTalkie/WisprFlowSource.swift
++++ b/Sources/WalkieTalkie/WisprFlowSource.swift
+@@ -1194,7 +1194,78 @@ final class WisprFlowSource: DictationSource {
+         case .off:
+             HotkeyTap.postWisprHandsFree()
+         }
++        // **TE15/TE16 (2026-09-29): was the stop heard?** Under Secure Input or
++        // the lock screen no event tap sees a key — Wispr's included — and its
++        // microphone stayed open 60–70 s while the relay waited out 30 s.
++        state.stopPosted(blind: HotkeyTap.keyboardHidden())
+         closeListening("the relay's own stop gesture")
++        armStopWatch()
++    }
++
++    // MARK: - TE15/TE16: a stop chord Wispr never heard (2026-09-29)
++
++    private var stopWatch: Timer?
++    /// How long after the stop the watch keeps asking (`WisprState.stopAnswerDue`).
++    private static let stopWatchWindow: Double = 8
++
++    /// **Asks `WisprState.stopAnswerDue` until it answers** — at once (a blind
++    /// stop is decided on the spot), then every 0.25 s for `stopWatchWindow`.
++    /// Ends with the sentence: its words came, a cancel, ⌘⌃X, a new chord.
++    private func armStopWatch() {
++        stopWatch?.invalidate()
++        stopWatch = nil
++        guard relayStarted, capturing, ownTakeOnly == nil else { return }
++        let started = CFAbsoluteTimeGetCurrent()
++        let pid = wisprPidAtChord != 0 ? wisprPidAtChord : Self.wisprMainPid
++        let t = Timer(timeInterval: 0.25, repeats: true) { [weak self] timer in
++            guard let self, self.stopWatch === timer else { timer.invalidate(); return }
++            guard self.capturing, self.relayStarted, !self.discardOnArrival, self.ownTakeOnly == nil,
++                  !self.isRecording, !self.speculative, !self.cancelling,
++                  CFAbsoluteTimeGetCurrent() - started < Self.stopWatchWindow else {
++                timer.invalidate(); self.stopWatch = nil; return
++            }
++            let duration = self.historyRow.flatMap { WisprHistory.entry(rowid: $0) }?.duration
++            // `testPollSays` (`POST /test/wispr {"on"}`) stands for Wispr's microphone at a desk.
++            let verdict = self.state.stopAnswerDue(wisprMicOpen: self.testPollSays ?? self.watch.sampleIsRunningInput(),
++                                                   rowDuration: duration, wisprFrozen: ProcessClock.isStopped(pid))
++            switch verdict {
++            case .pending:
++                return
++            case .answered(let why):
++                timer.invalidate(); self.stopWatch = nil
++                if why.contains("stopped") { Log.info("🙉 stop watch: \(why)") }
++            case .unanswered(let why):
++                timer.invalidate(); self.stopWatch = nil
++                self.stopUnanswered(why)
++            }
++        }
++        stopWatch = t
++        RunLoop.main.add(t, forMode: .common)
++        // The first ask on the next turn: `closeListening` has told `AppDelegate`
++        // of the close by then (the budget, the latched recipient).
++        DispatchQueue.main.async { [weak self] in
++            guard let self, self.stopWatch === t else { return }
++            t.fire()
++        }
++    }
++
++    /// **Wispr never heard the stop: the relay's own recording stands in now**
++    /// (Q14), not at the 30 s capture timeout, and Wispr's still-open microphone
++    /// is dismissed through the ghost watch (E) — at once when a key can reach
++    /// it, else the moment Secure Input or the lock screen lets go. The capture
++    /// stays armed and discards (a ⌘V Wispr sends after all is swallowed and
++    /// dropped); the row is watched as late (`watchLateRow`), never delivered.
++    private func stopUnanswered(_ why: String) {
++        guard capturing, relayStarted, !discardOnArrival, ownTakeOnly == nil else { return }
++        Log.error("🙉 Wispr Flow never heard the relay's stop — \(why): its microphone is dismissed (⌃Escape, the ghost watch) and this Mac transcribes the relay's own recording now (Q14), not at the \(Int(Self.captureTimeout)) s timeout")
++        onNotice?("🙉 Wispr Flow did not hear the stop — transcribing on this Mac")
++        let row = historyRow
++        discardOnArrival = true
++        dismissedAt = CFAbsoluteTimeGetCurrent()
++        state.reset("Wispr never heard the relay's stop — the relay's own recording stands in (Q14)")
++        armDiscardClose()
++        armGhostWatch(afterStop: true)
++        endWithRecording("Wispr Flow did not hear the relay's stop", row: row)
+     }
+ 
+     func cancel() {
+@@ -2810,15 +2881,33 @@ final class WisprFlowSource: DictationSource {
+     /// relay's open, no push-to-talk of his held (right ⌥⇧ `61+60`), no chord of
+     /// his since (`WisprOwnership.ghostMic`) → it is the relay's own start,
+     /// arriving late: dismissed with ⌃Escape, and the chip says so.
+-    private func armGhostWatch() {
++    ///
++    /// **`afterStop` (TE15/TE16, 2026-09-29): the same watch after a stop chord
++    /// Wispr never heard** (`stopUnanswered`) — its microphone is still open for
++    /// the relay's sentence, so it is dismissed as soon as the dismiss can reach
++    /// it: nothing is posted while every tap is blind (Secure Input, the lock
++    /// screen — a ⌃Escape then is as unheard as the stop was), for up to
++    /// `ghostStopWindow` (Wispr's own ceiling is 60–70 s), and a microphone still
++    /// open 1.5 s after the dismiss gets one more.
++    private func armGhostWatch(afterStop: Bool = false) {
+         unansweredChordAt = Date().timeIntervalSince1970
+         ghostWatch?.invalidate()
++        let window = afterStop ? Self.ghostStopWindow : Self.ghostWindow
++        var waitedBlind = false
+         let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] timer in
+             guard let self else { timer.invalidate(); return }
+             let now = Date().timeIntervalSince1970
+-            guard now - self.unansweredChordAt < Self.ghostWindow else {
++            guard now - self.unansweredChordAt < window else {
++                if afterStop { Log.error("👻 the stop watch gave up after \(Int(window)) s — Wispr's microphone was never seen closing") }
+                 timer.invalidate(); self.ghostWatch = nil; return
+             }
++            if afterStop, let blind = HotkeyTap.keyboardHidden() {
++                if !waitedBlind {
++                    waitedBlind = true
++                    Log.info("👻 the dismiss for the unheard stop waits — \(blind): a ⌃Escape now would be as unheard as the stop was")
++                }
++                return
++            }
+             // A sentence of the relay's own is open: its microphone is not a ghost —
+             // unless Wispr is out of it and the relay's own recording carries it
+             // (batch 4): then a microphone of Wispr's is the late start itself.
+@@ -2831,22 +2920,33 @@ final class WisprFlowSource: DictationSource {
+             guard let why = WisprOwnership.ghostMic(now: now, micOpen: self.watch.sampleIsRunningInput(),
+                                                     relayRecording: false, unansweredAt: self.unansweredChordAt,
+                                                     hisKeysHeld: his, hisChordAt: self.hisChordAt,
+-                                                    window: Self.ghostWindow, relayChordAt: self.relayChordAt,
+-                                                    relayCaptureInFlight: inFlight) else { return }
++                                                    window: window, relayChordAt: self.relayChordAt,
++                                                    relayCaptureInFlight: inFlight, afterStop: afterStop) else { return }
+             timer.invalidate(); self.ghostWatch = nil
+             self.unansweredChordAt = 0
+             Log.error("👻 \(why) — dismissing it (⌃Escape)")
+             HotkeyTap.postWisprCancel()
+-            self.onNotice?("👻 Wispr Flow opened its microphone late for a start it never answered — dismissed")
++            self.onNotice?(afterStop ? "👻 Wispr Flow kept its microphone open after a stop it never heard — dismissed"
++                                     : "👻 Wispr Flow opened its microphone late for a start it never answered — dismissed")
+             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                 guard let self else { return }
+-                Log.info("👻 the ghost microphone 1.5 s after the dismiss: " + (self.watch.sampleIsRunningInput() ? "STILL OPEN" : "closed"))
++                let open = self.watch.sampleIsRunningInput()
++                Log.info("👻 the ghost microphone 1.5 s after the dismiss: " + (open ? "STILL OPEN" : "closed"))
++                // The unheard stop's microphone is the relay's own sentence: one more
++                // dismiss when the first did not take (none while keys are blind).
++                if afterStop, open, HotkeyTap.keyboardHidden() == nil, !self.isRecording, !self.speculative {
++                    Log.error("👻 still open after the dismiss — one more ⌃Escape")
++                    HotkeyTap.postWisprCancel()
++                }
+             }
+         }
+         ghostWatch = t
+         RunLoop.main.add(t, forMode: .common)
+     }
+     private static let ghostWindow: Double = 25
++    /// After an unheard stop: long enough to outlast a lock screen's minute and
++    /// Wispr's own 60–70 s ceiling on a dictation (TE15/TE16).
++    private static let ghostStopWindow: Double = 90
+ 
+     /// **Q19 (2026-09-28, Victor's Q7 = A): a dropped ⌘V may be his own
+     /// sentence.** Q9 leaves his right ⌥⇧ sentences to Wispr, but while the
+diff --git a/Sources/WalkieTalkie/WisprOwnership.swift b/Sources/WalkieTalkie/WisprOwnership.swift
+index b74532e..a29bcde 100644
+--- a/Sources/WalkieTalkie/WisprOwnership.swift
++++ b/Sources/WalkieTalkie/WisprOwnership.swift
+@@ -123,11 +123,17 @@ enum WisprOwnership {
+     ///     Wispr finishes (TW8a: dismissed 1 s after the stop, its row then dead).
+     static func ghostMic(now: Double, micOpen: Bool, relayRecording: Bool, unansweredAt: Double,
+                          hisKeysHeld: Bool, hisChordAt: Double, window: Double = 25,
+-                         relayChordAt: Double = 0, relayCaptureInFlight: Bool = false) -> String? {
++                         relayChordAt: Double = 0, relayCaptureInFlight: Bool = false,
++                         afterStop: Bool = false) -> String? {
+         guard micOpen, !relayRecording, unansweredAt > 0, now - unansweredAt < window else { return nil }
+         guard relayChordAt <= unansweredAt, !relayCaptureInFlight else { return nil }
+         guard !hisKeysHeld else { return nil }
+         guard hisChordAt < unansweredAt else { return nil }
++        // TE15/TE16 (2026-09-29): the same watch after a stop chord Wispr never
++        // heard — its microphone is the relay's sentence, still open.
++        if afterStop {
++            return String(format: "Wispr Flow's microphone is still open %.0f s after a relay stop it never heard, with no chord or push-to-talk of his — the relay's own sentence, still recording", now - unansweredAt)
++        }
+         return String(format: "Wispr Flow opened its microphone %.0f s after a relay chord it never answered, with no chord or push-to-talk of his — the relay's own start, late", now - unansweredAt)
+     }
+ }
+diff --git a/Sources/WalkieTalkie/WisprState.swift b/Sources/WalkieTalkie/WisprState.swift
+index e22cd25..2ef4699 100644
+--- a/Sources/WalkieTalkie/WisprState.swift
++++ b/Sources/WalkieTalkie/WisprState.swift
+@@ -297,6 +297,10 @@ final class WisprState {
+         wisprCloseBy = ""
+         wisprExitAt = nil
+         wisprAliveAt = nil
++        stopPostedAt = nil
++        stopBlind = nil
++        statusAtStop = ""
++        rowMovedAfterStop = false
+         enter(.warming, why)
+     }
+ 
+@@ -344,6 +348,7 @@ final class WisprState {
+     /// failed to give five times out of five on 2026-09-13.
+     func sawRow(_ rowid: Int64, status newStatus: String) {
+         let adopted = row != rowid
++        if stopPostedAt != nil, !adopted, newStatus != statusAtStop { rowMovedAfterStop = true }
+         row = rowid
+         status = newStatus
+         if adopted, phase == .warming {
+@@ -458,6 +463,64 @@ final class WisprState {
+         return now() >= until ? .wisprEnded : .pending(until: until)
+     }
+ 
++    // MARK: - TE15/TE16: the relay's stop chord that Wispr never heard (2026-09-29)
++
++    /// **What became of the relay's stop chord** (exploratory run TE15/TE16,
++    /// 2026-09-29): Secure Input held, or the screen locked, when the relay
++    /// posted its stop — no event tap sees a key then, Wispr's included — so
++    /// Wispr never heard it: its microphone stayed open 60–70 s, its row NULL,
++    /// and the relay waited out the 30 s capture timeout before Q14 stood in.
++    /// Decided here, on this machine's injectable clock, like the quit order.
++    enum StopVerdict: Equatable {
++        /// Not known yet — ask again (at `until` at the latest).
++        case pending(until: CFAbsoluteTime)
++        /// Wispr heard it, or this is not the question (frozen, no stop posted).
++        case answered(String)
++        /// Wispr never heard it: dismiss (⌃Escape, when a key can reach it
++        /// again) and let the relay's own recording stand in at once (Q14).
++        case unanswered(String)
++    }
++    /// A healthy Wispr closes its microphone and moves its row (NULL →
++    /// `processing`, `duration` written) within ~0.1–0.4 s of the stop chord;
++    /// still open with the row unmoved this long after it → it never heard it.
++    static let stopAnswerGrace: Double = 2.0
++
++    /// When the relay posted its stop chord for this sentence, and whether every
++    /// event tap was blind then (`HotkeyTap.keyboardHidden()`'s reason).
++    private(set) var stopPostedAt: CFAbsoluteTime?
++    private(set) var stopBlind: String?
++    /// The row's status when the stop went out, and whether it moved since.
++    private(set) var statusAtStop = ""
++    private(set) var rowMovedAfterStop = false
++
++    /// **The relay posted its stop chord** — `blind`: why no tap could see a key
++    /// at that instant (Secure Input's holder, the lock screen), nil when keys
++    /// were visible.
++    func stopPosted(blind: String?) {
++        stopPostedAt = now()
++        stopBlind = blind
++        statusAtStop = status
++        rowMovedAfterStop = false
++    }
++
++    /// **Did Wispr hear the stop?** `wisprMicOpen`: Wispr's microphone now (the
++    /// CoreAudio sample); `rowDuration`: the row's `duration` (written by
++    /// Wispr's stop path); `wisprFrozen`: its process is stopped (SIGSTOP) —
++    /// not an unheard chord but a frozen Wispr, which the p95 wait answers.
++    func stopAnswerDue(wisprMicOpen: Bool, rowDuration: Double?, wisprFrozen: Bool) -> StopVerdict {
++        guard let at = stopPostedAt else { return .answered("no stop chord was posted") }
++        if let blind = stopBlind {
++            return .unanswered("the stop chord went out while \(blind) — no event tap sees a key then, Wispr's included")
++        }
++        if rowMovedAfterStop || rowDuration != nil { return .answered("Wispr's row moved after the stop") }
++        if !wisprMicOpen { return .answered("Wispr's microphone closed after the stop") }
++        if wisprFrozen { return .answered("Wispr Flow's process is stopped — a frozen Wispr, not an unheard chord") }
++        let until = at + Self.stopAnswerGrace
++        guard now() >= until else { return .pending(until: until) }
++        return .unanswered(String(format: "Wispr's microphone is still open %.1f s after the relay's stop and its row has not moved",
++                                  now() - at))
++    }
++
+     // MARK: - Transitions
+ 
+     private func enter(_ next: DictationPhase, _ why: String) {
+@@ -547,7 +610,8 @@ final class WisprState {
+ enum WisprStateSimulation {
+ 
+     /// - Parameter steps: `{"input": "chord" | "stop" | "poll" | "notify" |
+-    ///   "row" | "timeout" | "reset", "on": Bool, "status": String,
++    ///   "row" | "timeout" | "reset" | "stop-posted" (`blind`) | "stop-due"
++    ///   (`micOpen`, `duration`, `frozen` → `stopVerdicts`), "on": Bool, "status": String,
+     ///   "rowid": Int, "atMs": Int}`. `atMs` is milliseconds on the fake clock
+     ///   from the start of the script; steps are applied in the order given and
+     ///   a missing `atMs` keeps the previous instant.
+@@ -555,6 +619,7 @@ enum WisprStateSimulation {
+         var clock: CFAbsoluteTime = 0
+         let machine = WisprState(now: { clock })
+         var refused: [String] = []
++        var stopVerdicts: [[String: Any]] = []
+ 
+         for step in steps {
+             if let at = step["atMs"] as? Int { clock = Double(at) / 1000 }
+@@ -571,12 +636,25 @@ enum WisprStateSimulation {
+             case "row": machine.sawRow(rowid, status: status)
+             case "timeout": machine.timedOut(step["why"] as? String ?? "simulated timeout")
+             case "reset": machine.reset(step["why"] as? String ?? "simulated reset")
++            // TE15/TE16 (2026-09-29): the relay's stop chord and whether Wispr heard it.
++            case "stop-posted":
++                machine.stopPosted(blind: step["blind"] as? String)
++            case "stop-due":
++                let v = machine.stopAnswerDue(wisprMicOpen: step["micOpen"] as? Bool ?? false,
++                                              rowDuration: (step["duration"] as? NSNumber)?.doubleValue,
++                                              wisprFrozen: step["frozen"] as? Bool ?? false)
++                switch v {
++                case .pending(let until): stopVerdicts.append(["verdict": "pending", "untilMs": Int((until * 1000).rounded())])
++                case .answered(let why): stopVerdicts.append(["verdict": "answered", "why": why])
++                case .unanswered(let why): stopVerdicts.append(["verdict": "unanswered", "why": why])
++                }
+             default: refused.append(input.isEmpty ? "(none)" : input)
+             }
+         }
+ 
+         var out = machine.snapshot()
+         out["final"] = machine.phase.name
++        if !stopVerdicts.isEmpty { out["stopVerdicts"] = stopVerdicts }
+         if !refused.isEmpty { out["unknownInputs"] = refused }
+         return out
+     }
+diff --git a/Tests/WalkieTalkieTests/WisprStopHeardTests.swift b/Tests/WalkieTalkieTests/WisprStopHeardTests.swift
+new file mode 100644
+index 0000000..96ec150
+--- /dev/null
++++ b/Tests/WalkieTalkieTests/WisprStopHeardTests.swift
+@@ -0,0 +1,130 @@
++import XCTest
++@testable import WalkieTalkie
++
++/// TE15/TE16 (exploratory run, 2026-09-29): the relay's stop chord posted under
++/// Secure Input or the lock screen never reached Wispr — its microphone stayed
++/// open 60–70 s, its row NULL, and the relay waited out the 30 s capture timeout
++/// before the local model stood in. `WisprState.stopAnswerDue` on a fake clock.
++final class WisprStopHeardTests: XCTestCase {
++    private var clock: CFAbsoluteTime = 500
++    private lazy var m = WisprState(now: { self.clock })
++
++    private func listening() {
++        m.startChord("relay"); clock += 0.15
++        m.sawRow(9, status: "")                      // the row at the gesture, NULL
++        clock += 0.2; m.poll(true)
++        XCTAssertEqual(m.phase, .listening)
++        clock += 8
++    }
++
++    /// Keys blind at the stop (Secure Input, the lock screen) → unheard, at once.
++    func testABlindStopIsUnansweredAtOnce() {
++        listening()
++        m.stopPosted(blind: "Secure Input is on (the session names TextEdit)")
++        m.stopChord("the relay's own stop gesture")
++        guard case .unanswered(let why) = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("a blind stop must be unanswered at once")
++        }
++        XCTAssertTrue(why.contains("Secure Input"), why)
++    }
++
++    /// Keys visible, Wispr's microphone still open, the row unmoved: pending
++    /// until the 2 s grace, unanswered from it on.
++    func testAMicStillOpenTwoSecondsOnIsUnanswered() {
++        listening()
++        m.stopPosted(blind: nil); m.stopChord("stop")
++        let at = clock
++        XCTAssertEqual(m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false),
++                       .pending(until: at + WisprState.stopAnswerGrace))
++        clock += WisprState.stopAnswerGrace - 0.01
++        XCTAssertEqual(m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false),
++                       .pending(until: at + WisprState.stopAnswerGrace))
++        clock += 0.01
++        guard case .unanswered = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("still open with the row unmoved 2 s after the stop")
++        }
++    }
++
++    /// The healthy stop: the row goes `processing` (or its `duration` is written),
++    /// or the microphone closes → answered, whatever the clock says.
++    func testARowThatMovesOrAMicThatClosesIsAnswered() {
++        listening()
++        m.stopPosted(blind: nil); m.stopChord("stop")
++        clock += 0.1; m.sawRow(9, status: "processing")
++        clock += 5
++        guard case .answered = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("a row that moved after the stop is an answer")
++        }
++        listening()
++        m.stopPosted(blind: nil); m.stopChord("stop")
++        clock += 5
++        guard case .answered = m.stopAnswerDue(wisprMicOpen: true, rowDuration: 8.4, wisprFrozen: false) else {
++            return XCTFail("a duration written is Wispr's stop path having run")
++        }
++        guard case .answered = m.stopAnswerDue(wisprMicOpen: false, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("a closed microphone is an answer")
++        }
++    }
++
++    /// A frozen Wispr (SIGSTOP; TE27/TE28) is not an unheard chord: the p95 wait
++    /// and `Use local` answer it, not a dismiss.
++    func testAFrozenWisprIsNotAnUnheardStop() {
++        listening()
++        m.stopPosted(blind: nil); m.stopChord("stop")
++        clock += 5
++        guard case .answered(let why) = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: true) else {
++            return XCTFail("frozen is not unheard")
++        }
++        XCTAssertTrue(why.contains("stopped"), why)
++    }
++
++    /// No stop posted (W6: Wispr never took the start, so no chord went out) →
++    /// nothing to ask; the next chord forgets the last stop.
++    func testNoStopPostedAndTheNextChordForgets() {
++        listening()
++        guard case .answered = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("no stop posted")
++        }
++        m.stopPosted(blind: "the screen is locked")
++        listening()                                   // a new chord
++        guard case .answered = m.stopAnswerDue(wisprMicOpen: true, rowDuration: nil, wisprFrozen: false) else {
++            return XCTFail("the new sentence has no stop yet")
++        }
++    }
++
++    /// The route runs the same machine: `stop-posted` / `stop-due` → `stopVerdicts`.
++    func testTheSimulateRouteAnswersTheVerdicts() {
++        let out = WisprStateSimulation.run([
++            ["input": "chord", "atMs": 0],
++            ["input": "row", "status": "", "atMs": 150],
++            ["input": "stop-posted", "atMs": 9000],
++            ["input": "stop", "atMs": 9000],
++            ["input": "stop-due", "micOpen": true, "atMs": 9500],
++            ["input": "stop-due", "micOpen": true, "atMs": 11_000],
++            ["input": "stop-posted", "blind": "the screen is locked", "atMs": 12_000],
++            ["input": "stop-due", "micOpen": true, "atMs": 12_000],
++        ])
++        let v = (out["stopVerdicts"] as? [[String: Any]])?.map { $0["verdict"] as? String }
++        XCTAssertEqual(v, ["pending", "unanswered", "unanswered"])
++    }
++}
++
++/// The ghost watch (E) after an unheard stop words it as the relay's own sentence.
++final class GhostAfterStopTests: XCTestCase {
++    func testTheAfterStopWordingAndTheSameGuards() {
++        let why = WisprOwnership.ghostMic(now: 1_010, micOpen: true, relayRecording: false, unansweredAt: 1_000,
++                                          hisKeysHeld: false, hisChordAt: 0, window: 90, relayChordAt: 990,
++                                          relayCaptureInFlight: false, afterStop: true)
++        XCTAssertNotNil(why)
++        XCTAssertTrue(why?.contains("stop it never heard") == true, why ?? "")
++        // His push-to-talk held, or a relay chord since: not ours to dismiss.
++        XCTAssertNil(WisprOwnership.ghostMic(now: 1_010, micOpen: true, relayRecording: false, unansweredAt: 1_000,
++                                             hisKeysHeld: true, hisChordAt: 0, window: 90, afterStop: true))
++        XCTAssertNil(WisprOwnership.ghostMic(now: 1_010, micOpen: true, relayRecording: false, unansweredAt: 1_000,
++                                             hisKeysHeld: false, hisChordAt: 0, window: 90, relayChordAt: 1_005,
++                                             afterStop: true))
++        // 90 s window after a stop (the lock screen's minute), 25 s after a start.
++        XCTAssertNotNil(WisprOwnership.ghostMic(now: 1_060, micOpen: true, relayRecording: false, unansweredAt: 1_000,
++                                                hisKeysHeld: false, hisChordAt: 0, window: 90, afterStop: true))
++    }
++}
+diff --git a/evals/plan/cases_wispr_chaos.py b/evals/plan/cases_wispr_chaos.py
+index 2726efa..51b9730 100644
+--- a/evals/plan/cases_wispr_chaos.py
++++ b/evals/plan/cases_wispr_chaos.py
+@@ -392,13 +392,18 @@ def _variants(w):
+ 
+ def _marker(ref, avoid=()):
+     """The clip's most telling word: long, rare in the clip, absent from `avoid` (in either
+-    number) — its count in a destination is the number of copies that landed there."""
++    number) — its count in a destination is the number of copies that landed there.
++
++    **Counted in the reference in both numbers too** (2026-09-29, folded in from the explore
++    entry's E0 patch): `copies()` counts the word in either number (`_variants`), so the per-copy
++    count must as well — CLIP_SPEECH's head says "the assumption, the assumptions", and one
++    delivery read as `copies 2.0`, "delivered twice" (TQ2, TQ3 FAIL with 📦×1)."""
+     av = set().union(*[_variants(a) for a in avoid]) if avoid else set()
+     cand = [w for w in ref if len(w) >= 5 and not (_variants(w) & av)] or [w for w in ref if w not in av] or ref
+     if not cand:
+         return None, 1
+     w = sorted(cand, key=lambda x: (ref.count(x), -len(x)))[0]
+-    return w, max(1, ref.count(w))
++    return w, max(1, sum(ref.count(v) for v in _variants(w)))
+ 
+ def copies(text, ref, avoid=()):
+     w, per = _marker(ref, avoid)
+diff --git a/evals/plan/cases_wispr_explore.py b/evals/plan/cases_wispr_explore.py
+index a5319ad..fb34a9b 100644
+--- a/evals/plan/cases_wispr_explore.py
++++ b/evals/plan/cases_wispr_explore.py
+@@ -35,23 +35,12 @@ from cases_wispr_chaos import (_rig, _unrig, _start_relay, _stop_relay, _wait_en
+ from cases_wispr_soak import (ref_words, clip_ro, te_open, te_front, te_text, te_clear, te_close, pb_get,  # noqa: E402
+                               pb_set, _tokens, recall, doubled, _quiet, _relaunch_wispr, _clear_ghost, _seconds)
+ 
+-import cases_wispr_chaos as _cc  # noqa: E402
+-
+-# **Rig fix, found here (E0, 2026-09-29):** `cases_wispr_chaos._marker` returns the chosen word's count in
+-# the reference by its exact spelling, while `copies()` counts the word in EITHER number (`_variants`,
+-# batch 4's *assumption/assumptions* fix). CLIP_SPEECH's head says both "the assumption, the
+-# assumptions", so every single delivery of it read as `copies 2.0` → "delivered twice" (TQ2, TQ3 FAIL
+-# with 📦×1). Counted in both numbers here too; patched into the chaos module for every case this
+-# entry runs (TQ2/TW20 in phase 2 included). The same one-liner belongs in `cases_wispr_chaos.py`.
+-_marker_exact = _cc._marker
+-
+-def _marker_both(ref, avoid=()):
+-    w, per = _marker_exact(ref, avoid)
+-    if w:
+-        per = max(1, sum(ref.count(v) for v in _variants(w)))
+-    return w, per
+-
+-_cc._marker = _marker_both
++
++# **Rig fix, found here (E0, 2026-09-29):** `cases_wispr_chaos._marker` counted the chosen word in the
++# reference by its exact spelling while `copies()` counts it in EITHER number (`_variants`) — CLIP_SPEECH's
++# head says "the assumption, the assumptions", so one delivery read as `copies 2.0`, "delivered twice"
++# (TQ2, TQ3 FAIL with 📦×1). Patched here for the explore run; folded into `cases_wispr_chaos._marker`
++# the same day, so the patch is gone.
+ 
+ LOGDIR = os.path.expanduser("~/wt-lab/night/explore/logs")
+ REL_S = 6.0                                           # the relay's clip: CLIP_SPEECH's first 6 s
+diff --git a/evals/plan/harness.py b/evals/plan/harness.py
+index 67eadf5..542a452 100644
+--- a/evals/plan/harness.py
++++ b/evals/plan/harness.py
+@@ -952,7 +952,8 @@ def main():
+     here = os.path.dirname(os.path.abspath(__file__))
+     sys.path.insert(0, here)
+     for mod in ("cases_lc", "cases_lifecycle", "cases_delivery", "cases_gestures", "cases_audio", "cases_queue",
+-                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto", "cases_w4real"):
++                "cases_wispr", "cases_wispr_soak", "cases_wispr_chaos", "cases_localnow", "cases_localauto", "cases_w4real",
++                "cases_explore_fixes"):
+         try:
+             importlib.import_module(mod)
+         except ModuleNotFoundError as e:

@@ -14864,3 +14864,19 @@ the engine), so it measured the typing; the 📊 line's `toWords` against the pr
 budget` throughout, budgetExpired 3.06). TA1 and TA3 are retired with the automatic insert they
 asserted (TA11 and TA7 are their successors). `swift test`: 162/162.
 
+
+## 2026-09-29 09:05 — session closed mid-fix; the unfinished work is a patch
+
+Victor: *"Wrap up the background testing, close the VM, shut down everything … I'll continue this
+experiment in another conversation."* The agent fixing the exploratory run's findings (TE25: a
+Terminal window opened during a delivery steals the submit Return; TE15/TE16: a stop chord posted
+under Secure Input never reaches Wispr; the timer stall under a frozen Wispr; the chaos `_marker`
+double-count) was stopped before it compiled or committed. Its half-done diff across AppDelegate,
+HotkeyTap, ProcessClock, TerminalBinding, WisprFlowSource, WisprOwnership, WisprState, the chaos and
+explore cases, the harness and a new `WisprStopHeardTests.swift` is saved as
+`evals/plan/vm/wispr/wip-2026-09-29-te25-te15-timer-stall.patch` (`git apply` it to resume; it is
+NOT known to build). Master is clean at 93a9a03 + this note. Open threads for the next session, in
+order: (1) Wispr pinned to the absent DJI Bluetooth mic (`overrideAudioDeviceId`) — the likely 1–2 s
+start gap; re-measure after he changes it; (2) the "relay as Wispr's microphone" virtual device
+idea (device present only while the relay dictates); (3) the patch above; (4) `🎓 TO Wispr` in
+Loopback is still published (the Devices.plist flag is not the switch; the app's UI is).
