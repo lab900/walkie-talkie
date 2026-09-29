@@ -1,33 +1,54 @@
-"""The auto fallback to local (p98) — TA1–TA5 (2026-09-28). Victor, 22:25: *"I don't think I will
-ever have the patience to wait for 36 seconds. I will probably hit ⌘⌃X and use the local model
-fallback. Plus, 10 s startup time is killing. … gate the Wispr engine to its p98 … (Auto fallback to
-local model should be a checkbox in the Engine submenu.) … The goal is that ElevenLabs or Wispr Flow
-should fall back to local in a few seconds in practice."*
+"""Prepare local transcript (p95) — TA2, TA4–TA11 (2026-09-28 as *the auto fallback to local (p98)*,
+reshaped 2026-09-29). Victor, 29 Sep morning: *"We go with p95. But by the time p95 elapses from the
+start of the transcription, I must ALREADY have the local model's transcription ready … Only when the
+local transcription is ready do you show the 'insert local transcription' hint in the tooltip."* Then:
+*"the insertion of the local transcription must be done at the human's request, never automatically.
+I only OFFER it."* And the row's words: *"Use local"*.
 
-At every close the relay logs `⏱ budget X s (p98 of N samples on <engine>, cap …)` and counts the
-⌘⌃X row down (`Local in 2.1 s  ⌘⌃X`); at zero it does what ⌘⌃X does (`via: local-auto`). The
-checkbox and the Wispr fakes are `POST /test/local-auto {"on", "wisprDown", "fakeLaunch"}`;
-`state.localAuto {on, budget, since, fired, left, engine, samples, settled, wispr}` reads it back.
+At every close on a cloud engine the relay logs `⏱ budget X s (p95 of N samples on <engine>, cap …)`,
+starts the local model `budget − localEta` into the wait (`🔮 local transcript: decoding ahead …`),
+holds its words and offers them on the chip (`💻 Use local  ⌘⌃X`, `— <engine> over budget` once the
+budget has run out). **Nothing is inserted on a clock**: ⌘⌃X (`POST /test/local-now`) inserts them at
+once (`via: local-forced`); the engine's words landing first take the row down and discard them. One
+`📊 fallback:` line per sentence at its outcome (and `~/.walkie-talkie/fallback.jsonl`).
+`POST /test/local-auto {"on", "budget", "localEta", "wisprDown", "fakeLaunch", "wisprAge"}` drives it;
+`state.localAuto {on, budget, p95, expired, spec {startAt, startedAt, readyAt, phase, wasted}, trace,
+forced, wispr}` reads it back.
 
-ElevenLabs cases run against the fake Scribe (`engine="eleven"`, the harness default) — no credits.
-Wispr cases use `cases_wispr`'s desk (fake `History`, chords muted) — his real Wispr hears nothing.
+ElevenLabs cases run against the fake Scribe (`engine="eleven"`, the harness default) — no credits —
+and start/stop with `/test/gesture {"direct": true}` (no chord on the wire). Wispr cases use
+`cases_wispr`'s desk (fake `History`, chords muted) — his real Wispr hears nothing.
 
-    TA1  ElevenLabs 20 s late (fake) → local-auto within budget + 1 s; the late answer only logged
-    TA2  ElevenLabs answers inside the budget (0.8 s late) → nothing fired
-    TA3  Wispr row stalled `processing` (fake DB) → local-auto; the row finishing later only logged
-    TA4  checkbox OFF → no budget, no fallback: the relay waits for the 8 s-late answer as before
+    TA2  ElevenLabs answers inside the budget (0.8 s late) → nothing decoded ahead, no row
+    TA4  checkbox OFF → no budget, no decode ahead: the row is `Local now`, the 8 s-late answer delivered
     TA5  Wispr Flow not running at the start (faked) → the local model at the close, Wispr launched (fake)
     TA6  Wispr Flow's process 3 s old, launched by someone else (faked age) → borrowed too (batch 4, item 4)
+    TA7  Wispr row stalled `processing` ~20 s → local ready by the budget, `Use local` shown, nothing
+         inserted at the budget, Wispr's words delivered when they land; the local decode wasted
+    TA8  ElevenLabs answers at 60 % of a (forced) 6 s budget, mid-decode → wasted, no row, engine words
+    TA9  `Use local` up before the budget → ⌘⌃X inserts at once (`local-forced`)
+    TA10 localEta ≥ budget (forced — on his data a 60 s take is budget 11.2 s vs localEta 1.2 s) →
+         the decode ahead starts at the close
+    TA11 budget expired, ElevenLabs never answers (15 s late) → row stays (`over budget`), nothing
+         inserted, ⌘⌃X inserts
+
+Retired 2026-09-29: TA1 (ElevenLabs 20 s late → local-auto at the budget) and TA3 (Wispr row stalled →
+local-auto) — the automatic insert they asserted is gone; TA11 and TA7 are their successors.
 """
+
 import re
 import time
 from harness import *
 from cases_audio import pre, rig, start, stop, when, last_delivery, settle_out, on_inject, not_inject, _quiet
 import cases_wispr as cw
 
-BUDGET_LINE = r"⏱ budget ([\d.]+) s \(p98 of (\d+) samples on ([\w-]+)"
-OVER_LINE = r"⏱ .+ over budget — ([\d.]+) s since the close, budget ([\d.]+) s"
+BUDGET_LINE = r"⏱ budget ([\d.]+) s \(p95 of (\d+) samples on ([\w-]+)"
+OVER_LINE = r"⏱ .+ over budget — ([\d.]+) s since the close, budget ([\d.]+) s: nothing is inserted"
+READY_LINE = r"🔮 local transcript ready \+([\d.]+) s after the close"
+SPEC_LINE = r"🔮 local transcript: decoding ahead from \+([\d.]+) s after the close \(planned \+([\d.]+) s\)"
+TRACE_LINE = r"📊 fallback: ([^\n]+)"
 LATE_ELEVEN = r"ElevenLabs answered [\d.]+ s after ⌘⌃X .* only logged"
+USE_LOCAL = r"Use local\s+⌘⌃X"
 
 # What these cases exercise, for `harness.py --changed-since` (evals/plan/README.md).
 _COV_EL = covers("eleven", "local", "recorder", "delivery", "gesture", "chip")
@@ -45,7 +66,8 @@ def _restore():
     """After every case: the checkbox as it was found, no Wispr fakes."""
     if "on" not in _ORIG:
         return
-    _quiet(post, "/test/local-auto", {"on": _ORIG["on"], "wisprDown": False, "fakeLaunch": False, "wisprAge": None})
+    _quiet(post, "/test/local-auto", {"on": _ORIG["on"], "wisprDown": False, "fakeLaunch": False, "wisprAge": None,
+                                      "budget": None, "localEta": None})
 
 CLEANUPS.append(_restore)
 
@@ -79,166 +101,116 @@ def _budget(mark, timeout=10):
     return t, float(m.group(1)), int(m.group(2)), m.group(3)
 
 
-# ---------------------------------------------------------------- TA1
-@case("TA1", ("audio", "gesture", "slow"), covers=_COV_EL, engine="eleven",
-      expect="ElevenLabs (fake) 20 s late → the row counts down (`Local in …`), local-auto fires within budget + 1 s "
-             "of the close, `over budget` flash, via local-auto; the late answer only logged; one outbox line")
-def ta1():
-    """The case that made the checkbox: a Scribe answer that never comes in time. The fake delays the
-    upload 20 s; the budget for a ~13 s sentence is a few seconds."""
-    why = _pre_eleven()
-    if why: return "SKIP", why
-    _remember()
-    auto(on=True)
-    with rig():
-        post("/test/eleven", {"fail": "delay", "delayMs": 20000})
-        t0, n0 = now_iso(), outbox_count()
-        m = start()
-        if not on_inject(m):
-            stop(); return not_inject(m)
-        time.sleep(0.4)
-        play(CLIP_SPEECH)
-        stop()
-        t_close, budget, samples, eng = _budget(m)
-        if not t_close:
-            return "FAIL", "no `⏱ budget` line at the close"
-        time.sleep(max(0.0, t_close + 1.3 - time.time()))
-        counting = _chip_has(r"Local in \d+\.\d s")
-        la_mid = state().get("localAuto") or {}
-        t_fire = when(m, OVER_LINE, budget + 8, 0.05)
-        flashed = wait_for(lambda: _chip_has(r"over budget"), 3, 0.1)
-        t_seen, d = _delivery(t0, 60)
-        late = when(m, LATE_ELEVEN, 40, 0.5)
-        settle_out(60)
-        la = state().get("localAuto") or {}
-        n1 = outbox_count()
-        d_last = last_delivery(t0) or {}
-        fired_after = (t_fire - t_close) if t_fire else None
-        via = (d or {}).get("via")
-        note = (f"budget {budget} s ({samples} samples on {eng}); row counting at +1.3 s {counting} "
-                f"(left {la_mid.get('left')}); fired {fired_after if fired_after is None else round(fired_after, 2)} s "
-                f"after the close; flash {bool(flashed)}; via {via}, words {((t_seen or 0) - t_close):.1f} s after the close; "
-                f"late answer logged {bool(late)}; lastDelivery {d_last.get('via')}; outbox +{n1 - n0}; "
-                f"state fired {la.get('fired')}")
-        ok = (counting and t_fire and fired_after <= budget + 1 and flashed and via == "local-auto"
-              and late and d_last.get("via") == "local-auto" and n1 - n0 <= 1 and la.get("fired"))
-        return ("PASS" if ok else "FAIL"), note
+def _trace(mark, timeout=30):
+    """The sentence's `📊 fallback:` line as {key: value} (budget's `(p95,n=…)` split off), or None."""
+    if not when(mark, TRACE_LINE, timeout, 0.1):
+        return None
+    line = re.findall(TRACE_LINE, log_since(mark))[-1]
+    kv = dict(re.findall(r"(\w+)=(\S+)", line))
+    kv["_line"] = line
+    return kv
+
+
+def _num(kv, k):
+    """A trace field as seconds, None for `never` / missing."""
+    try:
+        return float(str((kv or {}).get(k, "never")).split("(")[0])
+    except ValueError:
+        return None
+
+
+def _say(kv):
+    return (kv or {}).get("_line", "no 📊 line")[:230]
+
+
+def _el_sentence(clip=None, seconds=None):
+    """An ElevenLabs relay sentence with no chord on the wire: the direct start, the clip into the
+    Loopback, the direct stop. Returns (mark, t0 iso, wall time of the stop) — or raises."""
+    m, t0 = log_mark(), now_iso()
+    cw._direct("forward-right")
+    if not wait_for(lambda: log_has(m, r"mic: recording through"), 8):
+        post("/test/cancel")
+        raise RuntimeError("the microphone never opened")
+    if not on_inject(m):
+        post("/test/cancel")
+        raise RuntimeError("the recorder is not on the Loopback")
+    time.sleep(0.4)
+    play(clip or CLIP_SPEECH, seconds=seconds)
+    cw._direct("forward-right")
+    return m, t0, time.time()
+
+
+def _watch_rows(until_fn, timeout, step=0.1):
+    """Every distinct chip row seen until `until_fn()` is true (or the timeout)."""
+    seen, t_end = [], time.time() + timeout
+    while time.time() < t_end:
+        for r in state().get("chip") or []:
+            if str(r) not in seen:
+                seen.append(str(r))
+        if until_fn():
+            break
+        time.sleep(step)
+    return seen
 
 
 # ---------------------------------------------------------------- TA2
-@case("TA2", ("audio", "gesture"), covers=_COV_EL, engine="eleven",
-      expect="ElevenLabs (fake) answers 0.8 s late, inside the budget → `inside its … budget`, nothing fired, "
-             "via elevenlabs-scribe")
+@case("TA2", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="ElevenLabs (fake) answers 0.8 s late, inside the budget → `inside its … budget`, no decode ahead "
+             "started (its start is budget − localEta, later than the answer), no `Use local` row; 📊 outcome=engine "
+             "specStart=never wasted=false; via elevenlabs-scribe")
 def ta2():
-    """The ordinary sentence: the budget is armed and never reached."""
+    """The ordinary sentence: the budget is armed, the decode ahead is planned and never needed."""
     why = _pre_eleven()
     if why: return "SKIP", why
     _remember()
-    auto(on=True)
+    auto(on=True, budget=None, localEta=None)
     with rig():
         post("/test/eleven", {"fail": "delay", "delayMs": 800})
-        t0 = now_iso()
-        m = start()
-        if not on_inject(m):
-            stop(); return not_inject(m)
-        time.sleep(0.4)
-        play(CLIP_SPEECH)
-        stop()
+        m, t0, _ = _el_sentence()
         t_close, budget, samples, eng = _budget(m)
-        t_seen, d = _delivery(t0, 30)
+        rows = _watch_rows(lambda: last_delivery(t0), 30)
+        t_seen, d = _delivery(t0, 5)
+        tr = _trace(m, 10)
         settle_out(30)
-        la = state().get("localAuto") or {}
         txt = log_since(m)
         inside = re.search(r"⏱ [\w-]+ answered ([\d.]+) s after the close — inside its ([\d.]+) s budget", txt)
-        fired = re.search(OVER_LINE, txt) is not None
         via = (d or {}).get("via")
-        note = (f"budget {budget} s ({samples} on {eng}); via {via} {((t_seen or 0) - (t_close or 0)):.1f} s after "
-                f"the close; inside line {inside.group(0)[2:80] if inside else None}; over-budget line {fired}; "
-                f"state fired {la.get('fired')} settled {la.get('settled')}")
-        ok = t_close and via == "elevenlabs-scribe" and inside and not fired and not la.get("fired")
+        use_local = any(re.search(USE_LOCAL, r) for r in rows)
+        note = (f"budget {budget} s ({samples} on {eng}); via {via}; inside line {bool(inside)}; "
+                f"Use local seen {use_local}; {_say(tr)}")
+        ok = (t_close and via == "elevenlabs-scribe" and inside and not use_local and tr
+              and tr.get("outcome") == "engine" and tr.get("specStart") == "never" and tr.get("wasted") == "false")
         return ("PASS" if ok else "FAIL"), note
 
 
-# ---------------------------------------------------------------- TA3
-@case("TA3", ("desk", "audio", "gesture"), covers=_COV_W, engine="wispr", pre=cw.needs_desk,
-      expect="Wispr's row stalls `processing` (Q24 would wait ≤ 300 s) → local-auto at the budget; the row "
-             "finishing later is only logged, never a second copy")
-def ta3():
-    """Wispr's own fallback ASR finishes at 24–36 s (W12) — the 36 s Victor will not wait. Desk: a relay
-    Wispr sentence (🔼→), its fake row adopted, the clip on the Loopback, the stop, the row left
-    `processing`. Then, after the local words, the row is finished with words of its own."""
-    db = cw.desk()
-    _remember()
-    auto(on=True)
-    bind_witness(); witness_clear()
-    m, t0, n0 = log_mark(), now_iso(), outbox_count()
-    gesture("forward-right")
-    if not wait_for(lambda: state()["listening"], 4):
-        return "FAIL", "the sentence did not open"
-    ra = db.insert(at=time.time())
-    wait_for(lambda: cw.live()["captureRow"] == ra, 3)
-    time.sleep(0.4)
-    play(CLIP_SPEECH)
-    gesture("forward-right")
-    db.update(ra, status="processing", speech=1.5)
-    t_close, budget, samples, eng = _budget(m)
-    if not t_close:
-        db.update(ra, status="dismissed")
-        return "FAIL", "no `⏱ budget` line at the close"
-    t_fire = when(m, OVER_LINE, budget + 8, 0.05)
-    t_seen, d = _delivery(t0, 60)
-    wait_for(lambda: len(witness_text().strip()) > 20, 30, 0.3)
-    m2 = log_mark()
-    db.finish(ra, "ta three late words from wispr")
-    time.sleep(3.0)
-    settle_out(30)
-    got = witness_text()
-    fired_after = (t_fire - t_close) if t_fire else None
-    via = (d or {}).get("via")
-    late_in = "late words from wispr" in got
-    n1 = outbox_count()
-    note = (f"budget {budget} s ({samples} on {eng}); fired "
-            f"{fired_after if fired_after is None else round(fired_after, 2)} s after the close; via {via}; "
-            f"witness {len(got.strip())} chars, late row in it {late_in}; outbox +{n1 - n0}; "
-            f"after the row: {log_since(m2).strip().splitlines()[-1][:110] if log_since(m2).strip() else '—'}")
-    ok = t_fire and fired_after <= budget + 1 and via == "local-auto" and not late_in and len(got.strip()) > 20 \
-        and n1 - n0 <= 1
-    return ("PASS" if ok else "FAIL"), note
-
-
 # ---------------------------------------------------------------- TA4
-@case("TA4", ("audio", "gesture"), covers=_COV_EL, engine="eleven",
-      expect="checkbox OFF → no `⏱ budget`, the row says `Local now` (no countdown), nothing fires; the 8 s-late "
-             "answer is delivered via elevenlabs-scribe, as before")
+@case("TA4", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="checkbox OFF → no `⏱ budget`, no decode ahead, no 📊 line; the row says `Local now` (never `Use local`); "
+             "nothing inserted; the 8 s-late answer is delivered via elevenlabs-scribe, as before")
 def ta4():
-    """OFF is today's behaviour: the relay waits on the engine."""
+    """OFF: ⌘⌃X's plain row from one second into the wait, and the relay waits on the engine."""
     why = _pre_eleven()
     if why: return "SKIP", why
     _remember()
-    la0 = auto(on=False)
+    la0 = auto(on=False, budget=None, localEta=None)
     with rig():
         post("/test/eleven", {"fail": "delay", "delayMs": 8000})
-        t0 = now_iso()
-        m = start()
-        if not on_inject(m):
-            stop(); return not_inject(m)
-        time.sleep(0.4)
-        play(CLIP_SPEECH)
-        stop()
+        m, t0, _ = _el_sentence()
         when(m, r"recording stopped", 10)
-        time.sleep(2.5)
-        rows = [str(r) for r in state().get("chip") or []]
-        plain = any("Local now" in r for r in rows)
-        counting = any("Local in" in r for r in rows)
-        t_seen, d = _delivery(t0, 40)
+        rows = _watch_rows(lambda: last_delivery(t0), 40)
+        t_seen, d = _delivery(t0, 5)
         settle_out(30)
         txt = log_since(m)
+        plain = any("Local now" in r for r in rows)
+        use_local = any(re.search(USE_LOCAL, r) for r in rows)
         armed = re.search(BUDGET_LINE, txt) is not None
-        fired = re.search(OVER_LINE, txt) is not None
+        spec = re.search(SPEC_LINE, txt) is not None
+        traced = re.search(TRACE_LINE, txt) is not None
         via = (d or {}).get("via")
-        note = (f"on {la0.get('on')}; at +2.5 s row `Local now` {plain}, countdown {counting}; budget line {armed}; "
-                f"over-budget {fired}; via {via}")
-        ok = la0.get("on") is False and plain and not counting and not armed and not fired and via == "elevenlabs-scribe"
+        note = (f"on {la0.get('on')}; row `Local now` {plain}, `Use local` {use_local}; budget line {armed}; "
+                f"decode ahead {spec}; 📊 {traced}; via {via}")
+        ok = (la0.get("on") is False and plain and not use_local and not armed and not spec and not traced
+              and via == "elevenlabs-scribe")
         return ("PASS" if ok else "FAIL"), note
 
 
@@ -343,3 +315,199 @@ def ta6():
         return ("PASS" if ok else "FAIL"), note
     finally:
         _quiet(post, "/test/local-auto", {"wisprAge": None, "fakeLaunch": False})
+
+
+# ---------------------------------------------------------------- TA7 (2026-09-29)
+@case("TA7", ("desk", "audio"), covers=_COV_W, engine="wispr", pre=cw.needs_desk,
+      expect="Wispr's row stalls `processing` ~20 s → the local transcript is decoded ahead and ready by the "
+             "budget (≤ budget + 0.5 s), `Use local  ⌘⌃X` shown, `over budget` added at the budget and NOTHING "
+             "inserted; the row finished at ~20 s → Wispr's words delivered (witness has them, no local words); "
+             "📊 outcome=engine wasted=true budgetExpired set")
+def ta7():
+    """The case Victor described: Wispr slow, the local words ready and offered, his choice. Desk: a
+    relay Wispr sentence (direct gesture), its fake row adopted, the clip on the Loopback, the stop,
+    the row left `processing` for ~20 s, then finished with words of its own."""
+    db = cw.desk()
+    _remember()
+    auto(on=True, budget=None, localEta=None)
+    cw.bind_witness(); witness_clear()
+    m, t0 = log_mark(), now_iso()
+    cw._direct("forward-right")
+    if not wait_for(lambda: state()["listening"], 6):
+        return "FAIL", "the sentence did not open"
+    ra = db.insert(at=time.time())
+    wait_for(lambda: cw.live()["captureRow"] == ra, 3)
+    time.sleep(0.4)
+    play(CLIP_SPEECH)
+    cw._direct("forward-right")
+    db.update(ra, status="processing", speech=1.5)
+    t_close, budget, samples, eng = _budget(m)
+    if not t_close:
+        db.update(ra, status="dismissed")
+        return "FAIL", "no `⏱ budget` line at the close"
+    t_ready = when(m, READY_LINE, budget + 10, 0.05)
+    rows = _watch_rows(lambda: time.time() > t_close + budget + 2.0, budget + 4)
+    over = when(m, OVER_LINE, 1, 0.1)
+    inserted_early = last_delivery(t0)
+    over_row = any(re.search(USE_LOCAL + r" — Wispr Flow over budget", r) for r in rows)
+    use_local = any(re.search(USE_LOCAL, r) for r in rows)
+    # Wispr answers ~20 s after the close.
+    time.sleep(max(0.0, t_close + 20 - time.time()))
+    db.finish(ra, "ta seven words from wispr at last")
+    t_seen, d = _delivery(t0, 20)
+    tr = _trace(m, 10)
+    wait_for(lambda: "ta seven" in witness_text(), 10, 0.3)
+    settle_out(30)
+    got = witness_text()
+    ready_after = (t_ready - t_close) if t_ready else None
+    via = (d or {}).get("via")
+    note = (f"budget {budget} s ({samples} on {eng}); local ready {None if ready_after is None else round(ready_after, 2)} s "
+            f"after the close; Use local seen {use_local}, over-budget row {over_row}, over line {bool(over)}; "
+            f"delivered before Wispr {bool(inserted_early)}; via {via}; witness has Wispr's words {'ta seven' in got}; "
+            f"{_say(tr)}")
+    ok = (ready_after is not None and ready_after <= budget + 0.5 and use_local and over_row and over
+          and not inserted_early and via and via.startswith("wispr") and "ta seven" in got and tr
+          and tr.get("outcome") == "engine" and tr.get("wasted") == "true" and _num(tr, "budgetExpired") is not None)
+    return ("PASS" if ok else "FAIL"), note
+
+
+# ---------------------------------------------------------------- TA8
+@case("TA8", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="budget forced 6 s, localEta 2.8 s (the decode starts at +3.2 s); ElevenLabs (fake) answers ~3.6 s — "
+             "60 % of the budget, mid-decode → its words delivered (elevenlabs-scribe), no `Use local` row ever, "
+             "📊 outcome=engine wasted=true specStart≈3.2 localReady=never, `discarded while decoding` logged")
+def ta8():
+    """The decode ahead that loses the race: it ran, and its words are thrown away."""
+    why = _pre_eleven()
+    if why: return "SKIP", why
+    _remember()
+    auto(on=True, budget=6.0, localEta=2.8)
+    with rig():
+        post("/test/eleven", {"fail": "delay", "delayMs": 3400})
+        m, t0, _ = _el_sentence()
+        t_close, budget, samples, eng = _budget(m)
+        rows = _watch_rows(lambda: last_delivery(t0), 30)
+        t_seen, d = _delivery(t0, 5)
+        tr = _trace(m, 10)
+        settle_out(30)
+        txt = log_since(m)
+        disc = "local transcript discarded while decoding" in txt
+        via = (d or {}).get("via")
+        use_local = any(re.search(USE_LOCAL, r) for r in rows)
+        ans, start_ = _num(tr, "engineAnswer"), _num(tr, "specStart")
+        note = (f"budget {budget} s (forced); via {via}; engine answered {ans} s = "
+                f"{None if not ans else round(ans / 6.0 * 100)} % of the budget; decode ahead from {start_} s; "
+                f"Use local seen {use_local}; discarded while decoding {disc}; {_say(tr)}")
+        ok = (budget == 6.0 and via == "elevenlabs-scribe" and not use_local and tr and tr.get("outcome") == "engine"
+              and tr.get("wasted") == "true" and start_ is not None and ans is not None and start_ < ans
+              and tr.get("localReady") == "never" and disc)
+        return ("PASS" if ok else "FAIL"), note
+
+
+# ---------------------------------------------------------------- TA9
+@case("TA9", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="budget forced 8 s, localEta 8 s (decode ahead from the close); ElevenLabs (fake) 15 s late → "
+             "`Use local  ⌘⌃X` before the budget; ⌘⌃X (POST /test/local-now) → delivered ≤ 1 s after the press "
+             "via local-forced (`decoded ahead, ready … before it was asked for`); 📊 outcome=local-forced "
+             "wasted=false budgetExpired=never; nothing uploaded twice")
+def ta9():
+    """The offer taken: the words are already there, so the key is instant."""
+    why = _pre_eleven()
+    if why: return "SKIP", why
+    _remember()
+    auto(on=True, budget=8.0, localEta=8.0)
+    with rig():
+        post("/test/eleven", {"fail": "delay", "delayMs": 15000})
+        m, t0, _ = _el_sentence()
+        t_close, budget, samples, eng = _budget(m)
+        up = wait_for(lambda: any(re.search(USE_LOCAL, str(r)) for r in state().get("chip") or []), 10, 0.05)
+        t_up = time.time()
+        early = last_delivery(t0)
+        t_press = time.time()
+        post("/test/local-now")
+        t_seen, d = _delivery(t0, 10)
+        tr = _trace(m, 10)
+        late = when(m, LATE_ELEVEN, 20, 0.5)
+        settle_out(30)
+        txt = log_since(m)
+        reused = re.search(r"decoded ahead, ready ([\d.]+) s before it was asked for", txt)
+        via = (d or {}).get("via")
+        lag = (t_seen - t_press) if t_seen else None
+        note = (f"Use local up {bool(up)} at +{round(t_up - (t_close or t_up), 2)} s (budget {budget}); delivered before "
+                f"the press {bool(early)}; press → words {None if lag is None else round(lag, 2)} s, via {via}; "
+                f"reused {reused.group(0) if reused else None}; late Scribe logged {bool(late)}; {_say(tr)}")
+        ok = (up and not early and lag is not None and lag <= 1.0 and via == "local-forced" and reused and tr
+              and tr.get("outcome") == "local-forced" and tr.get("wasted") == "false"
+              and tr.get("budgetExpired") == "never")
+        return ("PASS" if ok else "FAIL"), note
+
+
+# ---------------------------------------------------------------- TA10
+@case("TA10", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="localEta forced 99 s ≥ the budget → planned start +0.00 s: the decode ahead starts at the close "
+             "(≤ 0.6 s, once the WAV is closed); ElevenLabs (fake) 2.5 s late answers → engine words, 📊 specStart ≤ 0.6")
+def ta10():
+    """`max(0, budget − localEta)`: a take whose local decode is slower than the budget starts at once.
+    Forced, because it does not happen naturally on his data: a 60 s take is budget 11.2 s (ElevenLabs
+    p95) against localEta 1.2 s — the local model is the faster of the two at every length."""
+    why = _pre_eleven()
+    if why: return "SKIP", why
+    _remember()
+    auto(on=True, budget=None, localEta=99.0)
+    with rig():
+        post("/test/eleven", {"fail": "delay", "delayMs": 2500})
+        m, t0, _ = _el_sentence()
+        t_close, budget, samples, eng = _budget(m)
+        t_spec = when(m, SPEC_LINE, 5, 0.05)
+        sm = re.search(SPEC_LINE, log_since(m))
+        t_seen, d = _delivery(t0, 30)
+        tr = _trace(m, 10)
+        settle_out(30)
+        via = (d or {}).get("via")
+        st, planned = (float(sm.group(1)), float(sm.group(2))) if sm else (None, None)
+        note = f"budget {budget} s ({samples} on {eng}); decode ahead from +{st} s (planned +{planned}); via {via}; {_say(tr)}"
+        ok = (planned == 0.0 and st is not None and st <= 0.6 and via == "elevenlabs-scribe" and tr
+              and _num(tr, "specStart") is not None and _num(tr, "specStart") <= 0.6)
+        return ("PASS" if ok else "FAIL"), note
+
+
+# ---------------------------------------------------------------- TA11
+@case("TA11", ("audio",), covers=_COV_EL, engine="eleven",
+      expect="budget forced 3 s, ElevenLabs (fake) 15 s late → at +4 s nothing delivered, `⏱ … over budget … nothing "
+             "is inserted`, the row reads `Use local  ⌘⌃X — ElevenLabs over budget` and stays (still at +7 s); ⌘⌃X → "
+             "delivered ≤ 1 s via local-forced; 📊 budgetExpired≈3 outcome=local-forced wasted=false")
+def ta11():
+    """The engine that never comes: the relay does not choose for him — the offer stands until he takes it."""
+    why = _pre_eleven()
+    if why: return "SKIP", why
+    _remember()
+    auto(on=True, budget=3.0, localEta=None)
+    with rig():
+        post("/test/eleven", {"fail": "delay", "delayMs": 15000})
+        m, t0, _ = _el_sentence()
+        t_close, budget, samples, eng = _budget(m)
+        if not t_close:
+            return "FAIL", "no `⏱ budget` line at the close"
+        time.sleep(max(0.0, t_close + 4.0 - time.time()))
+        rows4 = [str(r) for r in state().get("chip") or []]
+        early4 = last_delivery(t0)
+        time.sleep(max(0.0, t_close + 7.0 - time.time()))
+        rows7 = [str(r) for r in state().get("chip") or []]
+        early7 = last_delivery(t0)
+        over = re.search(OVER_LINE, log_since(m))
+        t_press = time.time()
+        post("/test/local-now")
+        t_seen, d = _delivery(t0, 10)
+        tr = _trace(m, 10)
+        settle_out(40)
+        via = (d or {}).get("via")
+        lag = (t_seen - t_press) if t_seen else None
+        row_over = lambda rows: any(re.search(USE_LOCAL + r" — ElevenLabs over budget", r) for r in rows)
+        note = (f"budget {budget} (forced); +4 s: delivered {bool(early4)}, row {row_over(rows4)}; +7 s: delivered "
+                f"{bool(early7)}, row {row_over(rows7)}; over line {bool(over)}; press → words "
+                f"{None if lag is None else round(lag, 2)} s via {via}; {_say(tr)}")
+        be = _num(tr, "budgetExpired")
+        ok = (budget == 3.0 and not early4 and not early7 and row_over(rows4) and row_over(rows7) and over
+              and lag is not None and lag <= 1.0 and via == "local-forced" and tr and be is not None
+              and 3.0 <= be <= 3.5 and tr.get("outcome") == "local-forced" and tr.get("wasted") == "false")
+        return ("PASS" if ok else "FAIL"), note
