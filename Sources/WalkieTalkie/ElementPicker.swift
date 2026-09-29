@@ -323,6 +323,8 @@ final class ElementPicker {
     /// survived a day of testing. This enters at exactly the point the watcher's
     /// edge does, so a pass here is a pass for a real Wispr dictation.
     var onTestWispr: ((Bool) -> Void)?
+    /// `POST /test/wispr {"via": "poll"}` — the 100 ms poll's reading (batch 5).
+    var onTestWisprPoll: ((Bool) -> Void)?
 
     /// `POST /test/wispr {"hotkey": true}` — Wispr's *start gesture*, one step
     /// earlier than its microphone. It cannot be reached any other way at a
@@ -860,6 +862,11 @@ final class ElementPicker {
                 return respond(conn, 200, ["ok": true, "hotkey": true])
             }
             let on = body?["on"] as? Bool ?? true
+            // Batch 5: `"via": "poll"` — the 100 ms poll's reading, not the CoreAudio edge.
+            if body?["via"] as? String == "poll" {
+                onTestWisprPoll?(on)
+                return respond(conn, 200, ["ok": true, "wispr": on, "via": "poll"])
+            }
             onTestWispr?(on)
             respond(conn, 200, ["ok": true, "wispr": on])
 

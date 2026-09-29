@@ -1568,6 +1568,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         picker.onTestWispr = { [weak self] on in
             DispatchQueue.main.async { self?.wisprSource.simulateEdge(on) }
         }
+        picker.onTestWisprPoll = { [weak self] on in
+            DispatchQueue.main.async { self?.wisprSource.simulatePoll(on) }
+        }
         picker.onTestWisprHotkey = { [weak self] in
             DispatchQueue.main.async { self?.wisprSource.simulateHotkey() }
         }

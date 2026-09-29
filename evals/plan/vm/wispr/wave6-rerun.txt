@@ -1,0 +1,9 @@
+# Fix batch 5 (2026-09-29): a real SIGKILL mid-sentence — item 3 again. Read: at the kill
+# `⏳ the 100 ms poll saw the microphone close under a relay sentence …` OR straight
+# `Wispr Flow quit mid-sentence (pid N is exiting (P_WEXIT) …) — not his stop`, then
+# `💻 Wispr Flow quit — … carries it on until his stop`; NO `listening → transcribing — the 100 ms poll`
+# before his stop; `📦 delivery: local-fallback → terminal:…` with the whole take voiced (TQ2: unless DEAF).
+TW20
+TQ2
+# Desk case, runs in the lab too (fake History; the poll's close first, the fake exit 0.15/0.3/0.4 s after):
+TW44

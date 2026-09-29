@@ -1379,8 +1379,8 @@ def _open_with_mic(db):
 @case("TW42", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
       expect="item 3: Wispr quitting mid-sentence (fakeExit + its microphone closing) is not his stop — the relay's "
              "own recording goes on (`ownTake` ≤ 0.6 s), his stop closes it, the WHOLE take is decoded locally into the "
-             "witness; the exit a beat after the close (≤ 0.3 s) is caught too; a close with Wispr alive still ends the "
-             "sentence at once (control)")
+             "witness; the exit a beat after the close (inside the grace) is caught too; a close with Wispr alive still ends the "
+             "sentence when the 1.0 s grace runs out (control)")
 def tw42():
     """Item 3 (lab wave 4: TQ2 closed the relay's recording at the kill, 1.0 s voiced → Recover only;
     TW20 0.2 s). At a desk his real Wispr is never killed: `POST /test/wispr-proc {"fakeExit"}` makes the
@@ -1445,8 +1445,82 @@ def tw42():
     db.finish(rc, "tw forty two control words")
     got_c = wait_for(lambda: "forty two control" in witness_text(), 15, 0.2)
     notes.append(f"(c) Wispr alive: closed {bool(closed)} in {dc:.2f} s, ownTake {own_c}, row delivered {bool(got_c)}")
-    if not (closed and dc <= 0.8 and not own_c and got_c):
+    # Batch 5: Wispr alive now closes when the 1.0 s grace runs out (`WisprState.quitCloseGrace`).
+    if not (closed and dc <= 1.6 and not own_c and got_c):
         bad.append("c")
+    return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
+
+def _open_with_poll(db):
+    """A relay sentence whose Wispr microphone the relay's 100 ms POLL saw open (`/test/wispr
+    {"via": "poll"}`, batch 5) — the witness the real kill closes first — then Wispr's row adopted."""
+    chord(state_="start")
+    if not wait_for(lambda: state()["listening"], 3):
+        raise RuntimeError("the relay did not open the sentence")
+    post("/test/wispr", {"on": True, "via": "poll"})
+    time.sleep(0.4)
+    rid = db.insert(at=time.time())
+    if not wait_for(lambda: live()["captureRow"] == rid, 3):
+        raise RuntimeError(f"fake row {rid} was not adopted")
+    return rid
+
+@case("TW44", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="batch 5: the real kill's order — the 100 ms POLL sees Wispr's microphone close FIRST and the exit "
+             "comes 0.15 / 0.3 / 0.4 s later: held (`ownTake`), the phase never left listening (no `listening → "
+             "transcribing — the 100 ms poll`), his stop after the clip → the WHOLE take `local-fallback → "
+             "terminal` (≥ 3 s voiced); control: the poll's close with Wispr alive closes at the 1.0 s grace, no hold")
+def tw44():
+    """Batch 5 (lab wave 5, TW20 / TQ2 on a real SIGKILL: `listening → transcribing — the 100 ms poll saw
+    the microphone close`, the exit event 0.35–0.39 s after it — batch 4's 0.3 s grace had already
+    closed the take, 0.5 s voiced → Recover). TW42 delivers the edge, and its exit first; here the
+    poll's close comes first, `fakeExit` after (his real Wispr is never killed at a desk)."""
+    db = desk()
+    bind_witness(); witness_clear()
+    notes, bad = [], []
+    for tag, gap in (("a", 0.15), ("b", 0.3), ("c", 0.4)):
+        witness_clear(); m = log_mark()
+        r = _open_with_poll(db)
+        th = _bg_play(CLIP_SPEECH)
+        time.sleep(3.0)
+        post("/test/wispr", {"on": False, "via": "poll"}); tq = time.time()
+        time.sleep(gap)
+        post("/test/wispr-proc", {"fakeExit": True})
+        held = wait_for(lambda: bool(live().get("ownTake")), 2, 0.05)
+        dq = time.time() - tq
+        time.sleep(1.5)
+        still = state()["listening"]
+        th.join(20)
+        _direct("forward-right")
+        got = wait_for(lambda: witness_text().strip(), 40, 0.3)
+        d = _landed(m)
+        txt = log_since(m)
+        v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
+        voiced = float(v[-1]) if v else 0.0
+        moved = re.search(r"listening → transcribing — the 100 ms poll", txt) is not None
+        waited = "⏳ the 100 ms poll saw the microphone close under a relay sentence" in txt
+        notes.append(f"({tag}) exit {gap:.2f} s after the poll's close: held {bool(held)} {dq:.2f} s after the close, "
+                     f"grace line {waited}, phase moved by the poll {moved}, listening 1.5 s on {still}, delivery {d}, "
+                     f"voiced {voiced:.1f} s, witness {len(witness_text().strip())} chars")
+        if not (held and dq <= gap + 0.5 and waited and not moved and still and got and d
+                and d[0] == "local-fallback" and d[1].startswith("terminal:") and voiced >= 3.0):
+            bad.append(tag)
+        db.update(r, status="dismissed")
+        wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
+        time.sleep(2.2)
+    # (d) control: the poll's close with Wispr alive — held for the grace, then Wispr's own end
+    witness_clear(); m = log_mark()
+    rc = _open_with_poll(db); time.sleep(1.2)
+    post("/test/wispr", {"on": False, "via": "poll"}); tc = time.time()
+    closed = wait_for(lambda: not state()["listening"], 3, 0.05)
+    dc = time.time() - tc
+    own_c = live().get("ownTake")
+    db.update(rc, status="processing", duration=1.5); time.sleep(0.3)
+    db.finish(rc, "tw forty four control words")
+    got_c = wait_for(lambda: "forty four control" in witness_text(), 15, 0.2)
+    outlived = "Wispr outlived the 1.0 s grace" in log_since(m)
+    notes.append(f"(d) Wispr alive: closed {bool(closed)} in {dc:.2f} s (outlived line {outlived}), ownTake {own_c}, "
+                 f"row delivered {bool(got_c)}")
+    if not (closed and 0.9 <= dc <= 1.6 and outlived and not own_c and got_c):
+        bad.append("d")
     return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")
 
 @case("TW43", tags=("desk", "audio"), engine="wispr", pre=needs_desk,

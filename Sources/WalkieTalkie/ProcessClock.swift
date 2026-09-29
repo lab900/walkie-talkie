@@ -37,6 +37,16 @@ enum ProcessClock {
         guard let i = info(pid) else { return false }
         return Int32(i.kp_proc.p_stat) != SZOMB
     }
+
+    /// **Exiting, a zombie, or gone** (batch 5): `P_WEXIT` is set the moment a
+    /// SIGKILL is acted on, while `p_stat` still reads `SRUN` for the whole
+    /// teardown — measured 0.25 ms vs 25 ms for a 1.5 GB process at a desk, and
+    /// on the VM Wispr's microphone closed 0.35–0.39 s before its exit event
+    /// (TW20 / TQ2, wave 5). `isAlive` said yes all through that window.
+    static func isDyingOrGone(_ pid: pid_t) -> Bool {
+        guard let i = info(pid) else { return true }
+        return Int32(i.kp_proc.p_stat) == SZOMB || (i.kp_proc.p_flag & P_WEXIT) != 0
+    }
 }
 
 /// **One process's exit, told by the kernel** (`EVFILT_PROC` / `NOTE_EXIT`

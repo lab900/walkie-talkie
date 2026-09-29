@@ -14713,3 +14713,42 @@ mirror and the signed-in Wispr Flow were there; the old copy is `wt-lab.moved-20
 the first `up` from the new home pulled the 25 GB base image again (20 min, 62 GB) because `cmd_up`
 checked the base before checking whether the lab existed — now the base is looked for only when the
 lab must be created; the pulled copies were deleted. `wt-base` and the OCI cache stay on Vic.
+
+## 2026-09-29 06:50 — Wispr fix batch 5: a real SIGKILL mid-sentence no longer ends the relay's take
+
+Wave 5 (`report-wave5-2026-09-29.md`, *Item 3 … NOT met on a real kill*): TW20 / TQ2 still ended the
+relay's own recording at Wispr's microphone close — 0.5 s voiced → Recover; TQ2 also DEAF. **Cause,
+not the `pollMs` guard:** the guard did take the close (the row came first, but the poll saw the
+microphone open a tick later, so `pollMs` was set); `closeFromWisprSide` found the process alive and
+waited its 0.3 s grace — and the grace ran out first. The harness's kill went out ~2.6 s (TW20) /
+~3.6 s (TQ2) into the sentence, the close at the grace's end was logged at 3001 / 3914 ms, and the
+kernel's exit event came 49 / 87 ms *after* that: **0.35–0.39 s between the microphone closing and
+the exit**. A SIGKILLed process tears its audio down before it is a zombie, and all through that
+teardown `p_stat` reads `SRUN`, so `ProcessClock.isAlive` said yes. The desk had passed because
+`fakeExit` gives the exit first, or 0.1 s after the close. Fix:
+- **`P_WEXIT` answers at the close.** `ProcessClock.isDyingOrGone`: the flag is set the moment the
+  SIGKILL is acted on (measured on a 1.5 GB throwaway process: 0.25 ms, while `p_stat` stayed `SRUN`
+  25 ms). `wisprGone` asks it, so a kill is a quit at the poll's own tick.
+- **The order is decided in `WisprState`, on its injectable clock** (`wisprSideClose`,
+  `wisprProcessExited`, `wisprAliveAfterClose`, `wisprCloseDue` → `pending(until:)` / `quit` /
+  `wisprEnded`): an exit seen before or during the grace wins whichever came first; the grace is
+  **1.0 s** (`quitCloseGrace`, 2.5× the measured gap) as the belt behind `P_WEXIT`; Wispr's row
+  moving after the close (its stop path ran, so it is alive) ends the wait early.
+- **Every Wispr-side close of a relay sentence goes through it** — the poll and the CoreAudio edge,
+  with or without their open credential (`pollMs` / `notifyMs`). Nothing is told — not the machine,
+  not the recorder — until the verdict; `wisprEnded` then does exactly what that path did before
+  item 3. A second witness during the grace shares it; his stop, a cancel, the hold drop it.
+- Test hook `POST /test/wispr {"on": …, "via": "poll"}`: what the 100 ms poll reads, for a desk
+  with no Wispr microphone; cleared at the next relay chord.
+
+Unit tests `WisprQuitOrderTests` (fake clock: poll close then exit at 0.1/0.3/0.39/0.9 s → quit and
+the phase never left `listening`; wave 5's 0.3 s + 0.05 s; exit first; `P_WEXIT` at the close; alive
+through the grace → `wisprEnded` not before; the row early-out; a second witness; the next chord
+clean) and `ProcessDyingTests`. Desk (`report-wispr-batch5.md`, keyless, `HANDS_OFF=1`, his Wispr
+never touched, ElevenLabs 0): **TW44 PASS** (new — the poll's close first, `fakeExit` 0.15 / 0.3 /
+0.4 s after: held 0.24 / 0.37 / 0.46 s after the close, no `listening → transcribing — the 100 ms
+poll`, the whole take 4.2–4.5 s voiced `local-fallback → terminal`; control: Wispr alive closed at
+1.13 s, `outlived the 1.0 s grace`, row delivered), **TW42 PASS** (its control's bar 0.8 → 1.6 s for
+the longer grace: 1.15 s), **TW43 PASS**. `swift test`: all green but `EngineMenuTests.
+testSwitchAbsentIsTheListOfToday`, already red since 5ed6aa1 flipped `wisprEngineDefault`. The VM
+confirms on a real kill: TW20, TQ2, TW44 appended to `evals/plan/vm/wispr/wave6-rerun.txt`.

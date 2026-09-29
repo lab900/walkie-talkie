@@ -326,6 +326,11 @@ final class WisprFlowSource: DictationSource {
     /// is the thing this app spent 2026-09-11 arguing itself out of.
     private var inputPoll: Timer?
     private var lastPollSaw = false
+    /// `POST /test/wispr {"on": …, "via": "poll"}` (batch 5): what the 100 ms poll
+    /// reads instead of CoreAudio — a desk has no Wispr microphone to watch, and
+    /// the real kill's order is the poll's close first, the exit after. Cleared
+    /// at the next relay chord.
+    private var testPollSays: Bool?
     private static let pollTick: TimeInterval = 0.1
 
     /// Wispr Flow is running at all. Asked of the process list rather than
@@ -1291,6 +1296,11 @@ final class WisprFlowSource: DictationSource {
     /// `POST /test/wispr` — the CoreAudio edge with no CoreAudio behind it.
     /// `measured: false` keeps the latency line honest: this enters below the
     /// watcher and would otherwise print the age of the last real dictation.
+    func simulatePoll(_ on: Bool) {
+        Log.info("🧪 POST /test/wispr {via: poll} — the 100 ms poll reads the microphone \(on ? "open" : "closed")")
+        testPollSays = on
+    }
+
     func simulateEdge(_ on: Bool) {
         guard isRecording != on || (on && speculative) else { return }
         Log.info("wispr flow \(on ? "opened" : "closed") the microphone (simulated)")
@@ -1520,6 +1530,7 @@ final class WisprFlowSource: DictationSource {
             return
         }
         hotkeys.setWisprRelayOwned(true)
+        testPollSays = nil
         // B-risk (TX6b): a row Wispr opens within 1 s of this start is the relay's.
         WisprOwnership.noteRelayChord()
         // **E-FP (lab wave 4, 2026-09-29): a new relay chord disarms the ghost
@@ -1691,8 +1702,7 @@ final class WisprFlowSource: DictationSource {
         // closes here too, at his stop — and ends on that recording.
         let ownTake = ownTakeOnly
         ownTakeOnly = nil
-        pendingWisprClose?.cancel()
-        pendingWisprClose = nil
+        dropPendingWisprClose()
         if relayStarted, relayClosedWall == 0 { relayClosedWall = Date().timeIntervalSince1970 }
         // E (lab wave 3): a relay sentence Wispr's microphone never opened for —
         // its start may still land, late, as a ghost microphone.
@@ -1801,15 +1811,24 @@ final class WisprFlowSource: DictationSource {
         // Wispr is out of the sentence the relay's recording carries: its
         // microphone is not this sentence's (a late ghost is E's to dismiss).
         guard ownTakeOnly == nil else { return }
-        let on = watch.sampleIsRunningInput()
+        let on = testPollSays ?? watch.sampleIsRunningInput()
         guard on != lastPollSaw else { return }
         lastPollSaw = on
         // **A relay sentence's microphone closing on Wispr's side is not his
         // stop** (batch 4, item 3): a quit closes it too. Asked before the
         // machine hears it, so a quit leaves the phase — and the music, and the
-        // ring — where they were.
-        if !on, isRecording, relayStarted, state.pollMs != nil {
-            return closeFromWisprSide("the 100 ms poll saw the microphone close")
+        // ring — where they were. **Batch 5: every such close, credential or
+        // not** — wave 5's kill closed the take through the grace running out,
+        // and a close with no `pollMs` used to tell the machine at once. What
+        // "Wispr ended it" does is exactly what this poll did before item 3.
+        if !on, isRecording, relayStarted, !cancelling {
+            let why = "the 100 ms poll saw the microphone close"
+            return closeFromWisprSide(why) { [weak self] in
+                guard let self else { return }
+                self.state.poll(false)
+                guard self.state.pollMs != nil else { return }
+                self.closeListening(why)
+            }
         }
         state.poll(on)
         if on {
@@ -1877,8 +1896,17 @@ final class WisprFlowSource: DictationSource {
             return
         }
         // Batch 4, item 3: the same question as the poll's — a quit, or Wispr's own end?
-        if !on, isRecording, relayStarted, state.notifyMs != nil {
-            return closeFromWisprSide("the CoreAudio edge")
+        // Batch 5: credential or not; "Wispr ended it" is what the edge did before.
+        if !on, isRecording, relayStarted, !cancelling {
+            return closeFromWisprSide("the CoreAudio edge") { [weak self] in
+                guard let self else { return }
+                self.state.notify(false)
+                if self.state.notifyMs == nil {
+                    Log.info("⚡ a mic edge closed with no matching open — it belongs to the previous dictation, ignored")
+                    return
+                }
+                self.closeListening("the CoreAudio edge")
+            }
         }
         state.notify(on)
         if on { noteMicSeen() }
@@ -2424,6 +2452,12 @@ final class WisprFlowSource: DictationSource {
             confirmSpeculative(by: "Wispr's own row")
         }
         guard e.rowid == historyRow else { return }
+        // Batch 5: a close waiting on the exit, and Wispr's row moved — its stop
+        // path ran, so Wispr is alive and ended the dictation itself.
+        if pendingWisprEnded != nil, !e.status.isEmpty, wisprGone() == nil {
+            resolveWisprClose(rowMoved: true)
+            guard capturing else { return }
+        }
         if !e.micDevice.isEmpty, e.micDevice != namedMic {
             namedMic = e.micDevice
             micNamed?(e.micDevice)
@@ -2613,8 +2647,7 @@ final class WisprFlowSource: DictationSource {
         else { return false }
         speculativeDrop?.cancel()
         speculativeDrop = nil
-        pendingWisprClose?.cancel()
-        pendingWisprClose = nil
+        dropPendingWisprClose()
         if HotkeyTap.scratchpadIsHeld { HotkeyTap.postWisprScratchpad(down: false) }
         // Set before the capture's end, which then neither re-arms a capture for
         // this sentence nor puts the machine to rest under it: the machine stays
@@ -2630,9 +2663,9 @@ final class WisprFlowSource: DictationSource {
         onOwnTake?(why)
         return true
     }
-    /// The Wispr-side close (poll, CoreAudio edge) of a relay sentence waits this
-    /// long for the exit watch before it is taken as Wispr ending the dictation:
-    /// a quit closes the microphone too (item 3).
+    /// The Wispr-side close (poll, CoreAudio edge) of a relay sentence waits up
+    /// to `WisprState.quitCloseGrace` for the exit before it is taken as Wispr
+    /// ending the dictation: a quit closes the microphone too (item 3, batch 5).
     private var pendingWisprClose: DispatchWorkItem?
 
     /// **Q14 (2026-09-28): a Wispr failure is not the end of the sentence** —
@@ -2994,31 +3027,79 @@ final class WisprFlowSource: DictationSource {
     private var wisprPidAtChord: pid_t = 0
 
     /// **Wispr's microphone closed under a relay sentence — a quit, or Wispr
-    /// ending the dictation itself?** (batch 4, item 3.) TQ2 / TW20 in the lab:
-    /// the kill closed Wispr's microphone, the poll took that as the close, and
-    /// the relay's own recording stopped there — 1.0 s and 0.2 s voiced, Recover
-    /// only, the rest of what he said never recorded. A Wispr that is gone is
-    /// `abandonForDeadWispr` → `holdOwnTake` (the relay records on to his stop);
-    /// one still alive ended the dictation itself → `closeListening`. The exit
-    /// may lag the close by a beat, so an alive answer is asked again after
-    /// `quitCloseGrace`.
-    private func closeFromWisprSide(_ why: String) {
-        guard !cancelling, ownTakeOnly == nil else { return closeListening(why) }
-        if let gone = wisprGone() { return abandonForDeadWispr("\(gone) — its microphone closed with it") }
-        pendingWisprClose?.cancel()
-        let w = DispatchWorkItem { [weak self] in
-            guard let self, self.isRecording || self.speculative, self.ownTakeOnly == nil else { return }
-            self.pendingWisprClose = nil
-            if let gone = self.wisprGone() {
-                self.abandonForDeadWispr("\(gone) — its microphone closed with it")
-            } else {
-                self.closeListening(why)   // its `stopChord` moves the machine on
+    /// ending the dictation itself?** (batch 4, item 3; batch 5.) TQ2 / TW20 in
+    /// the lab: the kill closed Wispr's microphone and the relay's own recording
+    /// stopped there — Recover only, the rest of what he said never recorded.
+    /// Wave 5 (batch 4 in): the same, because the exit event came 0.35–0.39 s
+    /// after the poll's close and the 0.3 s grace had already closed the take.
+    ///
+    /// Now: a process the kernel already says is exiting (`P_WEXIT`) is a quit at
+    /// once; otherwise **nothing is told** — not the machine, not the recorder —
+    /// until `WisprState.wisprCloseDue` decides: the exit event (or a dying
+    /// process) inside `WisprState.quitCloseGrace` → `abandonForDeadWispr` →
+    /// `holdOwnTake`, the relay records on to his stop; Wispr's row moving, or
+    /// the grace running out with Wispr alive → `wisprEnded`, which is what this
+    /// close path did before item 3. Several close paths during one grace share
+    /// it; his own stop, a cancel or the take being held drop it.
+    private func closeFromWisprSide(_ why: String, wisprEnded: @escaping () -> Void) {
+        guard !cancelling, ownTakeOnly == nil else { return wisprEnded() }
+        let gone = wisprGone()
+        switch state.wisprSideClose(by: why, processGone: gone != nil) {
+        case .quit:
+            abandonForDeadWispr("\(gone ?? "its exit came first") — its microphone closed with it (\(why))")
+        case .wisprEnded:
+            wisprEnded()
+        case .pending(let until):
+            if let earlier = pendingWisprEnded {
+                // A second witness of the same close: one grace, both answers.
+                pendingWisprEnded = { earlier(); wisprEnded() }
+                Log.info("⏳ \(why) too — the same close, the same grace")
+                return
             }
+            pendingWisprEnded = wisprEnded
+            Log.info(String(format: "⏳ %@ under a relay sentence, Wispr pid %d still alive — up to %.1f s for its exit before this is Wispr ending the dictation (batch 5)",
+                            why, wisprPidAtChord, WisprState.quitCloseGrace))
+            armWisprCloseDue(until)
         }
-        pendingWisprClose = w
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.quitCloseGrace, execute: w)
     }
-    private static let quitCloseGrace: TimeInterval = 0.3
+
+    private func armWisprCloseDue(_ until: CFAbsoluteTime) {
+        pendingWisprClose?.cancel()
+        let w = DispatchWorkItem { [weak self] in self?.resolveWisprClose() }
+        pendingWisprClose = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, until - CFAbsoluteTimeGetCurrent()) + 0.005, execute: w)
+    }
+
+    /// **The waiting close, decided** — at its deadline, or early when Wispr's row
+    /// moved (`rowMoved`: its stop path ran, so it is alive).
+    private func resolveWisprClose(rowMoved: Bool = false) {
+        guard let ended = pendingWisprEnded else { return }
+        guard isRecording || speculative, ownTakeOnly == nil else { return dropPendingWisprClose() }
+        if rowMoved { state.wisprAliveAfterClose() }
+        let gone = wisprGone()
+        switch state.wisprCloseDue(processGone: gone != nil) {
+        case .pending(let until):
+            armWisprCloseDue(until)
+        case .quit:
+            dropPendingWisprClose()
+            abandonForDeadWispr("\(gone ?? "its exit came") — its microphone closed with it (\(state.wisprCloseBy))")
+        case .wisprEnded:
+            dropPendingWisprClose()
+            Log.info(rowMoved
+                     ? "⏳ Wispr's row moved after the close — Wispr is alive and ended the dictation itself"
+                     : String(format: "⏳ Wispr outlived the %.1f s grace — it ended the dictation itself (%@)",
+                              WisprState.quitCloseGrace, state.wisprCloseBy))
+            ended()
+        }
+    }
+
+    private func dropPendingWisprClose() {
+        pendingWisprClose?.cancel()
+        pendingWisprClose = nil
+        pendingWisprEnded = nil
+    }
+    /// What "Wispr ended it itself" does for the close that is waiting.
+    private var pendingWisprEnded: (() -> Void)?
 
     /// Why the Wispr this sentence was given to is gone — nil while it lives.
     /// The kernel's table, not `NSWorkspace` (KVO-updated, it lags a kill).
@@ -3027,6 +3108,8 @@ final class WisprFlowSource: DictationSource {
         guard pid > 0 else { return nil }
         if fakeExitedPid == pid { return "pid \(pid) exited (POST /test/wispr-proc {fakeExit})" }
         if !ProcessClock.isAlive(pid) { return "pid \(pid) is gone" }
+        // Batch 5: SIGKILLed and tearing down — `p_stat` still says running.
+        if ProcessClock.isDyingOrGone(pid) { return "pid \(pid) is exiting (P_WEXIT)" }
         return nil
     }
     /// `POST /test/wispr-proc {"fakeExit": true}` — the sentence's Wispr reads as
@@ -3067,6 +3150,8 @@ final class WisprFlowSource: DictationSource {
         }
         exitedPid = pid
         exitedAt = Date()
+        // Batch 5: the exit wins over a close still waiting, whichever came first.
+        if pid == wisprPidAtChord { state.wisprProcessExited() }
         guard pid == wisprPidAtChord, capturing || isRecording || speculative, ownTakeOnly == nil else {
             Log.info("⚡ Wispr Flow's process \(pid) exited (\(how)) — no sentence of the relay's is on it")
             return
@@ -3082,8 +3167,7 @@ final class WisprFlowSource: DictationSource {
     private func abandonForDeadWispr(_ why: String) {
         sawWisprGone = 0
         wisprPidAtChord = 0
-        pendingWisprClose?.cancel()
-        pendingWisprClose = nil
+        dropPendingWisprClose()
         // Already carried by the relay's own recording: nothing of Wispr's left to end.
         guard ownTakeOnly == nil else { return }
         // **And the window the dead instance left behind.** It belongs to a

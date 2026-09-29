@@ -293,6 +293,10 @@ final class WisprState {
         pollMs = nil
         notifyMs = nil
         transitions = []
+        wisprCloseAt = nil
+        wisprCloseBy = ""
+        wisprExitAt = nil
+        wisprAliveAt = nil
         enter(.warming, why)
     }
 
@@ -385,6 +389,73 @@ final class WisprState {
     func reset(_ why: String) {
         guard phase != .idle else { return }
         enter(.idle, why)
+    }
+
+    // MARK: - Batch 5: Wispr's microphone closing under a relay sentence
+
+    /// **What a Wispr-side close of a relay sentence turns out to be** (batch 5,
+    /// 2026-09-29). Lab wave 5, TW20 / TQ2 on a real SIGKILL: the 100 ms poll saw
+    /// Wispr's microphone close and the kernel's exit event came **0.35–0.39 s
+    /// later** — the dying process tears down its audio before it is a zombie,
+    /// and batch 4's 0.3 s grace had already run out and closed the relay's own
+    /// take (0.5 s voiced, Recover only). The order is the whole question, so it
+    /// is decided here, on this machine's injectable clock, and not in timers.
+    enum WisprCloseVerdict: Equatable {
+        /// Not known yet: the exit may still come — ask again at `until`.
+        case pending(until: CFAbsoluteTime)
+        /// Wispr's process is gone or going: not his stop — the relay's own
+        /// recording carries the sentence on to his stop (Q14).
+        case quit
+        /// Wispr outlived the grace (or its row moved): it ended the dictation itself.
+        case wisprEnded
+    }
+    /// How long a Wispr-side close waits for the exit before it is taken as
+    /// Wispr ending the dictation. Measured exit-after-close on the VM: 0.35 and
+    /// 0.39 s; batch 4's 0.3 s lost both. `P_WEXIT` normally answers at the
+    /// close itself (`ProcessClock.isDyingOrGone`) — this is the belt.
+    static let quitCloseGrace: Double = 1.0
+
+    /// When the first Wispr-side close of this sentence was seen, and by whom.
+    private(set) var wisprCloseAt: CFAbsoluteTime?
+    private(set) var wisprCloseBy = ""
+    /// When Wispr's process was told exited (the kernel's event, or `fakeExit`).
+    private(set) var wisprExitAt: CFAbsoluteTime?
+    /// When Wispr showed it was alive after the close (its row moved: its stop path ran).
+    private(set) var wisprAliveAt: CFAbsoluteTime?
+
+    /// **A Wispr-side close (the poll, the CoreAudio edge) of a relay sentence.**
+    /// `processGone`: the kernel already says the process is exiting or gone.
+    /// An exit already seen wins at once, whichever came first.
+    func wisprSideClose(by source: String, processGone: Bool) -> WisprCloseVerdict {
+        if wisprCloseAt == nil {
+            wisprCloseAt = now()
+            wisprCloseBy = source
+        }
+        return wisprCloseDue(processGone: processGone)
+    }
+
+    /// **Wispr's process exited.** Always a quit for a sentence still recording;
+    /// recorded so a close that arrives after it (or is still waiting) is one too.
+    @discardableResult
+    func wisprProcessExited() -> WisprCloseVerdict {
+        if wisprExitAt == nil { wisprExitAt = now() }
+        return .quit
+    }
+
+    /// Wispr's row moved after the close — its own stop path ran, so it is alive.
+    func wisprAliveAfterClose() {
+        if wisprAliveAt == nil { wisprAliveAt = now() }
+    }
+
+    /// **The verdict now** — at the grace's deadline, or earlier when something
+    /// new is known. The exit (or a dying process) beats everything; a row that
+    /// moved says Wispr lived through it; otherwise the grace decides.
+    func wisprCloseDue(processGone: Bool) -> WisprCloseVerdict {
+        if processGone || wisprExitAt != nil { return .quit }
+        guard let at = wisprCloseAt else { return .wisprEnded }
+        if wisprAliveAt != nil { return .wisprEnded }
+        let until = at + Self.quitCloseGrace
+        return now() >= until ? .wisprEnded : .pending(until: until)
     }
 
     // MARK: - Transitions
