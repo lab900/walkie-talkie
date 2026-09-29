@@ -43,4 +43,26 @@ final class TerminalLineTests: XCTestCase {
         let sent = "just type it and press Enter to send"
         XCTAssertFalse(TerminalBinding.asksForReview(tail: "$ cat\njust type it and press Enter to send\n", sent: sent))
     }
+
+    // 2026-09-29: the 4 s watch ends early only on a sentence seen submitted.
+    func testASentenceStillInTheBoxIsNotSubmitted() {
+        let sent = "please fix the build and tell me what broke"
+        let tail = "⏺ done\n────\n❯ please fix the build and tell me what broke\n────\n  Opus 5.5 · auto mode on"
+        XCTAssertTrue(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
+        XCTAssertFalse(TerminalBinding.submitted(tail: tail, sent: sent))
+    }
+
+    func testAnEchoAboveAnEmptyBoxIsSubmitted() {
+        let sent = "please fix the build and tell me what broke"
+        let tail = "> please fix the build and tell me what broke\n\n✻ Thinking…\n────\n❯ \n────\n  Opus 5.5 · auto mode on"
+        XCTAssertFalse(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
+        XCTAssertTrue(TerminalBinding.submitted(tail: tail, sent: sent))
+    }
+
+    func testOnlyTheStatusLineIsNeitherSoTheWatchGoesOn() {
+        let sent = "please fix the build and tell me what broke"
+        let tail = "────────────────\n  Opus 5.5 · 220K · auto mode on (shift+tab to cycle)"
+        XCTAssertFalse(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
+        XCTAssertFalse(TerminalBinding.submitted(tail: tail, sent: sent))
+    }
 }

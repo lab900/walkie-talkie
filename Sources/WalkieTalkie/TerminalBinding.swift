@@ -1460,23 +1460,38 @@ final class TerminalBinding {
             return "gone"
         end tell
         """
-        // **Press again while the sentence is still in the prompt box** (2026-09-28),
-        // up to twice more, 0.5 s apart: the hint (`asksForReview`) is one
-        // reason, the sentence sitting under `❯` with no submit is the other
-        // (`stillInPrompt`). A submitted sentence is echoed with `>` and the
-        // box is empty, so a Return is never pressed on an empty prompt.
+        // **Press again while the sentence is still in the prompt box** (2026-09-28):
+        // the hint (`asksForReview`) is one reason, the sentence sitting under `❯`
+        // with no submit is the other (`stillInPrompt`). A submitted sentence is
+        // echoed above the box and the box is empty, so a Return is never pressed
+        // on an empty prompt — nor on a permission question, where it would
+        // answer *Yes*.
+        //
+        // **Watched for 4 s, looked at about once a second** (2026-09-29, Victor:
+        // *"bounded dictation does not hit enter in the bound terminal reliably …
+        // hit repeatedly enter 1/s for 3-4 seconds"*). It used to be one read at
+        // 0.35 s: a Claude Code busy redrawing showed only its status line then,
+        // the loop saw nothing to press and never looked again. Now nothing seen
+        // is a reason to look again, not to stop — until the sentence is seen
+        // submitted (`submitted`), or 4 s, or 4 extra Returns.
         var presses = 0
         var reads = 1
-        while presses < 2 {
+        let deadline = Date().addingTimeInterval(4)
+        while true {
             let shown = String(tail.suffix(600))
-            let why: String
+            var why: String?
             if asksForReview(tail: shown, sent: text) { why = "Claude Code read the block as a paste and asked to review it" }
             else if stillInPrompt(tail: shown, sent: text) { why = "the sentence was still in the prompt box" }
-            else { break }
-            guard osascript(again) == "ok" else { break }
-            presses += 1
-            Log.info("⌨️ Return #\(presses + 2) — \(why)")
-            usleep(500_000)
+            if let why, presses < 4 {
+                guard osascript(again) == "ok" else { break }
+                presses += 1
+                Log.info("⌨️ Return #\(presses + 2) — \(why)")
+                usleep(500_000)
+            } else {
+                if why == nil, submitted(tail: shown, sent: text) { break }
+                guard Date() < deadline else { break }
+                usleep(why == nil ? 900_000 : 500_000)
+            }
             reads += 1
             guard let more = osascript(read), more.hasPrefix("ok\n") else { break }
             tail = String(more.dropFirst(3))
@@ -1486,6 +1501,19 @@ final class TerminalBinding {
             Log.info("⌨️ \(presses) extra Return(s), \(reads) read-back(s) — tail: …\(seen)")
         }
         return true
+    }
+
+    /// The sentence's opening is on screen **above** the last `❯` and not after
+    /// it: echoed as submitted, the box empty. The one sight that ends the watch
+    /// early.
+    static func submitted(tail: String, sent: String) -> Bool {
+        func squash(_ s: String) -> String { s.filter { !$0.isWhitespace } }
+        let screen = squash(tail)
+        guard let prompt = screen.range(of: "❯", options: .backwards) else { return false }
+        let firstLine = sent.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).first.map(String.init) ?? sent
+        let opening = String(squash(firstLine).prefix(20))
+        return !opening.isEmpty && screen[..<prompt.lowerBound].contains(opening)
+            && !screen[prompt.upperBound...].contains(opening)
     }
 
     /// The tab's prompt line — after its last `❯` — still carries the

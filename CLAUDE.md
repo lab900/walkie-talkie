@@ -101,8 +101,8 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
 - **Wispr's DB as a recogniser**, **`copy_last_text` by default**, **focus-stealing as the Wispr
   wrap**, **revoking Wispr's Accessibility**, **`open -a "Wispr Flow"`** — why: `dictation-source.md`.
 - **Bracketed paste for terminal delivery** — Claude Code wraps it in `<pasted_content>` and the
-  model treats it as data. Delivery stays a raw `do script` chunk + Return, plus up to two more
-  Returns while the tab reads back the sentence still under `❯` or `review and press Enter to send`
+  model treats it as data. Delivery stays a raw `do script` chunk + Return, plus up to four more
+  Returns (watched 4 s, ~1/s — 2026-09-29) while the tab reads back the sentence still under `❯` or `review and press Enter to send`
   *after* the sentence's own echo (2026-09-28: Claude Code folds a Return within ~150 ms of a large
   chunk into the paste — `terminal-binding.md`).
 - **A typing affordance on the overlay** (`RelayPanel.wantsKey` only while editing).
