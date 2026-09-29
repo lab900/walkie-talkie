@@ -4,7 +4,11 @@
 # si de claude intr-o sesiune interactiva pornita noaptea la 2:00 si sa repari ce defecte gasesti,
 # daca pica ceva. + trimite o rulare exploratorie sa se joace cu app. totul in VM."*
 #
-# The LaunchAgent `tools/ro.victorrentea.wt-night.plist` calls `start` every night at 02:00. `start`
+# **On demand only since 2026-09-29** (Victor: *"I will only run it on demand … it's a bit abusive"*
+# — a scheduler must not hit external APIs): the LaunchAgent is unloaded and parked in
+# `~/Library/LaunchAgents.disabled/`. Run `WT_NIGHT_FORCE=1 tools/wt-night.sh start` when he asks.
+#
+# As built: the LaunchAgent `tools/ro.victorrentea.wt-night.plist` called `start` every night at 02:00. `start`
 # opens an interactive Claude Code session in a detached tmux (`wt-night`) whose brief is
 # `evals/plan/vm/night/PROMPT.md`: VM up, deploy, the whole suite in the guest, fix, re-run,
 # exploratory run, report, VM down. Docs: docs/vm-lab.md, section *Nightly*.

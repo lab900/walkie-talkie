@@ -354,7 +354,17 @@ The guest serves Screen Sharing itself (the macOS VNC server on 5900), independe
   would fight over the `wt-lab` identity. `reset` deletes `wt-lab` before `up` clones, so one at a
   time is fine.
 
-## Nightly (2026-09-27)
+## Nightly (2026-09-27) — **on demand only since 2026-09-29**
+
+**Victor, 2026-09-29 11:40: *"Being hit by external APIs makes this integration test suite not run
+automatically … I think it's a bit abusive. I will only run it on demand and send you out to run this
+test and fix findings when I experience some issues myself during the day."*** The LaunchAgent is
+unloaded and parked in `~/Library/LaunchAgents.disabled/`; nothing fires at 02:00 any more. The run
+is started by hand, when he asks: `WT_NIGHT_FORCE=1 tools/wt-night.sh start` (the gate's weekly age
+and hour window are skipped; the disk and running-session checks stay), or a Claude session drives
+the guest directly (`tools/vm-lab.sh up`, the `run-*phase.sh` chains, harness through `tart exec`).
+The stamp is now only a record of the last run. The rest of this section describes the automatic
+rig as it was built, kept for when it is wanted again.
 
 Victor, 2026-09-27: *"vreau sa configurezi suita de teste de walkie sa ruleze in fiecare seara cand ai
 hdd extern conectat, dar max 1/sapt automat. sa fie rulata si de claude intr-o sesiune interactiva
