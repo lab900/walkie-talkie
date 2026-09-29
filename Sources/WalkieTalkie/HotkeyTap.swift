@@ -1941,7 +1941,6 @@ final class HotkeyTap {
     private let VK_B: CGKeyCode = 0x0B
     private let VK_D: CGKeyCode = 0x02
 private let VK_X: CGKeyCode = 0x07
-private let VK_P: CGKeyCode = 0x23
     private let VK_RETURN: CGKeyCode = 0x24        // Return
     private let VK_KEYPAD_ENTER: CGKeyCode = 0x4C  // Enter (keypad / Fn-Return)
 private let VK_ESCAPE: CGKeyCode = 0x35        // esc
@@ -3725,16 +3724,10 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             }
         }
 
-        guard ctrl && opt && !cmd else {
-            trace("passed", type, event)
-            return Unmanaged.passUnretained(event)
-        }
-
-        if keyCode == VK_P {
-            let cursor = NSEvent.mouseLocation
-            DispatchQueue.global().async { [weak self] in self?.onScreenshot?(cursor) }
-            return swallow("⌃⌥P screenshot", type, event)
-        }
+        // ⌃⌥P is not this app's (2026-09-29): it was the +1 shot, and it
+        // swallowed the 🪂 that victor-macos-addons types on the same chord.
+        // The shutter lives on the mouse's back button, which is where Victor
+        // reaches for it.
         trace("passed", type, event)
         return Unmanaged.passUnretained(event)
     }

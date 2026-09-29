@@ -105,7 +105,7 @@ Two invariants every test asserts, whatever else it checks:
 | ⌘⌃B | H2920 | bind toggle (global queue) | no mutual exclusion; two quick presses race |
 | ⌘⌃D | H2941 | `toggleDictation` | no dwell/re-fire guard (F10 has one) |
 | ⌘⇧P | H2960 | paste last | ⇧ released first → ⌘P repeats leak (Print) |
-| ⌃⌥P | H3319 | +1 shot | **no autorepeat guard**; stale ⌘ makes it pass |
+| ~~⌃⌥P~~ | — | removed 2026-09-29 (collided with addons' 🪂; the shot is the back button's) | — |
 | right ⌘ + right ⌥ (`flagsChanged`) | H2611 | clean hold / Wispr PTT | tap-thread state, no stamp check → the app's own `flagsChanged` posts count as a release |
 | unstamped key while the pair is held | H2644 | `.shortcut` quiet cancel | also fires on Options+ F-keys (unstamped) → **two handlers** |
 | 🔼→ F10 | 0.6 s window, `openSentenceAge < 2 s` refused, ◀️ held → bind+dictate | `toggleDictation` | the one guarded gesture |
@@ -518,7 +518,7 @@ longer span; **B5** menu row shows `$x.xx` growing by (live s × 0.39 × 1.2 + b
 28. [R] Key-trace blindness for all ten gestures (one `↑ (ours) passed`, zero `↓`) — regression guard once swallows use `swallow()`.
 29. [R] Stale-flag guard for every gesture plus `postWisprHandsFree` / `postReturn` / `postWisprCancel`.
 30. [R] Debug-build guard: `/test/gesture` answers 200 with no effect → assert log lines, never the 200.
-31. [S/D] ⌃⌥P autorepeat 1.5 s → many 📸 lines.
+31. ~~[S/D] ⌃⌥P autorepeat 1.5 s → many 📸 lines.~~ Gone: ⌃⌥P is no longer bound (2026-09-29).
 32. [S] ⌘⌃D with ⌃ released first → ⌘D ×5 reach the sink.
 33. [S/D] Bare F7 swallowed globally (IntelliJ does not step).
 34. [S] Left-held bind at 0.4 s → bound; at 0.25 s → caret dictation.
