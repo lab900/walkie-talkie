@@ -14701,3 +14701,15 @@ take at the mic close — TW20/TQ2, 0.5 s voiced → Recover, said out loud; pro
 guard in `closeFromWisprSide`); finding A stays a lab-rig item (a separate `blackhole-16ch` driver
 bundle for the relay); Wispr-side no-row losses (TX8b) are Wispr's. Reports:
 `evals/plan/vm/wispr/report-wave{2,3,4,5}-2026-09-2{8,9}.md`.
+
+## 2026-09-29 06:30 — the lab VM moved to the internal disk
+
+Victor (28 Sep 22:30): *"after you get a YES, move the VM back on my Mac disk to increase speed."*
+`wt-lab` copied stopped with `rsync -a --exclude control.sock` from `/Volumes/Vic/tart/vms/wt-lab`
+to `~/tart/vms/wt-lab` (33 GB real, 50 GB sparse), booted from the new home, SSH answered, the guest
+mirror and the signed-in Wispr Flow were there; the old copy is `wt-lab.moved-2026-09-29` on Vic.
+`TART_HOME` defaults to `~/tart` in `tools/vm-lab.sh`, `tools/wt-night.sh`, the LaunchAgent plist
+(reloaded); the night stamp moved with it, so the weekly gate no longer needs Vic mounted. Lesson:
+the first `up` from the new home pulled the 25 GB base image again (20 min, 62 GB) because `cmd_up`
+checked the base before checking whether the lab existed — now the base is looked for only when the
+lab must be created; the pulled copies were deleted. `wt-base` and the OCI cache stay on Vic.

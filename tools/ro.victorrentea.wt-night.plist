@@ -26,7 +26,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key><string>/Users/victorrentea/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    <key>TART_HOME</key><string>/Volumes/Vic/tart</string>
+    <key>TART_HOME</key><string>/Users/victorrentea/tart</string>
   </dict>
   <key>StartCalendarInterval</key>
   <dict>

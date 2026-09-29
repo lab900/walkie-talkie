@@ -432,7 +432,7 @@ take and keeps it for Recover.
 
 ## The step list, for the day the VM is up
 
-`TART_HOME=/Volumes/Vic/tart` throughout, as `vm-lab.sh` sets it.
+`TART_HOME=/Volumes/Vic/tart` throughout, as `vm-lab.sh` set it then (since 2026-09-29 the lab is at `~/tart`; the `wt-wispr-out` folder stays on Vic).
 
 1. **Make the Wispr VM.** `tart clone wt-base wt-wispr` (or clone from the image if `wt-base` is
    not there yet), then `tart set wt-wispr --cpu 4 --memory 8192`, then

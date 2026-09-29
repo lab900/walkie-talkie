@@ -34,8 +34,14 @@ set -euo pipefail
 # internal disk had 88 GiB free against a 25 GB base image plus clones. `TART_HOME` is the one knob
 # Tart offers (OCI cache, IPSW cache, VMs, tmp all live under it); the volume is APFS, which the
 # sparse disk images need. Refuse to run without it rather than silently fill the internal disk.
-export TART_HOME="${TART_HOME:-/Volumes/Vic/tart}"
-[ -d "$TART_HOME" ] || { echo "❌ $TART_HOME is not there — is the external disk Vic mounted?" >&2; exit 1; }
+#
+# **`wt-lab` moved to the internal disk on 2026-09-29** (Victor, 28 Sep 22:30: *"move the VM back on
+# my Mac disk to increase speed"*): the USB HDD made a boot take minutes and every guest build read
+# through it. `~/tart` holds only `vms/wt-lab` (+ the night stamp); the base image and the OCI cache
+# stay on Vic (`/Volumes/Vic/tart`) and are not needed to run the lab. `TART_HOME=/Volumes/Vic/tart`
+# still points at the old copy, renamed `wt-lab.moved-2026-09-29`.
+export TART_HOME="${TART_HOME:-$HOME/tart}"
+[ -d "$TART_HOME" ] || { echo "❌ $TART_HOME is not there (since 2026-09-29 the lab lives on the internal disk; \$TART_HOME=/Volumes/Vic/tart is the old home)" >&2; exit 1; }
 
 VM="${WT_LAB_VM:-wt-lab}"
 BASE="${WT_LAB_BASE:-wt-base}"
@@ -59,11 +65,14 @@ wait_agent() {
 }
 
 cmd_up() {
-  if [ -z "$(state "$BASE")" ]; then
-    echo "↓ $BASE is not there — pulling $IMAGE (~25 GB)"
-    tart clone "$IMAGE" "$BASE"
-  fi
+  # The base is only needed to create the lab. Checked inside the "VM missing" branch since
+  # 2026-09-29: the first `up` from the new home found no `wt-base` beside the moved `wt-lab` and
+  # spent 20 min pulling 25 GB it never used (62 GB on the internal disk, deleted).
   if [ -z "$(state "$VM")" ]; then
+    if [ -z "$(state "$BASE")" ]; then
+      echo "↓ $BASE is not there — pulling $IMAGE (~25 GB)"
+      tart clone "$IMAGE" "$BASE"
+    fi
     tart clone "$BASE" "$VM"
     tart set "$VM" --cpu 4 --memory 8192
   fi

@@ -18,11 +18,12 @@
 #                        running-session check) — `WT_NIGHT_FORCE=1 tools/wt-night.sh start` = tonight
 #      WT_NIGHT_RC=0     start claude without `--remote-control` (if RC blocks or wants a login)
 #
-# Writes on the internal disk only logs, in ~/.walkie-talkie/night/. The stamp is on "Vic".
+# Logs in ~/.walkie-talkie/night/. The stamp is beside the VM in $TART_HOME/night (internal disk since
+# 2026-09-29 — the weekly gate no longer depends on the external disk Vic being mounted).
 set -euo pipefail
 
 REPO=/Users/victorrentea/workspace/walkie-talkie
-export TART_HOME="${TART_HOME:-/Volumes/Vic/tart}"
+export TART_HOME="${TART_HOME:-$HOME/tart}"
 STAMP="$TART_HOME/night/last-run"
 SESSION=wt-night
 LOGDIR="$HOME/.walkie-talkie/night"
@@ -47,7 +48,7 @@ session_age() {   # seconds since the wt-night tmux session was created; empty w
 # gate [quiet] — exit 0 = go. Read-only.
 cmd_gate() {
   if [ ! -d "$TART_HOME" ]; then
-    log gate "refused: $TART_HOME is not there — the external disk Vic is not mounted"; return 1
+    log gate "refused: $TART_HOME is not there (the lab moved to the internal disk on 2026-09-29)"; return 1
   fi
   local age
   age="$(session_age)"
@@ -142,7 +143,7 @@ cmd_status() {
     local since=$(( $(date +%s) - $(stat -f %m "$STAMP") ))
     echo "stamp:    $STAMP = $(cat "$STAMP") ($((since / 3600)) h ago; next automatic run once ≥ $((MAX_AGE / 3600)) h)"
   elif [ -d "$TART_HOME" ]; then
-    echo "stamp:    none — the next 02:00 with Vic mounted runs"
+    echo "stamp:    none — the next 02:00 runs"
   else
     echo "stamp:    unknown — $TART_HOME not mounted"
   fi

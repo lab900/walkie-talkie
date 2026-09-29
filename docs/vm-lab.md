@@ -5,8 +5,14 @@ witness Terminal tabs and the test audio stay inside a guest instead of on Victo
 speakers and his clipboard. Driven by `tools/vm-lab.sh`. First built 2026-09-26; an earlier
 attempt a few days before failed and left no notes. This file is the notes.
 
-**Everything lives on the external disk "Vic"** — `TART_HOME=/Volumes/Vic/tart`. The internal disk
-had 88 GiB free and Victor wanted nothing big on it. `~/.tart` stayed at 0 B throughout.
+**Everything lived on the external disk "Vic"** — `TART_HOME=/Volumes/Vic/tart` — until
+2026-09-29, when **`wt-lab` moved to the internal disk, `TART_HOME=~/tart`** (Victor, 28 Sep: *"move
+the VM back on my Mac disk to increase speed"*; the HDD made a boot take minutes and every guest
+build read through it). Copied with `rsync -a --exclude control.sock` with the VM stopped, booted
+and SSH'd from the new home, then the old copy renamed `wt-lab.moved-2026-09-29` on Vic. The base
+image `wt-base` and the OCI cache stay on Vic (not needed to run the lab); the night stamp moved with
+the VM, so the weekly 02:00 gate no longer depends on Vic being mounted. The table below is the
+2026-09-26 layout.
 
 ## What exists (2026-09-26)
 
@@ -80,8 +86,8 @@ tools/vm-lab.sh down      # guest shutdown, then reap
 tools/vm-lab.sh look      # Screen Sharing on Victor's screen — only when he asks for it
 ```
 
-By hand: `export TART_HOME=/Volumes/Vic/tart` first, **always** (without it Tart silently uses
-`~/.tart` on the internal disk). Then
+By hand: `export TART_HOME=~/tart` first, **always** (without it Tart silently uses
+`~/.tart`; `/Volumes/Vic/tart` is the old home since 2026-09-29). Then
 `nohup tart run wt-lab --no-graphics --no-audio --no-clipboard > $TART_HOME/wt-lab.log 2>&1 &`.
 
 ## How the USB disk shows up — it is a spinning disk
