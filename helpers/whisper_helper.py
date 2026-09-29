@@ -44,6 +44,7 @@ one for continuity.
 """
 import contextlib
 import json
+import math
 import os
 import tempfile
 import sys
@@ -143,8 +144,26 @@ VOCABULARY_RO = os.environ.get("RELAY_WHISPER_VOCABULARY_RO", (
 ))
 
 
+def _finite(obj):
+    """NaN and ±inf become null (2026-09-29).
+
+    `json.dumps` writes them as bare `NaN` / `-Infinity`, which is not JSON:
+    Swift's `JSONSerialization` rejects the **whole reply**, and the relay
+    reported "the local model gave no answer" and dropped the sentence. A
+    1-1.4 s near-silent take can decode with `avg_logprob: NaN` — three of
+    Victor's dictations were lost that way on 2026-09-29 (09:48, 09:59).
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _finite(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_finite(v) for v in obj]
+    return obj
+
+
 def emit(obj):
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    sys.stdout.write(json.dumps(_finite(obj), ensure_ascii=False, allow_nan=False) + "\n")
     sys.stdout.flush()
 
 
@@ -243,6 +262,15 @@ def pick_language(samples):
         return None
 
 
+# Same number as `LocalWhisper.loopCeiling` on the Swift side (803 clips, zero
+# false alarms): above it the decode is one syllable repeated, not a transcript.
+LOOP_CEILING = 2.4
+
+
+def _worst_ratio(res):
+    return max((s.get("compression_ratio") or 0.0 for s in res.get("segments") or []), default=0.0)
+
+
 def transcribe(path):
     with quiet():
         # Decoded once, here, and handed to both halves as an array: the LID pass
@@ -250,14 +278,59 @@ def transcribe(path):
         # ffmpeg twice for the same file.
         samples = A.load_audio(path)
         lang = pick_language(samples)
-        return mlx_whisper.transcribe(
-            samples,
-            path_or_hf_repo=MODEL,
-            language=lang,
-            initial_prompt=VOCABULARY_RO if lang == "ro" else VOCABULARY,
-            verbose=False,
-            condition_on_previous_text=False,
-        )
+
+        def decode(prompt):
+            return mlx_whisper.transcribe(
+                samples,
+                path_or_hf_repo=MODEL,
+                language=lang,
+                initial_prompt=prompt,
+                verbose=False,
+                condition_on_previous_text=False,
+            )
+
+        res = decode(VOCABULARY_RO if lang == "ro" else VOCABULARY)
+    res["duration"] = len(samples) / A.SAMPLE_RATE
+    res["retried"] = False
+    # **A loop gets one more try, without the vocabulary prompt** (2026-09-29).
+    # The prompt is what buys the loops (`evals/short-clip-lid.md`), and on
+    # 09:52:49 a 2.5 s take came back as 223 × "们" (cr 37) and was pasted at the
+    # caret after 6.3 s of reverse tunnel. Re-decoded without the prompt the same
+    # clip gave cr 0.27. Costs one extra decode, and only when the first looped.
+    first = _worst_ratio(res)
+    if first > LOOP_CEILING:
+        with quiet():
+            again = decode(None)
+        second = _worst_ratio(again)
+        print(f"looped (cr {first:.1f}) — retried without the prompt: cr {second:.1f}, "
+              f"{'kept the retry' if second < first else 'kept the first'}", file=sys.stderr)
+        if second < first:
+            again["duration"], again["retried"] = res["duration"], True
+            res = again
+    return res
+
+
+def coverage(res):
+    """Where in the audio the words came from — to catch a missing middle.
+
+    Whisper decodes in 30 s windows and can seek past speech; the transcript
+    then reads fine and simply lacks a stretch. The longest stretch with no
+    segment, and where it sits, is what makes that visible in the relay log.
+    """
+    segs = res.get("segments") or []
+    dur = res.get("duration") or 0.0
+    edges = [0.0] + [x for s in segs for x in (s.get("start", 0.0), s.get("end", 0.0))] + [dur]
+    gaps = [(edges[i + 1] - edges[i], edges[i]) for i in range(0, len(edges) - 1, 2)]
+    gap, at = max(gaps, default=(0.0, 0.0))
+    return {
+        "segments": len(segs),
+        "duration": round(dur, 2),
+        "covered": round(sum(max(0.0, s.get("end", 0.0) - s.get("start", 0.0)) for s in segs), 2),
+        "gap": round(max(0.0, gap), 2),
+        "gap_at": round(at, 2),
+        "temperature": max((s.get("temperature") or 0.0 for s in segs), default=0.0),
+        "retried": bool(res.get("retried")),
+    }
 
 
 # Warm up on a second of silence so the weights are resident before Victor's
@@ -316,9 +389,13 @@ for line in sys.stdin:
             "ok": True,
             "text": (res.get("text") or "").strip(),
             "language": res.get("language"),
-            "avg_logprob": min((s.get("avg_logprob", 0.0) for s in segs), default=0.0),
+            # NaN anywhere makes the worst one NaN (sent as null): `min` alone
+            # would answer depending on where in the list the NaN sat.
+            "avg_logprob": min((s.get("avg_logprob", 0.0) for s in segs), default=0.0,
+                               key=lambda v: -math.inf if v != v else v),
             "compression_ratio": max((s.get("compression_ratio", 0.0) for s in segs), default=0.0),
             "no_speech_prob": max((s.get("no_speech_prob", 0.0) for s in segs), default=0.0),
+            "coverage": coverage(res),
             # Rides along on every answer rather than needing its own request:
             # the interesting question about this pool is how it moves across a
             # day of dictations, and a number nobody has to ask for is the only

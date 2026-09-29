@@ -14880,3 +14880,28 @@ order: (1) Wispr pinned to the absent DJI Bluetooth mic (`overrideAudioDeviceId`
 start gap; re-measure after he changes it; (2) the "relay as Wispr's microphone" virtual device
 idea (device present only while the relay dictates); (3) the patch above; (4) `🎓 TO Wispr` in
 Loopback is still published (the Devices.plist flag is not the switch; the app's UI is).
+
+## Whisper: a NaN score lost whole sentences; loops get one retry (2026-09-29)
+
+Victor, 12:58: Whisper "never shipped the dictation", "remained open with the reverse tunnel
+running", and once "missed the middle". From `relay.log` and the corpus:
+
+- **Never shipped = a `NaN`.** 09:48:10, 09:48:12, 09:59:16 — three 1.0–1.4 s takes ended
+  "whisper helper gave no answer" with no other error. Reproduced on synthetic short clips: the
+  helper answers `"avg_logprob": NaN`, which `json.dumps` writes and JSON does not allow;
+  `JSONSerialization` returned nil for the whole reply and `readLine` swallowed it silently.
+  Now the helper sends non-finite numbers as `null` (`_finite`, `allow_nan=False`), Swift maps a
+  `null` score to −∞ (the low-confidence note, the words still go out), and a reply that does not
+  parse is logged verbatim (first 400 bytes) instead of vanishing.
+- **The tunnel that stayed open = a loop.** 09:52:43, a 2.5 s take: decode took 6.31 s against a
+  predicted 0.81 s (the reverse tunnel ran all that time), then pasted 223 × "们" (cr 37). A decode
+  whose worst segment is over `LOOP_CEILING` (2.4, same as `LocalWhisper.loopCeiling`) is now
+  redone once **without the vocabulary prompt** and the lower-ratio result kept; the helper says
+  so on stderr (→ `whisper helper: looped (cr …) — retried…`). Re-decoded without the prompt that
+  clip gave cr 0.27.
+- **The missing middle: not found.** Every daytime Whisper take > 8 s was re-decoded as two
+  overlapping halves and diffed against its full decode — no stretch of words missing (the one
+  "missing" set, 12:49:04, was the halves mishearing). Mic reconfigurations all landed at a take's
+  first instant, not mid-take. So the next one has to be caught live: the `local whisper:` line now
+  carries the helper's `coverage` — segments, seconds covered of the total, the longest gap and
+  where it starts, the fallback temperature, and whether the loop retry ran.

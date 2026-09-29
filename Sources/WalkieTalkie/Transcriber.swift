@@ -30,6 +30,9 @@ final class LocalWhisper {
         /// `no_speech_prob` caught none of them and is kept only for the log.
         let avgLogprob: Double
         let compressionRatio: Double
+        /// Where in the audio the words came from, for the log line — the
+        /// helper's `coverage` (segments, span covered, longest silent gap).
+        let coverage: [String: Any]?
     }
 
     /// Below this, the transcript is not delivered as if it were what Victor
@@ -386,10 +389,15 @@ final class LocalWhisper {
                 Log.error("whisper helper: \((obj["error"] as? String) ?? "unknown error")")
                 done(nil); return
             }
+            // `null` is how the helper sends a NaN/inf score (2026-09-29): a
+            // decode that broken is at the bottom of the confidence scale, so the
+            // words still go out, under the low-confidence note.
+            let logprob: Double = obj["avg_logprob"] is NSNull ? -.infinity : (obj["avg_logprob"] as? Double) ?? 0
             done(Result(text: text.trimmingCharacters(in: .whitespacesAndNewlines),
                         language: obj["language"] as? String,
-                        avgLogprob: (obj["avg_logprob"] as? Double) ?? 0,
-                        compressionRatio: (obj["compression_ratio"] as? Double) ?? 0))
+                        avgLogprob: logprob,
+                        compressionRatio: (obj["compression_ratio"] as? Double) ?? 0,
+                        coverage: obj["coverage"] as? [String: Any]))
         }
     }
 
@@ -412,9 +420,23 @@ final class LocalWhisper {
                 let lineData = buffer[buffer.startIndex..<nl]
                 buffer.removeSubrange(buffer.startIndex...nl)
                 if lineData.isEmpty { continue }
-                return (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any]
+                // **A reply that does not parse is said out loud** (2026-09-29): it
+                // used to be a silent nil, and the sentence went down as "the local
+                // model gave no answer" while the helper had answered — with a bare
+                // `NaN` that JSON does not allow. The line is this request's reply
+                // either way, so it is consumed, not left for the next request.
+                guard let obj = (try? JSONSerialization.jsonObject(with: lineData)) as? [String: Any] else {
+                    let raw = String(decoding: lineData.prefix(400), as: UTF8.self)
+                    Log.error("whisper helper: a reply that is not JSON (\(lineData.count) bytes): \(raw)")
+                    lastFailure = "the local model's answer did not parse"
+                    return nil
+                }
+                return obj
             }
-            guard let handle = fromHelper else { return nil }
+            guard let handle = fromHelper else {
+                Log.error("whisper helper: no pipe to read from — the helper was already let go")
+                return nil
+            }
             let left = deadline.timeIntervalSinceNow
             guard left > 0 else {
                 Log.error("whisper helper timed out after \(Int(timeout))s — killing it")

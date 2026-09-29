@@ -308,7 +308,8 @@ final class LocalWhisperSource: DictationSource {
                     return
                 }
                 Log.info(String(format: "local whisper: %@ (%.2f, cr %.2f) — %d chars",
-                                r.language ?? "?", r.avgLogprob, r.compressionRatio, r.text.count))
+                                r.language ?? "?", r.avgLogprob, r.compressionRatio, r.text.count)
+                         + Self.coverageNote(r.coverage))
                 // Filed on the success path only: a decode that returned nothing
                 // says nothing about how long a decode takes.
                 DecodeRate.record(audio: duration, decode: Date().timeIntervalSince(decodeStartedAt),
@@ -366,6 +367,20 @@ final class LocalWhisperSource: DictationSource {
     /// dictation — there is one reading of this audio and the alternative to a
     /// shaky transcript is silence, the one outcome Victor cannot notice and
     /// correct — so both come back as a note under the words.
+    /// ` · 3 segments over 31.0 of 35.4 s, longest gap 2.6 s at 8.6 s` — the
+    /// numbers that tell a transcript missing its middle from one that is only
+    /// short (2026-09-29: Victor saw a middle go missing; nothing logged where
+    /// the words came from). `(retried without the prompt)` when a loop was redone.
+    static func coverageNote(_ c: [String: Any]?) -> String {
+        guard let c, let dur = c["duration"] as? Double else { return "" }
+        var note = String(format: " · %d segments over %.1f of %.1f s, longest gap %.1f s at %.1f s",
+                          (c["segments"] as? Int) ?? 0, (c["covered"] as? Double) ?? 0, dur,
+                          (c["gap"] as? Double) ?? 0, (c["gap_at"] as? Double) ?? 0)
+        if let t = c["temperature"] as? Double, t > 0 { note += String(format: ", temperature %.1f", t) }
+        if (c["retried"] as? Bool) == true { note += " (looped; retried without the prompt)" }
+        return note
+    }
+
     private static func warning(for r: LocalWhisper.Result) -> String? {
         if r.compressionRatio > LocalWhisper.loopCeiling {
             return String(format: "⚠️ the model looped (%.1f) — check what was sent", r.compressionRatio)
