@@ -504,9 +504,10 @@ final class ElementPicker {
     /// `POST /test/local-now` — ⌘⌃X's action (2026-09-28), for the harness.
     var onTestLocalNow: (() -> Void)?
 
-    /// `POST /test/local-auto {"on"?, "wisprDown"?, "fakeLaunch"?}` — the auto
-    /// fallback's checkbox and its Wispr fakes (2026-09-28); answers
-    /// `state.localAuto`. Run on the main queue.
+    /// `POST /test/local-auto {"on"?, "wisprDown"?, "fakeLaunch"?, "wisprAge"?,
+    /// "budget"?, "localEta"?}` — *Prepare local transcript*'s checkbox, its
+    /// forced budget / local ETA (2026-09-29) and the Wispr fakes (2026-09-28);
+    /// answers `state.localAuto`. Run on the main queue.
     var onTestLocalAuto: (([String: Any]) -> [String: Any])?
 
     /// `POST /test/resume-session` `{"session": "<uuid>", "directory": "…"}` —
@@ -967,9 +968,10 @@ final class ElementPicker {
             onTestLocalNow?()
             respond(conn, 200, ["ok": true])
 
-        // The auto fallback to local (p98), 2026-09-28: the checkbox, `wisprDown`
-        // (Wispr Flow read as not running at a start), `fakeLaunch` (its launch
-        // logged, not executed).
+        // Prepare local transcript (p95; the 09-28 auto fallback): the checkbox,
+        // `budget` / `localEta` forced for the next closes, `wisprDown` (Wispr
+        // Flow read as not running at a start), `fakeLaunch` (its launch logged,
+        // not executed).
         case ("POST", "/test/local-auto"):
             let body = ((try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]) ?? [:]
             guard let handler = onTestLocalAuto else { return respond(conn, 503, ["error": "no handler"]) }

@@ -201,6 +201,21 @@ protocol DictationSource: AnyObject {
     /// fallback does. False when there is no take of this source's to hand over.
     func handToLocal() -> Bool
 
+    /// **The closed take's WAV, while its words are still owed** (2026-09-29) —
+    /// what the speculative local decode reads (`AutoLocal.step`). Nil until the
+    /// recorder has closed the file, and for a source whose audio is not ours.
+    /// Reading it hands nothing over: the take stays the engine's until
+    /// `handToLocal`, which ends it on this very file.
+    func closedTakeAudio(take: Int) -> TakeAudio?
+
+}
+
+/// One closed take, as `closedTakeAudio` answers it.
+struct TakeAudio {
+    let url: URL
+    let duration: TimeInterval
+    /// `MicRecorder.voicedSeconds` of the take — the Q13 floor is judged on it.
+    let voiced: TimeInterval
 }
 
 /// **One token of a transcript, with the moment it was said** (2026-09-19).
@@ -437,6 +452,8 @@ extension DictationSource {
     var answersPending: Int { 0 }
     func isPending(take: Int) -> Bool { false }
     func cancelTake(_ take: Int) { cancel() }
+    /// No WAV of ours to decode ahead (the local model itself decodes its own).
+    func closedTakeAudio(take: Int) -> TakeAudio? { nil }
     /// The local model itself, and any source added later: nothing to hand over.
     func handToLocal() -> Bool { false }
 }

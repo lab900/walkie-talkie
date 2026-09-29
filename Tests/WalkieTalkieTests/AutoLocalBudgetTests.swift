@@ -41,8 +41,7 @@ final class AutoLocalBudgetTests: XCTestCase {
     func testTheQuantileIsP95() {
         XCTAssertEqual(DecodeRate.budgetQuantile, 0.95, accuracy: 1e-12)
         XCTAssertEqual(DecodeRate.Budget.quantileName, "p95")
-        XCTAssertEqual(AutoLocal.menuTitle, "Auto fallback to local (p95)")
-    }
+            }
 
     func testP95IsTheLineTimesTheResidualTail() {
         // decode = 1 + 0.05 × audio exactly, except 5 of 100 at twice that.
@@ -82,10 +81,12 @@ final class AutoLocalBudgetTests: XCTestCase {
         XCTAssertTrue(w.allSatisfy { !$0.cold && $0.engineKey == DecodeRate.elevenLabs })
     }
 
-    func testTheChipRowCountsDownInTenths() {
-        XCTAssertEqual(AutoLocal.rowText(countdown: 2.13, loading: false, keys: "⌘⌃X"), "Local in 2.2 s  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.rowText(countdown: -0.4, loading: true, keys: "⌘⌃X"), "Local in 0.0 s (loading)  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.rowText(countdown: nil, loading: false, keys: "⌘⌃X"), "Local now  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.overBudgetFlash(engine: "Wispr Flow", budget: 2.04), "💻 Local — Wispr Flow over budget (2.0 s)")
+    func testTheChipRowSaysUseLocalOnlyWithTheWordsInHand() {
+        XCTAssertEqual(AutoLocal.rowText(ready: true, loading: false, keys: "⌘⌃X"), "Use local  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(ready: true, overBudget: "ElevenLabs", loading: true, keys: "⌘⌃X"),
+                       "Use local  ⌘⌃X — ElevenLabs over budget")
+        XCTAssertEqual(AutoLocal.rowText(ready: false, loading: false, keys: "⌘⌃X"), "Local now  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(ready: false, loading: true, keys: "⌘⌃X"), "Local now (loading)  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.menuTitle, "Prepare local transcript (p95)")
     }
 }

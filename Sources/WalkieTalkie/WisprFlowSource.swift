@@ -404,6 +404,11 @@ final class WisprFlowSource: DictationSource {
     /// Touched only on `meterQueue`, so the stop queued at the closing edge can
     /// never be overtaken by the read that wants its result.
     private var recording: (url: URL, duration: TimeInterval)?
+    /// **The same take, readable on main** (2026-09-29) — published by
+    /// `stopMeter(keep: true)`, cleared by the next `startMeter`, for the
+    /// speculative local decode (`closedTakeAudio`). Only ever read: the take is
+    /// `recording`'s, and `endWithRecording` still ends the sentence on it.
+    private var keptTake: TakeAudio?
 
     /// A gesture was seen and no microphone has confirmed it yet.
     private var speculative = false
@@ -1291,6 +1296,16 @@ final class WisprFlowSource: DictationSource {
         return true
     }
 
+    /// The relay's own recording of a relay sentence whose row is still owed —
+    /// the speculative local decode reads it (2026-09-29). Not his own chord's
+    /// sentence (nothing of it is the relay's to deliver), not a cancel, not a
+    /// file already gone.
+    func closedTakeAudio(take: Int) -> TakeAudio? {
+        guard let k = keptTake, relayStarted, intercepting, !cancelling, !discardOnArrival,
+              FileManager.default.fileExists(atPath: k.url.path) else { return nil }
+        return k
+    }
+
     // MARK: - The test routes
 
     /// `POST /test/wispr` — the CoreAudio edge with no CoreAudio behind it.
@@ -2027,6 +2042,7 @@ final class WisprFlowSource: DictationSource {
 
     private func startMeter() {
         let wav = Outbox.shotsDir.appendingPathComponent("wispr-\(Int(Date().timeIntervalSince1970)).wav")
+        keptTake = nil
         meterQueue.async { [weak self] in
             guard let self else { return }
             guard !self.meter.isRecording else { return }
@@ -2085,7 +2101,15 @@ final class WisprFlowSource: DictationSource {
                 }
                 self.bridge.stop()
             }
-            if keep { self.recording = taken }
+            if keep {
+                self.recording = taken
+                let voiced = self.recordingVoiced
+                if let taken {
+                    DispatchQueue.main.async {
+                        self.keptTake = TakeAudio(url: taken.url, duration: taken.duration, voiced: voiced)
+                    }
+                }
+            }
             else if let taken { try? FileManager.default.removeItem(at: taken.url) }
         }
     }

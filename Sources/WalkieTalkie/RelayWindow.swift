@@ -4186,13 +4186,17 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// The `💻 Local now  ⌘⌃X` row — nil when down, else whether it says
     /// `(loading)`; see `localNowRow`.
     private(set) var localNow: Bool?
-    /// The row's words as drawn — `Local now  ⌘⌃X`, or the auto fallback's
-    /// countdown `Local in 2.1 s  ⌘⌃X` (2026-09-28, `AutoLocal.rowText`).
+    /// The row's words as drawn — `Local now  ⌘⌃X`, or, with the words decoded
+    /// ahead in hand, `Use local  ⌘⌃X` (2026-09-29, `AutoLocal.rowText`; the
+    /// 09-28 countdown `Local in 2.1 s` is gone with the automatic insert).
     private var localNowShown: String?
 
-    func setLocalNow(_ on: Bool, loading: Bool = false, countdown: TimeInterval? = nil) {
-        let next: Bool? = on ? loading : nil
-        let text = on ? AutoLocal.rowText(countdown: countdown, loading: loading, keys: Self.localNowKeys) : nil
+    /// - Parameters:
+    ///   - ready: the local words are decoded and held — `Use local`.
+    ///   - overBudget: the engine whose budget ran out, for `— ElevenLabs over budget`.
+    func setLocalNow(_ on: Bool, loading: Bool = false, ready: Bool = false, overBudget: String? = nil) {
+        let next: Bool? = on ? (loading && !ready) : nil
+        let text = on ? AutoLocal.rowText(ready: ready, overBudget: overBudget, loading: loading, keys: Self.localNowKeys) : nil
         guard next != localNow || text != localNowShown else { return }
         localNow = next
         localNowShown = text
@@ -4202,7 +4206,7 @@ private let frontLabel = NSTextField(labelWithString: "")
 
     static let localNowKeys = "⌘⌃X"
     static func localNowText(loading: Bool) -> String {
-        AutoLocal.rowText(countdown: nil, loading: loading, keys: localNowKeys)
+        AutoLocal.rowText(ready: false, loading: loading, keys: localNowKeys)
     }
 
     /// For `GET /test/state` — the row as drawn, or nil.

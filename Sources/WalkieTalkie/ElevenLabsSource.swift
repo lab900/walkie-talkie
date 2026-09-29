@@ -632,6 +632,13 @@ final class ElevenLabsSource: DictationSource {
         return true
     }
 
+    /// The take's upload in flight — its WAV, for the speculative local decode
+    /// (2026-09-29). Nil before `finishRecording` has the file, and after the
+    /// answer (or ⌘⌃X) took the upload.
+    func closedTakeAudio(take t: Int) -> TakeAudio? {
+        uploads[t].map { TakeAudio(url: $0.wav, duration: $0.duration, voiced: $0.voiced) }
+    }
+
     /// The take's end once ⌘⌃X took it — the Q13 floor still applies: under
     /// 1.5 s voiced the local model would invent a sentence, so it is Recover.
     private func finishHandedToLocal(_ wav: URL, _ duration: TimeInterval, voiced: TimeInterval) {

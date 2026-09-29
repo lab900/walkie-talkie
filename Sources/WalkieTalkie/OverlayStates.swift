@@ -355,7 +355,7 @@ enum OverlayStates {
             },
 
             Shot(slug: "transcribing-local-now", group: "Dictating", title: "⌘⌃X — the local model, now",
-                 when: "From one second into the wait for ElevenLabs (or Wispr Flow) — never while the microphone is open.",
+                 when: "From one second into the wait for ElevenLabs (or Wispr Flow) with *Prepare local transcript* off — never while the microphone is open. With it on, the row is `Use local` and waits for the words decoded ahead.",
                  note: "**The quick exit, written where he is looking** (2026-09-28). Victor: *\"I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip\"*. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like `📋 Re-paste ⌘V`: an emoji, the words, the keys. The key works from the first sample; the row waits a second into the transcription (*\"only displayed after 1 s after starting the transcribing\"*), so a fast engine never shows it. It goes when the words land.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
@@ -376,26 +376,26 @@ enum OverlayStates {
                 o.setLocalNow(true, loading: true)
             },
 
-            Shot(slug: "transcribing-local-auto", group: "Dictating", title: "The auto fallback's countdown",
-                 when: "Waiting on ElevenLabs or Wispr Flow with *Auto fallback to local (p98)* on (the default), from one second into the wait.",
-                 note: "**The deadline, written where he is looking** (2026-09-28, 22:25). Victor: *\"I don't think I will ever have the patience to wait for 36 seconds … The goal is that ElevenLabs or Wispr Flow should fall back to local in a few seconds in practice.\"* The ⌘⌃X row counts down to the sentence's budget — the engine's own p98 for that length (`DecodeRate.budget`), never under 1.5 s, never over 0.3 × the audio + 1 s — and at zero this Mac takes the take exactly as the key would. The key still works before it. Off in the Engine submenu, the row is `Local now` again.",
+            Shot(slug: "transcribing-use-local", group: "Dictating", title: "Use local — the words decoded ahead are ready",
+                 when: "Waiting on ElevenLabs or Wispr Flow with *Prepare local transcript (p95)* on (the default), once the local model has decoded the take ahead.",
+                 note: "**Offered, never inserted** (2026-09-29). Victor: *\"by the time p95 elapses from the start of the transcription, I must ALREADY have the local model's transcription ready … Only when the local transcription is ready do you show the 'insert local transcription' hint\"* — then: *\"never insert the local fallback automatically, only show when it is ready, and the human decides when to insert.\"* At the close the relay reads the engine's p95 for that length (`DecodeRate.budget`) and starts the local model `budget − localEta` into the wait, so its words are ready about when the budget runs out; until then there is no row. ⌘⌃X puts them in at once (`via: local-forced`); the engine's words landing take the row down and the local ones are discarded. Off in the Engine submenu, the row is ⌘⌃X's plain `Local now`.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
                 o.setTranscribing(true)
                 o.setShotCount(1)
                 o.pinTranscribeWarmth(0.55)
-                o.setLocalNow(true, countdown: 2.1)
+                o.setLocalNow(true, ready: true)
             },
 
-            Shot(slug: "transcribing-local-auto-fired", group: "Dictating", title: "Over budget — this Mac takes it",
-                 when: "The budget ran out with the words still out: the take went to the local model (`via: local-auto`).",
-                 note: "Said once, as a flash, because it is an event rather than a state: the engine's answer, if it still comes, is only logged — never a second copy. The engine and the budget it missed are in the words, so a fallback on every sentence would be noticed from the chip alone.",
-                 shape: "flash", alpha: 0.80) { o in
+            Shot(slug: "transcribing-use-local-over-budget", group: "Dictating", title: "Use local — the engine is over its budget",
+                 when: "The budget ran out with the engine's words still out and the local words in hand.",
+                 note: "The deadline inserts nothing (2026-09-29): it only adds the engine that missed it to the row, so a slow engine is visible from the chip alone. The row stays until the engine's words land or ⌘⌃X takes the local ones — the relay does not choose for him.",
+                 shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
                 o.setTranscribing(true)
                 o.setShotCount(1)
                 o.pinTranscribeWarmth(0.3)
-                o.flash(AutoLocal.overBudgetFlash(engine: "ElevenLabs", budget: 4.2), duration: 60)
+                o.setLocalNow(true, ready: true, overBudget: "ElevenLabs")
             },
 
             Shot(slug: "listening-wispr-starting", group: "Dictating", title: "Wispr Flow is not up — this Mac listens",
