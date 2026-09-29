@@ -83,7 +83,8 @@ enum OverlayStates {
                 o.pinListenWarmth(1)
                 o.setShotCount(3)
                 o.filmFrames = { 10 }
-                o.addFilmCarried(seconds: 6.1, frames: 31)
+                o.addFilmCarried(seconds: 3.1, frames: 15)
+                o.addFilmCarried(seconds: 2.2, frames: 10)
                 o.setFilming(true)
             },
 
@@ -694,7 +695,7 @@ enum OverlayStates {
         // the picture to pin for the same reason Wispr's mark is: it is what he
         // teaches through, and *automatic* means it wins whenever it is there.
         o.setEngineMark(" via \(Glyphs.Engine.wispr.rawValue)")
-        o.setMicMark(" to 🎤 → \(Glyphs.Engine.wispr.rawValue)")
+        o.setMicMark(" 🎤 → \(Glyphs.Engine.wispr.rawValue)")
         // **Settled, unless a shot says otherwise.** `Listening…` ramps from dark
         // grey to full over six seconds (`RelayWindow.listenWarmth`), so without
         // a chosen frame every dictating state on this page would be a picture of

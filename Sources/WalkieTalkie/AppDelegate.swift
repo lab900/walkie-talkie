@@ -372,7 +372,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let wispr = wisprSource.isRecording || wisprHearing || source === wisprSource
         let device = wispr ? InputDevice.glyph(wisprName: wisprMicName) : InputDevice.currentGlyph()
         let engine = " → " + Self.engineMark(wispr ? "wispr" : engineId)
-        return (device.isEmpty ? "" : " to " + device) + engine
+        // No "to" (2026-09-29, Victor: "Prompting to" -> "Prompting").
+        return (device.isEmpty ? "" : " " + device) + engine
     }
 
     /// Wispr's name for its microphone — the adopted row's once Wispr fills it

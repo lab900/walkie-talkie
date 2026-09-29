@@ -1497,7 +1497,11 @@ final class TerminalBinding {
             tail = String(more.dropFirst(3))
         }
         if presses == 0 || stillInPrompt(tail: String(tail.suffix(600)), sent: text) {
-            let seen = tail.suffix(600).filter { !$0.isWhitespace }.suffix(160)
+            // From the last `❯` on, not the last 160 characters: those were
+            // always the status line, which never said what the box held.
+            let shown = String(tail.suffix(600))
+            let box = shown.range(of: "❯", options: .backwards).map { String(shown[$0.lowerBound...]) } ?? shown
+            let seen = box.filter { !$0.isWhitespace }.prefix(200)
             Log.info("⌨️ \(presses) extra Return(s), \(reads) read-back(s) — tail: …\(seen)")
         }
         return true
@@ -1519,13 +1523,23 @@ final class TerminalBinding {
     /// The tab's prompt line — after its last `❯` — still carries the
     /// sentence's opening: typed, not submitted. Whitespace dropped on both
     /// sides, since the box wraps where its width says.
+    ///
+    /// **Or a collapsed paste** (2026-09-29, Victor: *"a 3a oara raportez
+    /// bugul asta"*): Claude Code shows a long block — a seven-line envelope
+    /// with a ✂️ clause — as `[Pasted text #1 +6 lines]`, so the opening is
+    /// never on screen. The 15:19 sentence to `ttys024` got `0 extra
+    /// Return(s), 5 read-back(s)` and sat unsent, the review hint never came.
+    /// A collapsed paste in the box right after this delivery is this
+    /// delivery.
     static func stillInPrompt(tail: String, sent: String) -> Bool {
         func squash(_ s: String) -> String { s.filter { !$0.isWhitespace } }
         let screen = squash(tail)
         guard let prompt = screen.range(of: "❯", options: .backwards) else { return false }
+        let box = screen[prompt.upperBound...]
+        if box.range(of: "[Pastedtext#", options: .caseInsensitive) != nil { return true }
         let firstLine = sent.split(whereSeparator: { $0 == "\n" || $0 == "\r" }).first.map(String.init) ?? sent
         let opening = String(squash(firstLine).prefix(20))
-        return !opening.isEmpty && screen[prompt.upperBound...].contains(opening)
+        return !opening.isEmpty && box.contains(opening)
     }
 
     // MARK: - tmux

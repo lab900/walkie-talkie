@@ -258,9 +258,16 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// **The screen recording, while it runs** — directly under the shots row,
     /// because it is the same kind of fact (*what this sentence is carrying*)
     /// and the icon column is read downwards.
+    private let hintBar = GestureHintBar()
     private let filmRow = NSView()
     private let filmGlyph = NSImageView()
     private let filmInfo = NSTextField(labelWithString: "")
+    /// The 🔴 after the film row's text: only while the screen is being recorded,
+    /// pulsing (2026-09-29). A layer, not a character — a character cannot fade
+    /// on its own inside a label, and emoji on a haloed label are a known trap.
+    private let filmDot = NSView()
+    private static let filmDotSize: CGFloat = 9
+    private static let filmDotGap: CGFloat = 6
     /// **`☠️ Kamikaze`** (2026-09-23) — the sentence in flight is marked (🔼 ↓)
     /// and the agent will close its terminal when done. A row under the others,
     /// like everything else this sentence carries. Victor: *"ca să detectez
@@ -1432,6 +1439,11 @@ private let frontLabel = NSTextField(labelWithString: "")
         filmInfo.textColor = .secondaryLabelColor
         filmRow.addSubview(filmGlyph)
         filmRow.addSubview(filmInfo)
+        filmDot.wantsLayer = true
+        filmDot.layer?.backgroundColor = NSColor.systemRed.cgColor
+        filmDot.layer?.cornerRadius = Self.filmDotSize / 2
+        filmDot.isHidden = true
+        filmRow.addSubview(filmDot)
         filmRow.isHidden = true
         root.addSubview(filmRow)
         installEmojiRow(kamikazeRow, glyph: kamikazeGlyph, label: kamikazeInfo, emoji: "☠️")
@@ -1803,6 +1815,13 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// Manual layout in one pass: build the visible rows top-down with their
     /// heights, size the window to their total, then place them.
     private func layoutContent(animated: Bool = false) {
+        // Every stage change passes through here, so the corner bar follows the
+        // chip without a wiring of its own (2026-09-29). Not while the states
+        // page is being photographed: that app is a camera, not a dictation.
+        if ProcessInfo.processInfo.environment["RELAY_SHOOT"] == nil {
+            hintBar.update(.init(listening: listening, prompting: prompting, filming: filming,
+                                 kamikaze: kamikaze, spawn: spawnMarked))
+        }
         // A held spawn dialog is the last frame of a state that has already been
         // cleared. Any relayout means newer state has arrived, and newer state
         // wins the chip — see `releaseSpawnPanel`.
@@ -1867,6 +1886,11 @@ private let frontLabel = NSTextField(labelWithString: "")
             recordInfo.attributedStringValue = shots
             recordInfo.sizeToFit()
             recordWidth = glyphColumn + recordDotGap + ceil(recordInfo.frame.width)
+        }
+        // The film row asks for its width too — with the dot's room while it pulses.
+        if filming || !filmsCarried.isEmpty {
+            recordWidth = max(recordWidth, glyphColumn + recordDotGap + ceil(filmAttributed().size().width)
+                                           + (filming ? Self.filmDotGap + Self.filmDotSize : 0))
         }
         let pickWidth = pickText.map { glyphRowWidth($0) } ?? 0
         // The emoji rows (`☠️ Kamikaze`, `📋 Re-paste ⌘⇧P`) ask for their
@@ -2112,6 +2136,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             filmInfo.attributedStringValue = filmAttributed()
             filmInfo.sizeToFit()
             layoutGlyphRow(filmRow, glyph: filmGlyph, label: filmInfo, width: innerWidth)
+            placeFilmDot()
             filmRow.isHidden = false
             rows.append((filmRow, recordRowHeight))
         } else {
@@ -4273,6 +4298,19 @@ private let frontLabel = NSTextField(labelWithString: "")
         guard filming != on else { return }
         filming = on
         filmStartedAt = on ? Date() : nil
+        filmDot.isHidden = !on
+        if on {
+            let pulse = CABasicAnimation(keyPath: "opacity")
+            pulse.fromValue = 1.0
+            pulse.toValue = 0.15
+            pulse.duration = 0.8
+            pulse.autoreverses = true
+            pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            filmDot.layer?.add(pulse, forKey: "pulse")
+        } else {
+            filmDot.layer?.removeAnimation(forKey: "pulse")
+        }
         if on {
             // One tick a second, and the row is a fixed string plus a clock, so
             // only the seconds label is touched — this must never reach
@@ -4292,7 +4330,9 @@ private let frontLabel = NSTextField(labelWithString: "")
     private var filmTick: Timer?
 
     /// **Every recording this sentence carries, on one row** (2026-09-18) —
-    /// `6.1s (31📸), 2.1s (10📸)`, Victor's own format.
+    /// since 2026-09-29 `📹 ×2(∑5s/25×📸) + 1s/5×📸 🔴`, Victor's own format:
+    /// the finished clips summed (how many, total seconds, total frames), then
+    /// the live one, and a pulsing red dot only while the screen is recording.
     ///
     /// **Both numbers, because they answer different questions.** The seconds are
     /// what he *spent*; the frames are what he *got*, and the second is not
@@ -4317,15 +4357,20 @@ private let frontLabel = NSTextField(labelWithString: "")
             .font: filmFont,
             .foregroundColor: filmInfo.textColor ?? NSColor.white,
         ]
-        func piece(_ seconds: TimeInterval, _ frames: Int) {
-            if out.length > 0 { out.append(NSAttributedString(string: ", ", attributes: attrs)) }
-            out.append(NSAttributedString(string: String(format: "%.1fs (%d", seconds, frames),
-                                          attributes: attrs))
-            out.append(Self.inline(Self.shotMarkGlyph, font: filmFont))
-            out.append(NSAttributedString(string: ")", attributes: attrs))
+        func text(_ t: String) { out.append(NSAttributedString(string: t, attributes: attrs)) }
+        func shot() { out.append(Self.inline(Self.shotMarkGlyph, font: filmFont)) }
+        if !filmsCarried.isEmpty {
+            let seconds = filmsCarried.reduce(0) { $0 + $1.seconds }
+            let frames = filmsCarried.reduce(0) { $0 + $1.frames }
+            text(String(format: "×%d(∑%.0fs/%d×", filmsCarried.count, seconds, frames))
+            shot()
+            text(")")
         }
-        for done in filmsCarried { piece(done.seconds, done.frames) }
-        if filming { piece(Date().timeIntervalSince(filmStartedAt ?? Date()), filmFrames?() ?? 0) }
+        if filming {
+            if !filmsCarried.isEmpty { text(" + ") }
+            text(String(format: "%.0fs/%d×", Date().timeIntervalSince(filmStartedAt ?? Date()), filmFrames?() ?? 0))
+            shot()
+        }
         return out
     }
 
@@ -4375,12 +4420,19 @@ private let frontLabel = NSTextField(labelWithString: "")
         let next = filmAttributed()
         let grew = next.string.count != filmInfo.attributedStringValue.string.count
         filmInfo.attributedStringValue = next
-        if grew { layoutContent() }
+        if grew { layoutContent() } else { placeFilmDot() }
+    }
+
+    /// Right after the text, on the row's midline.
+    private func placeFilmDot() {
+        let d = Self.filmDotSize
+        let x = filmInfo.frame.minX + ceil(filmInfo.attributedStringValue.size().width) + Self.filmDotGap
+        filmDot.frame = NSRect(x: x.rounded(), y: ((filmRow.frame.height - d) / 2).rounded(), width: d, height: d)
     }
 
 
     /// 🎬 at the size of the rest of the icon column.
-    private static let filmGlyphImage = Glyphs.emoji("🎥", ink: iconInk)
+    private static let filmGlyphImage = Glyphs.emoji("📹", ink: iconInk)
 
     // MARK: - The live caption (2026-09-25; a subtitle band since 2026-09-26)
 

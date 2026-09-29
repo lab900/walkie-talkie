@@ -65,4 +65,18 @@ final class TerminalLineTests: XCTestCase {
         XCTAssertFalse(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
         XCTAssertFalse(TerminalBinding.submitted(tail: tail, sent: sent))
     }
+
+    // 2026-09-29 15:19: a long envelope collapsed in the box is still unsent.
+    func testACollapsedPasteInTheBoxIsStillInPrompt() {
+        let sent = "[📸0🖱️@1425:1838 auto]\nI still don't see the change here\n\n[Dictated in RO or EN]"
+        let tail = "⏺ done\n────\n❯ [Pasted text #1 +6 lines]\n────\n  Opus 5.5 · auto mode on"
+        XCTAssertTrue(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
+        XCTAssertFalse(TerminalBinding.submitted(tail: tail, sent: sent))
+    }
+
+    func testACollapsedPasteAboveAnEmptyBoxIsNotPressedAgain() {
+        let sent = "[📸0🖱️@1425:1838 auto]\nI still don't see the change here"
+        let tail = "> [Pasted text #1 +6 lines]\n\n✻ Thinking…\n────\n❯ \n────\n  Opus 5.5 · auto mode on"
+        XCTAssertFalse(TerminalBinding.stillInPrompt(tail: tail, sent: sent))
+    }
 }
