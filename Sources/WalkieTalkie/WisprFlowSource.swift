@@ -840,10 +840,19 @@ final class WisprFlowSource: DictationSource {
             WisprSink.shared.open()
             WisprSink.shared.clear()
         case .off:
-            HotkeyTap.postWisprHandsFree()
+            if startUnderHeldPair {
+                HotkeyTap.postWisprHandsFreeUnderHeldPair()
+            } else {
+                HotkeyTap.postWisprHandsFree()
+            }
         }
+        startUnderHeldPair = false
         return nil
     }
+
+    /// Set by the right ⌘⌥ hold for the next `start()` only: his fingers are on
+    /// ⌘⌥, so the start goes out as right ⌘⌥ + F19 (`HotkeyTap.heldPairChordIsConfigured`).
+    var startUnderHeldPair = false
 
     /// **Close the Scratchpad window if it is up, then hold the chord.**
     ///

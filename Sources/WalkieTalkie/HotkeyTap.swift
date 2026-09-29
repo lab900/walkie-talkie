@@ -4223,6 +4223,49 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     /// **Read Wispr's own shortcut table** — `prefs.user.shortcuts`, keycodes
     /// joined with `+` mapped to an action name. Read-only and at call time, for
     /// `postWisprScratchpad`'s reason: the action is stable, the chord is not.
+    /// **Right ⌘ + right ⌥ + F19 = Wispr's hands-free, for the held pair**
+    /// (2026-09-29). Under his right ⌘⌥ hold fn ⌃ Space reaches Wispr as
+    /// ⌘⌥fn⌃Space and is ignored (measured twice, 0x180000 down) — that was Q21's
+    /// reason to borrow the local model. A second hands-free shortcut that
+    /// *contains* the held pair is what Wispr sees when the relay adds F19 under
+    /// his fingers: measured, row and microphone within ~1 s. Registered in
+    /// Wispr's own Shortcuts window (`54+61+80: popo`); absent → Q21 stands.
+    static var heldPairChordIsConfigured: Bool {
+        wisprShortcut(named: "popo", exactly: "54+61+80")
+    }
+
+    /// F19 with the right-hand ⌘⌥ flags, **no wait for a bare wire** — the pair
+    /// is his and is meant to be down. Stamped, so the tap's *a key under the
+    /// pair is a shortcut* rule does not read it as his.
+    static func postWisprHandsFreeUnderHeldPair() {
+        if postMutedTail("right ⌘⌥ + F19") { return }
+        DispatchQueue.global().async {
+            let source = CGEventSource(stateID: .hidSystemState)
+            source?.userData = backButtonStamp
+            let flags = CGEventFlags(rawValue: CGEventFlags.maskCommand.rawValue | CGEventFlags.maskAlternate.rawValue
+                                     | deviceRightCommand | deviceRightOption)
+            for down in [true, false] {
+                guard let e = CGEvent(keyboardEventSource: source, virtualKey: VK_F19, keyDown: down) else { return }
+                e.flags = flags
+                e.post(tap: .cghidEventTap)
+                if down { usleep(30_000) }
+            }
+            Log.info("⌨️ right ⌘⌥ + F19 posted under his held pair — Wispr's hands-free")
+        }
+    }
+    private static let VK_F19: CGKeyCode = 80
+
+    private static func wisprShortcut(named action: String, exactly chord: String) -> Bool {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Wispr Flow/config.json")
+        guard let data = try? Data(contentsOf: url),
+              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let prefs = root["prefs"] as? [String: Any],
+              let user = prefs["user"] as? [String: Any],
+              let shortcuts = user["shortcuts"] as? [String: Any] else { return false }
+        return (shortcuts[chord] as? String) == action
+    }
+
     private static func wisprShortcut(named action: String) -> [CGKeyCode]? {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Wispr Flow/config.json")

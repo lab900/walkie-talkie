@@ -2906,13 +2906,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         }
                         return
                     }
-                    // **Q21 (2026-09-28): on Engine = Wispr the hold is the local
-                    // model's** — the relay no longer posts fn ⌃ Space under a
-                    // held ⌘⌥ (W1), and Wispr stays free for his right ⌥⇧.
-                    if self.source === self.wisprSource { self.borrowEngine(self.whisperSource, for: "right ⌘⌥ held on Engine = Wispr (Q21)") }
+                    // **Q21 (2026-09-28): on Engine = Wispr the hold was the local
+                    // model's** — fn ⌃ Space under a held ⌘⌥ is ignored by Wispr.
+                    // **Since 2026-09-29 the hold is Wispr's** (Victor: *"it should
+                    // use the same engine for transcription everywhere"*) when Wispr
+                    // has right ⌘⌥ + F19 as a hands-free shortcut; without it, Q21.
+                    if self.source === self.wisprSource {
+                        if HotkeyTap.heldPairChordIsConfigured {
+                            self.wisprSource.startUnderHeldPair = true
+                        } else {
+                            self.borrowEngine(self.whisperSource, for: "right ⌘⌥ held on Engine = Wispr (Q21 — Wispr has no right ⌘⌥ + F19 hands-free shortcut)")
+                        }
+                    }
                     Log.info("🧼 a plain dictation (right ⌘⌥ held) on \(self.source.name) — clean words at the caret, nothing added")
                     self.cleanHoldAt = CFAbsoluteTimeGetCurrent()
                     self.startDictation(paste: true, clean: true)
+                    self.wisprSource.startUnderHeldPair = false
                     if !self.listening, !self.speculative, !self.source.isRecording { self.returnBorrowedEngine("the start was refused") }
                 case .release, .shortcut:
                     guard self.cleanHoldAt > 0 else { return }

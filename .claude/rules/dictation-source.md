@@ -551,4 +551,13 @@ name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
   after Wispr's input closes, or 3 s with no input. Its tail is Wispr's to cut: a released
   push-to-talk stops Wispr with whatever catch-up is still queued unheard. A relay gesture takes the
   microphone over from it (`startMeter`).
+- **The right ⌘⌥ hold is Wispr's again on Engine = Wispr** (2026-09-29, Victor: *"it should use the
+  same engine for transcription everywhere"* — Q21's local borrow reversed). fn ⌃ Space under the held
+  pair reaches Wispr as ⌘⌥fn⌃Space and is ignored (measured twice). So Wispr has a **second hands-free
+  shortcut, right ⌘ + right ⌥ + F19 (`54+61+80: popo`)**, registered through its Shortcuts window, and
+  the hold posts only F19 under his fingers (`HotkeyTap.postWisprHandsFreeUnderHeldPair`, stamped, no
+  bare-wire wait); the release stops with the usual fn ⌃ Space. Measured: row + microphone within ~1 s.
+  `heldPairChordIsConfigured` reads Wispr's config; without that shortcut the hold borrows the local
+  model as Q21 did. **The start chord waits up to 1.5 s for a bare wire and logs it** (`⌨️ fn ⌃ Space
+  posted N ms after the ask`); it was 200 ms and silent.
 - `GET /test/state` → `wisprLive.bridge` {`feed`, `holding`, `held`, `queued`, `pending`}.
