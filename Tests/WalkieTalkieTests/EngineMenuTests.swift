@@ -6,7 +6,8 @@ import XCTest
 final class EngineMenuTests: XCTestCase {
 
     func testSwitchAbsentIsTheListOfToday() {
-        XCTAssertFalse(StatusItem.wisprEngineDefault)
+        // Wispr Flow restored as an engine on 2026-09-29 (lab wave 5 YES): the row is on by default.
+        XCTAssertTrue(StatusItem.wisprEngineDefault)
         XCTAssertEqual(StatusItem.engineRowIds(wisprSwitch: false, current: "eleven-live"),
                        ["eleven-live", "eleven", "whisper"])
     }
