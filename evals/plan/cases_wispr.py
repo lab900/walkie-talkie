@@ -1262,3 +1262,70 @@ def tw40():
             f"{dt:.1f} s after the resume; A {a_len} chars before B at {ib}; 'wait for the one before' ×{stuck}; dropped {dropped}; "
             f"queue after the resume {queue}")
     return ("PASS" if stopped and waited and got_b and ib > 0 and a_len > 20 and not dropped else "BUG"), note
+
+
+# ---------------------------------------------------------------- batch 4 (2026-09-29): lab wave 4's findings at a desk
+def _direct(name):
+    """The gesture's own handler, no chord on the wire (`/test/gesture {"direct": true}`, batch 4) —
+    a locked screen's Secure Input hides every posted key from the tap."""
+    code, body = post("/test/gesture", {"name": name, "direct": True})
+    if code != 200:
+        raise RuntimeError(f"direct {name}: {code} {body}")
+    return body
+
+def _bg_play(clip, seconds=None):
+    import threading
+    th = threading.Thread(target=lambda: play(clip, seconds=seconds), daemon=True)
+    th.start()
+    return th
+
+@case("TW41", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="F1: after a cancelled caret sentence, a bound relay sentence Wispr never answers (no row, no microphone) "
+             "is NOT ended at 12 s — the relay's own recording carries it (listening, `ownTake`); his stop 🔼→ at ~15 s "
+             "closes it and latches the witness; the Q14 answer lands in the witness via local-fallback, never at the caret")
+def tw41():
+    """F1 (lab wave 4, TW4 run 1): `done(timeout)` at 12 s ended the sentence under him — the relay's
+    recording cut, a Q14 decode with `listening` still up, nothing latched (Q2), and the case's stop 🔼→
+    at 16 s met `🧷 stuck listening? … no recorder behind it` while the answer went to the caret the
+    previous (clean, cancelled) sentence had latched: `📦 delivery: local-fallback → caret`. Desk, keyless:
+    (1) a caret prompt opened and cancelled (`forward-click` direct) — the stale caret latch; (2) the
+    bound sentence (`forward-right` direct), no row ever, CLIP_SPEECH into the Loopback; at 13 s the
+    sentence must still be listening with `wisprLive.ownTake`; (3) the stop (`forward-right` direct) at
+    ~15 s; the words land in the witness, `local-fallback → terminal:…`, no `→ caret`, no `🧷 stuck`."""
+    db = desk()
+    bind_witness(); witness_clear()
+    mark = log_mark()
+    _direct("forward-click")
+    if not wait_for(lambda: state()["listening"], 4):
+        return "ERROR", "the caret sentence did not open"
+    time.sleep(1.0)
+    post("/test/cancel")
+    if not wait_for(lambda: not state()["listening"] and not state()["settling"], 10, 0.2):
+        return "ERROR", "the caret sentence did not close"
+    time.sleep(1.5)
+    m1 = log_mark()
+    _direct("forward-right")
+    if not wait_for(lambda: state()["listening"], 4):
+        return "ERROR", "the bound sentence did not open (%s)" % (re.search(r"🚫 start refused[^\n]*", log_since(m1)) or [None])[0]
+    t0 = time.time()
+    th = _bg_play(CLIP_SPEECH)
+    wait_for(lambda: time.time() - t0 >= 13.0, 15, 0.1)
+    s13 = state()
+    held = s13["listening"] and bool((s13.get("wisprLive") or {}).get("ownTake"))
+    early = log_has(m1, r"📦 delivery:")
+    th.join(15)
+    wait_for(lambda: time.time() - t0 >= 15.0, 5, 0.1)
+    _direct("forward-right")
+    got = wait_for(lambda: witness_text().strip(), 40, 0.3)
+    wait_for(lambda: log_has(m1, r"📦 delivery: "), 10, 0.3)
+    txt = log_since(m1)
+    d = re.search(r"📦 delivery: (\S+) → (\S+)", txt)
+    stuck = "🧷 stuck" in txt
+    caret = re.search(r"📦 delivery: \S+ → caret", txt) is not None
+    voiced = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
+    note = (f"at 13 s: listening {s13['listening']}, ownTake {(s13.get('wisprLive') or {}).get('ownTake')}; delivered before "
+            f"the stop {early}; delivery {d.groups() if d else None}; witness {len(witness_text().strip())} chars; "
+            f"voiced {voiced[-1] if voiced else '-'} s; stuck line {stuck}; caret {caret}")
+    ok = held and not early and got and d and d.group(1) == "local-fallback" and d.group(2).startswith("terminal:") \
+        and not stuck and not caret
+    return ("PASS" if ok else "BUG"), note

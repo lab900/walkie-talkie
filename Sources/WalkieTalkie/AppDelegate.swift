@@ -2325,17 +2325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A click while the words are in flight is him ending a sentence he has
         // already ended. It is a stop, or it is nothing; it is never a start.
         hotkeys.onPasteToggle = { [weak self] in
-            DispatchQueue.main.async {
-                guard let self = self else { return }
-                if self.listening || self.source.isRecording { self.endDictation() }
-                else if self.settling || self.source.phase.isWaitingForWords, let why = self.queueRefusal() {
-                    Log.info("🔼 forward click while the words are still in flight — nothing to start, nothing to stop (\(why))")
-                    if why.hasPrefix("two sentences") {
-                        self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
-                    }
-                }
-                else { self.startDictation(paste: true) }
-            }
+            DispatchQueue.main.async { self?.forwardClickToggle() }
         }
         picker.onPick = { [weak self] pick in self?.record(pick) }
         picker.onBind = { [weak self] in self?.bindFrontmostTerminal() }
@@ -2576,6 +2566,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // come from `HotkeyTap`'s own table, so the refusal cannot list a
         // vocabulary the tap does not have.
         picker.onTestGestureNames = hotkeys.gestureNames
+        // **`{"direct": true}`** (batch 4): the gesture's own handler, no chord on
+        // the wire — for a desk whose screen is locked (Secure Input hides every
+        // posted key from the tap). Only the dictation toggles.
+        picker.onTestGestureDirect = { [weak self] name in
+            guard let self else { return nil }
+            var out: [String: Any]?
+            DispatchQueue.main.sync {
+                switch name {
+                case "forward-right":
+                    if !self.toggleCoalescedByStall() { self.toggleDictation() }
+                    out = ["direct": "toggleDictation"]
+                case "forward-click":
+                    self.forwardClickToggle()
+                    out = ["direct": "forwardClickToggle"]
+                default:
+                    out = nil
+                }
+            }
+            if let out { Log.info("🖱️ POST /test/gesture \(name) direct — \(out["direct"] ?? "")() called, no chord posted") }
+            return out
+        }
         picker.onTestGesture = { [weak self] name in
             guard let posted = self?.hotkeys.postGesture(name) else { return nil }
             var out: [String: Any] = ["posted": posted.label, "gesture": name, "what": posted.what]
@@ -3147,6 +3158,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if !self.wisprSource.micSeen { self.overlay.setOpening(true) }
         }
         wisprSource.didStopListening = { [weak self] in self?.overlay.setOpening(false); self?.dictationStoppedListening() }
+        // Batch 4: Wispr is out of this sentence — the relay's recording carries it.
+        wisprSource.onOwnTake = { [weak self] why in
+            guard let self else { return }
+            self.overlay.setOpening(false)
+            self.overlay.flash("💻 \(why) — this Mac keeps recording; stop as usual", duration: 4)
+        }
         wisprSource.micOpened = { [weak self] in
             guard let self, self.overlay.opening else { return }
             Log.info("🎙️ Wispr Flow's microphone is open — the chip says Listening now (Q20)")
@@ -3277,6 +3294,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                 take: source.queuesSentences && source.isRecording ? source.take : nil)
         liveSentence?.target = "recording"
         cleanRedirected = false
+        // **Nothing latched survives into a new sentence** (F1, batch 4): TW4's
+        // Q14 answer was delivered with the previous sentence's `latchedAtCaret`
+        // (a cancelled clean caret sentence) because its own close never came.
+        // A parked sentence carries its latch in its `Envelope`.
+        latchedAtCaret = false
+        latch = nil
+        closedForHimAt = nil
         // A 🔼 ↓ belongs to the sentence it was made in; one whose sentence
         // came back empty must not ride along on the next.
         kamikaze = false
@@ -3846,9 +3870,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 5xx, timeout, transport) — under 2 s voiced it arrives as
         // `heardNothing`, so a silent take never reaches the local model.
         if case .failed(let why, let audio?, let duration) = end, why != DictationEnd.heardNothing,
-           !why.hasPrefix(DictationEnd.recorderDeaf),
-           fallBackToLocal(why: why, wav: audio, duration: duration) { return }
+           !why.hasPrefix(DictationEnd.recorderDeaf) {
+            latchIfNeverClosed(why)
+            if fallBackToLocal(why: why, wav: audio, duration: duration) { return }
+        }
         dictationEndedForGood(end)
+    }
+
+    /// **A sentence whose words are coming with no close ever seen on this side
+    /// is latched now** (F1, batch 4 — the belt behind `holdOwnTake`): its
+    /// recording has ended, and *the recipient is whoever the relay is pointed at
+    /// when the microphone closes* (Q2). Until this, `listening` stood through
+    /// the local decode, nothing was latched, and `deliver` read whatever the
+    /// previous sentence had left. The stop gesture that follows is taken as
+    /// said (`closedForHimAt`).
+    private func latchIfNeverClosed(_ how: String) {
+        guard listening, !answeringInBackground else { return }
+        Log.error("📍 the sentence's recording ended (\(how)) with no close on this side — its recipient is latched now (Q2, F1)")
+        dictationStoppedListening()
+        closedForHimAt = CFAbsoluteTimeGetCurrent()
     }
 
     /// **The local model transcribes what the selected engine could not.**
@@ -4465,6 +4505,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.bound = isBound
     }
 
+    /// The forward click (F7): a caret prompt, or the stop of the one open —
+    /// `hotkeys.onPasteToggle`, and `POST /test/gesture {"name": "forward-click",
+    /// "direct": true}` with no key on the wire (batch 4).
+    private func forwardClickToggle() {
+        if listening || source.isRecording { endDictation() }
+        else if settling || source.phase.isWaitingForWords, let why = queueRefusal() {
+            Log.info("🔼 forward click while the words are still in flight — nothing to start, nothing to stop (\(why))")
+            if why.hasPrefix("two sentences") {
+                overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
+            }
+        }
+        else { startDictation(paste: true) }
+    }
+
+    /// **When the relay closed the live sentence for him** — its recording ended
+    /// by something other than his stop, the recipient latched then (F1, batch 4:
+    /// `latchIfNeverClosed`). The stop gesture he gives a moment later is for
+    /// that sentence: it is taken as said, and it neither re-routes the words nor
+    /// opens a new sentence. Nil once used, and at every new sentence.
+    private var closedForHimAt: CFAbsoluteTime?
+    private static let lateStopWindow: CFAbsoluteTime = 30
+
     /// Start a dictation, or finish the one that is open.
     ///
     /// A **toggle**, not a push-to-talk: the dictations that go to an agent run
@@ -4472,6 +4534,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// cannot do anything else — including take the screenshots (mouse 4) that
     /// the same minute is for.
     private func toggleDictation() {
+        // **F1 (lab wave 4): the late stop of a sentence the relay closed for
+        // him** — nothing re-routed, nothing opened (a new sentence here would be
+        // parked behind the decode and run on to the ceiling).
+        if !listening, !source.isRecording, let at = closedForHimAt {
+            closedForHimAt = nil
+            let age = CFAbsoluteTimeGetCurrent() - at
+            if age < Self.lateStopWindow, fallingBack || settling || liveInFlight {
+                Log.info(String(format: "🧷 a stop gesture %.1f s after the relay closed this sentence for him — "
+                                + "taken as its stop: its words still go where it was latched, nothing opened (F1)", age))
+                return
+            }
+        }
         guard listening || source.isRecording else { return startDictation() }
         // **🔼→ during a caret dictation aims it at the terminal rather than
         // ending it** (2026-09-14). Victor: *"if I am bound but I start a

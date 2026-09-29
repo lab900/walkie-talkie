@@ -254,6 +254,17 @@ final class WisprFlowSource: DictationSource {
     /// **His own Wispr sentence, whose ⌘V the firewall dropped while the relay's
     /// row was in flight** (Q19, 2026-09-28) — the words, for the caret.
     var foreignSentence: ((String) -> Void)?
+    /// **Wispr is out of this sentence and the relay's own recording carries it
+    /// on** (batch 4, 2026-09-29) — the reason, for the chip. See `holdOwnTake`.
+    var onOwnTake: ((String) -> Void)?
+    /// **Why the relay's own recording is carrying this sentence alone** — nil
+    /// while Wispr is in it. Set by `holdOwnTake` (Wispr never answered the
+    /// chord, F1; Wispr quit mid-sentence, item 3), cleared by `closeListening`
+    /// at HIS stop. While it stands `isRecording` is true (a microphone — the
+    /// relay's — is open), no chord is posted to Wispr, and Wispr's microphone
+    /// edges are not this sentence's.
+    private(set) var ownTakeOnly: String?
+    private var ownTakeSince: CFAbsoluteTime = 0
     /// Whether this sentence ever saw Wispr's microphone open (poll or edge).
     /// A row with no microphone behind it is not a recording (W2).
     private(set) var micSeen = false
@@ -299,7 +310,10 @@ final class WisprFlowSource: DictationSource {
     /// three inputs; `phase` is the one thing the rest of the app reads, through
     /// `DictationSource`.
     let state = WisprState()
-    var phase: DictationPhase { state.phase }
+    /// `.listening` while the relay's own recording carries the sentence
+    /// (`ownTakeOnly`): the machine is at rest (Wispr is out of it), the
+    /// sentence is not.
+    var phase: DictationPhase { ownTakeOnly != nil ? .listening : state.phase }
 
     /// **The 100 ms pull that replaced a push nobody could trust.**
     ///
@@ -1136,6 +1150,12 @@ final class WisprFlowSource: DictationSource {
             DispatchQueue.main.asyncAfter(deadline: .now() + drain) { [weak self] in self?.stop() }
             return
         }
+        // **Batch 4: Wispr is out of this sentence** (`holdOwnTake`) — no chord:
+        // a toggle now would start a Wispr dictation nobody asked for.
+        if ownTakeOnly != nil {
+            closeListening("the relay's own stop — Wispr Flow was out of this sentence, no chord posted")
+            return
+        }
         // **W6: a stop over a Wispr that never took the start posts nothing.**
         // No row, no microphone, well past the 357 ms a row takes: Wispr did not
         // hear the start chord, and a second toggle now would *start* a ghost
@@ -1220,8 +1240,12 @@ final class WisprFlowSource: DictationSource {
         // and a ⌃Escape posted with it still down is a dismiss Wispr reads while
         // it is still being told to record.
         if startedMode == .scratchpad { HotkeyTap.postWisprScratchpad(down: false) }
-        Log.info("🗑️ Wispr Flow dictation cancelled — posting ⌃Escape")
-        HotkeyTap.postWisprCancel()
+        if ownTakeOnly != nil {
+            Log.info("🗑️ dictation cancelled — the relay's own recording (Wispr Flow was out of it: no ⌃Escape)")
+        } else {
+            Log.info("🗑️ Wispr Flow dictation cancelled — posting ⌃Escape")
+            HotkeyTap.postWisprCancel()
+        }
         // **The cancel closes it here too.** Same change as `stop()`, same
         // reason: waiting for a CoreAudio edge that may never come left the ring
         // up over a dictation Victor had already thrown away.
@@ -1239,8 +1263,12 @@ final class WisprFlowSource: DictationSource {
             cancelling = true
             handingToLocal = true
             if startedMode == .scratchpad { HotkeyTap.postWisprScratchpad(down: false) }
-            Log.info("💻 ⌘⌃X — Wispr Flow dismissed (⌃Escape); the relay's own recording goes to the local model")
-            HotkeyTap.postWisprCancel()
+            if ownTakeOnly != nil {
+                Log.info("💻 ⌘⌃X — the relay's own recording goes to the local model (Wispr Flow was out of it)")
+            } else {
+                Log.info("💻 ⌘⌃X — Wispr Flow dismissed (⌃Escape); the relay's own recording goes to the local model")
+                HotkeyTap.postWisprCancel()
+            }
             closeListening("⌘⌃X — the local model takes it")
             state.reset("handed to the local model (⌘⌃X)")
             return true
@@ -1396,6 +1424,8 @@ final class WisprFlowSource: DictationSource {
                 "tailWatch": tailWatch != nil,
                 "wisprPid": Int(Self.wisprMainPid),
                 "pidAtChord": Int(wisprPidAtChord),
+                // Batch 4: the relay's own recording carrying the sentence, and since when.
+                "ownTake": ownTakeOnly.map { ["why": $0, "for": CFAbsoluteTimeGetCurrent() - ownTakeSince] as [String: Any] } ?? NSNull(),
                 "chordsMuted": HotkeyTap.wisprChordsMuted,
                 // Batch 3 (2026-09-28): what woke the row readers, and when the
                 // capture's reader saw its row change (wall clock, ms).
@@ -1554,6 +1584,20 @@ final class WisprFlowSource: DictationSource {
                 self.confirmSpeculative(by: "Wispr's own row (the relay saw no microphone)")
                 return
             }
+            // **F1 (lab wave 4, 2026-09-29): he has not stopped — he is still
+            // talking.** Twelve seconds with no row and no microphone used to end
+            // the sentence here: the relay's recording was cut mid-word, the Q14
+            // answer was decoded while `listening` stood with nothing under it,
+            // the close was never latched (Q2), and his own stop 🔼→ four seconds
+            // later met a sentence that had gone on without him — its words went
+            // to the caret the previous sentence had latched (TW4, 77 chars at the
+            // caret instead of ttys001). Now the relay's recording carries the
+            // sentence to HIS stop, which latches the recipient as every close does,
+            // then this Mac transcribes it.
+            if self.relayStarted, self.holdOwnTake("Wispr Flow did not answer the chord") {
+                self.armGhostWatch()   // E: the start may still land, late, as a ghost
+                return
+            }
             self.speculative = false
             self.isRecording = false
             // **Nothing else is going to release it.** This is the one path out
@@ -1615,6 +1659,12 @@ final class WisprFlowSource: DictationSource {
     /// heard and starts being waited for.
     private func closeListening(_ why: String) {
         guard isRecording || speculative else { return }
+        // Batch 4: a sentence the relay's own recording carried (Wispr out of it)
+        // closes here too, at his stop — and ends on that recording.
+        let ownTake = ownTakeOnly
+        ownTakeOnly = nil
+        pendingWisprClose?.cancel()
+        pendingWisprClose = nil
         if relayStarted, relayClosedWall == 0 { relayClosedWall = Date().timeIntervalSince1970 }
         // E (lab wave 3): a relay sentence Wispr's microphone never opened for —
         // its start may still land, late, as a ghost microphone.
@@ -1663,8 +1713,9 @@ final class WisprFlowSource: DictationSource {
         }
         // Before the relay hears the close — see `DecodeRate.activeEngine`.
         // Whichever engine is picked: a sentence Wispr's own chord opened is
-        // Wispr's to transcribe (2026-09-23).
-        DecodeRate.activeEngine = DecodeRate.wisprFlow
+        // Wispr's to transcribe (2026-09-23). One the relay's own recording
+        // carried is the local model's at once: no Wispr budget is armed for it.
+        DecodeRate.activeEngine = ownTake == nil ? DecodeRate.wisprFlow : DecodeRate.whisperLocal
         didStopListening?()
         if cancelling {
             cancelling = false
@@ -1682,6 +1733,14 @@ final class WisprFlowSource: DictationSource {
             }
             endCapture(quiet: true)
             endCancelledWithRecording()
+            return
+        }
+        if let ownTake {
+            // Wispr was out of it: nothing is coming from Wispr, the take is Q14's.
+            endCapture(quiet: true)
+            if !isRecording, !speculative { state.reset("the relay's own recording closed (\(ownTake))") }
+            syncInputPoll()
+            endWithRecording(ownTake, row: nil)
             return
         }
         // The capture was armed at the gesture; what starts here is only its
@@ -1711,6 +1770,9 @@ final class WisprFlowSource: DictationSource {
     }
 
     private func pollInput() {
+        // Wispr is out of the sentence the relay's recording carries: its
+        // microphone is not this sentence's (a late ghost is E's to dismiss).
+        guard ownTakeOnly == nil else { return }
         let on = watch.sampleIsRunningInput()
         guard on != lastPollSaw else { return }
         lastPollSaw = on
@@ -1762,6 +1824,10 @@ final class WisprFlowSource: DictationSource {
     /// its own authority while the relay's own stop, the 100 ms poll and Wispr's
     /// row all have something to say first.
     private func edge(_ on: Bool, measured: Bool) {
+        if ownTakeOnly != nil {
+            Log.info("⚡ a mic edge (\(on ? "open" : "closed")) while the relay's own recording carries the sentence (\(ownTakeOnly ?? "")) — not this sentence's")
+            return
+        }
         // **Asked before the machine is told**, because `WisprState.notify(true)`
         // takes an `idle` machine into `listening`, and a late open edge would
         // therefore put the phase back into a sentence that is over.
@@ -2489,6 +2555,45 @@ final class WisprFlowSource: DictationSource {
         micOpened?()
     }
 
+    /// **Wispr is out of this sentence; the relay's own recording carries it to
+    /// HIS stop** (batch 4, 2026-09-29). Two ways in: Wispr never answered the
+    /// chord (the 12 s `speculativeGrace`, F1) and Wispr quit mid-sentence (item
+    /// 3 — TQ2's recording was cut at the kill, 1.0 s voiced, Recover only).
+    /// Neither is his stop, so neither may end what he is saying: the capture
+    /// (row poll, ⌘V swallow) is let go — Wispr has nothing more to give — while
+    /// the meter goes on recording, `isRecording` stays true and `phase` says
+    /// `.listening`. His stop (`stop()` → `closeListening`, no chord posted)
+    /// closes it the way every close does — the recipient latched then (Q2) —
+    /// and `endWithRecording` hands the take to the local model (Q14). A cancel
+    /// or ⌘⌃X still works on it. True when it took the sentence.
+    @discardableResult
+    private func holdOwnTake(_ why: String) -> Bool {
+        guard ownTakeOnly == nil, relayStarted, isRecording || speculative, !cancelling, !handingToLocal
+        else { return false }
+        speculativeDrop?.cancel()
+        speculativeDrop = nil
+        pendingWisprClose?.cancel()
+        pendingWisprClose = nil
+        if HotkeyTap.scratchpadIsHeld { HotkeyTap.postWisprScratchpad(down: false) }
+        // Set before the capture's end, which then neither re-arms a capture for
+        // this sentence nor puts the machine to rest under it: the machine stays
+        // where it was (the music stays paused, the relay keeps owning Wispr's
+        // ⌘V) until his stop moves it on.
+        ownTakeOnly = why
+        ownTakeSince = CFAbsoluteTimeGetCurrent()
+        speculative = false
+        isRecording = true
+        endCapture(quiet: true)
+        Log.error(String(format: "💻 %@ — %.1f s into the sentence: the relay's own recording carries it on until his stop, then this Mac transcribes it (Q14; batch 4)",
+                         why, ownTakeSince - gestureAt))
+        onOwnTake?(why)
+        return true
+    }
+    /// The Wispr-side close (poll, CoreAudio edge) of a relay sentence waits this
+    /// long for the exit watch before it is taken as Wispr ending the dictation:
+    /// a quit closes the microphone too (item 3).
+    private var pendingWisprClose: DispatchWorkItem?
+
     /// **Q14 (2026-09-28): a Wispr failure is not the end of the sentence** —
     /// the relay recorded it too (`startMeter`). ≥ `fallbackVoicedFloor` voiced
     /// (the Q8/Q13 floor, 1.5 s) → `.failed` with the WAV, which
@@ -2614,8 +2719,10 @@ final class WisprFlowSource: DictationSource {
             guard now - self.unansweredChordAt < Self.ghostWindow else {
                 timer.invalidate(); self.ghostWatch = nil; return
             }
-            // A sentence of the relay's own is open: its microphone is not a ghost.
-            guard !self.isRecording, !self.speculative else { return }
+            // A sentence of the relay's own is open: its microphone is not a ghost —
+            // unless Wispr is out of it and the relay's own recording carries it
+            // (batch 4): then a microphone of Wispr's is the late start itself.
+            guard !self.speculative, !(self.isRecording && self.ownTakeOnly == nil) else { return }
             let his = CGEventSource.keyState(.combinedSessionState, key: 61)
                 && CGEventSource.keyState(.combinedSessionState, key: 60)
             guard let why = WisprOwnership.ghostMic(now: now, micOpen: self.watch.sampleIsRunningInput(),
@@ -3365,7 +3472,7 @@ final class WisprFlowSource: DictationSource {
         // `retireCaptureIfSettled` because its row was not terminal — and
         // leaving this one with no swallow, no pasteboard watch and no row poll
         // is the 2026-09-13 Word failure with extra steps.
-        if isRecording || speculative {
+        if isRecording || speculative, ownTakeOnly == nil {
             Log.info("wispr: the standing capture is retired — arming this dictation's own")
             beginCapture()
         }

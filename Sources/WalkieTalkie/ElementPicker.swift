@@ -557,6 +557,8 @@ final class ElementPicker {
     /// Answers the chord that went out, or nil for a name nobody knows — the
     /// route turns that into a 400 carrying the whole vocabulary.
     var onTestGesture: ((String) -> [String: Any]?)?
+    /// `POST /test/gesture {"name", "direct": true}` — the handler, no chord (batch 4).
+    var onTestGestureDirect: ((String) -> [String: Any]?)?
 
     /// `GET /test/state` — everything an assertion needs about the dictation in
     /// flight, in one object and from the state the app is already keeping.
@@ -1053,6 +1055,12 @@ final class ElementPicker {
         case ("POST", "/test/gesture"):
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
             let name = ((body?["name"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if body?["direct"] as? Bool == true {
+                guard let done = onTestGestureDirect?(name) else {
+                    return respond(conn, 400, ["ok": false, "error": "no direct handler for \(name) (forward-right, forward-click)"])
+                }
+                return respond(conn, 200, ["ok": true, "gesture": name].merging(done) { _, new in new })
+            }
             guard let posted = onTestGesture?(name) else {
                 return respond(conn, 400, ["ok": false,
                                            "error": "unknown gesture \(name.isEmpty ? "(none given)" : name)",

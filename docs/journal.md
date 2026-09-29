@@ -14570,3 +14570,24 @@ stale `rowSeen`; the case is fixed and was not re-run.
 - E: TX3, TW20, TX6b, and whether the ⌃Escape clears the ghost;
 - B-risk: TX6b;
 - that D2 holds against a cold 60 s decode.
+
+## Wispr as engine: fix batch 4 — F1, E-FP, a quit is not his stop, process age, the exit watch (2026-09-29, night)
+
+From the wave-4 VM report (`evals/plan/vm/wispr/report-wave4-2026-09-29.md`: *NOT YET, one relay
+defect from GO*). One commit per item; the desk ran keyless (the screen was locked).
+
+- **1. F1 — the one misroute (criterion b).** TW4 run 1: Wispr ignored the chord, and at 12 s
+  (`speculativeGrace`) the sentence was ended *under him*: the relay's recording cut mid-word, a Q14
+  decode started with `listening` still up and nothing latched — no close had happened on this side,
+  so `latchedAtCaret` was still the previous sentence's (a cancelled clean caret sentence). His stop
+  🔼→ 4 s later met `🧷 stuck listening? … no recorder behind it`, and the answer went `local-fallback →
+  caret`. The stop gesture did not cause it; it only arrived during the decode. Fix, in the source:
+  **a relay sentence Wispr never answered is not over at 12 s — the relay's own recording carries it to
+  HIS stop** (`WisprFlowSource.holdOwnTake`, `ownTakeOnly`): the capture is let go, no chord is posted
+  at the stop, `phase` says `.listening`, the chip flashes `💻 Wispr Flow did not answer the chord —
+  this Mac keeps recording`, and his stop closes it like any close (the recipient latched, Q2), then Q14.
+  Belts in `AppDelegate`: nothing latched survives into a new sentence (`dictationBegan` clears
+  `latchedAtCaret`/`latch`); a fallback for a sentence that never closed on this side latches at that
+  instant (`latchIfNeverClosed`); and the stop gesture that follows such a close is taken as said —
+  nothing re-routed, nothing opened (`closedForHimAt`, 30 s). New `POST /test/gesture {"direct": true}`
+  (forward-right / forward-click: the handler, no chord — a locked screen hides posted keys). Desk: TW41.

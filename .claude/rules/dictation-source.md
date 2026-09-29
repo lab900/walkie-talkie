@@ -276,6 +276,18 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
 - **A Wispr that quit is not slow:** `pollHistory` checks the main process by the anchored path
   `/Applications/Wispr Flow.app/Contents/MacOS/Wispr Flow` (two absences, 300 ms) **and** compares
   the pid read at the chord (`wisprPidAtChord`) — the harness relaunches Wispr in 200 ms.
+- **Wispr out of the sentence is not his stop — the relay's own recording carries it** (batch 4,
+  2026-09-29, F1: TW4's Q14 answer went to the caret the previous sentence had latched, because
+  the 12 s `speculativeGrace` ended the sentence under him with no close on this side).
+  `holdOwnTake(why)`: a relay sentence with no row and no microphone at 12 s is **not** ended — the
+  capture is let go, the meter keeps recording, `isRecording` stays, `phase` answers `.listening`
+  (`ownTakeOnly`, `wisprLive.ownTake`), Wispr's mic edges are not this sentence's, the E watch may
+  still dismiss a late ghost; chip `💻 <why> — this Mac keeps recording; stop as usual`. **His stop**
+  (`stop()` posts no chord, `closeListening`) latches the recipient like any close, then
+  `endWithRecording` → Q14. Cancel and ⌘⌃X work on it (no ⌃Escape posted). Belts in `AppDelegate`:
+  `dictationBegan` clears `latchedAtCaret`/`latch`; a fallback for a sentence never closed on this
+  side latches then (`latchIfNeverClosed`), and the next stop gesture within 30 s while its words are
+  out is taken as its stop — nothing re-routed, nothing opened (`closedForHimAt`).
 - **A new dictation retires a standing capture only if its row is terminal**
   (`retireCaptureIfSettled`); otherwise it throws away the sentence in flight.
 
