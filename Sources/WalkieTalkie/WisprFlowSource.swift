@@ -378,15 +378,17 @@ final class WisprFlowSource: DictationSource {
     /// **How long Wispr still has to listen for audio this app has not handed
     /// over yet**, capped. The stop chord waits this out, or Wispr ends the
     /// sentence on a tail still sitting in the player's queue. Zero with the
-    /// bridge down, which is every run that has not opted in.
-    var bridgeDrainSeconds: TimeInterval { min(bridge.queuedSeconds, 3) }
+    /// bridge down. **8 s since From Walkie** (2026-09-29, was 3): a cold Wispr
+    /// opens its input 5–6 s late, and what is still queued at his stop is the
+    /// end of his sentence.
+    var bridgeDrainSeconds: TimeInterval { min(bridge.queuedSeconds, Self.drainCeiling) }
+    private static let drainCeiling: TimeInterval = 8
 
     let meter = MicRecorder()
 
-    /// **His voice, carried to Wispr by this app** — off unless `WT_BRIDGE=1`,
-    /// and see `AudioBridge` for the one-time Loopback change it needs. While it
-    /// is up, a shot marker is *spliced* into the stream instead of played over
-    /// it, which is the whole point of owning the path.
+    /// **His voice, carried to Wispr by this app** — through From Walkie, on
+    /// by default since 2026-09-29 (`AudioBridge`). While it is up, a shot marker
+    /// is *spliced* into the stream instead of played over it.
     private let bridge = AudioBridge()
 
     /// Whether this sentence's WAV has a marker spliced into it — true only on
@@ -695,6 +697,12 @@ final class WisprFlowSource: DictationSource {
                 self?.gestureSeen(start.why, confident: start.isConfident, relay: false)
             }
         }
+        // His own push-to-talk: Wispr listens to From Walkie, so the relay has to
+        // carry his voice there — from the key, not from Wispr's input.
+        hotkeys.onWisprPushToTalk = { [weak self] in
+            self?.feedOwnSentence("right ⌥⇧ — Wispr's push-to-talk")
+        }
+        startFeedWatch()
         hotkeys.onWisprMaybeCancelling = { [weak self] in
             DispatchQueue.main.async { self?.dismissSeen() }
         }
@@ -1153,6 +1161,27 @@ final class WisprFlowSource: DictationSource {
         // that is only ever taken for an addition. The recorder's own detach
         // still happens in `stopMeter`, on `meterQueue`, where it belongs.
         bridge.closeInput()
+        // **Wispr has not opened its input yet** (From Walkie, 2026-09-29): the
+        // whole sentence is still held here, and a chord now would stop a Wispr
+        // that never heard a word. Released if it is running this instant (the
+        // 25 ms watch may not have ticked); otherwise waited for, bounded — past
+        // it the chord goes out and Q14 carries the take on the relay's WAV.
+        if bridge.isHolding, ownTakeOnly == nil {
+            if watch.sampleIsRunningInput() {
+                bridge.release("the relay's stop — Wispr's input is running")
+            } else {
+                let now = CFAbsoluteTimeGetCurrent()
+                if stopHeldSince == 0 { stopHeldSince = now }
+                let wisprTookIt = historyRow != nil || now - gestureAt < 1.0
+                if wisprTookIt, now - stopHeldSince < Self.stopWaitsForInput {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.stop() }
+                    return
+                }
+                Log.error(String(format: "🔀 the stop waited %.1f s and Wispr's input never ran — "
+                                 + "stopping it; the relay's own recording carries the sentence",
+                                 now - stopHeldSince))
+            }
+        }
         let drain = bridgeDrainSeconds
         guard drain <= 0.02 else {
             Log.info(String(format: "🔀 holding the stop for %.0f ms of his voice still in the bridge",
@@ -1439,6 +1468,7 @@ final class WisprFlowSource: DictationSource {
                 "isRecording": isRecording,
                 "discarding": discardOnArrival,
                 "meterRecording": meter.isRecording,
+                "bridge": bridge.stats.merging(["feed": feedNow.rawValue]) { _, new in new },
                 "sawCmdV": capturing ? lastCmdVAt >= armedAt : (lastCmdVAt > 0 && lastCmdVAt >= armedAt),
                 "lastCmdVAt": lastCmdVAt > 0 ? Outbox.iso(Date(timeIntervalSinceReferenceDate: lastCmdVAt)) : NSNull(),
                 "relayOwned": owned.active,
@@ -1542,8 +1572,10 @@ final class WisprFlowSource: DictationSource {
         if !relay, !walkiePosted {
             hisChordAt = Date().timeIntervalSince1970
             Log.info("⚡ \(why) — Wispr's own dictation; left to Wispr (Q9)")
+            feedOwnSentence(why)
             return
         }
+        stopHeldSince = 0
         hotkeys.setWisprRelayOwned(true)
         testPollSays = nil
         // B-risk (TX6b): a row Wispr opens within 1 s of this start is the relay's.
@@ -2028,6 +2060,122 @@ final class WisprFlowSource: DictationSource {
     private var lastRow: Int64?
     private static let lateOpenGrace: TimeInterval = 12
 
+    // MARK: - Feeding From Walkie (2026-09-29)
+
+    /// **Whose voice the bridge is carrying.** Wispr's microphone is From Walkie
+    /// while the relay runs, so *every* Wispr sentence needs a feed, not only the
+    /// relay's: `.relay` is the meter of a relay sentence (`startMeter`), `.own`
+    /// a metering-only session for a sentence he started with Wispr's own keys
+    /// or window — without it Wispr hears silence (`NoAudio`). Under `feedLock`.
+    enum Feed: String { case none, relay, own }
+    private let feedLock = NSLock()
+    private var feed: Feed = .none
+    private var feedSince: CFAbsoluteTime = 0
+    private var feedSawOpen = false
+    private var feedLastOpen: CFAbsoluteTime = 0
+    /// When the last feed ended — Wispr's input still closing after it is not a
+    /// new sentence of his.
+    private var feedEndedAt: CFAbsoluteTime = 0
+    private var feedTick = 0
+    private let feedQueue = DispatchQueue(label: "ro.victorrentea.wispr-relay.feed-watch")
+    private var feedTimer: DispatchSourceTimer?
+    /// Main-only: when a stop first found the bridge still holding.
+    private var stopHeldSince: CFAbsoluteTime = 0
+    /// How long the relay's stop waits for Wispr's input to start running.
+    private static let stopWaitsForInput: TimeInterval = 2.5
+    /// A key or chord of his that Wispr never answered with its input.
+    private static let ownFeedNoShow: TimeInterval = 3
+
+    var feedNow: Feed { feedLock.lock(); defer { feedLock.unlock() }; return feed }
+
+    /// Sets the feed; with `ifNow`, only from that value. True when it changed.
+    @discardableResult
+    private func setFeed(_ next: Feed, ifNow: Feed? = nil) -> Bool {
+        feedLock.lock(); defer { feedLock.unlock() }
+        if let ifNow, feed != ifNow { return false }
+        guard feed != next else { return false }
+        let now = CFAbsoluteTimeGetCurrent()
+        if next == .none { feedEndedAt = now }
+        feed = next
+        feedSince = now
+        feedSawOpen = false
+        return true
+    }
+
+    /// **One watch, 25 ms, for the life of the source** — Wispr's input
+    /// (`WisprWatch.sampleIsRunningInput`, the poll's own sample) is what
+    /// releases a held bridge. While no feed is up it samples every 200 ms, to
+    /// catch a sentence he started from Wispr's own window, which no key shows.
+    private func startFeedWatch() {
+        feedQueue.async { [weak self] in
+            guard let self, self.feedTimer == nil else { return }
+            let t = DispatchSource.makeTimerSource(queue: self.feedQueue)
+            t.schedule(deadline: .now() + 1, repeating: .milliseconds(25), leeway: .milliseconds(5))
+            t.setEventHandler { [weak self] in self?.feedWatchTick() }
+            self.feedTimer = t
+            t.resume()
+        }
+    }
+
+    private func feedWatchTick() {
+        feedTick &+= 1
+        feedLock.lock()
+        let feed = self.feed, since = feedSince, ended = feedEndedAt
+        feedLock.unlock()
+        let now = CFAbsoluteTimeGetCurrent()
+        if feed == .none {
+            guard AudioBridge.isEnabled, feedTick % 8 == 0, now - ended > 1,
+                  watch.sampleIsRunningInput() else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.isRecording, !self.speculative else { return }
+                self.feedOwnSentence("Wispr opened its input on its own")
+            }
+            return
+        }
+        let open = watch.sampleIsRunningInput()
+        feedLock.lock()
+        if open { feedSawOpen = true; feedLastOpen = now }
+        let saw = feedSawOpen, last = feedLastOpen
+        feedLock.unlock()
+        if open, bridge.isHolding { bridge.release("Wispr's input is running") }
+        guard feed == .own else { return }
+        if saw ? now - last >= 0.3 : now - since >= Self.ownFeedNoShow {
+            endOwnFeed(saw ? "Wispr closed its input" : "Wispr never opened its input")
+        }
+    }
+
+    /// **His own Wispr sentence, carried** — metering only (nothing written, no
+    /// corpus, no delivery: Q9 stands), held from his key until Wispr's input
+    /// runs, paced back to live like the relay's. Its tail is Wispr's to cut: a
+    /// released push-to-talk stops Wispr at once, so what is still queued then
+    /// (the catch-up not yet finished) is not heard.
+    func feedOwnSentence(_ why: String) {
+        guard AudioBridge.isEnabled else { return }
+        meterQueue.async { [weak self] in
+            guard let self, self.feedNow == .none, !self.meter.isRecording else { return }
+            guard self.bridge.start(format: MicRecorder.fileFormat, holding: true) else { return }
+            self.meter.onBuffer = { [weak self] buffer in self?.bridge.schedule(buffer) }
+            if let failed = self.meter.startMetering() {
+                Log.error("🔀 his own Wispr sentence (\(why)) — no microphone: \(failed)")
+                self.meter.onBuffer = nil
+                self.bridge.stop()
+                return
+            }
+            self.setFeed(.own)
+            Log.info("🔀 his own Wispr sentence (\(why)) — his microphone carried to From Walkie")
+        }
+    }
+
+    private func endOwnFeed(_ why: String) {
+        meterQueue.async { [weak self] in
+            guard let self, self.setFeed(.none, ifNow: .own) else { return }
+            self.meter.onBuffer = nil
+            self.meter.stopMetering()
+            self.bridge.stop()
+            Log.info("🔀 his own Wispr sentence is over — \(why)")
+        }
+    }
+
     // MARK: - The meter, which is also the corpus's recording
 
     /// The last take's `MicRecorder.Health` (A), read by `endWithRecording`.
@@ -2045,13 +2193,22 @@ final class WisprFlowSource: DictationSource {
         keptTake = nil
         meterQueue.async { [weak self] in
             guard let self else { return }
+            // His own Wispr sentence's feed gives the microphone up to the relay's.
+            if self.setFeed(.none, ifNow: .own) {
+                self.meter.onBuffer = nil
+                self.meter.stopMetering()
+                self.bridge.stop()
+                Log.info("🔀 the relay's sentence takes the microphone over from his own Wispr feed")
+            }
             guard !self.meter.isRecording else { return }
             // **Before the recorder opens**, so no buffer is produced that the
             // bridge has not been told about: the first syllable is the one most
-            // often worth carrying.
+            // often worth carrying. **Held** until Wispr's input runs — From
+            // Walkie drops what nobody reads (2026-09-29).
             self.markersInAudio = false
-            if AudioBridge.isEnabled, self.bridge.start(format: MicRecorder.fileFormat) {
+            if AudioBridge.isEnabled, self.bridge.start(format: MicRecorder.fileFormat, holding: true) {
                 self.meter.onBuffer = { [weak self] buffer in self?.bridge.schedule(buffer) }
+                self.setFeed(.relay)
             }
             if let why = self.meter.start(to: wav) {
                 // The ring is already up — at rest, not breathing. Said out loud
@@ -2069,6 +2226,7 @@ final class WisprFlowSource: DictationSource {
     private func stopMeter(keep: Bool) {
         meterQueue.async { [weak self] in
             guard let self else { return }
+            self.setFeed(.none, ifNow: .relay)
             self.meter.onBuffer = nil
             self.recordingVoiced = self.meter.voicedSeconds
             let taken = self.meter.stop()
@@ -2095,7 +2253,7 @@ final class WisprFlowSource: DictationSource {
             // same wait on the way out, bounded so a stuck player cannot hold
             // the meter's queue.
             if self.bridge.isRunning {
-                let until = Date().addingTimeInterval(3)
+                let until = Date().addingTimeInterval(Self.drainCeiling)
                 while self.bridge.queuedSeconds > 0.02, Date() < until {
                     Thread.sleep(forTimeInterval: 0.02)
                 }

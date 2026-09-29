@@ -1079,9 +1079,8 @@ final class ElementPicker {
 
         // The state machine, run on a script — see `onTestWisprStateSimulate`.
         // `POST /test/bridge {"on": true｜false}` — carry his microphone to Wispr
-        // through this app, or stop. See `AudioBridge`: it needs the physical
-        // microphone removed as a direct source of the Loopback device first, or
-        // his voice arrives twice. Takes effect at the next dictation.
+        // through From Walkie, or stop (on by default since 2026-09-29). See
+        // `AudioBridge`. Takes effect at the next dictation.
         case ("POST", "/test/bridge"):
             let body = (try? JSONSerialization.jsonObject(with: request.body)) as? [String: Any]
             guard let on = body?["on"] as? Bool else {

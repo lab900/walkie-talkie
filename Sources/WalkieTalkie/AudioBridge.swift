@@ -42,7 +42,7 @@ import Foundation
 /// **only Victor can make it**: Loopback ships no `.sdef` and no
 /// `NSAppleScriptEnabled`, so nothing here can read or set it.
 ///
-/// Hence `WT_BRIDGE=1`. Off, the relay behaves exactly as it did.
+/// Hence `WT_BRIDGE=1` — until From Walkie, below.
 ///
 /// ## What it costs, stated plainly
 ///
@@ -53,29 +53,54 @@ import Foundation
 /// merely silent. What Wispr does then is raise `NoAudio`, which it has shown 62
 /// times already, so the failure is visible rather than silent. The way back is
 /// one click in Wispr's own microphone setting.
+///
+/// ## From Walkie: the bridge is the only way in (2026-09-29)
+///
+/// Victor: *"I need this so I have a single source to select the input
+/// microphone … and not have Wispr Flow pick a different device than I picked in
+/// walkie-talkie"*, and *"not miss the first half a second or a full second of
+/// speech"*. The Loopback caveat above is gone with the Loopback device: **From
+/// Walkie** (`FromWalkieDevice`, `../from-walkie`) carries only what is played
+/// into it, exists only while the relay runs, and Wispr ranks it first. So the
+/// bridge is **on by default** (`WT_BRIDGE=0` turns it off) and aimed there
+/// (`WT_BRIDGE_DEVICE` overrides), and his microphone is whatever
+/// `InputDevice.resolve()` says — the meter's device — for Wispr as well.
+///
+/// **Held until Wispr listens.** From Walkie is BlackHole underneath: what is
+/// written before a reader opens is simply gone. So `start(holding: true)` keeps
+/// every buffer from the gesture, and `release()` — called the moment Wispr's
+/// input is running — hands them over, the silence ahead of his first word cut
+/// and the rest paced back to live by `BridgePacer` (pauses shortened, 1.1×
+/// through `AVAudioUnitTimePitch`). The stop chord still waits for the queue
+/// (`queuedSeconds`), so Wispr ends a little after he did, never before.
 final class AudioBridge {
 
-    /// **Off by default**, because on a Mac whose Loopback still has the
-    /// microphone as a direct source this doubles his voice. See above.
-    ///
-    /// Settable at runtime as well as by the variable, because the whole point of
-    /// this switch is to be flipped next to Victor while Loopback's window is
-    /// open, and an installed app does not inherit a shell's environment.
-    /// `POST /test/bridge {"on": true}`.
-    static var isEnabled: Bool = ProcessInfo.processInfo.environment["WT_BRIDGE"] == "1"
+    /// **On by default since From Walkie** (2026-09-29): the device carries only
+    /// what this app plays into it, so there is nothing to double. `WT_BRIDGE=0`
+    /// for a run; `POST /test/bridge {"on": …}` at runtime.
+    static var isEnabled: Bool = ProcessInfo.processInfo.environment["WT_BRIDGE"] != "0"
 
-    /// Where his voice is carried to. The same needle `ShotMarker` uses, and for
-    /// the same reason it is a substring.
+    /// Where his voice is carried to — a substring, like every needle here.
     private static var deviceNeedle: String {
-        ProcessInfo.processInfo.environment["WT_MARKER_DEVICE"] ?? "TO Wispr"
+        ProcessInfo.processInfo.environment["WT_BRIDGE_DEVICE"] ?? "From Walkie"
+    }
+
+    /// `WT_BRIDGE_RATE=1.0` turns the speed-up off; the pauses are still shortened.
+    private static var tuning: BridgePacer.Tuning {
+        var t = BridgePacer.Tuning()
+        if let r = ProcessInfo.processInfo.environment["WT_BRIDGE_RATE"].flatMap(Float.init), r >= 1, r <= 1.5 {
+            t.catchUpRate = r
+        }
+        return t
     }
 
     /// Serial: `AVAudioEngine` setup is not thread-safe, and the buffers arrive
     /// on the recorder's audio thread while `start`/`stop` come from the source's
-    /// own queue.
+    /// own queue. Every buffer is judged, held or played here, in arrival order.
     private let queue = DispatchQueue(label: "ro.victorrentea.wispr-relay.audio-bridge")
     private var engine: AVAudioEngine?
     private var player: AVAudioPlayerNode?
+    private var pitch: AVAudioUnitTimePitch?
     /// **What the engine is actually wired with, and it is not what arrives.**
     ///
     /// `AVAudioEngine` connections must be a *standard* format — float32,
@@ -89,33 +114,73 @@ final class AudioBridge {
     /// killed by a buffer format.
     private var playFormat: AVAudioFormat?
     private var toPlay: AVAudioConverter?
-    private let lock = NSLock()
-    private var queued: TimeInterval = 0
     private(set) var isRunning = false
+
+    // Queue-only state.
+    private var voicer = VoicedMeter()
+    private var lastVoiced = false
+    private var pacer = BridgePacer()
+    private var backlog: [(buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool)] = []
+    /// Buffers go to the backlog until `playBacklog` has run — decided here, on
+    /// the queue, not by `holding`: a buffer judged between `release()` and the
+    /// replay must not overtake the backlog it follows.
+    private var keeping = false
+    private var startedAt: CFAbsoluteTime = 0
+    private var releasedAt: CFAbsoluteTime = 0
+    private var trimmed: TimeInterval = 0
+    private var rateNow: Float = 1
+    private var caughtUpAt: CFAbsoluteTime = 0
+
+    // Under `lock` — read from any thread, and never held across anything.
+    private let lock = NSLock()
+    /// Handed to `schedule`, not yet judged on `queue`.
+    private var pending: TimeInterval = 0
+    /// On the player (or on its way there after a `release`), not yet played back.
+    private var queued: TimeInterval = 0
+    /// In the backlog, waiting for Wispr's input.
+    private var held: TimeInterval = 0
+    private var holding = false
     /// Whether `schedule` still takes buffers — see `closeInput()`.
     private var accepting = true
 
     /// **How much of his sentence Wispr has not heard yet.**
     ///
-    /// The reason it is published: the relay's own stop chord must not go out
-    /// while audio is still in the queue, or Wispr ends the dictation on a
-    /// sentence whose last second is still in this app. `WisprFlowSource` waits
-    /// this out before stopping. Counted down by the player's own
-    /// `.dataPlayedBack` callback rather than by a clock, because the clock this
-    /// cares about is the output device's.
+    /// The relay's own stop chord must not go out while audio is still in the
+    /// queue, or Wispr ends the dictation on a sentence whose last second is still
+    /// in this app. `WisprFlowSource` waits this out before stopping. Counted down
+    /// by the player's own `.dataPlayedBack` callback rather than by a clock,
+    /// because the clock this cares about is the output device's. The held
+    /// backlog is not in it — nobody is listening to it yet; see `isHolding`.
     var queuedSeconds: TimeInterval {
         lock.lock(); defer { lock.unlock() }
-        return queued
+        return pending + queued
     }
 
-    /// Bring the output up, aimed at the Loopback device.
+    /// Buffers are being kept for a Wispr whose input is not running yet.
+    var isHolding: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return isRunning && holding
+    }
+
+    /// For `GET /test/state` and the log.
+    var stats: [String: Any] {
+        lock.lock()
+        let s: [String: Any] = ["running": isRunning, "holding": holding, "held": held,
+                                "queued": queued, "pending": pending]
+        lock.unlock()
+        return s
+    }
+
+    /// Bring the output up, aimed at From Walkie.
     ///
-    /// - Parameter format: the format the buffers will arrive in — the
-    ///   recorder's own (`MicRecorder.fileFormat`, 16 kHz mono). The engine
-    ///   resamples to the device's 48 kHz on the way out, which is the same
-    ///   conversion Wispr would do anyway.
+    /// - Parameters:
+    ///   - format: the format the buffers will arrive in — the recorder's own
+    ///     (`MicRecorder.fileFormat`, 16 kHz mono). The engine resamples to the
+    ///     device's rate on the way out.
+    ///   - holding: keep every buffer until `release()` — Wispr's input is not
+    ///     running yet, and From Walkie drops what nobody reads.
     @discardableResult
-    func start(format: AVAudioFormat) -> Bool {
+    func start(format: AVAudioFormat, holding: Bool) -> Bool {
         queue.sync {
             guard !isRunning else { return true }
             guard let device = AudioDevices.output(matching: Self.deviceNeedle) else {
@@ -146,8 +211,14 @@ final class AudioBridge {
                 return false
             }
             let player = AVAudioPlayerNode()
+            // Faster, not higher: a recogniser tuned on his voice should still
+            // hear his voice while the queue is taken back to live.
+            let pitch = AVAudioUnitTimePitch()
+            pitch.rate = 1
             engine.attach(player)
-            engine.connect(player, to: engine.mainMixerNode, format: play)
+            engine.attach(pitch)
+            engine.connect(player, to: pitch, format: play)
+            engine.connect(pitch, to: engine.mainMixerNode, format: play)
             self.playFormat = play
             self.toPlay = format.isEqual(play) ? nil : AVAudioConverter(from: format, to: play)
             do { try engine.start() } catch {
@@ -157,11 +228,39 @@ final class AudioBridge {
             player.play()
             self.engine = engine
             self.player = player
+            self.pitch = pitch
+            self.voicer = VoicedMeter()
+            self.lastVoiced = false
+            self.pacer = BridgePacer(tuning: Self.tuning)
+            self.backlog.removeAll()
+            self.keeping = holding
+            self.startedAt = CFAbsoluteTimeGetCurrent()
+            self.releasedAt = 0
+            self.trimmed = 0
+            self.rateNow = 1
+            self.caughtUpAt = 0
+            self.lock.lock()
+            self.pending = 0; self.queued = 0; self.held = 0
+            self.holding = holding; self.accepting = true
             self.isRunning = true
-            self.lock.lock(); self.queued = 0; self.accepting = true; self.lock.unlock()
-            Log.info("🔀 audio bridge up — his microphone → \(device.name)")
+            self.lock.unlock()
+            Log.info("🔀 audio bridge up — his microphone → \(device.name)"
+                     + (holding ? ", held until Wispr's input is running" : ""))
             return true
         }
+    }
+
+    /// **Wispr is listening: hand over what was held, then go live.** Idempotent.
+    /// The count moves from `held` to `queued` here, synchronously, so a stop
+    /// chord asked for in the same instant waits for the backlog too.
+    func release(_ why: String) {
+        lock.lock()
+        guard isRunning, holding else { lock.unlock(); return }
+        holding = false
+        queued += held
+        held = 0
+        lock.unlock()
+        queue.async { [weak self] in self?.playBacklog(why) }
     }
 
     /// **Stop taking buffers, without touching the recorder** (2026-09-22).
@@ -187,24 +286,98 @@ final class AudioBridge {
         guard buffer.frameLength > 0 else { return }
         let seconds = Double(buffer.frameLength) / buffer.format.sampleRate
         lock.lock()
-        guard accepting else { lock.unlock(); return }
-        queued += seconds
+        guard accepting, isRunning else { lock.unlock(); return }
+        pending += seconds
         lock.unlock()
-        queue.async { [weak self] in
-            guard let self, let player = self.player, self.isRunning,
-                  let ready = self.toPlayFormat(buffer) else {
-                // Never leave the count standing for a buffer nobody will play:
-                // `queuedSeconds` gates the stop chord, and a stop that never
-                // comes is a dictation that never ends.
-                self?.lock.lock(); self?.queued -= seconds; self?.lock.unlock()
-                return
-            }
-            player.scheduleBuffer(ready, at: nil, options: [],
-                                  completionCallbackType: .dataPlayedBack) { [weak self] _ in
-                guard let self else { return }
-                self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
+        queue.async { [weak self] in self?.take(buffer, seconds: seconds) }
+    }
+
+    // MARK: - On `queue`
+
+    private func take(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval) {
+        let voiced = judge(buffer)
+        lock.lock()
+        pending = max(0, pending - seconds)
+        guard isRunning else { lock.unlock(); return }
+        if keeping {
+            // Before the release it waits in `held`; after it (the replay not
+            // yet run), it is already Wispr's to hear and counts as queued.
+            if holding { held += seconds } else { queued += seconds }
+            lock.unlock()
+            backlog.append((buffer, seconds, voiced))
+            return
+        }
+        queued += seconds
+        let lag = queued - seconds
+        lock.unlock()
+        play(buffer, seconds: seconds, voiced: voiced, lag: lag)
+    }
+
+    private func playBacklog(_ why: String) {
+        releasedAt = CFAbsoluteTimeGetCurrent()
+        let chunks = backlog
+        backlog.removeAll()
+        keeping = false
+        let first = BridgePacer.trimStart(chunks.map { ($0.seconds, $0.voiced) }, pad: pacer.tuning.leadPad)
+        let total = chunks.reduce(0) { $0 + $1.seconds }
+        trimmed = chunks[..<first].reduce(0) { $0 + $1.seconds }
+        lock.lock(); queued = max(0, queued - trimmed); lock.unlock()
+        var lag: TimeInterval = 0
+        for chunk in chunks[first...] {
+            if play(chunk.buffer, seconds: chunk.seconds, voiced: chunk.voiced, lag: lag) {
+                lag += chunk.seconds
             }
         }
+        Log.info(String(format: "🔀 bridge released (%@) %.0f ms after the gesture — %.2f s held, "
+                        + "%.2f s of silence cut ahead of his first word, %.2f s behind live",
+                        why, (releasedAt - startedAt) * 1000, total, trimmed, lag))
+    }
+
+    /// Plays one chunk unless the pacer drops it; false when dropped. The chunk's
+    /// seconds are already in `queued` and leave it exactly once, here or at
+    /// playback.
+    @discardableResult
+    private func play(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool, lag: TimeInterval) -> Bool {
+        guard pacer.admit(seconds: seconds, voiced: voiced, lag: lag),
+              let player, let ready = toPlayFormat(buffer) else {
+            // Never leave the count standing for a buffer nobody will play:
+            // `queuedSeconds` gates the stop chord, and a stop that never
+            // comes is a dictation that never ends.
+            lock.lock(); queued = max(0, queued - seconds); lock.unlock()
+            return false
+        }
+        player.scheduleBuffer(ready, at: nil, options: [],
+                              completionCallbackType: .dataPlayedBack) { [weak self] _ in
+            guard let self else { return }
+            self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
+            self.queue.async { self.pace() }
+        }
+        pace()
+        return true
+    }
+
+    /// The speed for the queue as it stands now.
+    private func pace() {
+        guard let pitch, isRunning else { return }
+        lock.lock(); let lag = queued; lock.unlock()
+        let rate = pacer.rate(lag: lag)
+        guard rate != rateNow else { return }
+        rateNow = rate
+        pitch.rate = rate
+        if rate == 1, caughtUpAt == 0, releasedAt > 0 {
+            caughtUpAt = CFAbsoluteTimeGetCurrent()
+            Log.info(String(format: "🔀 bridge caught up — Wispr hears him live %.1f s after the release "
+                            + "(%.2f s of pauses shortened)", caughtUpAt - releasedAt, pacer.dropped))
+        }
+    }
+
+    /// Voiced or not, by the meter's own arithmetic over the stream; a buffer
+    /// that completes no 64 ms window inherits the last verdict.
+    private func judge(_ buffer: AVAudioPCMBuffer) -> Bool {
+        guard let samples = buffer.int16ChannelData?[0] else { return true }
+        let fed = voicer.feed(UnsafeBufferPointer(start: samples, count: Int(buffer.frameLength)), at: 0)
+        if !fed.hops.isEmpty { lastVoiced = fed.spoke }
+        return lastVoiced
     }
 
     /// Int16 in, float32 out — on the bridge's own queue, off the audio thread
@@ -234,15 +407,26 @@ final class AudioBridge {
     func stop() {
         queue.sync {
             guard isRunning else { return }
+            lock.lock()
+            let neverHeard = holding ? held : 0
             isRunning = false
+            holding = false
+            pending = 0; queued = 0; held = 0
+            lock.unlock()
             player?.stop()
             engine?.stop()
             player = nil
+            pitch = nil
             engine = nil
             playFormat = nil
             toPlay = nil
-            lock.lock(); queued = 0; lock.unlock()
-            Log.info("🔀 audio bridge down")
+            backlog.removeAll()
+            keeping = false
+            if neverHeard > 0 {
+                Log.info(String(format: "🔀 audio bridge down — Wispr never listened: %.2f s held, never played", neverHeard))
+            } else {
+                Log.info(String(format: "🔀 audio bridge down (%.2f s of pauses shortened in all)", pacer.dropped))
+            }
         }
     }
 }

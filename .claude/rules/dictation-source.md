@@ -522,4 +522,33 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 replacing the instance (the newcomer turns it on; an off/on blip bounces Wispr to its next mic and
 back). A crash is covered by Victor Addons' watchdog (5 s poll, device off when the relay is gone).
 The switch is `kAudioBoxPropertyAcquired` — no GUI, no sudo. The device reports **USB**, because
-Wispr's microphone list hides every Virtual device. `AudioBridge`'s needle is still `TO Wispr`.
+Wispr's microphone list hides every Virtual device.
+
+## The bridge feeds From Walkie — every Wispr sentence (2026-09-29)
+
+Victor: *"not miss the first half a second or a full second of speech"* and *"a single source to
+select the input microphone … not have Wispr Flow pick a different device than I picked in
+walkie-talkie"*; then *"fed with a bit of an offset … a speed up of the voice to 1.1x … after a few
+seconds there should be no lag"*. Wispr's microphone is From Walkie (it still lists it under its old
+name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
+
+- **`AudioBridge` is on by default** (`WT_BRIDGE=0` off, `WT_BRIDGE_DEVICE` overrides the needle
+  `From Walkie`). **Held until Wispr's input runs**: From Walkie is BlackHole, what is written before a
+  reader opens is gone. `start(holding: true)` at the gesture; `release()` when
+  `WisprWatch.sampleIsRunningInput()` turns true (the 25 ms feed watch, `feedWatchTick`).
+- **Back to live, `BridgePacer`** (pure, `BridgePacerTests`): the silence ahead of the first word is
+  cut at the release (0.3 s pad kept), pauses are shortened to 0.25 s while lagging, and the player
+  runs at **1.1×** through `AVAudioUnitTimePitch` (`WT_BRIDGE_RATE`) while more than **0.2 s** is
+  queued — live is ~one 85 ms buffer, a faster queue would starve mid-word. Log: `🔀 bridge released
+  (…) N ms after the gesture — held, cut, behind live`, `🔀 bridge caught up … live X s after`.
+- **The relay's stop waits for the queue** (`bridgeDrainSeconds`, ceiling **8 s**, was 3), and **for
+  Wispr's input** when the bridge is still holding (≤ 2.5 s, `stopWaitsForInput`; past it the chord
+  goes and Q14 carries the take).
+- **His own Wispr sentences get a feed too** (`Feed.own`): Wispr listens to From Walkie, so without
+  one it hears silence. Started by right ⌥⇧ (`HotkeyTap.onWisprPushToTalk`, watched never taken), his
+  fn ⌃ Space (`gestureSeen`, relay: false), or Wispr's input seen running with no feed (200 ms idle
+  sample, for his Wispr-window starts). Metering only — nothing written, Q9 unchanged; ends 0.3 s
+  after Wispr's input closes, or 3 s with no input. Its tail is Wispr's to cut: a released
+  push-to-talk stops Wispr with whatever catch-up is still queued unheard. A relay gesture takes the
+  microphone over from it (`startMeter`).
+- `GET /test/state` → `wisprLive.bridge` {`feed`, `holding`, `held`, `queued`, `pending`}.

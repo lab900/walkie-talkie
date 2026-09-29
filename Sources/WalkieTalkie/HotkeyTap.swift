@@ -247,6 +247,14 @@ final class HotkeyTap {
     /// the source already knows about that one.
     var onWisprMaybeCancelling: (() -> Void)?
 
+    /// **Right ⌥⇧ pressed — Wispr's own push-to-talk (`61+60`) is starting**
+    /// (2026-09-29). Watched, never taken, and nothing of Q9 changes: the only
+    /// reason to know is that Wispr's microphone is From Walkie while the relay
+    /// runs, so the relay must start carrying his voice there — from the key,
+    /// before Wispr's input is even open. Raised on the press edge only.
+    var onWisprPushToTalk: (() -> Void)?
+    private var wisprPttDown = false
+
     /// Whether the right ⌘⌥ pair is currently held, so `onCleanHold` is told
     /// on the edge rather than on every `flagsChanged` while it is down.
     private var cleanPairDown = false
@@ -2938,6 +2946,11 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             // ~0.25 s into a hold — the sentence cancelled as "too short". Only
             // unstamped events move the pair.
             let ownPost = event.getIntegerValueField(.eventSourceUserData) == Self.backButtonStamp
+            let ptt = (raw & Self.deviceRightOption) != 0 && (raw & Self.deviceRightShift) != 0
+            if !ownPost, ptt != wisprPttDown {
+                wisprPttDown = ptt
+                if ptt { DispatchQueue.global().async { [weak self] in self?.onWisprPushToTalk?() } }
+            }
             if !ownPost, pair != cleanPairDown {
                 cleanPairDown = pair
                 Self.notePairHeld(pair)
@@ -4859,6 +4872,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     /// on `.maskCommand` instead would start it on every ⌘⌥ in the day.
     private static let deviceRightCommand: UInt64 = 0x000010
     private static let deviceRightOption: UInt64 = 0x000040
+    /// `NX_DEVICERSHIFTKEYMASK`.
+    private static let deviceRightShift: UInt64 = 0x000004
 
     /// **What his hands are holding, as far as the tap has seen** (W1,
     /// 2026-09-28) — the right ⌘⌥ pair, from unstamped events only. The
