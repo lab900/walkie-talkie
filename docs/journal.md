@@ -33,6 +33,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *Two escapes, both said out loud: a relay that has not answered for a minute* (2026-09-23, `restart_gate.py`) — superseded 2026-09-28 by *A restart waits for every engine and for his hands*: an app that does not answer is refused (exit 4), never restarted
 - *The back button's two gestures swapped roles* (2026-09-23, `268b111`: 🔽 = the plain toggle, 🔽 → = Return) — superseded 2026-09-28 by *The back button's gestures swapped back*: 🔽 → is the plain toggle, 🔽 is Return (the shutter while a prompt records; stop + words + Return in a plain one)
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
+- *Auto fallback to local (p98): ⌘⌃X pressed by the clock* (2026-09-28, 22:25) — superseded 2026-09-29 by *Prepare local transcript (p95)*: p95, not p98; the local words are decoded **ahead** and **offered** (`💻 Use local  ⌘⌃X`), never inserted on a clock — `via: local-auto`, the countdown row and the over-budget flash are gone; the checkbox is *Prepare local transcript (p95)*. Q14 (hard failures) stays automatic
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
 - *The beacon is gone* (2026-09-11) — `RecordingBeacon.swift` is deleted; the halo is up for every dictation
@@ -14752,3 +14753,114 @@ poll`, the whole take 4.2–4.5 s voiced `local-fallback → terminal`; control:
 the longer grace: 1.15 s), **TW43 PASS**. `swift test`: all green but `EngineMenuTests.
 testSwitchAbsentIsTheListOfToday`, already red since 5ed6aa1 flipped `wisprEngineDefault`. The VM
 confirms on a real kill: TW20, TQ2, TW44 appended to `evals/plan/vm/wispr/wave6-rerun.txt`.
+
+## 2026-09-29 07:40 — Prepare local transcript (p95): decoded ahead, offered, never inserted
+
+Three things Victor said this morning, in order, each correcting the one before:
+
+1. *"We go with p95. But by the time p95 elapses from the start of the transcription, I must ALREADY
+   have the local model's transcription ready. E.g. if Wispr Flow's p95 is 6 s, start the local
+   transcription around 3 s so it is ready by 6 s. Only when the local transcription is ready do you
+   show the 'insert local transcription' hint in the tooltip. With ElevenLabs this happens later, it is
+   slower and gets the audio in one batch. This means the local model must stay loaded — accepted, I
+   need it to prevent delays on stage / in a course. And I want clear logging to understand the actual
+   behaviour retroactively."*
+2. *"the insertion of the local transcription must be done at the human's request, never
+   automatically. I only OFFER it: never insert the local fallback automatically, only show when it is
+   ready, and the human decides when to insert."*
+3. The row's words: *"Use local"*.
+
+**Memory-worthy: p95 + the local transcript decoded ahead, offered on `Use local ⌘⌃X`, never inserted
+by the clock.** Last night's automatic hand-over at the budget (`fireAutoLocal`, `via: local-auto`) is
+the thing (2) retires: the deadline now only schedules the decode and is logged.
+
+What ships (`AutoLocal.swift` holds every pure part; `SpecScheduleTests`, `AutoLocalBudgetTests`):
+
+- **The budget is the p95** (`DecodeRate.budgetQuantile` 0.98 → 0.95), same line, same clamp
+  [1.5 s, 0.3 × audio + 1 s], prior × 3 under 20 samples. `⏱ budget X s (p95 of N samples on
+  <engine>, cap C s) …`.
+- **At the close** (`armAutoLocal`, a cloud engine, the checkbox ON): `localEta` = the local model's
+  typical decode for that audio (`DecodeRate.typical`, the chip's line without headroom) + 0.3 s, and
+  the decode ahead starts at **`max(0, budget − localEta)`** after the close. It reads the relay's own
+  closed WAV through `DictationSource.closedTakeAudio(take:)` — ElevenLabs' upload in flight (batch and
+  Live alike: the delivered words are the same batch upload), Wispr's kept meter take
+  (`keptTake`, a relay sentence only) — and decodes it with the ordinary helper call
+  (`localDecode`), delivering nothing. Under the 1.5 s voiced floor nothing runs (`skipped`: the
+  local model would invent a sentence, and a ⌘⌃X there is Recover anyway).
+- **Held and offered.** Ready → the chip row reads **`💻 Use local  ⌘⌃X`**; before that there is no
+  row at all (`AutoLocal.row`). ⌘⌃X (`transcribeLocallyNow` → `handToLocal` → `fallBackToLocal` →
+  `transcribeLocally`) takes the words already decoded — handed over in 0.01–0.08 s at the desk —
+  `via: local-forced`. The engine's words landing first take the row down and discard the local ones
+  (`🔮 local transcript discarded … wasted`).
+- **The budget running out inserts nothing.** `⏱ <engine> over budget — X s since the close, budget
+  Y s: nothing is inserted; <where the local decode is>`, and the row gains `— ElevenLabs over
+  budget` / `— Wispr Flow over budget`. The row stays until the engine answers or he presses.
+- **Never two local decodes of one take.** `transcribeLocally` looks at the decode ahead first: ready
+  → its words; running → waits for it; planned (⌘⌃X while recording, a failure before the WAV was
+  learnt) → starts it now and waits. A cancel or a newer sentence's close discards it.
+- **Kept automatic, on purpose — for Victor to object to if he wants:** the hard failures. Q14 (the
+  engine answered an error, 401/429/5xx/timeout, Wispr made no row, Wispr's process went) still hands
+  the take to this Mac on its own (`via: local-fallback`, 2026-09-28's decision — it is not a timeout,
+  nothing else would ever produce words), and it now reuses the words decoded ahead, so that fallback
+  is instant when they are ready. Likewise **the Wispr-not-running borrow** (*"10 s startup time is
+  killing"*): no longer gated on the checkbox, since the checkbox now governs only the decode ahead,
+  its row and keeping the weights warm.
+- **The checkbox is `Prepare local transcript (p95)`** (the `autoLocalFallback` defaults key kept, so
+  his setting survives), default ON; ON keeps the local weights loaded while another engine is picked
+  (*"the local model must stay loaded — accepted"*, 2.2 GB resident at launch + 2 s). OFF: no decode
+  ahead, the row is ⌘⌃X's plain `Local now` from one second into the wait (TA4).
+
+**The log, for reading back** (*"clear logging to understand the actual behaviour retroactively"*):
+every armed sentence writes, at its outcome, one line to `relay.log` and the same as JSON to
+`~/.walkie-talkie/fallback.jsonl` (seconds from the microphone's close; `never` / null for what did
+not happen):
+
+```
+📊 fallback: engine=wispr-flow audio=14.0 budget=2.20(p95,n=100) localEta=1.22 specStart=1.05 localReady=1.90 engineAnswer=20.04 budgetExpired=2.26 outcome=engine wasted=true toWords=20.04
+```
+
+`outcome` = `engine` · `local-forced` (⌘⌃X) · `local-fallback` (Q14) · `recover` · `cancelled` ·
+`silent`; `wasted` = a decode ran ahead for a sentence whose words were not the local ones. The JSON
+adds `specPlanned`, `rowShown`, `engineFailed`, `unclamped`, `cap`, `note`, and `test: true` for a
+desk run (the fake Scribe, a fake `History`, a forced budget — `fallback-report.py` leaves those out;
+the eight lines this morning's desk pass wrote were marked so by hand). Around it: `🔮 local
+transcript: decoding ahead from +X s …`, `🔮 … ready +X s after the close (decoded in Y s), N chars —
+offered on ⌘⌃X, not inserted`, `💻 Use local ⌘⌃X is on the chip — X s after the close`.
+**`evals/fallback-report.py`** summarises the file per engine (outcomes, % local-forced, decodes run
+ahead and % wasted, how often the local words were ready before the budget and by how much, how
+often the budget expired, toWords p50/p95, how long after `Use local` he pressed); `--tail N`,
+`--since`, `--include-test`; **`--budgets`** replays `DecodeRate.budget` and `localEta` over
+`decode-rate.jsonl` without the app. `state.localAuto` gains `spec {startAt, startedAt, readyAt,
+phase, wasted, consumed, chars, wav}`, `trace`, `expired`, `forced`; `fired` is always false now.
+
+**The p95 budgets on his data this morning** (`--budgets`, 2 062 lines, newest 100 warm per engine):
+
+| engine | line | tail × (p95) | 5 s | 15 s | 30 s |
+|---|---|---|---|---|---|
+| ElevenLabs | 0.49 + 0.058 × a | 2.81 | **2.2 s** | **3.8 s** | **6.3 s** |
+| Wispr Flow | 0.55 + 0.026 × a | 2.42 | **1.6 s** | **2.3 s** | **3.2 s** |
+| (p98, last night) ElevenLabs / Wispr | | 3.04 / 2.96 | 2.4 / 2.0 | 4.2 / 2.8 | 6.8 / 4.0 |
+
+`localEta` is **1.22 s at every length**: the local model's newest 50 warm decodes are ~0.8 s whatever
+the audio (the Theil–Sen slope comes out negative and clamps to 0), so the decode ahead starts at
++1.0 / +2.6 / +5.1 s on ElevenLabs and +0.4 / +1.0 / +2.0 s on Wispr. The brief's *"a 60 s take where
+localEta ≥ budget"* does not happen on this data — a 60 s ElevenLabs take is budget 11.2 s against
+localEta 1.2 s; the local model is the faster of the two at every length — so TA10 forces it.
+
+**At the desk, 07:24–07:35, build 985689a + fixes** (`relay-restart.sh --build`, gate open at once;
+`HANDS_OFF=1`, ElevenLabs cases on the fake Scribe with `/test/gesture {"direct": true}`, Wispr on the
+fake `History` with chords muted; 0 credits; the screen locked itself mid-run — Secure Input, the
+direct gestures did not care, TA4's witness bind timed out and its sentence was held, which only cost
+it a two-minute settle): **TA2 PASS** (0.8 s-late Scribe: specStart=never, no row, toWords 1.19 s),
+**TA4 PASS** (OFF: `Local now`, no budget / decode / 📊), **TA7 PASS** (Wispr row stalled 20 s:
+decode ahead +1.05 s, ready +1.90 s against a 2.20 s budget, `Use local` shown, `— Wispr Flow over
+budget` at 2.26 s, nothing inserted, Wispr's words delivered at 20.04 s, wasted=true), **TA8 PASS**
+(forced 6 s / localEta 2.8 s: decode from +3.30 s, Scribe at 3.78 s = 63 % of the budget, discarded
+while decoding, no row, localReady=never), **TA10 PASS** (localEta forced 99: planned +0.00, started
++0.09 s), **TA9, TA11 PASS on the second run** — the first run's FAIL was the case's clock:
+`lastDelivery` is stamped after the terminal has echoed the typing (2.2–2.8 s for that clip, whatever
+the engine), so it measured the typing; the 📊 line's `toWords` against the press is the wait itself —
+0.01 s (TA9) and 0.08 s (TA11, budget forced 3 s, nothing inserted at +4 s or +7 s, the row `over
+budget` throughout, budgetExpired 3.06). TA1 and TA3 are retired with the automatic insert they
+asserted (TA11 and TA7 are their successors). `swift test`: 162/162.
+

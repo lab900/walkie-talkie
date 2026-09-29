@@ -54,7 +54,7 @@ prefer the local engine.
 | `POST /test/engine-menu {"appearance": "light"｜"dark", "seconds"? (3), "x"?, "y"?}` | pop a copy of the **Engine** list (with the 🧾 quota row) in a forced theme at global point x,y (default: top right of the menu-bar screen); closes itself — a submenu cannot be opened from code. `"menu": "main"` pops the whole top-level menu instead (2026-09-28) |
 | `POST /test/cancel` · `/test/recover` | the ✕'s cancel · recover the cancelled dictation |
 | `POST /test/local-now` | **⌘⌃X's action** (2026-09-28): the take recording or in flight goes to the local model (`via: local-forced`); at rest a flash. `state.localNow {available, why, loading, row}` says whether it would (TN1–TN3, `evals/plan/cases_localnow.py`) |
-| `POST /test/local-auto {"on"?, "wisprDown"?, "fakeLaunch"?, "wisprAge"?}` | **the auto fallback** (2026-09-28): `on` is the Engine submenu's checkbox (**written to the defaults** — the harness restores it after every case); `wisprDown` makes a start read Wispr Flow as not running; `fakeLaunch` logs Wispr's background launch instead of running it; `wisprAge` (batch 4, s｜null) reads Wispr's process as that old. Answers `localAuto` (TA1–TA6, `evals/plan/cases_localauto.py`) |
+| `POST /test/local-auto {"on"?, "budget"?, "localEta"?, "wisprDown"?, "fakeLaunch"?, "wisprAge"?}` | **Prepare local transcript (p95)** (2026-09-28 as the auto fallback; 2026-09-29): `on` is the Engine submenu's checkbox (**written to the defaults** — the harness restores it after every case); `budget` / `localEta` (s｜null, 2026-09-29) force the next closes' budget and local ETA, so a case can place the decode ahead against a fake engine's delay (its traces are `test`); `wisprDown` makes a start read Wispr Flow as not running; `fakeLaunch` logs Wispr's background launch instead of running it; `wisprAge` (batch 4, s｜null) reads Wispr's process as that old. Answers `localAuto` (TA2, TA4–TA11, `evals/plan/cases_localauto.py`) |
 | `POST /test/autosend {"on": bool}` | **Autosend for this run** (2026-09-26 batch 6, G6): the menu row's toggle, **not** written to the defaults — a relaunch restores his setting; `state.autosend` |
 | `POST /test/prompt {"do": "send"｜"cancel"｜"edit", "text"?}` | **the held prompt panel** (2026-09-26, G5): ⏎ · the ✕'s cancel · `edit` with `text` replaces the words and restarts the clock (an edit that ended), without it opens the field; 409 `no prompt on the panel` otherwise. Answers `prompt` |
 | `POST /test/gesture {"name"}` | post Options+'s ⌃⌥⌘F-key chord for a gesture: `forward-`/`back-` + `click｜right｜left｜up｜down`; the F7 bind sub-case (held left button) is not fakeable. **`"direct": true`** (batch 4): `forward-right`｜`forward-click` call the handler (`toggleDictation`｜`forwardClickToggle`), no chord — works with the screen locked |
@@ -76,9 +76,11 @@ duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, 
 `elevenCost {total, label, lines}` · `elevenQuota {used, total, remaining, reset, source (subscription｜character-stats), subscriptionStatus, missingUserRead, pace (green｜orange｜red, the row's colour = the burn trend), burnRate, title, error, fetchedAt}` (null before the first fetch; the Engine list's 🧾 row, 2026-09-28) · `micOpened {device, rate, channels, at}` (what the recorder really opened) · `whisper` ·
 since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
 `sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11) · `localNow {available, why, loading, row}` (⌘⌃X,
-2026-09-28) · `localAuto {on, budget, p98, cap, samples, engine, audio, since, left, fired, firedAt, settled,
-localReady, wispr {down, fakeLaunch, launches, launchedAgo}}` (the auto fallback, 2026-09-28 — kept after the words
-land until the next close) · since 2026-09-28 (Wispr as engine):
+2026-09-28) · `localAuto {on, budget, p95, quantile, cap, samples, engine, audio, since, left, expired, settled,
+fired (always false since 2026-09-29), spec {startAt, startedAt, readyAt, phase planned｜running｜ready｜failed｜skipped｜discarded,
+wasted, consumed, chars, wav}, trace (the 📊 line's JSON), forced {budget, localEta}, localReady, wispr {down, fakeLaunch,
+launches, launchedAgo}}` (prepare local transcript, 2026-09-29 — kept after the words land until the next close; seconds in
+`spec` are from the close) · since 2026-09-28 (Wispr as engine):
 `wisprLive {micOpen (the poll's CoreAudio sample), newestRowId, newestRowStatus, newestRowText (chars), captureOpen,
 captureRow, speculative, isRecording, discarding, meterRecording, sawCmdV (this capture's firewall caught Wispr's ⌘V),
 lastCmdVAt, relayOwned, relayOwnedUntil, wisprPid, pidAtChord, chordsMuted, db, historyWake {watching, subscribers, events, ticks, passes, queries, cacheHits}, rowSeen {rowid, status, at, epoch}, lastForeignRow, lastForeignClaim}` (the last four: batch 3, 2026-09-28 — `rowSeen` is when the capture's reader saw its row change, the desk's WAL-watch latency) · `pasteboard {changeCount, events:
@@ -93,7 +95,8 @@ upload made n ms late (Q12's order cases); `delayx2` delays the next two.
   off the Tart guest (`WT_LAB=1`, set by `run-phase.sh`, or `kern.hv_vmm_present`); every case SKIPs
   when Wispr is not running. `WT_ALLOW_WISPR_KILL=1` lets TW7(c)/TW15 kill and relaunch his Wispr.
 - **`delivery`** (outbox line and `lastDelivery`): `{via: wispr-cmdv｜wispr-history｜wispr-notes｜
-  pasteboard｜local-whisper｜elevenlabs-scribe｜local-fallback｜local-forced (⌘⌃X)｜local-auto (over budget)｜test, kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜
+  pasteboard｜local-whisper｜elevenlabs-scribe｜local-fallback｜local-forced (⌘⌃X)｜test (`local-auto` only
+  2026-09-28 22:25 → 2026-09-29 07:40: nothing inserts on a clock any more), kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜
   caret｜spawn:<folder>｜held, at}`. It records, never decides; caret/held/elsewhere write no outbox line.
 - **`WisprSink` is the one exception to *never `NSApp.activate`*** — it must be the key window to
   answer what one receives. Never bindable, never in `docs/states/`. With the swallow armed at the

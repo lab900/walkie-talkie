@@ -143,13 +143,17 @@ yields to `--label`).
   `layoutGlyphRow`, both halo branches), placed after `☠️ Kamikaze` and before the paste row. A
   0.25 s tick runs while a take is available, to keep the second and `(loading)` honest. States
   page: `transcribing-local-now`, `transcribing-local-now-loading`. → `mouse-gestures.md`, *⌘⌃X*
-  **With the auto fallback ON the same row counts down: `💻 Local in 2.1 s  ⌘⌃X`** (2026-09-28,
-  22:25 — tenths, rounded up, `AutoLocal.rowText`; `setLocalNow(_:loading:countdown:)`), still from
-  one second into the wait, to the sentence's budget (`dictation-source.md`); at zero the take goes
-  local and the flash says `💻 Local — <engine> over budget (X s)`. The tick is 0.1 s since. Checkbox
-  OFF → `Local now` as before. A sentence on Engine = Wispr with Wispr down flashes `💻 Local —
-  Wispr Flow is starting`. States page: `transcribing-local-auto`, `transcribing-local-auto-fired`,
-  `listening-wispr-starting`.
+  **With *Prepare local transcript (p95)* ON the row is `💻 Use local  ⌘⌃X`, and only once the
+  local words decoded ahead are in hand** (2026-09-29 — Victor's words for it; `AutoLocal.rowText` /
+  `AutoLocal.row`, `setLocalNow(_:loading:ready:overBudget:)`): no row at all while the decode is
+  planned or running (*"only when the local transcription is ready do you show the … hint"*), none
+  when it gave nothing; `— ElevenLabs over budget` / `— Wispr Flow over budget` added when the budget
+  runs out, **the only thing the deadline does** — nothing is inserted on a clock. It goes when the
+  engine's words land (the local ones discarded) or when ⌘⌃X takes them. Checkbox OFF, or a sentence
+  never armed → `Local now` from one second into the wait, as before. The 09-28 countdown (`Local in
+  2.1 s`) and the `💻 Local — <engine> over budget` flash are gone. A sentence on Engine = Wispr with
+  Wispr down flashes `💻 Local — Wispr Flow is starting`. States page: `transcribing-use-local`,
+  `transcribing-use-local-over-budget`, `listening-wispr-starting`.
 
 ## `Listening...` and `Transcribing...`
 
