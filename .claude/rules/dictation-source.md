@@ -273,6 +273,11 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   delivered whatever Victor had last copied. Wispr restores the clipboard after its ⌘V: arm at the
   start chord, refuse a pasteboard identical to the pre-dictation one, read the string the instant it
   changes (three sentences became a Word rental contract, 2026-09-13).
+- **A Wispr that quits mid-sentence is not his stop** (batch 4, item 3 — TQ2/TW20 cut the take at
+  the kill): a Wispr-side close of a relay sentence (poll, CoreAudio edge) asks `ProcessClock.isAlive`
+  on `wisprPidAtChord` (kernel table, zombie = dead), again 0.3 s later (`quitCloseGrace`); gone →
+  `abandonForDeadWispr` → `holdOwnTake("Wispr Flow quit")`, alive → `closeListening` as before. Desk:
+  `POST /test/wispr-proc {"fakeExit": true}` (no signal), TW42.
 - **A Wispr that quit is not slow:** `pollHistory` checks the main process by the anchored path
   `/Applications/Wispr Flow.app/Contents/MacOS/Wispr Flow` (two absences, 300 ms) **and** compares
   the pid read at the chord (`wisprPidAtChord`) — the harness relaunches Wispr in 200 ms.

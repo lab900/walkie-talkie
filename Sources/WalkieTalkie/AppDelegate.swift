@@ -1865,6 +1865,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return (503, ["ok": false, "error": "gone"]) }
             switch path {
             case "/test/wispr-proc":
+                // Batch 4: the quit without a signal — his real Wispr is never touched.
+                if body["fakeExit"] as? Bool == true {
+                    var out: [String: Any] = [:]
+                    DispatchQueue.main.sync { out = self.wisprSource.simulateWisprExit() }
+                    return (200, out)
+                }
                 return WisprProc.handle(body)
             case "/test/wispr-paste":
                 // B (2026-09-28): a Wispr ⌘V through the firewall's decision (HK4).

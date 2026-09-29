@@ -722,20 +722,33 @@ def tw19():
     return ("PASS" if not bad else "FAIL"), "; ".join(parts)
 
 @case("TW20", tags=("gesture", "audio"), engine="wispr", lab_only=True, pre=needs_wispr,
-      expect="Wispr killed mid-sentence: listening/settling down within 0.6 s, a flash; the next 🔼→ delivers")
+      expect="Wispr killed mid-sentence: the quit noticed within 0.6 s (`wisprLive.ownTake`, a flash) and NOT taken as "
+             "his stop — the relay records on; his stop after the clip delivers the whole take via local-fallback "
+             "into the witness; the next 🔼→ delivers")
 def tw20():
-    """Wispr quit mid-sentence (lab; D TW20, W-B3 row *quit*)."""
+    """Wispr quit mid-sentence (lab; D TW20, W-B3 row *quit*). Batch 4 (2026-09-29) changed the bar:
+    until wave 4 the quit ended the sentence (`listening` down ≤ 0.6 s) and the relay's recording with
+    it — 0.2 s voiced, Recover only. Now the quit is noticed at once (the exit watch; ≤ 0.6 s is still
+    the bar, read off `ownTake`) and the relay's own recording carries the sentence to his stop."""
     bind_witness(); witness_clear(); mic_override(LOOPBACK)
     old_pid = wispr_pid()
     mark = log_mark(); gesture("forward-right")
     time.sleep(0.5)
     import threading
-    th = threading.Thread(target=lambda: play(CLIP_SPEECH, seconds=5), daemon=True); th.start()
+    th = threading.Thread(target=lambda: play(CLIP_SPEECH, seconds=8), daemon=True); th.start()
     time.sleep(2.0)
     post("/test/wispr-proc", {"kill": True}); t0 = time.time()
-    down = wait_for(lambda: not state()["listening"] and not state()["settling"], 5, 0.05)
+    held = wait_for(lambda: bool(live().get("ownTake")), 5, 0.05)
     dt = time.time() - t0
-    th.join(10)
+    still = state()["listening"]
+    th.join(15)
+    if state()["listening"]:
+        gesture("forward-right")
+    ok1 = bool(wait_for(lambda: witness_text().strip(), 40, 0.5))
+    wait_for(lambda: log_has(mark, r"📦 delivery: "), 10, 0.3)
+    txt = log_since(mark)
+    d = re.search(r"📦 delivery: (\S+) → (\S+)", txt)
+    v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
     post("/test/wispr-proc", {"relaunch": True})
     wait_for(lambda: engine()["ready"] and wispr_pid() not in (0, old_pid), 30)   # a NEW pid (wave 2)
     time.sleep(3)
@@ -744,8 +757,10 @@ def tw20():
     # Lab wave 2 (2026-09-28): W1r read the witness at `words landed`, 6 s before the local
     # fallback's `📦 delivery` reached the tab — wait for the witness text itself.
     ok2 = bool(wait_for(lambda: witness_text().strip(), 40, 0.5))
-    note = f"down in {dt:.2f} s ({bool(down)}); next sentence delivered {ok2}; capture {live()['captureOpen']}"
-    return ("PASS" if down and dt <= 0.6 and ok2 else "BUG"), note
+    note = (f"quit noticed in {dt:.2f} s ({bool(held)}), still listening {still}; first sentence {d.groups() if d else None}, "
+            f"voiced {v[-1] if v else '-'} s, witness {ok1}; next sentence delivered {ok2}; capture {live()['captureOpen']}")
+    ok = held and dt <= 0.6 and still and ok1 and d and d.group(1) == "local-fallback" and ok2
+    return ("PASS" if ok else "BUG"), note
 
 @case("TW21", tags=("gesture", "audio"), engine="eleven", pre=lambda: None if "wisprLive" in state() else "no hooks",
       expect="after /test/dictation/start {clock} + cancel, a real sentence's marker cue is on the recorder's ruler")
@@ -1329,3 +1344,85 @@ def tw41():
     ok = held and not early and got and d and d.group(1) == "local-fallback" and d.group(2).startswith("terminal:") \
         and not stuck and not caret
     return ("PASS" if ok else "BUG"), note
+
+def _landed(mark, timeout=40):
+    """The sentence's delivery line after `mark`: (via, to) or None."""
+    wait_for(lambda: log_has(mark, r"📦 delivery: "), timeout, 0.3)
+    d = re.search(r"📦 delivery: (\S+) → (\S+)", log_since(mark))
+    return d.groups() if d else None
+
+@case("TW42", tags=("desk", "audio"), engine="wispr", pre=needs_desk,
+      expect="item 3: Wispr quitting mid-sentence (fakeExit + its microphone closing) is not his stop — the relay's "
+             "own recording goes on (`ownTake` ≤ 0.6 s), his stop closes it, the WHOLE take is decoded locally into the "
+             "witness; the exit a beat after the close (≤ 0.3 s) is caught too; a close with Wispr alive still ends the "
+             "sentence at once (control)")
+def tw42():
+    """Item 3 (lab wave 4: TQ2 closed the relay's recording at the kill, 1.0 s voiced → Recover only;
+    TW20 0.2 s). At a desk his real Wispr is never killed: `POST /test/wispr-proc {"fakeExit"}` makes the
+    sentence's Wispr read as exited, `/test/wispr {"on": false}` is the microphone closing with it.
+    (a) exit then close, 3 s into CLIP_SPEECH: held, still listening 2 s later, stop after the clip →
+    `local-fallback → terminal`, ≥ 5 s voiced. (b) close, then the exit 0.1 s later: the 0.3 s grace
+    holds it. (c) control: a close with Wispr alive → the sentence closes (no ownTake), row delivered."""
+    db = desk()
+    bind_witness(); witness_clear()
+    notes, bad = [], []
+    # (a)
+    m = log_mark()
+    ra = open_sentence(db)
+    post("/test/wispr", {"on": True}); time.sleep(0.3)
+    th = _bg_play(CLIP_SPEECH)
+    time.sleep(3.0)
+    post("/test/wispr-proc", {"fakeExit": True})
+    post("/test/wispr", {"on": False}); tq = time.time()
+    held = wait_for(lambda: bool(live().get("ownTake")), 2, 0.05)
+    dq = time.time() - tq
+    time.sleep(2.0)
+    still = state()["listening"]
+    th.join(20)
+    _direct("forward-right")
+    got = wait_for(lambda: witness_text().strip(), 40, 0.3)
+    d = _landed(m)
+    txt = log_since(m)
+    v = re.findall(r"wispr meter: ([\d.]+) s voiced", txt)
+    voiced = float(v[-1]) if v else 0.0
+    notes.append(f"(a) held {bool(held)} in {dq:.2f} s, listening 2 s on {still}, delivery {d}, voiced {voiced:.1f} s, "
+                 f"witness {len(witness_text().strip())} chars")
+    if not (held and dq <= 0.6 and still and got and d and d[0] == "local-fallback" and d[1].startswith("terminal:")
+            and voiced >= 5.0):
+        bad.append("a")
+    db.update(ra, status="dismissed")
+    wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
+    time.sleep(2.2)
+    # (b)
+    witness_clear(); m = log_mark()
+    rb = open_sentence(db)
+    post("/test/wispr", {"on": True}); time.sleep(0.3)
+    th = _bg_play(CLIP_SPEECH, seconds=6)
+    time.sleep(2.0)
+    post("/test/wispr", {"on": False}); time.sleep(0.1)
+    post("/test/wispr-proc", {"fakeExit": True})
+    held_b = wait_for(lambda: bool(live().get("ownTake")), 2, 0.05)
+    th.join(15)
+    _direct("forward-right")
+    d_b = _landed(m)
+    notes.append(f"(b) close then exit: held {bool(held_b)}, delivery {d_b}")
+    if not (held_b and d_b and d_b[0] == "local-fallback"):
+        bad.append("b")
+    db.update(rb, status="dismissed")
+    wait_for(lambda: not state()["listening"] and not state()["settling"], 15, 0.2)
+    time.sleep(2.2)
+    # (c) control
+    witness_clear(); m = log_mark()
+    rc = open_sentence(db)
+    post("/test/wispr", {"on": True}); time.sleep(1.5)
+    post("/test/wispr", {"on": False}); tc = time.time()
+    closed = wait_for(lambda: not state()["listening"], 2, 0.05)
+    dc = time.time() - tc
+    own_c = live().get("ownTake")
+    db.update(rc, status="processing", duration=1.5); time.sleep(0.3)
+    db.finish(rc, "tw forty two control words")
+    got_c = wait_for(lambda: "forty two control" in witness_text(), 15, 0.2)
+    notes.append(f"(c) Wispr alive: closed {bool(closed)} in {dc:.2f} s, ownTake {own_c}, row delivered {bool(got_c)}")
+    if not (closed and dc <= 0.8 and not own_c and got_c):
+        bad.append("c")
+    return ("PASS" if not bad else "BUG"), "; ".join(notes) + (f" — failed {','.join(bad)}" if bad else "")

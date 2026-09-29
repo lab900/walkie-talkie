@@ -14601,3 +14601,17 @@ defect from GO*). One commit per item; the desk ran keyless (the screen was lock
   the unanswered one. Unit tests on a fake clock replaying the wave-4 timeline
   (`testTheNextRelaySentencesMicrophoneIsNotAGhost`, `testATrueGhostStillFires`); a desk cannot open
   Wispr's real microphone, so the lab confirms it (TW4 → TW8a back to back).
+- **3. Wispr quitting mid-sentence no longer cuts the sentence.** TQ2 / TW20: the kill closed Wispr's
+  microphone, the 100 ms poll took that close as the end of the sentence and stopped the relay's own
+  recording with it (3.8 s / 2.6 s in) — the rest of what he said was never recorded, and with < 1.5 s
+  voiced the take went to Recover only. A Wispr-side close of a relay sentence (poll or CoreAudio edge)
+  now asks first whether the Wispr it was given to is still alive (`ProcessClock.isAlive`: the kernel's
+  process table, a zombie counts as dead; `NSWorkspace` lags a kill), asked again 0.3 s later if it
+  is (`closeFromWisprSide`, `quitCloseGrace`): gone → `abandonForDeadWispr` → `holdOwnTake("Wispr Flow
+  quit")`, the relay records on to his stop, then Q14 transcribes the whole take; alive → Wispr ended
+  the dictation itself, closed at once as before. The machine is not told of the close first, so the
+  phase, the paused music and the ring stay where they were. A quit while the words are in flight is
+  unchanged (the sentence ends on the relay's recording). `POST /test/wispr-proc {"fakeExit": true}`:
+  the sentence's Wispr reads as exited, no signal — his real Wispr is never killed at a desk. Desk
+  TW42 (exit then close; close then exit inside the grace; a close with Wispr alive as the control);
+  lab TW20's bar is now *the quit noticed ≤ 0.6 s and the whole take delivered*, not *listening down*.
