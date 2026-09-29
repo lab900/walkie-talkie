@@ -453,7 +453,7 @@
           <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">308×117 pt</span></div>
         </header>
         <div class="shot"><img src="states/transcribing-local-now.png" width="308" height="117" style="opacity:0.8" alt="⌘⌃X — the local model, now"></div>
-        <p class="when">From one second into the wait for ElevenLabs (or Wispr Flow) — never while the microphone is open.</p>
+        <p class="when">From one second into the wait for ElevenLabs (or Wispr Flow) with <em>Prepare local transcript</em> off — never while the microphone is open. With it on, the row is <code>Use local</code> and waits for the words decoded ahead.</p>
         <p class="note"><strong>The quick exit, written where he is looking</strong> (2026-09-28). Victor: <em>&quot;I want a local fallback that I can access during the dictation, at any point, through a key combination displayed in the tooltip&quot;</em>. ⌘⌃X closes the microphone as the ordinary stop does and has this Mac transcribe the take — nothing is uploaded; pressed during the wait, the cloud answer is abandoned and only logged when it lands. A row like <code>📋 Re-paste ⌘V</code>: an emoji, the words, the keys. The key works from the first sample; the row waits a second into the transcription (<em>&quot;only displayed after 1 s after starting the transcribing&quot;</em>), so a fast engine never shows it. It goes when the words land.</p>
         <code class="slug">transcribing-local-now</code>
       </section>
@@ -467,25 +467,25 @@
         <p class="note"><code>(loading)</code> says the key will not answer at once — not that it will not work. Pressed now, the WAV waits for the weights (up to 90 s, the fallback&#x27;s own window) and the words go where the sentence was going.</p>
         <code class="slug">transcribing-local-now-loading</code>
       </section>
-      <section class="card" id="transcribing-local-auto">
+      <section class="card" id="transcribing-use-local">
         <header>
-          <h3>The auto fallback&#x27;s countdown</h3>
+          <h3>Use local — the words decoded ahead are ready</h3>
           <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">308×117 pt</span></div>
         </header>
-        <div class="shot"><img src="states/transcribing-local-auto.png" width="308" height="117" style="opacity:0.8" alt="The auto fallback&#x27;s countdown"></div>
-        <p class="when">Waiting on ElevenLabs or Wispr Flow with <em>Auto fallback to local (p98)</em> on (the default), from one second into the wait.</p>
-        <p class="note"><strong>The deadline, written where he is looking</strong> (2026-09-28, 22:25). Victor: <em>&quot;I don&#x27;t think I will ever have the patience to wait for 36 seconds … The goal is that ElevenLabs or Wispr Flow should fall back to local in a few seconds in practice.&quot;</em> The ⌘⌃X row counts down to the sentence&#x27;s budget — the engine&#x27;s own p98 for that length (<code>DecodeRate.budget</code>), never under 1.5 s, never over 0.3 × the audio + 1 s — and at zero this Mac takes the take exactly as the key would. The key still works before it. Off in the Engine submenu, the row is <code>Local now</code> again.</p>
-        <code class="slug">transcribing-local-auto</code>
+        <div class="shot"><img src="states/transcribing-use-local.png" width="308" height="117" style="opacity:0.8" alt="Use local — the words decoded ahead are ready"></div>
+        <p class="when">Waiting on ElevenLabs or Wispr Flow with <em>Prepare local transcript (p95)</em> on (the default), once the local model has decoded the take ahead.</p>
+        <p class="note"><strong>Offered, never inserted</strong> (2026-09-29). Victor: <em>&quot;by the time p95 elapses from the start of the transcription, I must ALREADY have the local model&#x27;s transcription ready … Only when the local transcription is ready do you show the &#x27;insert local transcription&#x27; hint&quot;</em> — then: <em>&quot;never insert the local fallback automatically, only show when it is ready, and the human decides when to insert.&quot;</em> At the close the relay reads the engine&#x27;s p95 for that length (<code>DecodeRate.budget</code>) and starts the local model <code>budget − localEta</code> into the wait, so its words are ready about when the budget runs out; until then there is no row. ⌘⌃X puts them in at once (<code>via: local-forced</code>); the engine&#x27;s words landing take the row down and the local ones are discarded. Off in the Engine submenu, the row is ⌘⌃X&#x27;s plain <code>Local now</code>.</p>
+        <code class="slug">transcribing-use-local</code>
       </section>
-      <section class="card" id="transcribing-local-auto-fired">
+      <section class="card" id="transcribing-use-local-over-budget">
         <header>
-          <h3>Over budget — this Mac takes it</h3>
-          <div class="tags"><span class="tag tag-flash" title="a message in the chip for a few seconds — bare like the chip, no blur, no border">flash</span><span class="tag">alpha 0.80</span><span class="tag">351×117 pt</span></div>
+          <h3>Use local — the engine is over its budget</h3>
+          <div class="tags"><span class="tag tag-chip" title="bare text beside the cursor — no blur, no shadow, no ✕">chip</span><span class="tag">alpha 0.80</span><span class="tag">378×117 pt</span></div>
         </header>
-        <div class="shot"><img src="states/transcribing-local-auto-fired.png" width="351" height="117" style="opacity:0.8" alt="Over budget — this Mac takes it"></div>
-        <p class="when">The budget ran out with the words still out: the take went to the local model (<code>via: local-auto</code>).</p>
-        <p class="note">Said once, as a flash, because it is an event rather than a state: the engine&#x27;s answer, if it still comes, is only logged — never a second copy. The engine and the budget it missed are in the words, so a fallback on every sentence would be noticed from the chip alone.</p>
-        <code class="slug">transcribing-local-auto-fired</code>
+        <div class="shot"><img src="states/transcribing-use-local-over-budget.png" width="378" height="117" style="opacity:0.8" alt="Use local — the engine is over its budget"></div>
+        <p class="when">The budget ran out with the engine&#x27;s words still out and the local words in hand.</p>
+        <p class="note">The deadline inserts nothing (2026-09-29): it only adds the engine that missed it to the row, so a slow engine is visible from the chip alone. The row stays until the engine&#x27;s words land or ⌘⌃X takes the local ones — the relay does not choose for him.</p>
+        <code class="slug">transcribing-use-local-over-budget</code>
       </section>
       <section class="card" id="listening-wispr-starting">
         <header>
@@ -735,7 +735,7 @@
       </section>
     </div>
 <footer>
-  Generated from <code>OverlayStates.swift</code> · repo at 39b64da · 28 Sep 2026 · built 28 Sep 2026, 23:57
+  Generated from <code>OverlayStates.swift</code> · repo at 4ea1549 · 29 Sep 2026 · built 29 Sep 2026, 07:38
 </footer>
 <button class="toggle" onclick="document.body.classList.toggle('light')">Backdrop: dark / light</button>
 </body>
