@@ -1208,6 +1208,23 @@ final class WisprFlowSource: DictationSource {
         // No row, no microphone, well past the 357 ms a row takes: Wispr did not
         // hear the start chord, and a second toggle now would *start* a ghost
         // recording of the room.
+        //
+        // **A relay sentence too, and then the local model at once** (2026-09-29,
+        // 09:51): the check below asked `!isRecording`, which a relay start sets at
+        // the gesture — so it never fired for one. The stop chord went out (at
+        // 09:45 it *started* Wispr: a ghost), and with no row coming the sentence
+        // sat out the 30 s `captureTimeout` before Q14. Now the relay's own take
+        // is the sentence, closed here and handed to the local model (Q14's
+        // path through `ownTakeOnly`); E still watches for a late start.
+        if relayStarted, historyRow == nil, !micSeen, !watch.sampleIsRunningInput(),
+           CFAbsoluteTimeGetCurrent() - gestureAt > 1.0, startedMode != .scratchpad {
+            Log.error("wispr: stop without a chord — Wispr never took the start (no row, no microphone): "
+                      + "the relay's own recording is the sentence, the local model now")
+            ownTakeOnly = "Wispr Flow never took the start chord"
+            ownTakeSince = CFAbsoluteTimeGetCurrent()
+            closeListening("the relay's own stop — Wispr never took the start, no chord posted")
+            return
+        }
         if !isRecording, speculative, historyRow == nil, !watch.sampleIsRunningInput(),
            CFAbsoluteTimeGetCurrent() - gestureAt > 1.0, startedMode != .scratchpad {
             Log.info("wispr: stop without a chord — Wispr never took the start (no row, no microphone)")
@@ -1901,7 +1918,9 @@ final class WisprFlowSource: DictationSource {
             endCapture(quiet: true)
             if !isRecording, !speculative { state.reset("the relay's own recording closed (\(ownTake))") }
             syncInputPoll()
-            endWithRecording(ownTake, row: nil)
+            let row = ownTakeRow
+            ownTakeRow = nil
+            endWithRecording(ownTake, row: row)
             return
         }
         // The capture was armed at the gesture; what starts here is only its
@@ -1952,6 +1971,16 @@ final class WisprFlowSource: DictationSource {
                 guard self.state.pollMs != nil else { return }
                 self.closeListening(why)
             }
+        }
+        // **Back before the close was decided: a blip, not its end** (2026-09-29,
+        // 12:20 and 12:34 — Wispr's input went off ~1 s into a right ⌘⌥ + F19
+        // hold and came back; the relay had closed its take at 2.8 s while Wispr
+        // recorded on to 8.7 s). The machine was never told the close.
+        if on, pendingWisprEnded != nil {
+            let since = state.wisprCloseAt.map { CFAbsoluteTimeGetCurrent() - $0 } ?? 0
+            dropPendingWisprClose()
+            state.wisprInputReopened()
+            Log.error(String(format: "🎙️ Wispr's input is back %.1f s after it went off — a blip, not the end of the sentence: it goes on", since))
         }
         state.poll(on)
         if on {
@@ -3352,6 +3381,8 @@ final class WisprFlowSource: DictationSource {
         case .quit:
             dropPendingWisprClose()
             abandonForDeadWispr("\(gone ?? "its exit came") — its microphone closed with it (\(state.wisprCloseBy))")
+        case .wisprEnded where !rowMoved && nullRowHold():
+            return
         case .wisprEnded:
             dropPendingWisprClose()
             Log.info(rowMoved
@@ -3367,7 +3398,45 @@ final class WisprFlowSource: DictationSource {
         pendingWisprClose?.cancel()
         pendingWisprClose = nil
         pendingWisprEnded = nil
+        nullRowHoldSaid = false
     }
+
+    /// **A close Wispr's row does not confirm is not Wispr's end** (2026-09-29).
+    /// When Wispr ends a dictation its stop path writes `duration` and
+    /// `processing` into the row at once (≈ 0.1 s after the microphone closes —
+    /// that is `rowMoved`). An input that went off with the row still NULL and
+    /// no duration past the 1 s grace is a blip — 12:20 and 12:34 under the F19
+    /// hold, back within ~2 s. So the close waits, up to `nullRowCloseCeiling`
+    /// from the moment the input went off: the input coming back drops it
+    /// (`pollInput`), the row moving ends it as before, and past the ceiling
+    /// Wispr is out of the sentence — the relay's own recording carries it to his
+    /// stop, then the local model (Q14), never a take cut at the blip.
+    /// True while it holds the close (re-armed), or when it gave the take over.
+    private static let nullRowCloseCeiling: TimeInterval = 4.0
+    private var nullRowHoldSaid = false
+    private func nullRowHold() -> Bool {
+        guard relayStarted, let row = historyRow, let at = state.wisprCloseAt,
+              let e = WisprHistory.entry(rowid: row),
+              WisprState.intermediateStatuses.contains(e.status), e.duration == nil else { return false }
+        let until = at + Self.nullRowCloseCeiling
+        if CFAbsoluteTimeGetCurrent() < until {
+            if !nullRowHoldSaid {
+                nullRowHoldSaid = true
+                Log.error(String(format: "⏳ Wispr's input went off (%@) but row %lld is still '%@' with no duration — "
+                                 + "not Wispr's end; waiting up to %.0f s for its input to come back",
+                                 state.wisprCloseBy, row, e.status, Self.nullRowCloseCeiling))
+            }
+            armWisprCloseDue(until)
+            return true
+        }
+        ownTakeRow = row
+        if holdOwnTake("Wispr Flow stopped listening mid-sentence (row \(row) never finished)") { return true }
+        ownTakeRow = nil
+        return false
+    }
+    /// The Wispr row a held take gave up on — watched to its end at his stop
+    /// (`watchLateRow`), so a late ⌘V from it is dropped, never a second copy.
+    private var ownTakeRow: Int64?
     /// What "Wispr ended it itself" does for the close that is waiting.
     private var pendingWisprEnded: (() -> Void)?
 

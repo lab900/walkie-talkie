@@ -14938,6 +14938,14 @@ Added (log only, no behaviour change):
   not an end (`noteWisprSideClose` / `noteInputReopened`).
 - **`wispr history: row R recorded X s, the relay closed its take at Y s`** at delivery.
 
-Open, not fixed: a Wispr-side close under the F19 hold should not end the take while the row is
-still NULL (wait for the row or a reopen); a relay stop with no row and no microphone should go to
-the local model at once, not after 30 s.
+Fixed the same evening (Victor: *"y"*):
+- **A relay stop over a start Wispr never took goes to the local model at once.** W6's check asked
+  `!isRecording`, which a relay start sets at the gesture, so it never fired for one: the stop chord
+  went out (09:45: it *started* Wispr, a ghost) and 09:51 sat out the 30 s `captureTimeout`. Now no
+  row + no microphone + > 1 s → no chord, `ownTakeOnly`, `closeListening` → Q14 on the relay's take.
+- **A Wispr-side close its row does not confirm waits** (`nullRowHold`): past the 1 s grace, a row
+  still NULL with no `duration` is not Wispr's end (its stop path writes both ~0.1 s after the close).
+  Up to `nullRowCloseCeiling` 4 s from the input going off: the input coming back drops the close
+  (`🎙️ Wispr's input is back … a blip`, `WisprState.wisprInputReopened`), the row moving ends it as
+  before, the ceiling hands the sentence to the relay's own recording (`holdOwnTake`, the row
+  watched to its end at his stop). Unit-tested on the machine; not yet driven live.

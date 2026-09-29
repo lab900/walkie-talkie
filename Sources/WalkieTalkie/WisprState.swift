@@ -442,6 +442,15 @@ final class WisprState {
         return .quit
     }
 
+    /// **Wispr's input came back before the close was decided** (2026-09-29):
+    /// a blip, not an end — the next close of this sentence starts its own grace.
+    func wisprInputReopened() {
+        guard wisprExitAt == nil else { return }
+        wisprCloseAt = nil
+        wisprCloseBy = ""
+        wisprAliveAt = nil
+    }
+
     /// Wispr's row moved after the close — its own stop path ran, so it is alive.
     func wisprAliveAfterClose() {
         if wisprAliveAt == nil { wisprAliveAt = now() }

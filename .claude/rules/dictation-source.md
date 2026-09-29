@@ -569,3 +569,9 @@ Three log lines, no behaviour behind them (journal: *Wispr as the engine, 29 Sep
 did — Wispr's pid/age/input, the row on top, session + HID flags, Secure Input, the front app);
 `🎙️ Wispr's input reopened N s after the relay took its close as the end of row R` (a poll close that
 was a blip); `wispr history: row R recorded X s, the relay closed its take at Y s`. Grep these first.
+
+- **A relay stop over a start Wispr never took** (no row, no microphone, > 1 s) posts no chord and
+  goes to the local model at once (`ownTakeOnly`) — W6's `!isRecording` never held for a relay start.
+- **A Wispr-side close whose row is still NULL with no `duration` is not Wispr's end** (`nullRowHold`):
+  up to 4 s from the input going off; the input back → the sentence goes on, the row moving → ended
+  as before, the ceiling → `holdOwnTake`. A blip under the F19 hold cut the take at 2.8 s of 10.

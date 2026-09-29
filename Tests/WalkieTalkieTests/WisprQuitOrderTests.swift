@@ -101,6 +101,28 @@ final class WisprQuitOrderTests: XCTestCase {
         XCTAssertEqual(m.wisprSideClose(by: "the 100 ms poll", processGone: false),
                        .pending(until: clock + WisprState.quitCloseGrace))
     }
+
+    /// 12:20 on 2026-09-29: Wispr's input went off and came back — a blip. The
+    /// next close of the same sentence gets its own grace, not the stale one.
+    func testAnInputThatComesBackForgetsTheClose() {
+        listening(); clock += 1
+        _ = m.wisprSideClose(by: "the 100 ms poll", processGone: false)
+        clock += 2
+        m.wisprInputReopened()
+        XCTAssertNil(m.wisprCloseAt)
+        clock += 5
+        XCTAssertEqual(m.wisprSideClose(by: "the 100 ms poll", processGone: false),
+                       .pending(until: clock + WisprState.quitCloseGrace))
+    }
+
+    /// …but an exit already seen is still a quit.
+    func testAReopenDoesNotForgetAnExit() {
+        listening(); clock += 1
+        _ = m.wisprSideClose(by: "the 100 ms poll", processGone: false)
+        m.wisprProcessExited()
+        m.wisprInputReopened()
+        XCTAssertEqual(m.wisprCloseDue(processGone: false), .quit)
+    }
 }
 
 /// `ProcessClock.isDyingOrGone` — `P_WEXIT`, set the moment a SIGKILL is acted on.
