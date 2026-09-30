@@ -1787,10 +1787,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
         // with captions bills three times — the live stream, the corrections
         // and the final upload, 1.06 credits/s against 0.29 batch-only
         // (`evals/elevenlabs-cost.md`). The tooltip carries the figures.
-        case "eleven-live": return "☁️ ElevenLabs + Live 💸x3" + keyless
-        case "eleven": return "☁️ ElevenLabs" + keyless
-        case "wispr": return "☁️ Wispr Flow"
-        default: return engineLoading ? "💻 Local ⏳" : "💻 Local"
+        // **The ☁️ / 💻 after the name, not before it** (2026-09-30, Victor:
+        // *"move the ☁️ AFTER WisprFlow or ElevenLabs in their names. And
+        // Local💻"*) — the list is read by its names; the emoji qualifies one.
+        case "eleven-live": return "ElevenLabs ☁️ + Live 💸x3" + keyless
+        case "eleven": return "ElevenLabs ☁️" + keyless
+        case "wispr": return "Wispr Flow ☁️"
+        default: return engineLoading ? "Local 💻 ⏳" : "Local 💻"
         }
     }
 
@@ -1808,7 +1811,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
                     "Sent text: ElevenLabs \(ElevenLabsSource.model) — \(ElevenLabsSource.rate), "
                         + "from the recording",
                     "💸x3: every second is billed three times — the live stream, the corrections "
-                        + "and the final upload; measured 1.06 credits/s against 0.29 on ☁️ ElevenLabs alone (28 Sep)",
+                        + "and the final upload; measured 1.06 credits/s against 0.29 on ElevenLabs ☁️ alone (28 Sep)",
                     "Audio leaves this Mac", key].compactMap { $0 })
                 .joined(separator: "\n")
         case "eleven":
@@ -1837,14 +1840,18 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// it is the same string every launch, and `engineTitle` has it in the list
     /// below for the one moment somebody asks.
     /// The launch tab's words (2026-09-28): the emoji the submenu row wears in
-    /// front of the top-level row's title — `☁️ ElevenLabs + Live`, `💻 Local (1.5 GB)`.
+    /// right after the engine's name in the top-level row's title — `ElevenLabs ☁️
+    /// + Live`, `Local 💻 (1.5 GB)` (after the name since 2026-09-30, as in the list).
     func engineBannerTitle(_ id: String) -> String {
-        let emoji: String
+        let name: String, emoji: String
         switch id {
-        case "eleven", "eleven-live", "wispr": emoji = "☁️"
-        default: emoji = "💻"
+        case "eleven", "eleven-live": (name, emoji) = ("ElevenLabs", "☁️")
+        case "wispr": (name, emoji) = ("Wispr Flow", "☁️")
+        default: (name, emoji) = ("Local", "💻")
         }
-        return emoji + " " + engineShortTitle(id)
+        let title = engineShortTitle(id)
+        guard let r = title.range(of: name) else { return title + " " + emoji }
+        return title.replacingCharacters(in: r, with: name + " " + emoji)
     }
 
     private func engineShortTitle(_ id: String) -> String {
