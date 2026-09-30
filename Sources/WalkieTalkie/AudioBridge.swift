@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ObjCTry
 
 /// **The relay carries his voice to Wispr, instead of standing beside it**
 /// (2026-09-14).
@@ -130,6 +131,11 @@ final class AudioBridge {
     private var trimmed: TimeInterval = 0
     private var rateNow: Float = 1
     private var caughtUpAt: CFAbsoluteTime = 0
+    /// The engine's `AVAudioEngineConfigurationChange` observer, and how many
+    /// times this take has already been brought back after one.
+    private var configObserver: NSObjectProtocol?
+    private var recoveries = 0
+    private static let maxRecoveries = 3
 
     // Under `lock` — read from any thread, and never held across anything.
     private let lock = NSLock()
@@ -214,18 +220,26 @@ final class AudioBridge {
             // Faster, not higher: a recogniser tuned on his voice should still
             // hear his voice while the queue is taken back to live.
             let pitch = AVAudioUnitTimePitch()
-            pitch.rate = 1
-            engine.attach(player)
-            engine.attach(pitch)
-            engine.connect(player, to: pitch, format: play)
-            engine.connect(pitch, to: engine.mainMixerNode, format: play)
+            guard Self.guarded("wiring the engine", {
+                pitch.rate = 1
+                engine.attach(player)
+                engine.attach(pitch)
+                engine.connect(player, to: pitch, format: play)
+                engine.connect(pitch, to: engine.mainMixerNode, format: play)
+            }) else { return false }
             self.playFormat = play
             self.toPlay = format.isEqual(play) ? nil : AVAudioConverter(from: format, to: play)
-            do { try engine.start() } catch {
-                Log.error("audio bridge: the engine would not start — \(error.localizedDescription)")
+            // **Started, and then asked whether it is still running** (2026-09-30):
+            // `play()` raises on an engine a device change stopped in between —
+            // what killed the relay twice in `evals/wispr-catchup/`. One retry,
+            // then `false`, the path *no device* already takes: Wispr hears
+            // nothing and the relay's own recording carries the sentence (Q14).
+            guard Self.startPlaying(engine, player) else {
+                Self.guarded("stopping a bridge that would not start") { engine.stop() }
+                self.playFormat = nil
+                self.toPlay = nil
                 return false
             }
-            player.play()
             self.engine = engine
             self.player = player
             self.pitch = pitch
@@ -239,6 +253,8 @@ final class AudioBridge {
             self.trimmed = 0
             self.rateNow = 1
             self.caughtUpAt = 0
+            self.recoveries = 0
+            self.watchConfiguration(of: engine)
             self.lock.lock()
             self.pending = 0; self.queued = 0; self.held = 0
             self.holding = holding; self.accepting = true
@@ -346,11 +362,17 @@ final class AudioBridge {
             lock.lock(); queued = max(0, queued - seconds); lock.unlock()
             return false
         }
-        player.scheduleBuffer(ready, at: nil, options: [],
-                              completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            guard let self else { return }
-            self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
-            self.queue.async { self.pace() }
+        let scheduled = Self.guarded("scheduling a buffer") {
+            player.scheduleBuffer(ready, at: nil, options: [],
+                                  completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                guard let self else { return }
+                self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
+                self.queue.async { self.pace() }
+            }
+        }
+        guard scheduled else {
+            lock.lock(); queued = max(0, queued - seconds); lock.unlock()
+            return false
         }
         pace()
         return true
@@ -363,7 +385,7 @@ final class AudioBridge {
         let rate = pacer.rate(lag: lag)
         guard rate != rateNow else { return }
         rateNow = rate
-        pitch.rate = rate
+        Self.guarded("setting the catch-up rate") { pitch.rate = rate }
         if rate == 1, caughtUpAt == 0, releasedAt > 0 {
             caughtUpAt = CFAbsoluteTimeGetCurrent()
             Log.info(String(format: "🔀 bridge caught up — Wispr hears him live %.1f s after the release "
@@ -413,11 +435,15 @@ final class AudioBridge {
             holding = false
             pending = 0; queued = 0; held = 0
             lock.unlock()
-            player?.stop()
-            engine?.stop()
-            player = nil
+            unwatchConfiguration()
+            let (player, engine) = (self.player, self.engine)
+            Self.guarded("stopping the bridge") {
+                player?.stop()
+                engine?.stop()
+            }
+            self.player = nil
             pitch = nil
-            engine = nil
+            self.engine = nil
             playFormat = nil
             toPlay = nil
             backlog.removeAll()
@@ -428,5 +454,94 @@ final class AudioBridge {
                 Log.info(String(format: "🔀 audio bridge down (%.2f s of pauses shortened in all)", pacer.dropped))
             }
         }
+    }
+    // MARK: - Never killed by an Objective-C exception (2026-09-30)
+
+    /// Runs `body` through `WTTry`; false, and a log line, when it raised.
+    @discardableResult
+    private static func guarded(_ what: String, _ body: () -> Void) -> Bool {
+        guard let error = WTTry(body) else { return true }
+        Log.error("audio bridge: \(what) raised \((error as NSError).localizedFailureReason ?? "an exception") — "
+                  + "\(error.localizedDescription)")
+        return false
+    }
+
+    /// `engine.start()` then `player.play()`, with one more try of both when the
+    /// engine is not running by the time `play()` is asked for.
+    private static func startPlaying(_ engine: AVAudioEngine, _ player: AVAudioPlayerNode) -> Bool {
+        for attempt in 1...2 {
+            do { try engine.start() } catch {
+                Log.error("audio bridge: the engine would not start (try \(attempt)) — \(error.localizedDescription)")
+                continue
+            }
+            if engine.isRunning, guarded("starting the player (try \(attempt))", { player.play() }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// **A device change stops the engine under the bridge.** macOS posts
+    /// `AVAudioEngineConfigurationChange` and the engine is left stopped: every
+    /// later `play()` raises and every buffer scheduled is silently lost. So it
+    /// is brought back — re-aimed, restarted — up to `maxRecoveries` times a
+    /// take; past that, or with the device gone, the bridge goes down cleanly and
+    /// the take falls back as it does when the bridge never came up.
+    private func watchConfiguration(of engine: AVAudioEngine) {
+        unwatchConfiguration()
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil
+        ) { [weak self, weak engine] _ in
+            guard let self, let engine else { return }
+            self.queue.async { self.recover(engine) }
+        }
+    }
+
+    private func unwatchConfiguration() {
+        if let o = configObserver { NotificationCenter.default.removeObserver(o) }
+        configObserver = nil
+    }
+
+    private func recover(_ changed: AVAudioEngine) {
+        guard isRunning, changed === engine, let engine, let player else { return }
+        // Whatever was scheduled went with the old configuration.
+        lock.lock(); let lost = queued; queued = 0; lock.unlock()
+        recoveries += 1
+        guard recoveries <= Self.maxRecoveries,
+              let device = AudioDevices.output(matching: Self.deviceNeedle) else {
+            die(recoveries > Self.maxRecoveries
+                ? "the output changed \(recoveries) times in one take"
+                : "no output matching '\(Self.deviceNeedle)' after a device change")
+            return
+        }
+        var id = device.id
+        if let unit = engine.outputNode.audioUnit {
+            AudioUnitSetProperty(unit, kAudioOutputUnitProperty_CurrentDevice,
+                                 kAudioUnitScope_Global, 0, &id, UInt32(MemoryLayout<AudioDeviceID>.size))
+        }
+        guard Self.startPlaying(engine, player) else {
+            die("the engine would not come back after a device change")
+            return
+        }
+        rateNow = 0; pace()
+        Log.info(String(format: "🔀 audio bridge back after a device change (%d of %d) — %.2f s in flight lost",
+                        recoveries, Self.maxRecoveries, lost))
+    }
+
+    /// Down for the rest of the take, from the bridge's own queue: counts zeroed
+    /// (the stop chord must not wait for audio nobody will play), nothing raised.
+    private func die(_ why: String) {
+        lock.lock()
+        isRunning = false; holding = false; accepting = false
+        pending = 0; queued = 0; held = 0
+        lock.unlock()
+        unwatchConfiguration()
+        let (player, engine) = (self.player, self.engine)
+        Self.guarded("stopping a failed bridge") { player?.stop(); engine?.stop() }
+        self.player = nil; self.pitch = nil; self.engine = nil
+        playFormat = nil; toPlay = nil
+        backlog.removeAll(); keeping = false
+        Log.error("🔀 audio bridge down mid-take — \(why); Wispr hears nothing more, "
+                  + "the relay's own recording carries the sentence")
     }
 }

@@ -33,16 +33,23 @@ let package = Package(
                 .linkedFramework("CoreFoundation"),
             ]
         ),
+        // `@try` for the Objective-C exceptions `AVAudioEngine` raises at runtime
+        // (2026-09-30): Swift cannot catch one, and one uncaught kills the relay
+        // mid-sentence. `WTTry { … }` answers it as an `NSError`.
+        .target(
+            name: "ObjCTry",
+            path: "Sources/ObjCTry"
+        ),
         .executableTarget(
             name: "WalkieTalkie",
-            dependencies: [.product(name: "VictorMacKit", package: "victor-mac-kit"), "CProjectM"]
+            dependencies: [.product(name: "VictorMacKit", package: "victor-mac-kit"), "CProjectM", "ObjCTry"]
         ),
         // `swift test` — the pure parts only (2026-09-23: the transcription
         // estimate and the rewind's timeline). Everything that needs the running
         // relay is still a `/test/…` route.
         .testTarget(
             name: "WalkieTalkieTests",
-            dependencies: ["WalkieTalkie"]
+            dependencies: ["WalkieTalkie", "ObjCTry"]
         ),
     ]
 )

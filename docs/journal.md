@@ -15020,3 +15020,22 @@ README; not applied tonight. Rig traps the run paid for:
 On the host the same evening, Victor Addons' From Walkie watchdog turned the device off under a
 running Walkie twice (stale `NSRunningApplication` from a background queue). It was fixed in
 victor-macos-addons `2965a09`.
+
+## The bridge may not kill the relay (2026-09-30)
+
+`evals/wispr-catchup/` crashed the guest relay twice (17:09, 17:44): `+[NSException raise:format:]` in
+`AVAudioPlayerNodeImpl::StartImpl`, under `AudioBridge.start` (callers `startMeter`, `feedOwnSentence`).
+Swift cannot catch an Objective-C exception, so a device hiccup at the gesture was a dead app
+mid-sentence. Victor: *"Da. Să fie cât mai robust."*
+
+- **`Sources/ObjCTry`** — `WTTry { … }` answers an `NSException` as an `NSError`. Every engine call in
+  `AudioBridge` goes through it: wiring, `play`, `scheduleBuffer`, the catch-up `rate`, `stop`.
+- **`start`**: `engine.start()`, `isRunning`, `play()`, one retry of both, else `false` — the path *no
+  device* already took, so Wispr hears nothing and Q14 carries the take on the relay's own recording.
+- **A device change mid-take** (`AVAudioEngineConfigurationChange`, the report's likeliest cause: From
+  Walkie opened and closed by takes a second apart) re-aims and restarts the engine, ≤ 3 a take; the
+  audio in flight is lost and logged. Past that, or with the device gone, `die()` zeroes the counts —
+  otherwise the stop chord would sit out its 8 s drain waiting for callbacks that never come.
+- **The exact condition is not known.** The guest's `.ips` kept only `abort() called`, and on this Mac
+  neither a never-started nor a started-then-stopped engine makes `play()` raise. `ObjCTryTests` pins
+  the guard with the one deterministic raise (a player no engine owns). Not yet re-run in the guest.

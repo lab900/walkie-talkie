@@ -560,6 +560,14 @@ name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
   `heldPairChordIsConfigured` reads Wispr's config; without that shortcut the hold borrows the local
   model as Q21 did. **The start chord waits up to 1.5 s for a bare wire and logs it** (`⌨️ fn ⌃ Space
   posted N ms after the ask`); it was 200 ms and silent.
+- **No `AVAudioEngine` call in the bridge may raise into Swift** (2026-09-30, after two guest `SIGABRT`s in
+  `-[AVAudioPlayerNode play]` from `AudioBridge.start`, `evals/wispr-catchup/`): every one goes through
+  `WTTry` (`Sources/ObjCTry`, an `@try` shim — Swift cannot catch an `NSException`). `start` is
+  `engine.start()` + `isRunning` + `play()`, one retry, else `false` (the *no device* path → Q14). An
+  `AVAudioEngineConfigurationChange` mid-take re-aims and restarts it (≤ 3 a take, `🔀 audio bridge back
+  after a device change`); past that, or with From Walkie gone, `die()` takes it down with the counts at
+  zero so the stop chord does not wait for audio nobody will play. `ObjCTryTests` pins the guard. The
+  guest's crash reports kept no exception text, so the exact condition is still a guess.
 - `GET /test/state` → `wisprLive.bridge` {`feed`, `holding`, `held`, `queued`, `pending`}.
 
 ## Diagnostics for a Wispr that will not start (2026-09-29)
