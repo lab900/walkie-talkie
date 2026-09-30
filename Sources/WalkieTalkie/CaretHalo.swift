@@ -682,7 +682,7 @@ final class CaretHalo {
     /// is ever clipped by a window smaller than the screen.
     private func panelFrame() -> NSRect {
         if drawn.preset?.anchored == true, let a = anchor { return a }
-        let mouse = NSEvent.mouseLocation
+        let mouse = aim
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
             ?? NSScreen.main ?? NSScreen.screens[0]
         if drawn.coversScreen { return screen.frame }
@@ -756,7 +756,7 @@ final class CaretHalo {
     /// panel's top-left), written on every `follow` and `show`.
     private func aimEffectAtPointer() {
         guard let web = web, let panel = panel else { return }
-        let p = NSEvent.mouseLocation, f = panel.frame
+        let p = aim, f = panel.frame
         web.center(CGPoint(x: p.x - f.origin.x, y: f.maxY - p.y))
         // The bloom and the collapse scale `stage` about its anchor; on a
         // screen-sized panel that anchor has to be the pointer, or the ring
@@ -1245,6 +1245,7 @@ final class CaretHalo {
         guard on != rewinding else { return rewinding }
         guard on else {
             rewinding = false
+            fadeAim = rewindAim
             rewindEndedAt = CFAbsoluteTimeGetCurrent()
             rewindTake = []
             Log.info("⏪ the rewind ends")
@@ -1282,6 +1283,30 @@ final class CaretHalo {
     }
 
     private(set) var rewinding = false
+
+    /// **The rewind converges on the middle of the window the words go to, not
+    /// on the pointer** (2026-09-30). Victor: *"the reverse tunnel … shouldn't be
+    /// following the mouse but should be placed in the center of the terminal or
+    /// whatever window is receiving the input … (or the bound terminal if I'm
+    /// dictating to a bound terminal)"*. Written by `AppDelegate` at the close —
+    /// nil first, then the window's centre once `TerminalBinding.receivingWindowFrame`
+    /// answers (AppleScript for a Terminal tab, so it can land inside the 0.6 s
+    /// warm-up). Nil — a spawn, a sentence held for a bind, no window found —
+    /// and it stays on the pointer as before.
+    var rewindAim: NSPoint? {
+        didSet {
+            guard rewindAim != oldValue, rewinding, live || closing else { return }
+            follow()
+        }
+    }
+    /// `rewindAim` as it was when the rewind ended, kept until the next ring
+    /// comes up — the settle clears the sentence's aim before the 0.15 s fade is
+    /// over, and the fade must stay where the tunnel converged.
+    private var fadeAim: NSPoint?
+    /// Where the effect is centred: the pointer, or the rewind's window.
+    private var aim: NSPoint {
+        (rewinding ? rewindAim : fadeAim) ?? NSEvent.mouseLocation
+    }
     private var rewindTake: [Float] = []
     private var rewindFrom: CFAbsoluteTime = 0
     private var rewindSpeed: Double = 1
@@ -1435,6 +1460,7 @@ final class CaretHalo {
         // said yet is the same lie a frozen indicator tells. The stage is set
         // to full size or to the pointer's dot, depending on how this one opens.
         small = opening != .whole
+        if !rewinding { fadeAim = nil }
         if drawn.preset?.anchored == true, let a = anchoredFrame() {
             anchor = a
             panel.setFrameOrigin(a.origin)
@@ -2675,7 +2701,7 @@ final class CaretHalo {
         } else if let preset = drawn.preset, let host = Self.engineHost(preset: preset,
                                                               // a trail's panel is the screen; its square is the preset's
                                                               side: drawn.hasTrail ? (max(frame.width, frame.height) * preset.scale).rounded() : frame.width,
-                                                              screen: (NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main)?.frame.size ?? frame.size) {
+                                                              screen: (NSScreen.screens.first { NSMouseInRect(aim, $0.frame, false) } ?? NSScreen.main)?.frame.size ?? frame.size) {
             // **The engine, in its own page** (`MilkDropHalo`) or natively
             // (`ProjectMHalo`, `HaloEngine.current`). The square follows the
             // pointer as a window (`follow`).

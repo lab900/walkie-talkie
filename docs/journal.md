@@ -14977,3 +14977,22 @@ minimizezi cât de mult poți textul"*.
 - **The marker alternative is scheduled**: spoken phrases spliced into the audio Wispr hears, measured
   in the `wt-lab` VM by an unattended session at 20:00 (`evals/wispr-markers/PROMPT.md`, one-shot
   LaunchAgent `ro.victorrentea.wt-wispr-markers`).
+
+## The rewind converges on the receiving window, not the pointer (2026-09-30)
+
+Victor (dictated): *"The reverse tunnel effect, which happens during the dictation, shouldn't be
+following the mouse but should be placed in the center of the terminal or whatever window is
+receiving the input from whoever has the focus (or the bound terminal if I'm dictating to a bound
+terminal) … for free dictation … or prompting in a terminal, bound or prompting at caret"*.
+
+- **Found on the way: bound sentences had no rewind at all.** `ff81fb0` (09-23) widened the
+  `setRewind` call to every destination, but the take was still snapshotted for the caret only, so
+  the log shows `⏪ no rewind — only 0 samples in the take` for each bound sentence.
+  `settleTake = lastTake()` for all.
+- **The aim**: at the close, `aimRewind` resolves the recipient's window off main
+  (`TerminalBinding.receivingWindowFrame`: tty → Terminal window via AppleScript; IDE/keystroke →
+  that app's focused window; caret → the frontmost app's focused window), stores its centre in the
+  sentence's `settleAim` (an `Envelope` field, token-guarded against a later close), and the halo
+  centres the Reverse tunnel's stamp there (`CaretHalo.aim`). The AppleScript lands within the
+  0.6 s warm-up, so the jump from the pointer is not seen. Spawn / held / not found → pointer.
+

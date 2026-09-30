@@ -1211,6 +1211,28 @@ final class TerminalBinding {
                          size: CGSize(width: n[2] - n[0], height: n[3] - n[1]))
     }
 
+    /// **The window a sentence is about to land in, where it is now** (2026-09-30)
+    /// — the bound target's window, or with no target the frontmost app's focused
+    /// one (the caret's). What the rewind converges on (`CaretHalo.rewindAim`).
+    ///
+    /// A Terminal tab or tmux pane by its tty (AppleScript — **off the main
+    /// thread**); an IDE or a keystroke target by its app's focused window, the
+    /// closest to *which panel* anything outside the app can answer.
+    static func receivingWindowFrame(_ target: Target?) -> CGRect? {
+        guard let target else {
+            return NSWorkspace.shared.frontmostApplication.flatMap { focusedWindow(pid: $0.processIdentifier).frame }
+        }
+        switch target.handle {
+        case .terminalApp(let tty), .tmux(_, let tty):
+            return terminalWindowFrame(tty: tty)
+        case .ide:
+            return NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
+                .flatMap { focusedWindow(pid: $0.processIdentifier).frame }
+        case .keystroke(let pid, _):
+            return focusedWindow(pid: pid).frame
+        }
+    }
+
     /// The focused window of an app with no scripting surface — VS Code,
     /// IntelliJ — read through Accessibility, which the relay already holds a
     /// grant for.

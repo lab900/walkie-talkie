@@ -573,6 +573,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// sentence is transcribed (`CaretHalo.setRewind`). Emptied when the
     /// settle ends.
     private var settleTake: [Int16] = []
+    /// **Where that rewind converges** (2026-09-30) — the middle of the window
+    /// the sentence lands in, filled in by `aimRewind` a moment after the close;
+    /// nil keeps it on the pointer.
+    private var settleAim: NSPoint?
     private var settleGiveUp: DispatchWorkItem?
     /// **The longest the ring waits for words that may never come — 8 s, the
     /// safety net behind Wispr's own answer** (2026-09-12, evening).
@@ -3509,7 +3513,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 : (spawnPending || spawnPickInFlight != nil) ? "new session"
                 : latch?.target.map { "terminal:\($0.label)" } ?? "held for a bind"
         }
-        settleTake = latchedAtCaret ? lastTake() : []
+        // **Every destination's take, not only the caret's** (2026-09-30). The
+        // rewind has run for all of them since 2026-09-23 (`syncBorrowedGestures`),
+        // but this kept the caret's alone, so a bound sentence logged `⏪ no
+        // rewind — only 0 samples` and only coasted in its own dress.
+        settleTake = lastTake()
+        aimRewind()
         // **And where he was looking when he stopped talking** — the screen a
         // spawned window opens on (`SpawnTerminal.board(preferring:)`). Latched
         // here with the destination and for the same reason: the window is
@@ -4654,6 +4663,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return (wisprMicSentence ? wisprSource.meter : source.meter).lastTake
     }
 
+    /// **Point the rewind at the window this sentence lands in** (2026-09-30):
+    /// the latched terminal's, or the focused window for a caret sentence. Read
+    /// off the main thread (AppleScript for a Terminal tab); an answer that
+    /// comes back after another sentence has closed is dropped.
+    private func aimRewind() {
+        settleAim = nil
+        let target = latch?.target
+        guard latchedAtCaret || target != nil else { return }
+        rewindAimToken &+= 1
+        let token = rewindAimToken
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let frame = TerminalBinding.receivingWindowFrame(target)
+            DispatchQueue.main.async {
+                guard let self, token == self.rewindAimToken, self.settling else { return }
+                guard let frame else {
+                    Log.info("⏪ the rewind stays on the pointer — no window found for \(target?.address ?? "the caret")")
+                    return
+                }
+                Log.info(String(format: "⏪ the rewind aims at the middle of %@ (%.0f, %.0f)",
+                                target?.address ?? "the focused window", frame.midX, frame.midY))
+                self.settleAim = NSPoint(x: frame.midX, y: frame.midY)
+                self.caretHalo.rewindAim = self.settleAim
+            }
+        }
+    }
+    private var rewindAimToken = 0
+
     private func beginSettling(atCaret: Bool) {
         settling = true
         settlingAtCaret = atCaret
@@ -4731,6 +4767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settling = false
         settlingAtCaret = false
         settleTake = []
+        settleAim = nil
         // The give-up on the clock is the live sentence's (Q12): a parked one's
         // was put down when it was parked.
         if !answeringInBackground {
@@ -6512,6 +6549,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **Every destination since the same evening** (*"sa apara la finalul
         // dictarii indiferent de tipul dictarii: la caret, bound, unbound"*) —
         // only the heads it replaces are the caret's alone.
+        // **Where it converges** (2026-09-30): the window the words land in —
+        // pushed only while settling, so the settle's end (which clears the
+        // sentence's aim) does not pull the fading tunnel back onto the pointer.
+        if settling { caretHalo.rewindAim = settleAim }
         caretHalo.setRewind(settling && !listening && !speculative,
                             take: settleTake, estimate: settleEstimate)
         caretHalo.setDelivering(settling && settlingAtCaret)
@@ -10812,6 +10853,7 @@ extension AppDelegate {
         var settling = false, settlingAtCaret = false
         var settlingFrom: CFAbsoluteTime = 0, settleEstimate: TimeInterval = 0
         var settleTake: [Int16] = []
+        var settleAim: NSPoint?
         var fallingBack = false, fallbackToken = 0
         var fallbackAudio: (wav: URL, duration: TimeInterval)?
         var transcriptDisowned = false
@@ -10853,6 +10895,7 @@ extension AppDelegate {
         var e = Envelope()
         e.settling = settling; e.settlingAtCaret = settlingAtCaret
         e.settlingFrom = settlingFrom; e.settleEstimate = settleEstimate; e.settleTake = settleTake
+        e.settleAim = settleAim
         e.fallingBack = fallingBack; e.fallbackToken = fallbackToken; e.fallbackAudio = fallbackAudio
         e.transcriptDisowned = transcriptDisowned
         e.localRecordingApp = localRecordingApp
@@ -10867,6 +10910,7 @@ extension AppDelegate {
         e.pendingAffect = pendingAffect
         e.pendingFilms = pendingFilms
         settling = false; settlingAtCaret = false; settlingFrom = 0; settleEstimate = 0; settleTake = []
+        settleAim = nil
         fallingBack = false; fallbackAudio = nil   // the token carries on: see `Envelope`
         transcriptDisowned = false
         localRecordingApp = nil
@@ -10908,6 +10952,7 @@ extension AppDelegate {
     fileprivate func putEnvelope(_ e: Envelope) {
         settling = e.settling; settlingAtCaret = e.settlingAtCaret
         settlingFrom = e.settlingFrom; settleEstimate = e.settleEstimate; settleTake = e.settleTake
+        settleAim = e.settleAim
         fallingBack = e.fallingBack; fallbackToken = e.fallbackToken; fallbackAudio = e.fallbackAudio
         transcriptDisowned = e.transcriptDisowned
         localRecordingApp = e.localRecordingApp

@@ -367,6 +367,19 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
   cannot be drawn (web engine picked) or with `WT_HALO_REWIND=0`; the log says `⏪ no rewind — …`.
 - **The switch costs projectM's 1.7 s warm-up**; the outgoing panel stays up meanwhile (`retiring`)
   and is fed the same reversed samples so it does not freeze.
+- **Centred on the receiving window, not on the pointer** (2026-09-30: *"shouldn't be following
+  the mouse but should be placed in the center of the terminal or whatever window is receiving the
+  input … (or the bound terminal if I'm dictating to a bound terminal)"*). At the close
+  `AppDelegate.aimRewind` reads `TerminalBinding.receivingWindowFrame(latch target)` off main — the
+  bound tab's window by tty (AppleScript), an IDE/keystroke target's focused window, or with a caret
+  sentence (prompt at caret, plain dictation) the frontmost app's focused window — into
+  `settleAim` (**in `Envelope`**), pushed to `CaretHalo.rewindAim` while settling. `aim` replaces
+  `NSEvent.mouseLocation` in `panelFrame` / `aimEffectAtPointer` while rewinding, and `fadeAim`
+  keeps it through the fade. No window (a spawn, a held sentence, nothing found) → the pointer, as
+  before. Log `⏪ the rewind aims at the middle of <addr> (x, y)`.
+- **The take is kept for every destination** (2026-09-30): the call ran for all since 09-23, but
+  `settleTake` was still `latchedAtCaret ? lastTake() : []`, so every bound sentence logged `⏪ no
+  rewind — only 0 samples`.
 - Log: `⏪ the rewind: <s> s of his voice, backwards at <k>× (estimate <e> s)` … `⏪ the rewind ends`.
   Measured at the desk 2026-09-23: 4/4 caret dictations (DJI 16 kHz and the built-in 48 kHz mic),
   2.3–2.6 s takes at 1.5–1.6×.
