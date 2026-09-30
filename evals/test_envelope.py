@@ -271,6 +271,42 @@ class EnvelopeShape(unittest.TestCase):
             self.assertIn(stamp, self.line["line"])
 
 
+def _frame_scene(cls, engine=None):
+    """`FrameList`'s sentence: the context frame, two shutter presses, a pick,
+    and words with no timings. `engine` is what `Message.engine` will say —
+    `"Wispr Flow"` for the envelope of a recogniser that has none (2026-09-30)."""
+    state = _get(BASE, "/test/state")
+    if any(state.get(k) for k in ("isRecording", "settling", "speculative")):
+        raise unittest.SkipTest("a real dictation is in flight — not touching it")
+    target = _get(BASE, "/target")
+    cls.previous = target.get("address") if target.get("bound") else None
+    cls.marker = ("uite aici. Screenshot one. si mai jos. Screenshot 2. "
+                  "si elementul picked element one. gata.")
+    _post(BASE, "/bind", {"tty": _nowhere()})
+    _post(BASE, "/test/dictation/start")
+    time.sleep(1)
+    # The app posts the real ⌃⌥⌘F6 chord; this file synthesises nothing.
+    for _ in range(2):
+        _post(BASE, "/test/gesture", {"name": "back-click"})
+        time.sleep(2)
+    _post(BASE, "/pick", {
+        "path": "body > table > th", "tag": "th", "text": "Header1",
+        "url": "https://interact.victorrentea.ro", "title": "Interact"})
+    time.sleep(1)
+    body = {"text": cls.marker}
+    if engine:
+        body["engine"] = engine
+    _post(BASE, "/test/dictation", body)
+    for _ in range(10):
+        time.sleep(1)
+        entry = _last_line()
+        if "Screenshot one" in (entry.get("text") or ""):
+            cls.line = entry["line"]
+            return
+        _post(BASE, "/bind", {"tty": _nowhere()})
+    _never_arrived()
+
+
 @unittest.skipIf(BASE is None, "no relay is listening on 8917-8919")
 class FrameList(unittest.TestCase):
     """The frames clause, after the 2026-09-14 tidy.
@@ -285,33 +321,7 @@ class FrameList(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        state = _get(BASE, "/test/state")
-        if any(state.get(k) for k in ("isRecording", "settling", "speculative")):
-            raise unittest.SkipTest("a real dictation is in flight — not touching it")
-        target = _get(BASE, "/target")
-        cls.previous = target.get("address") if target.get("bound") else None
-        cls.marker = ("uite aici. Screenshot one. si mai jos. Screenshot 2. "
-                      "si elementul picked element one. gata.")
-        _post(BASE, "/bind", {"tty": _nowhere()})
-        _post(BASE, "/test/dictation/start")
-        time.sleep(1)
-        # The app posts the real ⌃⌥⌘F6 chord; this file synthesises nothing.
-        for _ in range(2):
-            _post(BASE, "/test/gesture", {"name": "back-click"})
-            time.sleep(2)
-        _post(BASE, "/pick", {
-            "path": "body > table > th", "tag": "th", "text": "Header1",
-            "url": "https://interact.victorrentea.ro", "title": "Interact"})
-        time.sleep(1)
-        _post(BASE, "/test/dictation", {"text": cls.marker})
-        for _ in range(10):
-            time.sleep(1)
-            entry = _last_line()
-            if "Screenshot one" in (entry.get("text") or ""):
-                cls.line = entry["line"]
-                return
-            _post(BASE, "/bind", {"tty": _nowhere()})
-        _never_arrived()
+        _frame_scene(cls)
 
     @classmethod
     def tearDownClass(cls):
@@ -341,22 +351,27 @@ class FrameList(unittest.TestCase):
         # A line of its own (2026-09-25) — the token is the frame's caption, not
         # the first word of the sentence; no blank line under it since 2026-09-29.
         self.assertRegex(self.line, r"^\[📸0(🖱️@\d+:\d+)? auto\]\n\S")
-        self.assertRegex(self.line, r"\[📸0 = 📁/screenshot-0(-\d+)?-800px\.jpg")
+        # Its file: a row of its own, or the template the plain frames share.
+        self.assertRegex(self.line, r"\[📸[0n] = 📁/screenshot-[0n](-\d+)?-800px\.jpg")
         self.assertNotIn("[and shot", self.line)
         self.assertNotIn("[the screen when I started talking", self.line)
         self.assertNotIn("open only if the words need it:", self.line)
 
-    def test_rows_that_carry_a_clock_are_never_folded(self):
-        """**The other half of `FoldedFrameRows`** (2026-09-20).
+    def test_a_frame_the_words_could_not_carry_says_where_and_when(self):
+        """**Its pointer and its clock, in the footer** (2026-09-30).
 
-        This route has no word timings, so every frame keeps its `at 0:0N` — and
-        that offset is per-frame information no template can carry. The fold must
-        therefore not happen here, and each frame must keep the row that holds
-        its clock.
+        This route has no word timings, so no press is in the words. Until
+        2026-09-30 such a frame kept a full row with `at 0:0N` and lost its
+        pointer, and its clock stopped the fold. Now the files fold into the
+        template and each frame keeps a short row: `[📸1🖱️@1204:388 at 0:04]`
+        (`evals/envelope-wispr/`: 6/6 on every question, both models).
         """
-        self.assertNotIn("[📸n = ", self.line)
-        self.assertRegex(self.line, r"\[📸1 at \d+:\d+ = ")
-        self.assertRegex(self.line, r"\[📸2 at \d+:\d+ = ")
+        # The route resolves `Screenshot one` in the text, so a press may be in
+        # the words; either way it carries its pointer, and no row is the old
+        # pointer-less `[📸1 at 0:04 = …]`.
+        for n in (1, 2):
+            self.assertRegex(self.line, r"\[📸%d🖱️@\d+:\d+( at \d+:\d+)?\]" % n)
+            self.assertNotRegex(self.line, r"\[📸%d at \d+:\d+ = " % n)
 
     def test_what_was_said_twice_is_no_longer_said_at_all(self):
         self.assertNotIn("oldest first", self.line)
@@ -658,11 +673,10 @@ class FoldedFrameRows(unittest.TestCase):
     `artifactsClause` writes one `[📸n = 📁/screenshot-n-800px.jpg …]` where it
     used to write one row per frame.
 
-    The rule has four conditions and this pins the two that can actually regress:
-    it folds when the frames have nothing to tell apart, and it does **not** fold
-    when a row carries a clock. That second half is `FrameList` below — the
-    `/test/dictation` route has no word timings, so every row keeps its `at 0:0N`
-    and the per-frame rows must survive.
+    It folds when the frames have nothing to tell apart. **Since 2026-09-30 a
+    clock no longer stops it**: a frame the words could not carry gets a short
+    row with its pointer and clock under the template — `FrameList` and
+    `WisprFrameList` below, where the route has no word timings.
 
     Word timings are what put the tokens in the sentence, so they are supplied
     here: `clock: true` gives the presses a ruler, and the `words` handed to
@@ -748,6 +762,39 @@ class FoldedFrameRows(unittest.TestCase):
         self.assertRegex(self.line, r"^\[📸0🖱️@\d+:\d+ auto\]")
         # And only there: a frame he pressed for must not claim to be automatic.
         self.assertEqual(self.line.count(" auto]"), 1)
+
+
+@unittest.skipIf(BASE is None, "no relay is listening on 8917-8919")
+class WisprFrameList(unittest.TestCase):
+    """**On Wispr the words come first, every frame after them** (2026-09-30).
+
+    Victor: *"să nu înceapă prompt-ul generat cu imagine zero … Prompt-ul să
+    înceapă direct cu ce am dictat eu și ulterior să fie pozele cu timpii la care
+    au fost făcuți"*. Wispr gives no word timings, so no token can stand in its
+    words — 📸0 included.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        _frame_scene(cls, "Wispr Flow")
+
+    @classmethod
+    def tearDownClass(cls):
+        FrameList.tearDownClass.__func__(cls)
+
+    def test_the_prompt_does_not_start_with_picture_zero(self):
+        self.assertFalse(self.line.startswith("[📸0"), self.line[:80])
+        self.assertIn("uite aici", self.line.split("\n")[0])
+
+    def test_picture_zero_is_in_the_footer_with_pointer_and_clock(self):
+        footer = self.line.split("\n\n", 1)[1]
+        self.assertRegex(footer, r"\n\[📸0🖱️@\d+:\d+ auto at 0:00\]")
+        self.assertIn("[📸n = 📁/screenshot-n-800px.jpg, or -original.jpg at ", footer)
+        self.assertEqual(self.line.count(" auto"), 1)
+        # A press the words did not take is listed the same way (pointer, clock).
+        for n in (1, 2):
+            if "[📸%d🖱️" % n not in self.line.split("\n\n", 1)[0]:
+                self.assertRegex(footer, r"\[📸%d🖱️@\d+:\d+ at \d+:\d+\]" % n)
 
 
 @unittest.skipIf(BASE is None, "no relay is listening on 8917-8919")

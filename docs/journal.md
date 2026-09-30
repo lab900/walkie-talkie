@@ -67,6 +67,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *The ring covers Wispr Flow's dictations too* (2026-09-11) — the ring's half was **silently lost on 09-12** when Wispr became the source, and is restored 2026-09-18 on a different witness (`wisprHearing`, not `WisprWatch`); the section's `atCaret` half is **reversed** — a microphone that is not ours raises the ring and nothing else (*The ring comes back for the dictations he starts himself*)
 - *The folder menu*, *Autosend* — “the app is `.accessory`” — `.regular` with a Dock tile since 2026-09-07 (*The Dock tile is the escape hatch*)
 - *Scope: dictation helper only* — “`canBecomeKey` is false” — the panel becomes key only while the transcript is edited (*⏎ sends it, and clicking the words edits them*)
+- *A row carrying `at 0:08` is never folded* and *📸0 leads the words* (2026-09-20 / 2026-09-25) — superseded 2026-09-30 for frames the words do not carry: pointer + clock as a short row under the template, and on Wispr 📸0 is one of them (*On Wispr the prompt starts with his words*)
 
 ## Contents
 
@@ -14949,3 +14950,30 @@ Fixed the same evening (Victor: *"y"*):
   (`🎙️ Wispr's input is back … a blip`, `WisprState.wisprInputReopened`), the row moving ends it as
   before, the ceiling hands the sentence to the relay's own recording (`holdOwnTake`, the row
   watched to its end at his stop). Unit-tested on the machine; not yet driven live.
+
+## On Wispr the prompt starts with his words, and every picture follows them (2026-09-30)
+
+Victor (dictated, via Wispr): *"textul produs … de Walkie Talkie este … influențat de motorul de
+transcriere folosit. Pe Wispr Flow nu poți să inserezi markeri audio în text … vreau să schimbi …
+să nu înceapă prompt-ul generat cu imagine zero, ci să pui imaginea respectivă și toate celelalte cu
+timestamp asociat la finalul, după textul prompt-ului … rulează și aici niște evaluri … încearcă să
+minimizezi cât de mult poți textul"*.
+
+- **`Message.wordsUntimed`** (engine = `WisprFlowSource.engineLabel`): `leading` returns nothing, and
+  📸0 is a footer row, `[📸0🖱️@x:y auto at 0:00]`. The caret prompt now passes `engine` too.
+- **Every frame whose token is not in the words gets `🖱️` and `at m:ss` in the footer**, and those
+  clocks no longer stop the fold: the template row, then one short caption per frame. Found on the
+  way: a pressed frame's pointer was dropped on this path (only the in-words token carried it).
+- **Measured first** (`evals/envelope-wispr/`, 30 fresh `claude -p`, no tools): the folded shape
+  answered every question 6/6 on both models in 366 chars, against 456 for today's (which scored
+  0/6 on the pointer of a pressed frame, having none).
+- `POST /test/dictation` takes `engine` (`"Wispr Flow"` renders this envelope from a desk);
+  `evals/test_envelope.py` gains `WisprFrameList`; `FrameList`'s *clocked rows are never folded* is
+  reversed.
+- **A desk-test run collided with a live dictation** (11:46–11:47): Victor's right ⌘⌥ sentence
+  started mid-run, a test `back-click` stopped it and its teardown's `/test/cancel` cancelled it; a
+  back-click with nothing dictating posted a bare Return to the front app. `setUpClass` only checks
+  for a dictation at the start. Run these only with Victor away from the desk.
+- **The marker alternative is scheduled**: spoken phrases spliced into the audio Wispr hears, measured
+  in the `wt-lab` VM by an unattended session at 20:00 (`evals/wispr-markers/PROMPT.md`, one-shot
+  LaunchAgent `ro.victorrentea.wt-wispr-markers`).

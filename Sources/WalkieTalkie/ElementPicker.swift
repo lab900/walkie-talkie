@@ -278,7 +278,9 @@ final class ElementPicker {
     /// with them `ShotMarker.place` runs for real and the tokens stand where the
     /// presses fell — which is the only way to see a *complete* envelope from a
     /// desk, microphone or no microphone.
-    var onTestDictation: ((String, [TimedWord]) -> Void)?
+    /// The third argument is `engine` from the body — `"Wispr Flow"` renders the
+    /// envelope of a recogniser with no word timings (2026-09-30).
+    var onTestDictation: ((String, [TimedWord], String?) -> Void)?
     /// …and the same thing for the ⇧-wheel spawn: `POST /test/spawn`.
     /// **A highlight, filed as though he had made it** — `POST /test/selection`
     /// `{"text": …}` (2026-09-13).
@@ -1056,7 +1058,7 @@ final class ElementPicker {
                 return TimedWord(text: text, start: start, end: end,
                                  isSpacing: ($0["type"] as? String) == "spacing")
             }
-            onTestDictation?(text, words)
+            onTestDictation?(text, words, body?["engine"] as? String)
             respond(conn, 200, ["ok": true, "text": text, "words": words.count])
 
         // One mouse gesture, posted as the chord Options+ makes for it — see

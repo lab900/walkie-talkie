@@ -29,16 +29,22 @@ Covers the shutter: what a shot is named, what travels to the agent, the on-scre
   full-resolution file from the templated row is **36/36** across both models, which means
   instantiating `n` *and* applying the `-original` rule to a frame no row mentions. −15% on the
   whole envelope. → journal: *The rows that differed by one digit*
-- **Four conditions, all computed.** Two or more plain frames; the same resolution (`size(path)` is
+- **Three conditions, all computed.** Two or more plain frames; the same resolution (`size(path)` is
   per frame and two displays disagree); a real `-800px` sibling, because `handover(for:)` falls back
-  to the original and the row would otherwise promise a file that is not there; and **no clock on
-  any of them**. An area frame is never folded — it carries corners.
-- **A row carrying `at 0:08` is never folded, and that is the Wispr case.** With no word timings the
-  tokens cannot go in the sentence, so the offset lives in the row — per-frame information no
-  template can hold. If *any* plain frame needs a clock, none of them fold: a templated row beside
-  a `[📸2 at 0:03 = …]` is worse than three plain rows.
+  to the original and the row would otherwise promise a file that is not there; and ~~no clock on
+  any of them~~ (dropped 2026-09-30, below). An area frame is never folded — it carries corners.
+- **On Wispr the words come first and every frame follows them (2026-09-30).** No word timings, so
+  no token can stand in the words — `leading` stands aside and 📸0 goes to the footer as
+  `[📸0🖱️@x:y auto at 0:00]` (`Message.wordsUntimed`, true for `WisprFlowSource.engineLabel`).
+  Victor: *"Prompt-ul să înceapă direct cu ce am dictat eu și ulterior să fie pozele cu timpii"*.
+- **A frame whose token is not in the words gets pointer + clock in the footer, and a clock folds**
+  (2026-09-30, reverses *a row carrying `at 0:08` is never folded*): the template keeps the files,
+  each such frame a short row `[📸1🖱️@1204:388 at 0:04]`; a lone frame keeps its full row with the
+  same caption. The pointer used to be dropped on this path. Measured (`evals/envelope-wispr/`):
+  every question 6/6 on both models, 366 chars against 456. Spoken markers into Wispr's audio are
+  the open alternative (`evals/wispr-markers/`, 2026-09-30 evening).
 - **`auto` on 📸0 is what makes the fold safe** — `ShotMarker.Token.shot(_:mouse:auto:)`, true from
-  `AppDelegate.leading` and nowhere else. *Which frame was automatic* was always inferred, and both
+  `AppDelegate.leading` (and, on Wispr, its footer caption) and nowhere else. *Which frame was automatic* was always inferred, and both
   models said so in every run of both rounds; with the rows folded Sonnet started answering `none`
   (4/6), because every token now carries a 🖱️ and none of them looks different. Five characters,
   back to 78/78. → journal: same

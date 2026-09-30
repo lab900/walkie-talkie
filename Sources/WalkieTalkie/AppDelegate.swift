@@ -1283,6 +1283,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         /// back from there — which is where a question about *which recogniser
         /// heard that sentence* is actually asked, after the fact.
         var engine: String = ""
+        /// **Wispr gives text and no word timings, so no token stands in its
+        /// words** — not even 📸0 in front of them (2026-09-30). Every frame
+        /// then says when, in the footer, after what he said.
+        var wordsUntimed: Bool { engine == WisprFlowSource.engineLabel }
         /// …and what the source said about who had already inserted it.
         var deliveryKind: DictationDelivery = .route
         /// **The terminal these words are for, latched when the microphone
@@ -2486,7 +2490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return ["ok": true, "at": Self.envelopeStamp(offset), "chars": text.count]
         }
-        picker.onTestDictation = { [weak self] text, words in
+        picker.onTestDictation = { [weak self] text, words, engine in
             guard let self = self else { return }
             // `VoiceAffect` as `deliver` runs it, for the envelope a real
             // sentence would get (not for the legacy caret line below).
@@ -2538,7 +2542,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // The last read of the sentence, exactly as `stopLocalRecording`
             // makes it — otherwise the one part of the watcher that only runs at
             // the close is the one part no route can reach.
-            self.finalSelectionRead { self.send(kind: "dictation", text: text, app: "test") }
+            self.finalSelectionRead {
+                // As `deliver` sets it for a real sentence; `send` takes it.
+                if let engine = engine { self.pendingEngine = engine }
+                self.send(kind: "dictation", text: text, app: "test")
+            }
         }
         // The spawn's transcript, entering where a spoken one does — with the
         // destination armed first, exactly as the ⇧-wheel press arms it.
@@ -8003,7 +8011,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                             shotOffsets: fullOffsets,
                             mice: mice, areas: areas, sizes: sizes, sources: sources,
                             shotNumbers: markerNumbers,
-                            app: nil, elements: picks, startedAt: since, affect: affect)
+                            app: nil, elements: picks, startedAt: since,
+                            engine: pendingEngine ?? "", affect: affect)
             return Self.terminalLine(m)
         }
 
@@ -8304,8 +8313,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// measure, he took it by starting to talk, so the honest position is the
     /// first. Empty when there is no context frame (every caret dictation) and
     /// when a cue somehow already put it in the words.
+    ///
+    /// **Not on Wispr** (2026-09-30). Victor: *"să nu înceapă prompt-ul generat
+    /// cu imagine zero … Prompt-ul să înceapă direct cu ce am dictat eu și
+    /// ulterior să fie pozele cu timpii"*. With no word timings nothing else can
+    /// stand in the words, so 📸0 goes where the others are — the footer, `at 0:00`.
     private static func leading(_ m: Message) -> String {
-        guard let screen = m.screen, let n = ScreenCapture.number(of: screen),
+        guard !m.wordsUntimed, let screen = m.screen, let n = ScreenCapture.number(of: screen),
               !m.inlinedShots.contains(n) else { return "" }
         // `auto:` is true here and nowhere else — this *is* the frame he did not
         // press for, and this is the one place that knows it. See `Token.shot`.
@@ -8343,6 +8357,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard !inlined.contains(index), let offset = offset else { return "" }
             return " at \(stamp(offset))"
         }
+        /// **A frame whose token is not in the words says it here, whole: pointer
+        /// and clock** (2026-09-30) — `📸1🖱️@1204:388 at 0:04`. Every frame of a
+        /// Wispr sentence, 📸0 included (`at 0:00`, since `leading` stands aside),
+        /// and a press whose marker was lost. Its pointer used to be dropped on
+        /// this path: the token that carries it only ever went into the words.
+        /// Nil when the token is in the sentence already.
+        func caption(_ i: Int, _ path: String, _ n: Int) -> String? {
+            if path == m.screen {
+                guard m.wordsUntimed else { return nil }
+                return ShotMarker.Token.caption(shot: n, mouse: m.mice[path] ?? nil, auto: true)
+                    + " at \(stamp(0))"
+            }
+            guard !m.inlinedShots.contains(n) else { return nil }
+            let offset = i < m.shotOffsets.count ? m.shotOffsets[i] : nil
+            return ShotMarker.Token.caption(shot: n, mouse: m.mice[path] ?? nil)
+                + (offset.map { " at \(stamp($0))" } ?? "")
+        }
 
         // **The plain frames share one row when they have nothing to say apart**
         // (2026-09-20). Victor, looking at two rows that differed by one digit:
@@ -8359,22 +8390,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         //   where its own digit was a fact.
         // - **the same resolution**, because `size(path)` is per frame and two
         //   displays do not agree about it.
-        // - **no clock on any of them.** `at 0:08` is the Wispr case — no word
-        //   timings, so the offset cannot go in the sentence and the row is the
-        //   only place it exists. That is per-frame information and it is never
-        //   derivable from a number.
+        // - ~~no clock on any of them~~ — **since 2026-09-30 a clock folds too**:
+        //   the template keeps the files and each frame the words could not carry
+        //   gets a short row of its own, `[📸1🖱️@1204:388 at 0:04]`. Measured
+        //   (`evals/envelope-wispr/`, 12 runs a shape): every question 6/6 on
+        //   Sonnet and Opus, in 366 characters against 456 for a full row each.
         // - **a real `-800px` sibling** whose name is the template, since
         //   `handover(for:)` falls back to the original when the small copy is
         //   missing and a row promising `screenshot-n-800px.jpg` would then name
         //   a file that is not there.
         //
         // An area frame is never folded in: it carries corners.
-        let plain: [(n: Int, path: String)] = frames.enumerated().compactMap { i, path in
+        let plain: [(n: Int, path: String)] = frames.compactMap { path in
             guard let n = ScreenCapture.number(of: path),
                   (m.areas[path] ?? nil) == nil else { return nil }
-            let offset = path == m.screen ? nil
-                : (i < m.shotOffsets.count ? m.shotOffsets[i] : nil)
-            guard when(n, offset, m.inlinedShots).isEmpty else { return nil }
             let handed = ScreenCapture.handover(for: path)
             guard (handed as NSString).lastPathComponent
                     == "screenshot-\(n)-\(ScreenCapture.handoverWidth)px.jpg" else { return nil }
@@ -8390,11 +8419,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         for (i, path) in frames.enumerated() {
             guard let n = ScreenCapture.number(of: path) else { continue }
-            // The context frame is picture zero and needs no clock — it is the
-            // moment he started talking. `shotOffsets` is built as
-            // `[screen] + paths`, the same list being walked here.
-            let offset = path == m.screen ? nil
-                : (i < m.shotOffsets.count ? m.shotOffsets[i] : nil)
+            // `shotOffsets` is built as `[screen] + paths`, the same list being
+            // walked here.
+            let said = caption(i, path, n)
             let handed = name(ScreenCapture.handover(for: path))
             if foldable.contains(path) {
                 // Written once, where the first of them would have stood, so the
@@ -8406,6 +8433,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     rows.append("[📸n = 📁/screenshot-n-\(ScreenCapture.handoverWidth)px.jpg, "
                         + "or -original.jpg at \(size(path))]")
                 }
+                if let said = said { rows.append("[\(said)]") }
                 continue
             }
             if let box = m.areas[path] ?? nil, let cut = ScreenCapture.zoom(for: path),
@@ -8425,7 +8453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     + "(\(Int(box.minX)),\(Int(box.minY)))→(\(Int(box.maxX)),\(Int(box.maxY))) "
                     + "at \(name(cut)); full screen available at -800px and -original.jpg at \(size(path))]")
             } else {
-                rows.append("[\(ShotMarker.Token.key(shot: n, area: false))\(when(n, offset, m.inlinedShots)) = "
+                rows.append("[\(said ?? ShotMarker.Token.key(shot: n, area: false)) = "
                     + "\(handed), or -original.jpg at \(size(path))]")
             }
         }

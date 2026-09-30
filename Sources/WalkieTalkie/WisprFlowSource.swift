@@ -66,6 +66,9 @@ import Foundation
 /// **process whose name says Wispr**, inside the window between the microphone
 /// closing and the deadline. Victor's own ⌘V carries pid 0 and can never match.
 final class WisprFlowSource: DictationSource {
+    /// What `Message.engine` says for these words — and what tells the envelope
+    /// they came with no word timings (`Message.wordsUntimed`).
+    static let engineLabel = "Wispr Flow"
 
     let name = "Wispr Flow"
 
@@ -3953,7 +3956,7 @@ final class WisprFlowSource: DictationSource {
                     // the sentence; every other path means *the caret*.
                     focusPid: self.startedMode == .scratchpad ? self.focusPid : nil,
                     markersInAudio: self.markersInAudio,
-                    engineLabel: "Wispr Flow"))
+                    engineLabel: Self.engineLabel))
                 self.didEnd?(.delivered)
             }
         }

@@ -757,9 +757,16 @@ enum ShotMarker {
         /// one taken automatically."* With the marker: 6/6 both models, 78/78
         /// overall, in 155 characters less than the envelope it replaces.
         static func shot(_ index: Int, mouse: CGPoint?, auto: Bool = false) -> String {
+            "[\(caption(shot: index, mouse: mouse, auto: auto))]"
+        }
+
+        /// The token without its brackets, for a footer row that goes on to say
+        /// when (`[📸1🖱️@1204:388 at 0:04]`) — the frame's own words, not a
+        /// second notation for them.
+        static func caption(shot index: Int, mouse: CGPoint?, auto: Bool = false) -> String {
             let tail = auto ? " auto" : ""
-            guard let mouse = mouse else { return "[📸\(index)\(tail)]" }
-            return "[📸\(index)🖱️@\(Int(mouse.x)):\(Int(mouse.y))\(tail)]"
+            guard let mouse = mouse else { return "📸\(index)\(tail)" }
+            return "📸\(index)🖱️@\(Int(mouse.x)):\(Int(mouse.y))\(tail)"
         }
 
         /// `✂️` is *I dragged a box round this*, and the four numbers are its
