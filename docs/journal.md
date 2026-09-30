@@ -15076,3 +15076,15 @@ has the table, what surprised, the recommendation and how to re-run.
     insert the marker to missing the marker"*);
   - after a marker, the bridge speeds up until it is live again (*"every time you insert a bit of a
     clip, you speed up a bit"*).
+
+### The same evening: markers and the catch-up combined, built and measured (2026-09-30, 23:55)
+
+- **Wispr only; ElevenLabs keeps its timestamps.** `ShotMarker.wisprSpoken`, commits `88e7783` and
+  `ed27ea7`.
+- **At his next pause:** a spliced marker waits for 0.3 s of quiet, with no ceiling.
+- **At 1.0×, then catch up:** the marker is played in ~85 ms chunks and levelled to his voice; the
+  pacer then takes the lag back.
+- **All or nothing:** `resolveStrict` reads `asrText`, places every marker or falls back to the
+  footer.
+- **Through the real relay in `wt-lab`:** 15/18 runs placed, 10/10 with Wispr 3 s late, at most
+  1.6 s still queued at his stop. `evals/wispr-markers/README.md` → *The combined feature*.

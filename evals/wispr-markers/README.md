@@ -181,6 +181,60 @@ found / number right / within one word. The clean-clip columns count clips.
    - One refinement: play the marker itself at 1.0× and start the catch-up after it. A marker at
      1.25× is unmeasured.
 
+## The combined feature, built and run the same night (commits `88e7783`, `ed27ea7`)
+
+Victor asked for this after the verdict above: *"combine the 2 features … every time you insert a bit
+of a clip, you speed up a bit. We need to catch up"*, *"I'd prefer waiting the next pause to insert
+the marker to missing the marker"*, and *"only fill the placeholders if and only if all of them come
+in cleanly … keep the fallback"*. Rules: `.claude/rules/dictation-source.md` → *Markers*.
+
+- **The shutter on Wispr:** `WisprFlowSource.mark` queues his recorded clip, levelled to the take's
+  voice.
+- **The splice:** it goes into the bridge's stream once he has been quiet for 0.3 s, with no
+  ceiling; a marker still waiting at the stop goes straight to the bridge.
+- **The bridge (`AudioBridge.noteMarker`):** it plays the marker at 1.0× in ~85 ms chunks, then the
+  pacer takes the lag back like a late start's.
+- **Resolution (`ShotMarker.resolveStrict`):** it reads the numbers from the row's `asrText`. It
+  places all of them into the formatted words, or places none and leaves the footer with clocks;
+  the phrases go either way.
+
+**Measured through the real relay in `wt-lab`:** `suite.py`, `dryrun.py` per run, `combined.jsonl`.
+Ten base clips, 1–4 presses at seeded random moments, played as he would speak.
+
+| arm | runs | placed (every marker inline) | queued at his stop | catch-up after a marker |
+|---|---|---|---|---|
+| first build, mis-cut `screenshot-3` | 20 | 9 | median 0.59 s, **max 9.9 s** (tail lost) | median 2.2 s |
+| fixed build, re-cut `screenshot-3` (guest copy) | 18 (+2 with no bridge) | **15** | median 0.17 s, max 1.6 s | median 3.0 s |
+| the same, Wispr opening its input 3 s late | 10 | **10** | median 1.8 s, max 2.9 s | median 2.7 s |
+
+- **Every fallback in the fixed build is a marker missing from `asrText`**, and the rule held: the
+  footer carried the frames and the phrases were removed. Two of the three were on the same English
+  clip (`10-38-46`).
+- **The two uncounted runs lost the bridge**, not a marker. `audio bridge: could not aim at From
+  Walkie` / `player did not see an IO cycle`: Wispr reported `no_audio` and the local model took
+  the sentence (Q14), as designed.
+- **What the first build got wrong**, fixed in `ed27ea7`:
+  - The marker went in as one buffer, so the queue froze while it played and the stop's stall watch
+    cut the sentence.
+  - 1.0× was held while any marker was queued, 13 s under four markers.
+  - His clips at −33 dB were quieter than the take.
+  - The 0.12 s gate fired between *bug number* and *forty*, and Wispr wrote `screenshot 240`.
+- **One four-marker Romanian run, as delivered:** *"Deci, dacă ai legacy necurățat.
+  [📸1✂️…] Teste de acceptanță nescrise, … pipeline-uri leneșe. [📸2✂️…] Teste flaky.
+  [📸3✂️…] Migrări de cod neterminate, … până arzi tot. [📸4✂️…] Tot la toți colegii"*.
+
+The "within one word of the pause after the press" and "words changed" columns of `suite.py score`
+are printed but not trusted yet. The expected pause is computed on the base clip with a different
+quiet test than the relay's meter, and two Wispr runs of the same clip differ by more than the
+window. Read the envelopes in `combined.jsonl` instead.
+
+Re-run: `TART_HOME=~/tart /usr/local/bin/python3 evals/wispr-markers/suite.py run --arm NAME [--reps N]
+[--late S]`, then `suite.py score`. The guest needs:
+- the new build;
+- `FromWalkie.driver` in `/Library/Audio/Plug-Ins/HAL` (+ `sudo killall coreaudiod`);
+- his clips in `~/.walkie-talkie/markers/`;
+- the relay bound to a tab running `cat >> /tmp/dry-out.txt`.
+
 ## Re-run
 
 ```sh
