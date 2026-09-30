@@ -2,7 +2,11 @@
 """A dry run of the combined feature in the `wt-lab` guest (2026-09-30): markers spliced into the
 bridge at his next pause, the bridge catching up after each, `ShotMarker.resolveStrict` placing them.
 
-    python3 dryrun.py <clip.wav> <press_s>[,<press_s>…]     (guest, via tart exec)
+    python3 dryrun.py <clip.wav> <press_s>[,<press_s>…] [late_s]     (guest, via tart exec)
+
+`late_s`: Wispr opens its input that much after the gesture — the start chord is muted and posted
+late (`/test/wispr-chord`, the catch-up eval's trick), so the bridge starts behind and markers pile
+on top of that lag.
 
 The real app end to end: relay gesture (`forward-right`, direct) → the clip into BlackHole 2ch (the
 relay's "microphone", `/test/mic`) → the bridge into From Walkie (Wispr's) → a shutter press at each
@@ -38,6 +42,7 @@ def api(path, body=None, timeout=15):
 
 def main(argv):
     clip, presses = argv[1], [float(x) for x in argv[2].split(",") if x]
+    late = float(argv[3]) if len(argv) > 3 else 0.0
     st = api("test/state")
     if st.get("listening"):
         api("test/cancel", {})
@@ -49,8 +54,12 @@ def main(argv):
     out_at = os.path.getsize(OUT) if os.path.exists(OUT) else 0
     audio, rate, _ = wl.read_wav(clip)
     idx, _ = wl.resolve_device("BlackHole 2ch")
+    if late:
+        api("test/wispr-chord", {"mute": True, "seconds": late + 60})
     t0 = time.monotonic()
     api("test/gesture", {"name": "forward-right", "direct": True})
+    if late:
+        threading.Timer(late, lambda: api("test/wispr-chord", {"mute": False, "post": "on"})).start()
     time.sleep(0.2)
     pressed = []
 
@@ -77,13 +86,13 @@ def main(argv):
     with open(LOG, "rb") as f:
         f.seek(log_at)
         lines = [l for l in f.read().decode(errors="replace").splitlines()
-                 if any(k in l for k in ("📣", "🔀", "✂️ marker", "markers"))]
+                 if any(k in l for k in ("📣", "🔀", "✂️ marker", "markers", "wispr history"))]
     envelope = ""
     if os.path.exists(OUT):
         with open(OUT, "rb") as f:
             f.seek(out_at)
             envelope = f.read().decode(errors="replace")
-    print(json.dumps({"clip": os.path.basename(clip), "presses": pressed, "stop_at": round(t_stop, 2),
+    print(json.dumps({"clip": os.path.basename(clip), "presses": pressed, "stop_at": round(t_stop, 2), "late": late,
                       "asr": h.asr if h else "", "formatted": h.formatted if h else "",
                       "mic": h.mic if h else "", "envelope": envelope, "log": lines[-30:]},
                      ensure_ascii=False))

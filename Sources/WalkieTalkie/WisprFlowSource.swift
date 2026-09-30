@@ -399,12 +399,14 @@ final class WisprFlowSource: DictationSource {
         waitingMarkers = []
         said += batch.map(\.said)
         markerLock.unlock()
+        let level = Self.voiceLevel(meter.meterHops)
         for (n, m) in batch.enumerated() {
             // Two presses in one breath: a quarter second between them, as the
             // back-to-back pairs were measured (20/20).
             if n > 0, let gap = Self.silence(0.25) { bridge.noteMarker(gap); meter.insert(gap) }
-            bridge.noteMarker(m.pcm)
-            meter.insert(m.pcm)
+            let clip = Self.levelled(m.pcm, to: level)
+            bridge.noteMarker(clip)
+            meter.insert(clip)
             Log.info(String(format: "📣 marker %@ %d spliced into Wispr's stream in his pause, %.0f ms after the press",
                             m.said.kind.rawValue, m.said.index, (CFAbsoluteTimeGetCurrent() - m.pressedAt) * 1000))
         }
@@ -425,10 +427,12 @@ final class WisprFlowSource: DictationSource {
         said += batch.map(\.said)
         markerLock.unlock()
         guard !batch.isEmpty else { return }
+        let level = Self.voiceLevel(meter.meterHops)
         for (n, m) in batch.enumerated() {
             if n > 0, let gap = Self.silence(0.25) { bridge.noteMarker(gap); bridge.schedule(gap) }
-            bridge.noteMarker(m.pcm)
-            bridge.schedule(m.pcm)
+            let clip = Self.levelled(m.pcm, to: level)
+            bridge.noteMarker(clip)
+            bridge.schedule(clip)
             Log.info(String(format: "📣 marker %@ %d never met a pause — handed to Wispr at the stop, %.0f ms after the press",
                             m.said.kind.rawValue, m.said.index, (CFAbsoluteTimeGetCurrent() - m.pressedAt) * 1000))
         }
@@ -441,6 +445,44 @@ final class WisprFlowSource: DictationSource {
     /// *bug number* and *forty*: one marker vanished and Wispr merged the other
     /// into `screenshot 240`. The eval's pauses were ≥ 0.24 s, spliced mid-way.
     private static let markerPause: TimeInterval = 0.3
+
+    /// **His voice's level in this take**: the median RMS of the voiced hops of
+    /// the last ~13 s (`MicRecorder.meterHops`, int16 units). Nil before he has
+    /// said enough to measure.
+    private static func voiceLevel(_ hops: [MeterHop]) -> Float? {
+        let voiced = hops.suffix(200).filter(\.voiced).map(\.rms).sorted()
+        guard voiced.count >= 5 else { return nil }
+        return voiced[voiced.count / 2]
+    }
+
+    /// **The marker at his voice's level** (2026-09-30, the overnight suite).
+    /// His recorded clips sit at ~−33 dB; a take louder than that heard the
+    /// marker as a quiet second voice and two runs lost markers that had been
+    /// spliced. The eval matched each marker to the voice around it (active RMS)
+    /// and so does this: the louder half of its 64 ms hops against `level`,
+    /// clamped to 0.25…8×. A copy — the cached clip is shared.
+    private static func levelled(_ pcm: AVAudioPCMBuffer, to level: Float?) -> AVAudioPCMBuffer {
+        guard let level, level > 0, let src = pcm.int16ChannelData?[0], pcm.frameLength > 0,
+              let out = AVAudioPCMBuffer(pcmFormat: pcm.format, frameCapacity: pcm.frameLength),
+              let dst = out.int16ChannelData?[0] else { return pcm }
+        let n = Int(pcm.frameLength), hop = 1024
+        var rms: [Float] = []
+        var i = 0
+        while i + hop <= n {
+            var sum: Float = 0
+            for k in i..<(i + hop) { let v = Float(src[k]); sum += v * v }
+            rms.append((sum / Float(hop)).squareRoot())
+            i += hop
+        }
+        guard !rms.isEmpty else { return pcm }
+        let loud = rms.sorted().suffix(max(1, rms.count / 2))
+        let active = (loud.map { $0 * $0 }.reduce(0, +) / Float(loud.count)).squareRoot()
+        guard active > 0 else { return pcm }
+        let gain = min(8, max(0.25, level / active))
+        for k in 0..<n { dst[k] = Int16(max(-32767, min(32767, Float(src[k]) * gain))) }
+        out.frameLength = pcm.frameLength
+        return out
+    }
 
     /// Zeros in the recorder's format.
     private static func silence(_ seconds: TimeInterval) -> AVAudioPCMBuffer? {

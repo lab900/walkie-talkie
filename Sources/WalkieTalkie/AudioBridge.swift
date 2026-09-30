@@ -131,10 +131,14 @@ final class AudioBridge {
     /// **Buffers that are a spoken marker, not his voice** (2026-09-30) —
     /// registered by `noteMarker` before the recorder hands them on. Under `lock`.
     private var markerIDs = Set<ObjectIdentifier>()
-    /// Markers scheduled and not yet played back. On `queue`. While one is in
-    /// flight the player runs at 1.0: the marker is heard at the speed it was
-    /// measured at, and the catch-up starts on the voice queued behind it.
-    private var markersPlaying = 0
+    /// **What the player holds, in order, and which of it is a marker** — one
+    /// entry per scheduled chunk, popped at its playback. On `queue`. The head is
+    /// the chunk playing now: while it is a marker the player runs at 1.0 (the
+    /// marker is heard at the speed it was measured at), and the moment it is
+    /// his voice again the pacer takes the lag back — his voice *ahead* of a
+    /// queued marker keeps catching up too (2026-09-30, the overnight suite: a
+    /// whole-queue rule held 1.0 for 13 s under four markers).
+    private var playing: [Bool] = []
     /// When the last marker finished playing with him queued behind it; zero
     /// once the pacer is back at 1.0. On `queue`. For the one log line.
     private var markerCatchUpFrom: CFAbsoluteTime = 0
@@ -263,7 +267,7 @@ final class AudioBridge {
             self.lastVoiced = false
             self.pacer = BridgePacer(tuning: Self.tuning)
             self.backlog.removeAll()
-            self.markersPlaying = 0
+            self.playing = []
             self.keeping = holding
             self.startedAt = CFAbsoluteTimeGetCurrent()
             self.releasedAt = 0
@@ -322,8 +326,38 @@ final class AudioBridge {
         guard accepting, isRunning else { lock.unlock(); return }
         pending += seconds
         let marker = markerIDs.contains(ObjectIdentifier(buffer))
+        if marker { markerIDs.remove(ObjectIdentifier(buffer)) }
         lock.unlock()
-        queue.async { [weak self] in self?.take(buffer, seconds: seconds, marker: marker) }
+        guard marker else {
+            queue.async { [weak self] in self?.take(buffer, seconds: seconds) }
+            return
+        }
+        // **A marker goes in as buffer-sized chunks**, like his voice (~85 ms).
+        // Whole, a 1.6 s clip (4.9 s for the mis-cut `screenshot-3`) left `queued`
+        // frozen until its last sample played, and the stop's stall watch read
+        // that as a dead player and cut the sentence's tail (overnight suite).
+        for chunk in Self.chunks(of: buffer, frames: 1365) {
+            let s = Double(chunk.frameLength) / chunk.format.sampleRate
+            queue.async { [weak self] in self?.take(chunk, seconds: s, marker: true) }
+        }
+    }
+
+    /// `buffer` cut into pieces of at most `frames` (int16 only; anything else whole).
+    private static func chunks(of buffer: AVAudioPCMBuffer, frames: AVAudioFrameCount) -> [AVAudioPCMBuffer] {
+        guard let src = buffer.int16ChannelData, buffer.frameLength > frames else { return [buffer] }
+        var out: [AVAudioPCMBuffer] = []
+        var at: AVAudioFrameCount = 0
+        let channels = Int(buffer.format.channelCount)
+        while at < buffer.frameLength {
+            let n = min(frames, buffer.frameLength - at)
+            guard let piece = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: n),
+                  let dst = piece.int16ChannelData else { return [buffer] }
+            for c in 0..<channels { dst[c].update(from: src[c].advanced(by: Int(at)), count: Int(n)) }
+            piece.frameLength = n
+            out.append(piece)
+            at += n
+        }
+        return out
     }
 
     /// **This buffer is a marker** — call before it is handed to the recorder
@@ -403,14 +437,12 @@ final class AudioBridge {
                 guard let self else { return }
                 self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
                 self.queue.async {
-                    if marker {
-                        self.markersPlaying = max(0, self.markersPlaying - 1)
-                        if self.markersPlaying == 0 {
-                            self.lock.lock(); let behind = self.queued; self.lock.unlock()
-                            Log.info(String(format: "🔀 marker played at 1.0× — %.2f s of him queued behind it, "
-                                            + "catching up", behind))
-                            self.markerCatchUpFrom = CFAbsoluteTimeGetCurrent()
-                        }
+                    let was = self.playing.isEmpty ? false : self.playing.removeFirst()
+                    if was, self.playing.first != true {
+                        self.lock.lock(); let behind = self.queued; self.lock.unlock()
+                        Log.info(String(format: "🔀 marker played at 1.0× — %.2f s queued behind it, catching up",
+                                        behind))
+                        self.markerCatchUpFrom = CFAbsoluteTimeGetCurrent()
                     }
                     self.pace()
                 }
@@ -420,7 +452,7 @@ final class AudioBridge {
             lock.lock(); queued = max(0, queued - seconds); lock.unlock()
             return false
         }
-        if marker { markersPlaying += 1 }
+        playing.append(marker)
         pace()
         return true
     }
@@ -429,15 +461,16 @@ final class AudioBridge {
     private func pace() {
         guard let pitch, isRunning else { return }
         lock.lock(); let lag = queued; lock.unlock()
-        let rate = markersPlaying > 0 ? 1 : pacer.rate(lag: lag)
-        if rate == 1, markersPlaying == 0, markerCatchUpFrom > 0, lag <= pacer.tuning.synced {
+        let markerNow = playing.first == true
+        let rate = markerNow ? 1 : pacer.rate(lag: lag)
+        if rate == 1, !markerNow, markerCatchUpFrom > 0, lag <= pacer.tuning.synced {
             Log.info(String(format: "🔀 caught up after the marker in %.1f s", CFAbsoluteTimeGetCurrent() - markerCatchUpFrom))
             markerCatchUpFrom = 0
         }
         guard rate != rateNow else { return }
         rateNow = rate
         Self.guarded("setting the catch-up rate") { pitch.rate = rate }
-        if rate == 1, markersPlaying == 0, caughtUpAt == 0, releasedAt > 0 {
+        if rate == 1, !markerNow, caughtUpAt == 0, releasedAt > 0 {
             caughtUpAt = CFAbsoluteTimeGetCurrent()
             Log.info(String(format: "🔀 bridge caught up — Wispr hears him live %.1f s after the release "
                             + "(%.2f s of pauses shortened)", caughtUpAt - releasedAt, pacer.dropped))
@@ -498,6 +531,7 @@ final class AudioBridge {
             playFormat = nil
             toPlay = nil
             backlog.removeAll()
+            playing = []
             keeping = false
             if neverHeard > 0 {
                 Log.info(String(format: "🔀 audio bridge down — Wispr never listened: %.2f s held, never played", neverHeard))
@@ -591,7 +625,7 @@ final class AudioBridge {
         Self.guarded("stopping a failed bridge") { player?.stop(); engine?.stop() }
         self.player = nil; self.pitch = nil; self.engine = nil
         playFormat = nil; toPlay = nil
-        backlog.removeAll(); keeping = false
+        backlog.removeAll(); keeping = false; playing = []
         Log.error("🔀 audio bridge down mid-take — \(why); Wispr hears nothing more, "
                   + "the relay's own recording carries the sentence")
     }
