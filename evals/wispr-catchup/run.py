@@ -4,6 +4,7 @@
     TART_HOME=~/tart python3 evals/wispr-catchup/run.py [--plan b,b,l:warm,l:late2,l:late5,p:2,p:5] [--clips a.wav,b.wav]
     python3 evals/wispr-catchup/run.py --score          # one JSON line per run, scored against its baselines
     python3 evals/wispr-catchup/run.py --table          # the README's tables
+    TART_HOME=~/tart python3 evals/wispr-catchup/run.py --plan r:1.0,r:1.0,r:1.25,r:1.5,r:1.75,r:2.0   # Wispr's tolerance
 
 The guest must be up with the rig of README.md (From Walkie installed and on, the relay running with
 Engine = Wispr); `guest.py` and `clips/` copied to ~/wt-lab/evals/wispr-catchup/. Each run is one
@@ -111,12 +112,12 @@ def score(rows):
         by_clip.setdefault(r["clip"], []).append(r)
     out = []
     for clip, rs in by_clip.items():
-        bases = [r for r in rs if r["kind"] == "b" and r.get("asr")]
+        bases = [r for r in rs if (r["kind"] == "b" or (r["kind"] == "r" and float(r["arg"]) == 1.0)) and r.get("asr")]
         if not bases:
             continue
         noise = wer(bases[0]["asr"], bases[1]["asr"]) if len(bases) > 1 else None
         for r in rs:
-            if r["kind"] == "b":
+            if r["kind"] == "b" or (r["kind"] == "r" and float(r["arg"]) == 1.0):
                 continue
             hyp = r.get("asr", "")
             ref = min(bases, key=lambda b: wer(b["asr"], hyp))["asr"]
@@ -135,7 +136,7 @@ def score(rows):
 def table(scored):
     """Markdown: one row per run kind, then one row per clip × kind."""
     import statistics as st
-    kinds = ["l:warm", "l:late2", "l:late5", "p:2", "p:5"]
+    kinds = ["l:warm", "l:late2", "l:late5", "p:2", "p:5"] + ["r:%s" % x for x in ("1.25", "1.5", "1.75", "2.0", "2.5")]
     out = ["| run | n | head kept | tail kept | WER median (max) | Wispr's own noise, median | caught up after release, s (median / max) | not Wispr's words |",
            "|---|---|---|---|---|---|---|---|"]
     for k in kinds:

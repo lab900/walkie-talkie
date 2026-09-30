@@ -538,12 +538,19 @@ name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
   `WisprWatch.sampleIsRunningInput()` turns true (the 25 ms feed watch, `feedWatchTick`).
 - **Back to live, `BridgePacer`** (pure, `BridgePacerTests`): the silence ahead of the first word is
   cut at the release (0.3 s pad kept), pauses are shortened to 0.25 s while lagging, and the player
-  runs at **1.1×** through `AVAudioUnitTimePitch` (`WT_BRIDGE_RATE`) while more than **0.2 s** is
-  queued — live is ~one 85 ms buffer, a faster queue would starve mid-word. Log: `🔀 bridge released
-  (…) N ms after the gesture — held, cut, behind live`, `🔀 bridge caught up … live X s after`.
-- **The relay's stop waits for the queue** (`bridgeDrainSeconds`, ceiling **8 s**, was 3), and **for
-  Wispr's input** when the bridge is still holding (≤ 2.5 s, `stopWaitsForInput`; past it the chord
-  goes and Q14 carries the take).
+  runs faster through `AVAudioUnitTimePitch` while more than **0.2 s** is queued — live is ~one 85 ms
+  buffer, a faster queue would starve mid-word. **1.1× just behind, rising with the lag to `maxRate`
+  at 3 s behind** (2026-09-30; `WT_BRIDGE_RATE`, `WT_BRIDGE_MAX_RATE`). `maxRate` is **the fastest
+  Wispr still transcribes** — Victor: *"accelerarea asta trebuie să aibă un anumit plafon … îmi asum
+  această procesare întârziată"*; 1.1 (ramp off) until `evals/wispr-catchup/` measures it. Flat 1.1×
+  took a median 7.9 s to catch up from 5 s late. Log: `🔀 bridge released (…) N ms after the gesture
+  — held, cut, behind live`, `🔀 bridge caught up … live X s after`.
+- **The relay's stop waits for the whole queue** (`bridgeDrainSeconds`) — **no ceiling since
+  2026-09-30** (was 8 s, 3 before that): what the capped speed could not absorb is his sentence, and
+  he accepts the wait. Only a queue that has not shrunk for **2 s** (`drainStall`, a stuck player)
+  ends it early; the teardown after the recorder waits the same way. And **for Wispr's input** when
+  the bridge is still holding (≤ 2.5 s, `stopWaitsForInput`; past it the chord goes and Q14 carries
+  the take).
 - **His own Wispr sentences get a feed too** (`Feed.own`): Wispr listens to From Walkie, so without
   one it hears silence. Started by right ⌥⇧ (`HotkeyTap.onWisprPushToTalk`, watched never taken), his
   fn ⌃ Space (`gestureSeen`, relay: false), or Wispr's input seen running with no feed (200 ms idle

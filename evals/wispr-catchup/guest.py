@@ -4,6 +4,9 @@
     python3 guest.py b <clip.wav>              baseline: clip straight into From Walkie (Wispr's mic), ptt held
     python3 guest.py p <clip.wav> <lag_s>      pacing alone: what BridgePacer would hand over after <lag_s>,
                                                rendered offline, played as in b
+    python3 guest.py r <clip.wav> <rate>       Wispr's tolerance: the whole clip at <rate> (time-pitch, no pause
+                                               cut) straight into Wispr's mic — no relay needed ($WT_EVAL_WISPR_DEV,
+                                               default BlackHole 2ch, the guest's own Wispr microphone)
     python3 guest.py l <clip.wav> warm|lateN   the real app: relay gesture, clip into BlackHole 2ch (the
                                                relay's mic), the bridge into From Walkie (Wispr's); lateN =
                                                the start chord held back N s, so Wispr listens N s late
@@ -242,6 +245,21 @@ def main(argv):
         tmp, info = pace(path, lag)
         try:
             res = dict(straight(tmp), pace=info, lag=lag)
+        finally:
+            os.unlink(tmp)
+    elif mode == "r":
+        rate = float(argv[3])
+        audio, sr, _ = wl.read_wav(path)
+        fast = atempo(audio, sr, rate) if rate != 1.0 else audio
+        fd, tmp = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        write_wav(tmp, fast, sr)
+        try:
+            idx, name = wl.resolve_device(os.environ.get("WT_EVAL_WISPR_DEV", "BlackHole 2ch"))
+            t0 = time.monotonic()
+            h = wl.dictate(tmp, idx, timeout=ROW_TIMEOUT)
+            res = dict(heard_dict(h), device=name, rate=rate, out_s=round(len(fast) / sr, 2),
+                       wall=round(time.monotonic() - t0, 2))
         finally:
             os.unlink(tmp)
     elif mode == "l":

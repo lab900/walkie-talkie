@@ -50,6 +50,17 @@ final class BridgePacerTests: XCTestCase {
         XCTAssertEqual(p.silentRun, 0)
     }
 
+    func testRateRampsWithTheLagUpToTheCeiling() {
+        var t = BridgePacer.Tuning()
+        t.maxRate = 1.5; t.rampLag = 3
+        let p = BridgePacer(tuning: t)
+        XCTAssertEqual(p.rate(lag: 0.2), 1.0)
+        XCTAssertEqual(p.rate(lag: 0.21), 1.1, accuracy: 0.01, "just behind: the old catch-up rate")
+        XCTAssertEqual(p.rate(lag: 1.6), 1.3, accuracy: 0.001, "half-way up the ramp")
+        XCTAssertEqual(p.rate(lag: 3), 1.5, accuracy: 0.001)
+        XCTAssertEqual(p.rate(lag: 9), 1.5, "never past what Wispr tolerates — the rest drains after the stop")
+    }
+
     func testRateIsFasterOnlyAboveSynced() {
         let p = BridgePacer()
         XCTAssertEqual(p.rate(lag: 1.0), 1.1)

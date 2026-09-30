@@ -87,10 +87,16 @@ final class AudioBridge {
     }
 
     /// `WT_BRIDGE_RATE=1.0` turns the speed-up off; the pauses are still shortened.
+    /// `WT_BRIDGE_MAX_RATE` is the ramp's ceiling (`BridgePacer`, 1.0–2.5).
     private static var tuning: BridgePacer.Tuning {
         var t = BridgePacer.Tuning()
-        if let r = ProcessInfo.processInfo.environment["WT_BRIDGE_RATE"].flatMap(Float.init), r >= 1, r <= 1.5 {
+        let env = ProcessInfo.processInfo.environment
+        if let r = env["WT_BRIDGE_RATE"].flatMap(Float.init), r >= 1, r <= 1.5 {
             t.catchUpRate = r
+            t.maxRate = max(t.maxRate, r)
+        }
+        if let r = env["WT_BRIDGE_MAX_RATE"].flatMap(Float.init), r >= 1, r <= 2.5 {
+            t.maxRate = r
         }
         return t
     }

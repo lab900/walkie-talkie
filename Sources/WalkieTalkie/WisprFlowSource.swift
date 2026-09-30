@@ -379,13 +379,22 @@ final class WisprFlowSource: DictationSource {
     }
 
     /// **How long Wispr still has to listen for audio this app has not handed
-    /// over yet**, capped. The stop chord waits this out, or Wispr ends the
-    /// sentence on a tail still sitting in the player's queue. Zero with the
-    /// bridge down. **8 s since From Walkie** (2026-09-29, was 3): a cold Wispr
-    /// opens its input 5–6 s late, and what is still queued at his stop is the
-    /// end of his sentence.
-    var bridgeDrainSeconds: TimeInterval { min(bridge.queuedSeconds, Self.drainCeiling) }
-    private static let drainCeiling: TimeInterval = 8
+    /// over yet.** The stop chord waits this out, or Wispr ends the sentence on a
+    /// tail still sitting in the player's queue. Zero with the bridge down.
+    ///
+    /// **No ceiling since 2026-09-30** (was 8 s, 3 before From Walkie). The
+    /// catch-up speed is capped at what Wispr can still transcribe
+    /// (`BridgePacer.maxRate`), so a late start leaves seconds of him queued at
+    /// the stop, and every one of them is his sentence — Victor: *"îmi asum
+    /// această procesare întârziată"*. The only thing that ends the wait early is
+    /// a queue that stops moving (`drainStall`): a stuck player must not leave
+    /// the microphone open.
+    var bridgeDrainSeconds: TimeInterval { bridge.queuedSeconds }
+    /// A queue that has not shrunk for this long is a stuck player, not a backlog.
+    private static let drainStall: TimeInterval = 2
+    /// Main-only: the stop's drain wait — the queue last seen and when it last shrank.
+    private var drainSeen: TimeInterval = 0
+    private var drainMovedAt: CFAbsoluteTime = 0
 
     let meter = MicRecorder()
 
@@ -1195,12 +1204,23 @@ final class WisprFlowSource: DictationSource {
             }
         }
         let drain = bridgeDrainSeconds
-        guard drain <= 0.02 else {
-            Log.info(String(format: "🔀 holding the stop for %.0f ms of his voice still in the bridge",
-                            drain * 1000))
-            DispatchQueue.main.asyncAfter(deadline: .now() + drain) { [weak self] in self?.stop() }
-            return
+        if drain > 0.02 {
+            let now = CFAbsoluteTimeGetCurrent()
+            if drainMovedAt == 0 {
+                Log.info(String(format: "🔀 holding the stop for %.0f ms of his voice still in the bridge",
+                                drain * 1000))
+            }
+            if drainMovedAt == 0 || drain < drainSeen - 0.005 { drainSeen = drain; drainMovedAt = now }
+            if now - drainMovedAt < Self.drainStall {
+                // Re-checked every quarter second: at a catch-up rate above 1 the
+                // queue empties faster than its own length in seconds.
+                DispatchQueue.main.asyncAfter(deadline: .now() + min(drain, 0.25)) { [weak self] in self?.stop() }
+                return
+            }
+            Log.error(String(format: "🔀 the bridge's queue has not moved for %.0f s (%.1f s still in it) — "
+                             + "stopping anyway", Self.drainStall, drain))
         }
+        drainMovedAt = 0
         // **Batch 4: Wispr is out of this sentence** (`holdOwnTake`) — no chord:
         // a toggle now would start a Wispr dictation nobody asked for.
         if ownTakeOnly != nil {
@@ -1605,6 +1625,7 @@ final class WisprFlowSource: DictationSource {
             return
         }
         stopHeldSince = 0
+        drainMovedAt = 0
         hotkeys.setWisprRelayOwned(true)
         testPollSays = nil
         // B-risk (TX6b): a row Wispr opens within 1 s of this start is the relay's.
@@ -2364,12 +2385,17 @@ final class WisprFlowSource: DictationSource {
             // bridge down with audio still queued throws away the end of his
             // sentence — the part Wispr has not heard yet. `bridgeDrainSeconds`
             // is what the stop chord waits on for the same reason; this is the
-            // same wait on the way out, bounded so a stuck player cannot hold
-            // the meter's queue.
+            // same wait on the way out, ended by a stuck player rather than a
+            // clock, so it cannot hold the meter's queue for ever.
             if self.bridge.isRunning {
-                let until = Date().addingTimeInterval(Self.drainCeiling)
-                while self.bridge.queuedSeconds > 0.02, Date() < until {
+                // Unbounded like the stop chord's wait, and ended the same way: by
+                // a queue that has not moved for `drainStall`.
+                var seen = self.bridge.queuedSeconds, movedAt = Date()
+                while seen > 0.02, Date().timeIntervalSince(movedAt) < Self.drainStall {
                     Thread.sleep(forTimeInterval: 0.02)
+                    let now = self.bridge.queuedSeconds
+                    if now < seen - 0.005 { movedAt = Date() }
+                    seen = now
                 }
                 self.bridge.stop()
             }
