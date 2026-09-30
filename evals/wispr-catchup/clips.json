@@ -1,0 +1,66 @@
+[
+ {
+  "clip": "12-24-46-local201.wav",
+  "lang": "ro",
+  "duration": 19.25,
+  "onset": 0.0,
+  "engine": "whisper-local",
+  "corpus_text": "Bizul aici de față zice că vrea și link-uri să pasă sară la anumite pagini. Ha, așa, zicem, plus minus două pagini în față-spate, ultima prima și pagina de la jumate între unde sunt, sfârșit și început."
+ },
+ {
+  "clip": "09-26-41-local770.wav",
+  "lang": "ro",
+  "duration": 27.03,
+  "onset": 0.0,
+  "engine": "whisper-local",
+  "corpus_text": "Și, de asemenea, aș vrea să pui lângă mouse, nu microfonul, ci un Walkie Talkie. Exact iconița de sus, dar fără cercul galben în jur, și când chiar dictezi, în loc de bula roșie care clipește, să-i pui iconița cu portocalin în jur, să facă blink ea în locul punctului roșu, în tot tipul de lângă mouse."
+ },
+ {
+  "clip": "15-32-34-11l96.wav",
+  "lang": "ro",
+  "duration": 8.24,
+  "onset": 1.66,
+  "engine": "elevenlabs",
+  "corpus_text": "Dă reply lui Oana cu sumarul mai complet scris să-l dea pe ăsta în schimb"
+ },
+ {
+  "clip": "20-18-05-11l273.wav",
+  "lang": "ro",
+  "duration": 21.82,
+  "onset": 1.54,
+  "engine": "elevenlabs",
+  "corpus_text": "Ăăă, efectul de la carrot are un, ăăă, cerc roșu care nu era până acum în efectul de tunel. Un cerc roșu care delimitează exact ceea ce pleacă spre exterior. Nu era ăla acolo. E un artefact, ceva ce a apărut de curând. Elimină-l"
+ },
+ {
+  "clip": "21-14-53-c0a2ee5f.wav",
+  "lang": "en",
+  "duration": 10.06,
+  "onset": 0.13,
+  "engine": "wispr",
+  "corpus_text": "Also, is it possible to have Google Drive partially mirroring, partially streaming on the same account?"
+ },
+ {
+  "clip": "14-11-49-local492.wav",
+  "lang": "en",
+  "duration": 10.01,
+  "onset": 0.0,
+  "engine": "whisper-local",
+  "corpus_text": "So, I click the button, nothing happens. I look in the graphon and nothing happens. What the heck is going on? Investigate and fix!"
+ },
+ {
+  "clip": "23-02-45-local789.wav",
+  "lang": "en",
+  "duration": 13.65,
+  "onset": 1.98,
+  "engine": "whisper-local",
+  "corpus_text": "Could you get the assumption, the assumptions be attached a confidence level between 1 and 0?"
+ },
+ {
+  "clip": "17-42-24-local987.wav",
+  "lang": "en",
+  "duration": 11.2,
+  "onset": 0.51,
+  "engine": "whisper-local",
+  "corpus_text": "Can you count how many requests for agentic training have I received every month of this year in Gmail using my Gmail CLI automation?"
+ }
+]

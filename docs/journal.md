@@ -14996,3 +14996,27 @@ terminal) … for free dictation … or prompting in a terminal, bound or prompt
   centres the Reverse tunnel's stamp there (`CaretHalo.aim`). The AppleScript lands within the
   0.6 s warm-up, so the jump from the pointer is not seen. Spawn / held / not found → pointer.
 
+
+## 2026-09-30 21:00 — the bridge's late-start catch-up, measured end to end
+
+Victor: *"the final effect should be that the full clip should be transcribed by Wispr Flow. Write
+a bit of an eval on this."* 48 runs in `wt-lab` on 8 of his clips, with Wispr made 0.3 / 2 / 5 s
+late by holding back the relay's start chord (`evals/wispr-catchup/README.md`). **21 of 24**
+late starts gave Wispr's row the whole sentence, within Wispr's own run-to-run noise. The first
+words survived wherever the bridge started. Catch-up is slow: median **7.9 s** from the release at
+5 s late, because 1.1× gains only 0.1 s/s. The pacing alone, rendered offline, costs nothing
+(WER ≤ 0.07). The two damaged 5 s runs came through the live bridge.
+
+**The bridge crashed the relay twice**: `AVAudioPlayerNode.play()` raises an NSException in
+`AudioBridge.start` (callers `startMeter`, `feedOwnSentence`). The recommended guard is in the
+README; not applied tonight. Rig traps the run paid for:
+
+- a 16-channel BlackHole reads as zeros in the relay;
+- two writers on one BlackHole-driver device wipe each other;
+- SIGSTOP on Wispr stalls the guest's audio;
+- the `forward-right` gesture is a toggle;
+- killing the host runner leaves `guest.py` running in the guest.
+
+On the host the same evening, Victor Addons' From Walkie watchdog turned the device off under a
+running Walkie twice (stale `NSRunningApplication` from a background queue). It was fixed in
+victor-macos-addons `2965a09`.

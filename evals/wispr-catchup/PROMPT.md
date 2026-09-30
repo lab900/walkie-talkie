@@ -1,6 +1,6 @@
 # Wispr catch-up — does Wispr write down the whole sentence when it starts listening late?
 
-Brief, started unattended on 2026-09-30 at ~17:10 by hand (Victor: "start now") in tmux
+Brief, started by hand on 2026-09-30 at 19:30 (Victor: "start now") in tmux
 `wt-wispr-catchup`. You are an interactive Claude Code session; nobody is
 watching. Work alone, in the VM, and leave a report.
 
