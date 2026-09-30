@@ -1,7 +1,7 @@
 # Wispr catch-up — does Wispr write down the whole sentence when it starts listening late?
 
-Scheduled brief, started unattended on 2026-09-30 at 19:30 (one-shot LaunchAgent
-`ro.victorrentea.wt-wispr-catchup`). You are an interactive Claude Code session in tmux; nobody is
+Brief, started unattended on 2026-09-30 at ~17:10 by hand (Victor: "start now") in tmux
+`wt-wispr-catchup`. You are an interactive Claude Code session; nobody is
 watching. Work alone, in the VM, and leave a report.
 
 ## Why
