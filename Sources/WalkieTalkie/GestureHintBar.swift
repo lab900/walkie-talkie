@@ -180,9 +180,11 @@ final class GestureHintBar {
         private func drawBox(_ text: String, in r: NSRect) {
             let empty = text.isEmpty
             let path = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 4, yRadius: 4)
-            NSColor.black.withAlphaComponent(empty ? 0.22 : 0.66).setFill()
+            // An unused gesture is a plain gray box (2026-09-30, Victor: *"place
+            // gray boxes on all unused gestures"*) — seen, and plainly not a label.
+            (empty ? NSColor(white: 0.5, alpha: 0.55) : NSColor.black.withAlphaComponent(0.66)).setFill()
             path.fill()
-            NSColor.white.withAlphaComponent(empty ? 0.22 : 0.45).setStroke()
+            NSColor.white.withAlphaComponent(empty ? 0.3 : 0.45).setStroke()
             path.lineWidth = 1
             path.stroke()
             guard !empty else { return }
