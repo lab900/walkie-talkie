@@ -1823,7 +1823,7 @@ final class WisprFlowSource: DictationSource {
     private var wisprSideCloseAt: CFAbsoluteTime = 0
     private var wisprSideCloseRow: Int64?
     private func noteWisprSideClose() {
-        guard relayStarted, !cancelling else { return }
+        guard !cancelling else { return }
         wisprSideCloseAt = CFAbsoluteTimeGetCurrent()
         wisprSideCloseRow = historyRow
     }
@@ -1966,7 +1966,12 @@ final class WisprFlowSource: DictationSource {
         // not** — wave 5's kill closed the take through the grace running out,
         // and a close with no `pollMs` used to tell the machine at once. What
         // "Wispr ended it" does is exactly what this poll did before item 3.
-        if !on, isRecording, relayStarted, !cancelling {
+        // **His own 🔽 → too** (2026-09-30, 17:13:40 and :47): the input blipped
+        // off 1.4 s and 0.4 s in, this poll closed the take at once — no grace,
+        // it was not `relayStarted` — while Wispr recorded on to 3.1 and 7.1 s;
+        // the budget ran out on a sentence still being spoken and he cancelled
+        // both. A plain dictation is delivered by the relay like any other.
+        if !on, isRecording, !cancelling {
             let why = "the 100 ms poll saw the microphone close"
             return closeFromWisprSide(why) { [weak self] in
                 guard let self else { return }
@@ -2052,7 +2057,7 @@ final class WisprFlowSource: DictationSource {
         }
         // Batch 4, item 3: the same question as the poll's — a quit, or Wispr's own end?
         // Batch 5: credential or not; "Wispr ended it" is what the edge did before.
-        if !on, isRecording, relayStarted, !cancelling {
+        if !on, isRecording, !cancelling {
             return closeFromWisprSide("the CoreAudio edge") { [weak self] in
                 guard let self else { return }
                 self.state.notify(false)
@@ -2963,7 +2968,7 @@ final class WisprFlowSource: DictationSource {
         onOwnTake?(why)
         return true
     }
-    /// The Wispr-side close (poll, CoreAudio edge) of a relay sentence waits up
+    /// The Wispr-side close (poll, CoreAudio edge) of any sentence waits up
     /// to `WisprState.quitCloseGrace` for the exit before it is taken as Wispr
     /// ending the dictation: a quit closes the microphone too (item 3, batch 5).
     private var pendingWisprClose: DispatchWorkItem?
@@ -3418,7 +3423,7 @@ final class WisprFlowSource: DictationSource {
     private static let nullRowCloseCeiling: TimeInterval = 4.0
     private var nullRowHoldSaid = false
     private func nullRowHold() -> Bool {
-        guard relayStarted, let row = historyRow, let at = state.wisprCloseAt,
+        guard let row = historyRow, let at = state.wisprCloseAt,
               let e = WisprHistory.entry(rowid: row),
               WisprState.intermediateStatuses.contains(e.status), e.duration == nil else { return false }
         let until = at + Self.nullRowCloseCeiling
