@@ -63,11 +63,27 @@ clearly perfect or clearly dead.
 
 ## Rules
 
-- **VM only.** Never touch the host's Wispr Flow, microphone, mouse, keyboard or the host's Walkie
-  Talkie (no `relay-restart.sh`, no `/test/*` on the host). **The VM may be someone else's**: wait
-  while `~/.walkie-talkie/scheduled/wt-lab.busy` exists **or** `tart list` shows `wt-lab` running
-  (poll every 10 min, up to 2 h), then give up with a note in the report. Tonight the
-  `evals/wispr-catchup/` job may hold it from 19:30 and hands it over by 21:30.
+- **VM first.** The VM is taken while `~/.walkie-talkie/scheduled/wt-lab.busy` exists **or**
+  `tart list` shows `wt-lab` running (re-check every 10 min; use it as soon as it is free).
+  Tonight the `evals/wispr-catchup/` job may hold it from 19:30 and hands it over by 21:30.
+- **If the VM is taken, you may use this Mac itself** (Victor, 2026-09-30 19:57: *"If the VM might
+  be taken by the other session, feel free to use the current hard physical machine itself."*).
+  Then these hold, all of them:
+  - **Only while he is away**: `ioreg -c IOHIDSystem` `HIDIdleTime` ≥ 10 min **and** the host relay's
+    `GET /test/state` → `busy` false. Re-check before **every** clip; the moment either fails, stop,
+    put everything back and wait (at 11:47 today a desk test cancelled his sentence and posted a
+    stray Return — `docs/journal.md`, *On Wispr the prompt starts with his words*).
+  - Wrap the whole host session in `~/bin/hands-off start "<what and why, in words he understands>"`
+    … `hands-off end` (see `~/.claude/CLAUDE.md`); his double-click on the 🔒 is a stop — obey it.
+  - **Wispr may paste nothing into his apps.** Drive sentences through the relay's own routes
+    (`desk-testing.md`) so the firewall swallows Wispr's ⌘V, with the relay bound to a throwaway
+    Terminal tab running `cat > /dev/null` (as `evals/test_envelope.py`'s `_nowhere()` does), and his
+    previous binding restored at the end. Feed audio into **From Walkie** (what Wispr listens to —
+    `../from-walkie`'s `feed-player`), never out of the speakers.
+  - Never restart the host relay or Wispr, never change Wispr's settings or dictionary on the host
+    (the custom-dictionary arm is VM-only), never delete History rows. Keep test runs from teaching
+    the real timing/corpus lines (`desk-testing.md`, `fake`/`test` switches); list the History rowids
+    you created in the report so the corpus harvest can exclude them.
 - That job leaves a **BlackHole 16ch** installed in the guest. Before your first clip, check which
   input Wispr's Auto-detect picked (the row's `micDevice`); if it is not `BlackHole 2ch`, pin Wispr
   back to it — your clips play into BlackHole 2ch. Leave the 16ch driver installed.
