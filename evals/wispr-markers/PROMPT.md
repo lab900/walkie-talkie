@@ -64,9 +64,13 @@ clearly perfect or clearly dead.
 ## Rules
 
 - **VM only.** Never touch the host's Wispr Flow, microphone, mouse, keyboard or the host's Walkie
-  Talkie (no `relay-restart.sh`, no `/test/*` on the host). If `tart list` shows the VM already
-  running because another session is using it, wait (poll every 10 min, up to 2 h), then give up
-  with a note in the report.
+  Talkie (no `relay-restart.sh`, no `/test/*` on the host). **The VM may be someone else's**: wait
+  while `~/.walkie-talkie/scheduled/wt-lab.busy` exists **or** `tart list` shows `wt-lab` running
+  (poll every 10 min, up to 2 h), then give up with a note in the report. Tonight the
+  `evals/wispr-catchup/` job may hold it from 19:30 and hands it over by 21:30.
+- That job leaves a **BlackHole 16ch** installed in the guest. Before your first clip, check which
+  input Wispr's Auto-detect picked (the row's `micDevice`); if it is not `BlackHole 2ch`, pin Wispr
+  back to it — your clips play into BlackHole 2ch. Leave the 16ch driver installed.
 - `wt-lab` is the never-clone VM: no `tart clone`, no reset, no delete. Stop it when you are done.
 - No app source changes tonight — this is research. A recommendation (phrase, regex, splice point,
   level) goes in the report.
