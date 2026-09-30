@@ -69,9 +69,13 @@ clearly perfect or clearly dead.
 - **If the VM is taken, you may use this Mac itself** (Victor, 2026-09-30 19:57: *"If the VM might
   be taken by the other session, feel free to use the current hard physical machine itself."*).
   Then these hold, all of them:
-  - **Only while he is away**: `ioreg -c IOHIDSystem` `HIDIdleTime` ≥ 10 min **and** the host relay's
-    `GET /test/state` → `busy` false. Re-check before **every** clip; the moment either fails, stop,
-    put everything back and wait (at 11:47 today a desk test cancelled his sentence and posted a
+  - **Only while he is away**: the host relay's `GET /test/state` → `busy` false, **and** the gate
+    the teacher batch already uses — `helpers/human_watch.py` / `teacher_label.Gate`, which suspends
+    on his real input and resumes after 5 min idle (never `HIDIdleTime` or
+    `CGEventSourceSecondsSinceLastEventType`: both count the harness's own synthetic keys —
+    `whisper-and-corpus.md`, *The labelling batch suspends itself*). Its rig (`rig.dictate`, the
+    paste sink) is the host path already paid for; reuse it. Re-check before **every** clip; the
+    moment either fails, stop, put everything back and wait (at 11:47 today a desk test cancelled his sentence and posted a
     stray Return — `docs/journal.md`, *On Wispr the prompt starts with his words*).
   - Wrap the whole host session in `~/bin/hands-off start "<what and why, in words he understands>"`
     … `hands-off end` (see `~/.claude/CLAUDE.md`); his double-click on the 🔒 is a stop — obey it.
