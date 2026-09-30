@@ -127,7 +127,17 @@ final class AudioBridge {
     private var voicer = VoicedMeter()
     private var lastVoiced = false
     private var pacer = BridgePacer()
-    private var backlog: [(buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool)] = []
+    private var backlog: [(buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool, marker: Bool)] = []
+    /// **Buffers that are a spoken marker, not his voice** (2026-09-30) —
+    /// registered by `noteMarker` before the recorder hands them on. Under `lock`.
+    private var markerIDs = Set<ObjectIdentifier>()
+    /// Markers scheduled and not yet played back. On `queue`. While one is in
+    /// flight the player runs at 1.0: the marker is heard at the speed it was
+    /// measured at, and the catch-up starts on the voice queued behind it.
+    private var markersPlaying = 0
+    /// When the last marker finished playing with him queued behind it; zero
+    /// once the pacer is back at 1.0. On `queue`. For the one log line.
+    private var markerCatchUpFrom: CFAbsoluteTime = 0
     /// Buffers go to the backlog until `playBacklog` has run — decided here, on
     /// the queue, not by `holding`: a buffer judged between `release()` and the
     /// replay must not overtake the backlog it follows.
@@ -253,6 +263,7 @@ final class AudioBridge {
             self.lastVoiced = false
             self.pacer = BridgePacer(tuning: Self.tuning)
             self.backlog.removeAll()
+            self.markersPlaying = 0
             self.keeping = holding
             self.startedAt = CFAbsoluteTimeGetCurrent()
             self.releasedAt = 0
@@ -310,14 +321,31 @@ final class AudioBridge {
         lock.lock()
         guard accepting, isRunning else { lock.unlock(); return }
         pending += seconds
+        let marker = markerIDs.contains(ObjectIdentifier(buffer))
         lock.unlock()
-        queue.async { [weak self] in self?.take(buffer, seconds: seconds) }
+        queue.async { [weak self] in self?.take(buffer, seconds: seconds, marker: marker) }
+    }
+
+    /// **This buffer is a marker** — call before it is handed to the recorder
+    /// (`MicRecorder.insert`) or to `schedule`.
+    ///
+    /// Victor, 2026-09-30: *"Because the clip gets longer you might need to speed
+    /// up the resulting wav so you catch up with the current real live voice …
+    /// every time you insert a bit of a clip, you speed up a bit."* Nothing new
+    /// does the speeding up: a marker's 1.5–2 s lands in `queued` like any
+    /// buffer, and `BridgePacer` reads queued audio as lag — faster (1.1× up to
+    /// 1.25×), pauses shortened to `keptGap` — until Wispr hears him live again.
+    /// What this adds is that the marker itself is exempt: never dropped as a
+    /// pause, and played at 1.0 (its recognition was measured at 1.0 —
+    /// `evals/wispr-markers/`; at 1.25× it is not).
+    func noteMarker(_ buffer: AVAudioPCMBuffer) {
+        lock.lock(); markerIDs.insert(ObjectIdentifier(buffer)); lock.unlock()
     }
 
     // MARK: - On `queue`
 
-    private func take(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval) {
-        let voiced = judge(buffer)
+    private func take(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval, marker: Bool = false) {
+        let voiced = marker || judge(buffer)
         lock.lock()
         pending = max(0, pending - seconds)
         guard isRunning else { lock.unlock(); return }
@@ -326,13 +354,13 @@ final class AudioBridge {
             // yet run), it is already Wispr's to hear and counts as queued.
             if holding { held += seconds } else { queued += seconds }
             lock.unlock()
-            backlog.append((buffer, seconds, voiced))
+            backlog.append((buffer, seconds, voiced, marker))
             return
         }
         queued += seconds
         let lag = queued - seconds
         lock.unlock()
-        play(buffer, seconds: seconds, voiced: voiced, lag: lag)
+        play(buffer, seconds: seconds, voiced: voiced, lag: lag, marker: marker)
     }
 
     private func playBacklog(_ why: String) {
@@ -346,7 +374,7 @@ final class AudioBridge {
         lock.lock(); queued = max(0, queued - trimmed); lock.unlock()
         var lag: TimeInterval = 0
         for chunk in chunks[first...] {
-            if play(chunk.buffer, seconds: chunk.seconds, voiced: chunk.voiced, lag: lag) {
+            if play(chunk.buffer, seconds: chunk.seconds, voiced: chunk.voiced, lag: lag, marker: chunk.marker) {
                 lag += chunk.seconds
             }
         }
@@ -359,8 +387,9 @@ final class AudioBridge {
     /// seconds are already in `queued` and leave it exactly once, here or at
     /// playback.
     @discardableResult
-    private func play(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool, lag: TimeInterval) -> Bool {
-        guard pacer.admit(seconds: seconds, voiced: voiced, lag: lag),
+    private func play(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval, voiced: Bool, lag: TimeInterval,
+                      marker: Bool = false) -> Bool {
+        guard marker || pacer.admit(seconds: seconds, voiced: voiced, lag: lag),
               let player, let ready = toPlayFormat(buffer) else {
             // Never leave the count standing for a buffer nobody will play:
             // `queuedSeconds` gates the stop chord, and a stop that never
@@ -373,13 +402,25 @@ final class AudioBridge {
                                   completionCallbackType: .dataPlayedBack) { [weak self] _ in
                 guard let self else { return }
                 self.lock.lock(); self.queued = max(0, self.queued - seconds); self.lock.unlock()
-                self.queue.async { self.pace() }
+                self.queue.async {
+                    if marker {
+                        self.markersPlaying = max(0, self.markersPlaying - 1)
+                        if self.markersPlaying == 0 {
+                            self.lock.lock(); let behind = self.queued; self.lock.unlock()
+                            Log.info(String(format: "🔀 marker played at 1.0× — %.2f s of him queued behind it, "
+                                            + "catching up", behind))
+                            self.markerCatchUpFrom = CFAbsoluteTimeGetCurrent()
+                        }
+                    }
+                    self.pace()
+                }
             }
         }
         guard scheduled else {
             lock.lock(); queued = max(0, queued - seconds); lock.unlock()
             return false
         }
+        if marker { markersPlaying += 1 }
         pace()
         return true
     }
@@ -388,11 +429,15 @@ final class AudioBridge {
     private func pace() {
         guard let pitch, isRunning else { return }
         lock.lock(); let lag = queued; lock.unlock()
-        let rate = pacer.rate(lag: lag)
+        let rate = markersPlaying > 0 ? 1 : pacer.rate(lag: lag)
+        if rate == 1, markersPlaying == 0, markerCatchUpFrom > 0, lag <= pacer.tuning.synced {
+            Log.info(String(format: "🔀 caught up after the marker in %.1f s", CFAbsoluteTimeGetCurrent() - markerCatchUpFrom))
+            markerCatchUpFrom = 0
+        }
         guard rate != rateNow else { return }
         rateNow = rate
         Self.guarded("setting the catch-up rate") { pitch.rate = rate }
-        if rate == 1, caughtUpAt == 0, releasedAt > 0 {
+        if rate == 1, markersPlaying == 0, caughtUpAt == 0, releasedAt > 0 {
             caughtUpAt = CFAbsoluteTimeGetCurrent()
             Log.info(String(format: "🔀 bridge caught up — Wispr hears him live %.1f s after the release "
                             + "(%.2f s of pauses shortened)", caughtUpAt - releasedAt, pacer.dropped))

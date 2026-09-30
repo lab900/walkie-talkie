@@ -444,10 +444,26 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
 - **Cues without `words[]` place nothing and never fall back on `resolve`** — every match would be his
   own words rewritten. The corpus copy is his words untouched (`resolvingMarkers(inline: false)`).
 - **`evals/test_marker_place.py`** — ten seam cases via `POST /test/shot-marker`; safe mid-workshop.
-- **Spoken markers — RETIRED 2026-09-18** (`WT_SHOT_MARKERS=1` revives): a clip played into
+- **Spoken markers — RETIRED 2026-09-18 for every engine** (`WT_SHOT_MARKERS=1` revives; back on Wispr, below): a clip played into
   `🎓 TO Wispr` said `screenshot one`; Scribe heard `Pict element one` and the phrase stayed in the
   sentence. Fails per engine/language/accent. Mechanism notes (gap gate `quietSeconds ≥ 0.12 s`,
   1.5 s ceiling; masking is not a level problem) are in the journal.
+- **Spoken markers are back on Wispr only (2026-09-30, `ShotMarker.wisprSpoken`, `WT_WISPR_MARKERS=0`
+  off)**, measured in `evals/wispr-markers/`. His recorded `screenshot N` came back in `asrText` 37/40
+  in place; `say` got 11/20, because Wispr's recogniser drops a second speaker.
+  - `WisprFlowSource.mark` queues the clip and splices it into the bridge's stream at his **next
+    pause** (`markerPause` 0.3 s of `quietSeconds`, no ceiling); a marker still waiting at the stop
+    goes straight to the bridge.
+  - `AudioBridge.noteMarker`: the marker is never dropped as a pause and plays at 1.0; the pacer
+    then catches up on the voice queued behind it (`🔀 caught up after the marker in N s`).
+  - `ShotMarker.resolveStrict` reads the numbers from the row's `asrText` (`DictationResult.asr`,
+    `said`). It places every marker, aligned into the formatted words, or places none (the footer
+    with clocks), and strips the phrases either way.
+  - With nothing said, nothing in a Wispr transcript is rewritten.
+  - The dry run is `evals/wispr-markers/dryrun.py`.
+- **Four of his recorded clips are mis-cut** (`screenshot-3`, `selected-text-6`, `selected-text-8`,
+  `picked-element-6` also carry the next marker's words). The strict check falls back on the
+  phantom number.
 - **No live captions:** Scribe realtime gives timings only on committed text from a smaller model.
 
 ## Voice affect: what the transcript loses (2026-09-27, `VoiceAffect`)

@@ -3255,7 +3255,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // is two facts that only change when the source does, so they are
         // published here, under the lock the shutter already takes.
         stateLock.lock()
-        markMarker = source.acceptsAudioMarkers
+        // **Spoken only where it was measured to work** (2026-09-30): on Wispr
+        // Flow by default (`ShotMarker.wisprSpoken`, `evals/wispr-markers/`), on
+        // every engine only under the old `WT_SHOT_MARKERS=1`. ElevenLabs and the
+        // local model place pictures by the clock and must hear nothing.
+        let speaks = source.acceptsAudioMarkers
+            && (ShotMarker.isEnabled || (ShotMarker.wisprSpoken && source is WisprFlowSource))
+        markMarker = speaks
             ? { [weak source] kind, index in source?.mark(kind, index: index) } : nil
         markerClock = { [weak source] moment in source?.audioOffset(of: moment) }
         stateLock.unlock()
@@ -3592,7 +3598,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `deliver`, so a rewrite living only there would be the one thing no test
     /// could reach.
     private func resolvingMarkers(_ text: String, words: [TimedWord]? = nil,
-                                  inline: Bool = true) -> String {
+                                  inline: Bool = true,
+                                  said: [ShotMarker.Said] = [], asr: String? = nil) -> String {
         stateLock.lock()
         // **The tokens, built here because here is where the facts are** — the
         // pointer, the dragged rectangle and the number the file is named by.
@@ -3671,7 +3678,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // for, arriving by the back door. The frames keep the rows under the
         // sentence, which is the fallback that has always been there.
         let resolved: (text: String, shots: [Int], selections: [Int], elements: [Int])
-        if cues.isEmpty {
+        if cues.isEmpty, !said.isEmpty {
+            // **Spoken into Wispr's stream: every marker back, or none**
+            // (2026-09-30, `ShotMarker.resolveStrict`). The corpus copy only loses
+            // the phrases — the relay's words, not his.
+            if !inline {
+                let kinds = Set(said.map(\.kind))
+                let ours = ShotMarker.found(in: text).filter { kinds.contains($0.kind) && $0.index <= ShotMarker.maximumIndex }
+                return ShotMarker.stripping(ours, from: text)
+            }
+            let strict = ShotMarker.resolveStrict(text: text, asr: asr, said: said, shots: marked,
+                                                  selections: selections, elements: elements)
+            Log.info("📣 markers \(strict.clean ? "placed" : "NOT placed — the footer carries them"): "
+                     + "\(strict.why) (said \(said.map { "\($0.kind.rawValue) \($0.index)" }.joined(separator: ", ")); "
+                     + "read from \(asr?.isEmpty == false ? "asrText" : "the delivered words"))")
+            resolved = (strict.text, strict.shots, strict.selections, strict.elements)
+        } else if cues.isEmpty, !ShotMarker.isEnabled {
+            // **Nothing was said into this audio, so nothing in it is ours to
+            // rewrite** (2026-09-30). `resolve` over a transcript no marker was
+            // spliced into can only ever match words he really said — *attach
+            // screenshot two* becoming a reference.
+            if !inline { return text }
+            resolved = (text, [], [], [])
+        } else if cues.isEmpty {
             resolved = ShotMarker.resolve(text: text, shots: marked, selections: selections,
                                           elements: elements, inline: inline)
         } else if let words = words, !words.isEmpty {
@@ -3774,7 +3803,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // No marker rewrite for it either: that is what splices a highlight
         // into the middle of the words.
-        result.text = clean ? spokenText : resolvingMarkers(result.text, words: result.words)
+        result.text = clean ? spokenText : resolvingMarkers(result.text, words: result.words,
+                                                            said: result.said, asr: result.asr)
         // **The corpus gets neither the marker nor the paragraph.** Wispr's
         // recording heard the marker and the relay's did not; *neither* of them
         // heard the text he had highlighted, which this app has just written
@@ -3782,7 +3812,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the one with the selection markers taken out and nothing put in their
         // place — the words as he actually said them.
         let corpusText = result.markersInAudio
-            ? spokenText : resolvingMarkers(spokenText, words: originalWords, inline: false)
+            ? spokenText : resolvingMarkers(spokenText, words: originalWords, inline: false, said: result.said)
         // 🔼 ↓ — after the corpus copy is taken, because he never said it.
         // Never on a plain sentence: it is a word for an agent.
         if clean { kamikaze = false }
@@ -9131,7 +9161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // where the gesture is: `markerClock` answers for a moment in the recent
         // past, but the recording it is asking about has to still be open.
         let at = ShotMarker.usesTimestamps ? (markerClock?(moment) ?? nil) : nil
-        let audible = ShotMarker.isEnabled && markMarker != nil
+        let audible = markMarker != nil
         guard audible || at != nil else { return nil }
         let number = (markersSpoken[kind] ?? 0) + 1
         markersSpoken[kind] = number
@@ -9148,7 +9178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     private func cueLocked(_ kind: ShotMarker.Kind, index: Int, at moment: Date) -> Bool {
         let at = ShotMarker.usesTimestamps ? (markerClock?(moment) ?? nil) : nil
-        let audible = ShotMarker.isEnabled && markMarker != nil
+        let audible = markMarker != nil
         guard index <= ShotMarker.maximumIndex else { return false }
         guard let at = at else { return audible }
         markerCues.append(ShotMarker.Cue(kind: kind, index: index, at: at))
@@ -9170,7 +9200,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **The retired half.** A number is now reserved for the timestamp path
         // too, and that path must not put a sound anywhere near his sentence —
         // its whole claim is that the audio is untouched. → `ShotMarker.isEnabled`
-        guard ShotMarker.isEnabled else { return }
         stateLock.lock()
         let mark = markMarker
         stateLock.unlock()

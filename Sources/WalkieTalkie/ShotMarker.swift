@@ -172,6 +172,27 @@ enum ShotMarker {
         ProcessInfo.processInfo.environment["WT_SHOT_MARKERS"] == "1"
     }
 
+    /// **ON for Wispr Flow since 2026-09-30 — and only for Wispr.**
+    /// `WT_WISPR_MARKERS=0` turns it off.
+    ///
+    /// Wispr gives text and no word timings, so the timestamp path cannot place
+    /// anything on it, and every picture went to the footer with a clock. Measured
+    /// that evening in `evals/wispr-markers/` (~230 Wispr calls on ten of his
+    /// dictations): **his own recorded `screenshot N`, spliced into a pause, came
+    /// back in the row's `asrText` 37/40 with the right number within one word**
+    /// (20/20 back to back); the `say` voice 11/20. So on this engine the marker
+    /// is spliced into the bridge's stream, read back from `asrText` and placed by
+    /// `resolveStrict` — all or nothing, with the footer as the fallback.
+    ///
+    /// Not `isEnabled`: that one is every engine at once and switches the
+    /// timestamp path off, which is ElevenLabs' and must stay on.
+    static var wisprSpoken: Bool {
+        ProcessInfo.processInfo.environment["WT_WISPR_MARKERS"] != "0"
+    }
+
+    /// Clips are needed by either switch.
+    private static var anySpoken: Bool { isEnabled || wisprSpoken }
+
     /// Serial, and everything below happens on it: `AVAudioEngine` setup is not
     /// thread-safe, the cached buffers are shared mutable state, and two shutter
     /// presses a third of a second apart must not race each other into the same
@@ -197,7 +218,7 @@ enum ShotMarker {
     /// supposed to sit between. Called from `prepare()`, off the main thread,
     /// and the files survive restarts so this is a one-time cost on a fresh Mac.
     static func prepare() {
-        guard isEnabled else { return }
+        guard anySpoken else { return }
         queue.async {
             try? FileManager.default.createDirectory(at: cacheDir, withIntermediateDirectories: true)
             for kind in Kind.allCases {
@@ -421,7 +442,7 @@ enum ShotMarker {
     /// building an `AVAudioConverter` under one is the kind of work that turns a
     /// gesture into a stutter. Nil until `prepare()` has loaded the clips.
     static func pcm(_ kind: Kind = .shot, index: Int, in format: AVAudioFormat) -> AVAudioPCMBuffer? {
-        guard isEnabled, index >= 1, index <= maximumIndex else { return nil }
+        guard anySpoken, index >= 1, index <= maximumIndex else { return nil }
         let clip = Clip(kind: kind, index: index)
         return queue.sync {
             if convertedTo?.sampleRate != format.sampleRate
@@ -692,6 +713,219 @@ enum ShotMarker {
         // The ends are his text's, so trimming them is a seam like any other.
         return (out.trimmingCharacters(in: .whitespacesAndNewlines),
                 foundShots, foundSelections, foundElements)
+    }
+
+    // MARK: - All or nothing, read from what the recogniser heard (Wispr, 2026-09-30)
+
+    /// **One marker the source spliced into the stream**, in splice order — what
+    /// `resolveStrict` holds the transcript to.
+    struct Said: Equatable, Hashable {
+        let kind: Kind
+        let index: Int
+    }
+
+    /// A marker phrase found in a text: what it names and where it stands.
+    struct Found {
+        let kind: Kind
+        let index: Int
+        let range: Range<String.Index>
+    }
+
+    /// **Every marker phrase in `text`, in order**, read by the same pattern and
+    /// the same number rules as `resolve` — one vocabulary.
+    static func found(in text: String) -> [Found] {
+        guard let pattern = pattern, !text.isEmpty else { return [] }
+        let full = NSRange(text.startIndex..., in: text)
+        var out: [Found] = []
+        for match in pattern.matches(in: text, range: full) {
+            guard let range = Range(match.range, in: text),
+                  let word = Range(match.range(at: 4), in: text) else { continue }
+            let kind: Kind
+            if match.range(at: 1).location != NSNotFound { kind = .shot }
+            else if match.range(at: 2).location != NSNotFound { kind = .selection }
+            else { kind = .element }
+            let token = text[word].lowercased()
+            let punctuated = match.range(at: 5).length > 0
+                || match.range.location + match.range.length >= full.length
+            guard let index = spoken[token] ?? Int(token) ?? (punctuated ? homophones[token] : nil)
+            else { continue }
+            out.append(Found(kind: kind, index: index, range: range))
+        }
+        return out
+    }
+
+    /// **Put the spliced markers where the recogniser heard them — every one of
+    /// them, or none** (2026-09-30).
+    ///
+    /// Victor: *"only fill the placeholders if and only if all of them come in
+    /// cleanly … keep the fallback as well in case a marker is ever lost"*. So:
+    ///
+    /// 1. **The check is on `asr`** — Wispr's `asrText`, the recogniser's words
+    ///    before its formatter. Measured (`evals/wispr-markers/`): his markers are
+    ///    there 37/40 in place; the formatter deletes some, moves one to the end
+    ///    of the sentence and rewrites others into his grammar (*"as in screenshot
+    ///    5"*). Per kind, the numbers heard must be exactly the numbers said, in
+    ///    the order said, each once. A phantom (a mis-cut clip says the next
+    ///    number too), a loss, a swap: the whole sentence falls back.
+    /// 2. **The position is carried into `text`** (what is delivered — Wispr's
+    ///    formatted words) by aligning the two word streams with the markers taken
+    ///    out of both; a marker goes in front of the formatted word its asr
+    ///    neighbour aligned to. `evals/wispr-markers/run.py` `asr_anchor` is the
+    ///    reference: 37/40 within one word, against 33/40 read off the formatted
+    ///    text alone.
+    /// 3. **Fallback = nothing inline**: the frames keep their footer rows with the
+    ///    clock, exactly as before this existed. Either way the marker phrases
+    ///    are taken out of the words — they are the relay's, not his (the
+    ///    2026-09-18 retirement was a marker left standing in his prompt).
+    ///
+    /// Only phrases of a kind that was said in this sentence are ever removed —
+    /// his *screenshot three* is only touched in a sentence a shot marker was
+    /// spliced into.
+    static func resolveStrict(text: String, asr: String?, said: [Said],
+                              shots: [Int: String] = [:],
+                              selections: [Int: String] = [:],
+                              elements: [Int: String] = [:])
+        -> (text: String, shots: [Int], selections: [Int], elements: [Int], clean: Bool, why: String) {
+        guard !said.isEmpty, !text.isEmpty else { return (text, [], [], [], true, "no marker said") }
+        let saidSet = Set(said)
+        let saidKinds = Set(said.map(\.kind))
+        let heard = (asr?.isEmpty == false) ? asr! : text
+        let inHeard = found(in: heard).filter { saidKinds.contains($0.kind) }
+        let inText = found(in: text).filter { saidSet.contains(Said(kind: $0.kind, index: $0.index)) }
+
+        for kind in Kind.allCases where saidKinds.contains(kind) {
+            let want = said.filter { $0.kind == kind }.map(\.index)
+            let have = inHeard.filter { $0.kind == kind }.map(\.index)
+            guard want == have else {
+                // Every phrase of a kind that was said goes, whatever its number: a
+                // phantom (`screenshot-3.wav` also says *screenshot four*) is ours.
+                // Numbers past `maximumIndex` are never a marker — Wispr merged a
+                // `screenshot two` into his *forty* as `screenshot 240`.
+                let ours = found(in: text).filter { saidKinds.contains($0.kind) && $0.index <= maximumIndex }
+                return (stripping(ours, from: text), [], [], [], false,
+                        "\(kind.rawValue): said \(want), heard \(have)")
+            }
+        }
+
+        // Where each marker stood in what was heard: the number of heard words in
+        // front of it, the markers' own words not counted.
+        let heardWords = words(heard, without: inHeard)
+        let textWords = words(text, without: inText)
+        let pairs = align(heardWords.map(\.norm), textWords.map(\.norm))
+        var inserts: [(at: String.Index, found: Found)] = []
+        for marker in inHeard {
+            let before = heardWords.prefix { $0.range.lowerBound < marker.range.lowerBound }.count
+            // The first heard word at or after the marker that has a partner in
+            // the formatted text; the marker goes in front of that partner.
+            let j = pairs.first(where: { $0.key >= before }).map { $0.value } ?? textWords.count
+            inserts.append((j < textWords.count ? textWords[j].range.lowerBound : text.endIndex, marker))
+        }
+
+        var pieces: [(text: String, verbatim: Bool)] = []
+        var foundShots: [Int] = [], foundSelections: [Int] = [], foundElements: [Int] = []
+        var cursor = text.startIndex
+        var residue = inText.map { wrapped($0.range, in: text) }
+        var queue = inserts
+        func emit(upTo end: String.Index) {
+            // his words from `cursor` to `end`, the residue cut out of them
+            while cursor < end {
+                if let r = residue.first, r.lowerBound < end {
+                    if r.lowerBound > cursor { pieces.append((String(text[cursor..<r.lowerBound]), false)) }
+                    pieces.append((" ", false))
+                    cursor = max(cursor, min(r.upperBound, text.endIndex))
+                    residue.removeFirst()
+                } else {
+                    pieces.append((String(text[cursor..<end]), false))
+                    cursor = end
+                }
+            }
+        }
+        while !queue.isEmpty {
+            let next = queue.removeFirst()
+            emit(upTo: max(cursor, next.at))
+            let m = next.found
+            guard let rendered = render(m.kind, m.index, shots: shots,
+                                        selections: selections, elements: elements) else { continue }
+            switch m.kind {
+            case .shot: foundShots.append(m.index)
+            case .selection: foundSelections.append(m.index)
+            case .element: foundElements.append(m.index)
+            }
+            pieces.append((" " + rendered + " ", true))
+        }
+        emit(upTo: text.endIndex)
+        let out = pieces.map { $0.verbatim ? $0.text : tidy($0.text) }.joined()
+        return (tidySeams(out), foundShots, foundSelections, foundElements, true,
+                "every marker back, once, in order")
+    }
+
+    /// `text` with the given marker phrases taken out — the fallback's words.
+    static func stripping(_ markers: [Found], from text: String) -> String {
+        var out = text
+        for m in markers.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) {
+            out.replaceSubrange(wrapped(m.range, in: text), with: " ")
+        }
+        return tidySeams(tidy(out))
+    }
+
+    /// **The marker with whatever the formatter wrapped round it** — `(screenshot
+    /// 6)`, `*Screenshot one.*`, `**Screenshot one**`, `„Screenshot one.”`, the
+    /// shapes measured in `evals/wispr-markers/`. Only a pair that closes right
+    /// round this marker; his own `foo()` elsewhere is never touched.
+    static func wrapped(_ range: Range<String.Index>, in text: String) -> Range<String.Index> {
+        let pairs: [Character: Character] = ["(": ")", "[": "]", "„": "”", "“": "”", "\"": "\"", "*": "*", "_": "_"]
+        var lo = range.lowerBound, hi = range.upperBound
+        while lo > text.startIndex, hi < text.endIndex {
+            let open = text[text.index(before: lo)], close = text[hi]
+            guard let want = pairs[open], want == close else { break }
+            lo = text.index(before: lo)
+            hi = text.index(after: hi)
+        }
+        return lo..<hi
+    }
+
+    /// Doubled spaces and a space before punctuation, across the joins `tidy`
+    /// never saw (it runs per piece), and the ends trimmed.
+    private static func tidySeams(_ text: String) -> String {
+        var out = text.replacingOccurrences(of: "[ \t]{2,}", with: " ", options: .regularExpression)
+        out = out.replacingOccurrences(of: " +([.,!?;:])(?=\\s|$)", with: "$1", options: .regularExpression)
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Word tokens of `text` outside the given ranges, each with a comparable
+    /// form: case and diacritics folded (Wispr writes `ăsta`, its asr `asta`).
+    private static func words(_ text: String, without skip: [Found])
+        -> [(norm: String, range: Range<String.Index>)] {
+        guard let regex = try? NSRegularExpression(pattern: "[\\p{L}\\p{N}]+") else { return [] }
+        var out: [(norm: String, range: Range<String.Index>)] = []
+        for m in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+            guard let r = Range(m.range, in: text) else { continue }
+            if skip.contains(where: { $0.range.overlaps(r) }) { continue }
+            let norm = text[r].folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            out.append((norm, r))
+        }
+        return out
+    }
+
+    /// Longest common subsequence of two word lists: matched index pairs a → b,
+    /// in order. Quadratic, on a sentence — a few hundred words each way.
+    static func align(_ a: [String], _ b: [String]) -> [(key: Int, value: Int)] {
+        let n = a.count, m = b.count
+        guard n > 0, m > 0 else { return [] }
+        var dp = [[Int32]](repeating: [Int32](repeating: 0, count: m + 1), count: n + 1)
+        for i in stride(from: n - 1, through: 0, by: -1) {
+            for j in stride(from: m - 1, through: 0, by: -1) {
+                dp[i][j] = a[i] == b[j] ? dp[i + 1][j + 1] + 1 : max(dp[i + 1][j], dp[i][j + 1])
+            }
+        }
+        var pairs: [(key: Int, value: Int)] = []
+        var i = 0, j = 0
+        while i < n, j < m {
+            if a[i] == b[j] { pairs.append((i, j)); i += 1; j += 1 }
+            else if dp[i + 1][j] >= dp[i][j + 1] { i += 1 }
+            else { j += 1 }
+        }
+        return pairs
     }
 
     /// **What a marker turns into in the sentence, or nil when nothing is behind

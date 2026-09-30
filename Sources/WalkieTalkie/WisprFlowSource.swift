@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Foundation
 
 /// **Wispr Flow, driven and read as if it were this app's own microphone.**
@@ -362,20 +363,101 @@ final class WisprFlowSource: DictationSource {
     /// the ceiling. → `AudioBridge`, `ShotMarker.maskCeiling`
     func mark(_ kind: ShotMarker.Kind, index: Int) {
         if bridge.isRunning, let pcm = ShotMarker.pcm(kind, index: index, in: MicRecorder.fileFormat) {
-            meter.insert(pcm)
-            // One sequence, two destinations (`MicRecorder.onBuffer`): the same
-            // buffer reaches Wispr's ear *and* the WAV this app is filing. So
-            // this pair is now one whose audio contains the marker, and the
-            // corpus must keep the words that name it rather than the cleaned
-            // ones. Without this the bridged path files exactly the poisoned
-            // pair `markersInAudio` was invented to prevent.
-            markersInAudio = true
+            // **Into his next pause, never over a word** (2026-09-30). Spliced at
+            // the next buffer, as this used to be, a marker lands mid-phrase:
+            // measured in `evals/wispr-markers/`, that is where Wispr drops them
+            // (16/20 mid-phrase against 19/20 in a pause, formatted) and where the
+            // splice cuts his word in two (`trei- Screenshot eight. Sute de mii`).
+            let said = ShotMarker.Said(kind: kind, index: index)
+            markerLock.lock()
+            waitingMarkers.append((said, pcm, CFAbsoluteTimeGetCurrent()))
+            markerLock.unlock()
+            meterQueue.async { [weak self] in self?.spliceWhenQuiet() }
             return
         }
         ShotMarker.play(kind, index: index,
                         whenQuiet: { [weak self] in
                             (self?.meter.quietSeconds ?? 0) >= ShotMarker.gapNeeded
                         })
+    }
+
+    /// **Splice every waiting marker once he pauses** — polled on `meterQueue`
+    /// every `markerGapTick` while one waits. The pause is the recorder's own
+    /// `quietSeconds` (his voice only: a spliced marker is never metered), and
+    /// `markerPause` of it.
+    private func spliceWhenQuiet() {
+        markerLock.lock()
+        let waiting = !waitingMarkers.isEmpty
+        markerLock.unlock()
+        guard waiting, meter.isRecording else { return }   // closed: the stop took them
+        guard meter.quietSeconds >= Self.markerPause else {
+            meterQueue.asyncAfter(deadline: .now() + Self.markerGapTick) { [weak self] in self?.spliceWhenQuiet() }
+            return
+        }
+        markerLock.lock()
+        let batch = waitingMarkers
+        waitingMarkers = []
+        said += batch.map(\.said)
+        markerLock.unlock()
+        for (n, m) in batch.enumerated() {
+            // Two presses in one breath: a quarter second between them, as the
+            // back-to-back pairs were measured (20/20).
+            if n > 0, let gap = Self.silence(0.25) { bridge.noteMarker(gap); meter.insert(gap) }
+            bridge.noteMarker(m.pcm)
+            meter.insert(m.pcm)
+            Log.info(String(format: "📣 marker %@ %d spliced into Wispr's stream in his pause, %.0f ms after the press",
+                            m.said.kind.rawValue, m.said.index, (CFAbsoluteTimeGetCurrent() - m.pressedAt) * 1000))
+        }
+        // One sequence, two destinations (`MicRecorder.onBuffer`): the same
+        // buffer reaches Wispr's ear *and* the WAV this app is filing, so the
+        // corpus keeps the words that name it.
+        markersInAudio = true
+    }
+
+    /// **The stop's share: whatever is still waiting goes to Wispr now**, behind
+    /// the last of him, straight into the bridge (the recorder is about to be
+    /// cut off from it). Called just before `closeInput`. Not in the WAV — the
+    /// corpus gets the cleaned words for a take like that (`markersInAudio`).
+    private func flushWaitingMarkers() {
+        markerLock.lock()
+        let batch = waitingMarkers
+        waitingMarkers = []
+        said += batch.map(\.said)
+        markerLock.unlock()
+        guard !batch.isEmpty else { return }
+        for (n, m) in batch.enumerated() {
+            if n > 0, let gap = Self.silence(0.25) { bridge.noteMarker(gap); bridge.schedule(gap) }
+            bridge.noteMarker(m.pcm)
+            bridge.schedule(m.pcm)
+            Log.info(String(format: "📣 marker %@ %d never met a pause — handed to Wispr at the stop, %.0f ms after the press",
+                            m.said.kind.rawValue, m.said.index, (CFAbsoluteTimeGetCurrent() - m.pressedAt) * 1000))
+        }
+    }
+
+    private static let markerGapTick: TimeInterval = 0.04
+    /// **A pause, not the breath between two words** — 0.3 s of quiet
+    /// (2026-09-30, the first dry run in `wt-lab`). At `ShotMarker.gapNeeded`
+    /// (0.12 s, sized for the played path's onset) the splice fired between
+    /// *bug number* and *forty*: one marker vanished and Wispr merged the other
+    /// into `screenshot 240`. The eval's pauses were ≥ 0.24 s, spliced mid-way.
+    private static let markerPause: TimeInterval = 0.3
+
+    /// Zeros in the recorder's format.
+    private static func silence(_ seconds: TimeInterval) -> AVAudioPCMBuffer? {
+        let format = MicRecorder.fileFormat
+        let frames = AVAudioFrameCount(seconds * format.sampleRate)
+        guard let b = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames) else { return nil }
+        b.frameLength = frames
+        if let d = b.int16ChannelData {
+            for c in 0..<Int(format.channelCount) { d[c].update(repeating: 0, count: Int(frames)) }
+        }
+        return b
+    }
+
+    /// What this take really carried, for the result.
+    private var saidThisTake: [ShotMarker.Said] {
+        markerLock.lock(); defer { markerLock.unlock() }
+        return said
     }
 
     /// **How long Wispr still has to listen for audio this app has not handed
@@ -407,6 +489,18 @@ final class WisprFlowSource: DictationSource {
     /// the bridged path, where `mark` splices rather than plays. Reset with the
     /// meter, because it describes one recording.
     private var markersInAudio = false
+
+    /// **Markers pressed and not yet spliced** — waiting for his next pause
+    /// (2026-09-30). Victor: *"I'd prefer waiting the next pause to insert the
+    /// marker to missing the marker."* No ceiling while the take is open; the
+    /// stop hands whatever is still waiting straight to the bridge. Under
+    /// `markerLock`, with `said` — read from the main thread at the stop and at
+    /// delivery, written on `meterQueue`.
+    private var waitingMarkers: [(said: ShotMarker.Said, pcm: AVAudioPCMBuffer, pressedAt: CFAbsoluteTime)] = []
+    /// What this take's stream really carried, in splice order — the list
+    /// `ShotMarker.resolveStrict` holds the transcript to. Reset with the meter.
+    private var said: [ShotMarker.Said] = []
+    private let markerLock = NSLock()
 
     private let watch = WisprWatch()
     private let hotkeys: HotkeyTap
@@ -1181,6 +1275,7 @@ final class WisprFlowSource: DictationSource {
         // recording, Force Quit the only way out. `closeInput` holds a lock
         // that is only ever taken for an addition. The recorder's own detach
         // still happens in `stopMeter`, on `meterQueue`, where it belongs.
+        flushWaitingMarkers()
         bridge.closeInput()
         // **Wispr has not opened its input yet** (From Walkie, 2026-09-29): the
         // whole sentence is still held here, and a chord now would stop a Wispr
@@ -2341,6 +2436,7 @@ final class WisprFlowSource: DictationSource {
             // often worth carrying. **Held** until Wispr's input runs — From
             // Walkie drops what nobody reads (2026-09-29).
             self.markersInAudio = false
+            self.markerLock.lock(); self.waitingMarkers = []; self.said = []; self.markerLock.unlock()
             if AudioBridge.isEnabled, self.bridge.start(format: MicRecorder.fileFormat, holding: true) {
                 self.meter.onBuffer = { [weak self] buffer in self?.bridge.schedule(buffer) }
                 self.setFeed(.relay)
@@ -3941,6 +4037,14 @@ final class WisprFlowSource: DictationSource {
         // them ever not being is a sentence Victor spoke into another app
         // arriving in an agent's terminal.
         guard intercepting else { return }
+        // **The markers this take carried, and what the recogniser heard**
+        // (2026-09-30): the row's `asrText` is where `ShotMarker.resolveStrict`
+        // reads their numbers and places them — Wispr's formatter moves and
+        // deletes them, its recogniser does not. Read before `endCapture`
+        // forgets the row.
+        let saidNow = saidThisTake
+        let asrNow: String? = saidNow.isEmpty ? nil
+            : historyRow.flatMap { WisprHistory.entry(rowid: $0)?.asrText }
         // The string as it stood when the pasteboard first moved, when that is
         // what this delivery is about — see `clipboardMoved`.
         let fromBoard = clipboardMoved ?? Self.pasteboardString()
@@ -3987,7 +4091,9 @@ final class WisprFlowSource: DictationSource {
                     // the sentence; every other path means *the caret*.
                     focusPid: self.startedMode == .scratchpad ? self.focusPid : nil,
                     markersInAudio: self.markersInAudio,
-                    engineLabel: Self.engineLabel))
+                    engineLabel: Self.engineLabel,
+                    said: saidNow,
+                    asr: asrNow))
                 self.didEnd?(.delivered)
             }
         }

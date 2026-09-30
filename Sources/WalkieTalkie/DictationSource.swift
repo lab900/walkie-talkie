@@ -336,6 +336,18 @@ struct DictationResult {
     /// `VoiceAffect` beside `words` — the voiced seconds for the rate and the
     /// level spread for *tense*. Nil for a source that records nothing itself.
     var voiceHops: [MeterHop]? = nil
+
+    /// **The markers the source spliced into what the recogniser heard**, in
+    /// splice order (2026-09-30, Wispr) — what `ShotMarker.resolveStrict` holds
+    /// the transcript to. Empty for every source that splices nothing.
+    var said: [ShotMarker.Said] = []
+
+    /// **The recogniser's words before any formatting pass** — Wispr's `asrText`,
+    /// read from the same History row as the delivered words. Where a spoken
+    /// marker's number and position are read (`evals/wispr-markers/`: the
+    /// formatter moves and deletes them, the recogniser does not). Nil when the
+    /// source has no such column or no marker was said.
+    var asr: String? = nil
 }
 
 /// **Who inserts the text.**
