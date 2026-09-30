@@ -29,6 +29,10 @@ final class GestureHintBar {
         var kamikaze = false
         /// The sentence already opens a new session — 🔼 ↑ has nothing left to do.
         var spawn = false
+        /// Right ⌘⌥ is held for it: his hand is on the keyboard, not the mouse,
+        /// so there is nothing to show (2026-09-30, Victor: *"no need to display
+        /// those shortcuts while cmd-opt pressed down dictation"*).
+        var held = false
     }
 
     /// One button's gestures. `nil` = no box is drawn, `""` = an empty box.
@@ -43,7 +47,7 @@ final class GestureHintBar {
     /// The two crosses for a stage — 🔼 first, 🔽 second. Pure, so the wording
     /// can be checked without a screen.
     static func crosses(for s: Stage) -> [Cross] {
-        guard s.listening else { return [] }
+        guard s.listening, !s.held else { return [] }
         var front = Cross(right: nil)
         var back = Cross()
         front.left = "🗑️ cancel"
@@ -74,7 +78,7 @@ final class GestureHintBar {
     private static let margin: CGFloat = 16
 
     func update(_ stage: Stage) {
-        let visible = stage.listening && AboutWindow.logiGesturesOn
+        let visible = stage.listening && !stage.held && AboutWindow.logiGesturesOn
         guard stage != shown || (panel != nil) != visible else { return }
         shown = stage
         guard visible else { hide(); return }

@@ -1820,7 +1820,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         // page is being photographed: that app is a camera, not a dictation.
         if ProcessInfo.processInfo.environment["RELAY_SHOOT"] == nil {
             hintBar.update(.init(listening: listening, prompting: prompting, filming: filming,
-                                 kamikaze: kamikaze, spawn: spawnMarked))
+                                 kamikaze: kamikaze, spawn: spawnMarked, held: heldPair))
         }
         // A held spawn dialog is the last frame of a state that has already been
         // cleared. Any relayout means newer state has arrived, and newer state
@@ -4201,6 +4201,15 @@ private let frontLabel = NSTextField(labelWithString: "")
 
     /// The sentence in flight is kamikaze — see `kamikazeRow`.
     private(set) var kamikaze = false
+
+    /// Right ⌘⌥ is held for the sentence — the corner gesture bar stays down.
+    private(set) var heldPair = false
+
+    func setHeldPair(_ on: Bool) {
+        guard heldPair != on else { return }
+        heldPair = on
+        layoutContent()
+    }
 
     func setKamikaze(_ on: Bool) {
         guard kamikaze != on else { return }

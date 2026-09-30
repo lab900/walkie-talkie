@@ -33,6 +33,10 @@ final class GestureHintBarTests: XCTestCase {
         ])
     }
 
+    func testNothingWhileRightCmdOptIsHeld() {
+        XCTAssertEqual(GestureHintBar.crosses(for: .init(listening: true, prompting: false, held: true)), [])
+    }
+
     /// `HINT_BAR_PNG=<dir> swift test --filter GestureHintBarTests` draws each
     /// stage over a dark and a light desktop, to look at.
     func testRenderForReview() throws {

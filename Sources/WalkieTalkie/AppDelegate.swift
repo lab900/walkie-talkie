@@ -4749,7 +4749,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// When the held right ⌘⌥ opened the clean sentence it owns — 0 when it
     /// owns none (2026-09-25, `HotkeyTap.onCleanHold`).
-    private var cleanHoldAt: CFAbsoluteTime = 0
+    private var cleanHoldAt: CFAbsoluteTime = 0 {
+        didSet { overlay.setHeldPair(cleanHoldAt > 0) }
+    }
     /// A hold shorter than this is a brushed modifier, not a sentence: thrown
     /// away rather than uploaded.
     private static let cleanHoldFloor: CFAbsoluteTime = 0.35
