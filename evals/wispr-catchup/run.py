@@ -21,7 +21,7 @@ import time
 import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-RESULTS = os.path.join(HERE, "results.jsonl")
+RESULTS = os.environ.get("WT_EVAL_RESULTS") or os.path.join(HERE, "results.jsonl")
 GUEST = "/Users/admin/wt-lab/evals/wispr-catchup"
 PLAN = "b,b,l:warm,l:late2,l:late5,p:2,p:5"
 

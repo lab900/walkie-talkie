@@ -15039,3 +15039,16 @@ mid-sentence. Victor: *"Da. Să fie cât mai robust."*
 - **The exact condition is not known.** The guest's `.ips` kept only `abort() called`, and on this Mac
   neither a never-started nor a started-then-stopped engine makes `play()` raise. `ObjCTryTests` pins
   the guard with the one deterministic raise (a player no engine owns). Not yet re-run in the guest.
+
+## 2026-09-30 22:10 — the bridge's catch-up ceiling: 1.25×, and the stop drains everything
+
+Victor: a start 5 s late and a stop 1 s after Wispr starts listening leaves ~6 s of him to hand over,
+which no speed-up makes into one second. So the speed needs *"un anumit plafon, peste care probabil
+Wispr să nu mai poată înțelege … îmi asum această procesare întârziată"*. We measured it on the host
+(the VM was busy; "Mac now, full"). 12 of his clips were played whole at 1.15–2.0× into Wispr; 4 of
+them were his fastest Romanian, since *"I tend to speak faster in RO"*. At **1.25×** 11 of 12 stay
+within Wispr's own noise. At 1.35× his fast Romanian breaks (0.06 → 0.51 WER).
+
+`BridgePacer` now ramps 1.1× → 1.25× between 0.2 and 3 s behind. The stop's drain has **no ceiling**
+(was 8 s, and the teardown after the recorder cut what was queued past it); only a queue that has
+not moved for 2 s ends it. Tables: `evals/wispr-catchup/README.md`, *Wispr's ceiling*.

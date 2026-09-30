@@ -114,7 +114,69 @@ Scoring (`run.py`):
    Wispr heard silence and reported `no_audio`. The local model stood in (Q14), so the words
    were not lost, but they were not Wispr's.
 
-## Crashes: fix first
+## Wispr's ceiling: how fast it can be fed (2026-09-30, evening)
+
+Victor: *"accelerarea asta trebuie să aibă un anumit plafon, peste care probabil Wispr să nu mai
+poată înțelege … îmi asum această procesare întârziată"*. And: *"I tend to speak faster in RO"*.
+
+**Method.** Each clip was played **whole** at the given rate: time-pitch (`ffmpeg atempo`), no
+pauses cut, the worst case for the pacer. It went straight into From Walkie with Wispr's
+push-to-talk held (`guest.py r`, `host-rates.sh`). The comparison is against two plays of the same
+clip at 1.0×.
+
+This ran **on the host Mac** under hands-off, at Victor's call ("Mac now, full"), because the VM was
+busy with `wispr-markers`. Walkie's bridge was switched off for the run, and its test sink window
+caught the pastes.
+
+The clips:
+- the 8 of the late-start runs;
+- plus his **4 fastest Romanian clips** in the corpus: 7.3–9.0 words per voiced second, against a
+  3.6 median.
+
+The rows are in `rates.jsonl`.
+
+| rate | clips | WER median | WER max | within Wispr's noise + 5 pts | tail kept |
+|---|---|---|---|---|---|
+| 1.15× | 4 | 0.07 | 0.16 | 3/4 | 3/4 |
+| 1.25× | 12 | 0.00 | 0.43 | 11/12 | 11/12 |
+| 1.35× | 4 | 0.24 | 0.51 | 1/4 | 3/4 |
+| 1.5× | 12 | 0.06 | 0.77 | 6/12 | 9/12 |
+| 1.75× | 8 | 0.05 | 0.20 | 5/8 | 7/8 |
+| 2.0× | 8 | 0.09 | 0.44 | 2/8 | 6/8 |
+
+| clip | lang | Wispr's noise | 1.15× | 1.25× | 1.35× | 1.5× | 1.75× | 2.0× |
+|---|---|---|---|---|---|---|---|---|
+| 05-54-12-29822bad | ro fast | 0.0 | 0.09 | 0.00 | 0.09 | 0.09 | – | – |
+| 08-41-20-wispr497 | ro fast | 0.0 | 0.00 | 0.00 | 0.03 | 0.03 | – | – |
+| 09-26-41-local770 | ro | 0.034 | – | 0.02 | – | 0.09 | 0.20 | 0.27 |
+| 11-09-42-wispr781 | ro fast | 0.25 | 0.16 | 0.43 | 0.38 | 0.77 | – | – |
+| 12-24-46-local201 | ro | 0.0 | – | 0.05 | – | 0.05 | 0.07 | 0.12 |
+| 14-11-49-local492 | en | 0.0 | – | 0.00 | – | 0.00 | 0.05 | 0.10 |
+| 15-32-34-11l96 | ro | 0.0 | – | 0.00 | – | 0.00 | 0.00 | 0.06 |
+| 17-42-24-local987 | en | 0.0 | – | 0.00 | – | 0.00 | 0.00 | 0.04 |
+| 18-27-37-6c1db762 | ro fast | 0.059 | 0.04 | 0.06 | 0.51 | 0.22 | – | – |
+| 20-18-05-11l273 | ro | 0.024 | – | 0.00 | – | 0.00 | 0.05 | 0.05 |
+| 21-14-53-c0a2ee5f | en | 0.0 | – | 0.00 | – | 0.06 | 0.06 | 0.44 |
+| 23-02-45-local789 | en | 0.0 | – | 0.00 | – | 0.14 | 0.00 | 0.07 |
+
+**Verdict: 1.25× (`BridgePacer.Tuning.maxRate`).**
+- At 1.25×, 11 of 12 clips stay within Wispr's own noise. The twelfth, `11-09-42`, already
+  disagrees with itself by 25% at 1.0×.
+- At 1.35×, his fast Romanian breaks: `18-27-37` goes from 0.06 to 0.51.
+- At 1.5×, half the clips are past the noise, and the tail goes on 3 of 12.
+
+English holds longer (clean to 1.75× on 3 of 4 clips), but the ceiling is set by his Romanian.
+
+So the pacer runs 1.1× just behind live and ramps to 1.25× at 3 s behind. Whatever that cannot
+absorb is drained after his stop, with no ceiling on the wait. Example: a start 5 s late with a stop
+1 s after Wispr starts listening leaves ~5 s queued. With pauses cut to 0.25 s and 1.25×, that drains
+in about 3–4 s after the stop.
+
+Re-run: `CLIPS="a.wav b.wav" RATES="1.0 1.0 1.25 1.35" ~/bin/hands-off run "…" -- ./evals/wispr-catchup/host-rates.sh`
+(host; Walkie up, From Walkie on), or `guest.py r` in `wt-lab`. Score with
+`WT_EVAL_RESULTS=evals/wispr-catchup/rates.jsonl python3 evals/wispr-catchup/run.py --score`.
+
+## Crashes: fixed (`7a16b48`, another session, same evening)
 
 Two `SIGABRT`s in ~50 runs (guest `DiagnosticReports`, 17:09:14 and 17:44:43 UTC). Same frames:
 
@@ -140,9 +202,8 @@ now. Neither the crash nor `could not aim` has been seen on the host's log.
 ## Recommendations
 
 1. The crash guard above.
-2. Make catch-up faster than 1.1× when far behind, e.g. 1.25× above 2 s, since P:5 shows Wispr
-   does not mind. Or cut pauses harder while more than 2 s behind. Today a 5 s late start means
-   the whole of a short sentence is heard sped up.
+2. ~~Make catch-up faster than 1.1× when far behind~~ — **done** (`4ff902f` and after): a ramp to
+   the measured **1.25×**, and the stop drains the rest with no ceiling (*Wispr's ceiling*, above).
 3. Dump what the bridge actually plays (`WT_BRIDGE_DUMP=<wav>`), so the next hole like
    `09-26-41` can be heard rather than guessed at.
 

@@ -542,7 +542,8 @@ name `Wispr Feed`); his microphone is `InputDevice.resolve()`, for Wispr too.
   buffer, a faster queue would starve mid-word. **1.1× just behind, rising with the lag to `maxRate`
   at 3 s behind** (2026-09-30; `WT_BRIDGE_RATE`, `WT_BRIDGE_MAX_RATE`). `maxRate` is **the fastest
   Wispr still transcribes** — Victor: *"accelerarea asta trebuie să aibă un anumit plafon … îmi asum
-  această procesare întârziată"*; 1.1 (ramp off) until `evals/wispr-catchup/` measures it. Flat 1.1×
+  această procesare întârziată"* — **1.25**, measured on 12 of his clips (`evals/wispr-catchup/`,
+  *Wispr's ceiling*): clean at 1.25×, his fastest Romanian breaks at 1.35× (WER 0.06 → 0.51). Flat 1.1×
   took a median 7.9 s to catch up from 5 s late. Log: `🔀 bridge released (…) N ms after the gesture
   — held, cut, behind live`, `🔀 bridge caught up … live X s after`.
 - **The relay's stop waits for the whole queue** (`bridgeDrainSeconds`) — **no ceiling since

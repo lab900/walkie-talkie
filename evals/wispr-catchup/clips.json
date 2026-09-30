@@ -62,5 +62,41 @@
   "onset": 0.51,
   "engine": "whisper-local",
   "corpus_text": "Can you count how many requests for agentic training have I received every month of this year in Gmail using my Gmail CLI automation?"
+ },
+ {
+  "clip": "05-54-12-29822bad.wav",
+  "lang": "ro",
+  "duration": 19.78,
+  "words_per_voiced_s": 9.01,
+  "engine": "wispr",
+  "corpus_text": "Obligatoriu, da, într-adevăr, doar partea de interacțiune cu mouse-ul, nu motorul de hackuire al lui Wispr Flow, care trebuie cu grijă decuplat oricum și pus sub un strat, ca să putem să poată jongla ușor între modelul local și modelul remote Wispr Flow.",
+  "why": "fast Romanian (Victor: I speak faster in RO)"
+ },
+ {
+  "clip": "18-27-37-6c1db762.wav",
+  "lang": "ro",
+  "duration": 19.8,
+  "words_per_voiced_s": 8.55,
+  "engine": "wispr",
+  "corpus_text": "Acum se înregistrează, da? \n\nPe viitor, corpusuri ca să putem studia. \n\nDin nou, totul o să fie antrenament în fața lui Whisperer. \n\nDacă e tunat ceva de a îmbunătăți transcrierea, fă-o. \n\nNu vreau săăă-- vreau să fie un proces de background, nu vreau să îmi bat capul prea tare cu ăsta.",
+  "why": "fast Romanian (Victor: I speak faster in RO)"
+ },
+ {
+  "clip": "11-09-42-wispr781.wav",
+  "lang": "ro",
+  "duration": 20.76,
+  "words_per_voiced_s": 8.47,
+  "engine": "wispr-flow",
+  "corpus_text": "Nu înțeleg.\n\nDeci, afară intră toate pundi. A intrat cu un pumn; a fost atât de rapid că a început să se spargă. Din punctul acela, am început să ne îndepărtăm spre centru, tot în direcția aceea, ca să fie ca un zel de vânt, un zel artificial, să zic.\n\nNu intră deja oricine; arată fapt de biuș.",
+  "why": "fast Romanian (Victor: I speak faster in RO)"
+ },
+ {
+  "clip": "08-41-20-wispr497.wav",
+  "lang": "ro",
+  "duration": 15.01,
+  "words_per_voiced_s": 7.34,
+  "engine": "wispr-flow",
+  "corpus_text": "E posibil ca hook-ul de reconnect să aibă un mic bug și să blocheze reconectarea la restabilirea internetului.\n\nAu trecut treizeci de secunde deja și încă nu și-a revenit.",
+  "why": "fast Romanian (Victor: I speak faster in RO)"
  }
 ]

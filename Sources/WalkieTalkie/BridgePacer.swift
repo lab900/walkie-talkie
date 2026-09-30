@@ -41,9 +41,12 @@ import Foundation
 struct BridgePacer {
     struct Tuning {
         var catchUpRate: Float = 1.1
-        /// The fastest Wispr is fed. 1.1 = the ramp is off (the 2026-09-29
-        /// behaviour) until the tolerance measurement names a higher one.
-        var maxRate: Float = 1.1
+        /// The fastest Wispr is fed — **1.25, measured** (2026-09-30,
+        /// `evals/wispr-catchup/` *Wispr's ceiling*): 12 of his clips played whole
+        /// at 1.25× stayed within Wispr's own noise, his fastest Romanian (7–9
+        /// words per voiced second) included; at 1.35× one of those went from
+        /// 0.06 to 0.51 WER, and 1.5× cost the tail on two of eight.
+        var maxRate: Float = 1.25
         /// How far behind the ramp reaches `maxRate`.
         var rampLag: TimeInterval = 3
         var synced: TimeInterval = 0.2

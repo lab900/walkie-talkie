@@ -61,10 +61,16 @@ final class BridgePacerTests: XCTestCase {
         XCTAssertEqual(p.rate(lag: 9), 1.5, "never past what Wispr tolerates — the rest drains after the stop")
     }
 
+    func testTheDefaultCeilingIsWhatWisprWasMeasuredToTolerate() {
+        let p = BridgePacer()
+        XCTAssertEqual(p.tuning.maxRate, 1.25, "evals/wispr-catchup: his fastest Romanian breaks at 1.35×")
+        XCTAssertEqual(p.rate(lag: 5), 1.25)
+    }
+
     func testRateIsFasterOnlyAboveSynced() {
         let p = BridgePacer()
-        XCTAssertEqual(p.rate(lag: 1.0), 1.1)
-        XCTAssertEqual(p.rate(lag: 0.21), 1.1)
+        XCTAssertEqual(p.rate(lag: 1.0), 1.143, accuracy: 0.001, "on the ramp: 1.1 + 0.15 × 0.8 / 2.8")
+        XCTAssertEqual(p.rate(lag: 0.21), 1.1, accuracy: 0.001)
         XCTAssertEqual(p.rate(lag: 0.2), 1.0)
         XCTAssertEqual(p.rate(lag: 0.085), 1.0, "one buffer queued is live — faster would starve the player mid-word")
     }
