@@ -15052,3 +15052,27 @@ within Wispr's own noise. At 1.35× his fast Romanian breaks (0.06 → 0.51 WER)
 `BridgePacer` now ramps 1.1× → 1.25× between 0.2 and 3 s behind. The stop's drain has **no ceiling**
 (was 8 s, and the teardown after the recorder cut what was queued past it); only a queue that has
 not moved for 2 s ends it. Tables: `evals/wispr-catchup/README.md`, *Wispr's ceiling*.
+
+## Spoken markers into Wispr: his voice survives, `say` does not (2026-09-30, evening)
+
+Measured in `wt-lab`: about 230 Wispr calls on ten of his dictations. `evals/wispr-markers/README.md`
+has the table, what surprised, the recommendation and how to re-run.
+
+- **His recorded `screenshot N`, spliced into a pause:** `asrText` gives 37/40 with the right number
+  within one word, and 20/20 for back-to-back pairs. The Samantha TTS the app ships gets 11/20, and
+  English sentences are the worst.
+- **Wispr's recogniser drops a second speaker.** The male `say` voice Daniel reaches 17/20; louder,
+  slower, padded or behind a blip does not help.
+- **Wispr's formatter deletes, moves or rewrites markers** that `asrText` still has (*"as in
+  screenshot 5"*). So the position is read from `asrText` and carried into `formattedText` by
+  alignment.
+- **Four of his 30 recorded clips in `~/.walkie-talkie/markers/` are mis-cut:** `screenshot-3`,
+  `selected-text-6`, `selected-text-8`, `picked-element-6`, each holding the next marker's words too.
+- **A coined `walkieshot` never comes back**, even with a Dictionary entry. `walkieshot` was added to
+  his Wispr dictionary from the guest; he OK'd it staying there.
+- **Victor's rules for shipping it:**
+  - fill the placeholders only when every marker comes back, otherwise the footer with clocks;
+  - wait for his next pause rather than miss the marker (*"I'd prefer waiting the next pause to
+    insert the marker to missing the marker"*);
+  - after a marker, the bridge speeds up until it is live again (*"every time you insert a bit of a
+    clip, you speed up a bit"*).
