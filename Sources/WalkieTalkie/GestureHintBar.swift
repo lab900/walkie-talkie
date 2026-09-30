@@ -15,9 +15,15 @@ import AppKit
 /// keeps an empty box so the shape — and where his thumb goes — never moves.
 /// 🔼 → has no box at all: it ends the sentence like the click does.
 ///
+/// **Off the Retina, against its edge** (2026-09-30, Victor: *"displayed on any
+/// secondary monitor if there are any, otherwise on the Retina. Prefer the monitor
+/// to the right of Retina. Keep them small and close to the edge which is adjoined
+/// to Retina"*). The Retina is where he works; the bar sits just across the seam,
+/// bottom of that seam, so a glance sideways finds it. See `placement`.
+///
 /// Only in Logi mode — the glyphs are the side buttons' (`AboutWindow.logiGesturesOn`).
 /// Never in a screenshot (`sharingType = .none`), never takes the mouse, and it
-/// does not ride the pointer: a fixed corner, so it is read at a glance.
+/// does not ride the pointer: a fixed spot, so it is read at a glance.
 final class GestureHintBar {
 
     /// What the chip knows about the sentence, which is all the bar needs.
@@ -85,7 +91,7 @@ final class GestureHintBar {
     /// The whole bar is see-through (2026-09-30, Victor: *"should be semi-transparent"*):
     /// it sits over whatever he is working on in that corner.
     fileprivate static let opacity: CGFloat = 0.6
-    private static let margin: CGFloat = 16
+    static let margin: CGFloat = 16
 
     func update(_ stage: Stage) {
         let visible = stage.listening && !stage.held && AboutWindow.logiGesturesOn
@@ -96,11 +102,13 @@ final class GestureHintBar {
     }
 
     private func show(_ crosses: [Cross]) {
-        guard let screen = Self.screenUnderMouse() else { return }
         let size = Board.size(for: crosses)
-        let v = screen.visibleFrame
-        let rect = NSRect(x: v.maxX - size.width - Self.margin, y: v.minY + Self.margin,
-                          width: size.width, height: size.height)
+        let screens = NSScreen.screens.map { s -> Display in
+            let id = s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+            return Display(frame: s.frame, visible: s.visibleFrame,
+                           builtIn: id.map { CGDisplayIsBuiltin($0) != 0 } ?? false)
+        }
+        guard let rect = Self.placement(size: size, on: screens) else { return }
         Log.info("⌨️ hint bar: \(crosses.map(Self.describe).joined(separator: " / "))")
         if let panel, let board {
             board.crosses = crosses
@@ -143,9 +151,52 @@ final class GestureHintBar {
             .joined(separator: ", ")
     }
 
-    private static func screenUnderMouse() -> NSScreen? {
-        let at = NSEvent.mouseLocation
-        return NSScreen.screens.first { NSMouseInRect(at, $0.frame, false) } ?? NSScreen.main
+    /// A screen as `placement` needs it — plain values, so it is tested without one.
+    struct Display: Equatable {
+        var frame: NSRect
+        var visible: NSRect
+        var builtIn: Bool
+    }
+
+    /// Where the bar goes. The Retina alone (or no Retina at all, lid closed):
+    /// its bottom-right corner, as before. Otherwise a secondary screen — the
+    /// one right of the Retina first, then any touching it, then any — against
+    /// the edge it shares with the Retina, at the bottom (left/right seam) or
+    /// the right end (top/bottom seam).
+    static func placement(size: NSSize, on screens: [Display]) -> NSRect? {
+        let m = margin
+        func corner(_ v: NSRect) -> NSRect {
+            NSRect(x: v.maxX - size.width - m, y: v.minY + m, width: size.width, height: size.height)
+        }
+        guard let home = screens.first(where: \.builtIn) else {
+            return screens.first.map { corner($0.visible) }
+        }
+        let others = screens.filter { !$0.builtIn }
+        let r = home.frame, slack: CGFloat = 2
+        func overlapsV(_ f: NSRect) -> Bool { f.minY < r.maxY && f.maxY > r.minY }
+        func overlapsH(_ f: NSRect) -> Bool { f.minX < r.maxX && f.maxX > r.minX }
+        let right = others.first { abs($0.frame.minX - r.maxX) <= slack && overlapsV($0.frame) }
+        let left = others.first { abs($0.frame.maxX - r.minX) <= slack && overlapsV($0.frame) }
+        let above = others.first { abs($0.frame.minY - r.maxY) <= slack && overlapsH($0.frame) }
+        let below = others.first { abs($0.frame.maxY - r.minY) <= slack && overlapsH($0.frame) }
+        // The part of the seam both screens own, so the bar stays by the Retina.
+        func seamY(_ v: NSRect) -> CGFloat { max(v.minY, r.minY) + m }
+        func seamX(_ v: NSRect) -> CGFloat { min(v.maxX, r.maxX) - size.width - m }
+        if let s = right {
+            return NSRect(x: s.visible.minX + m, y: seamY(s.visible), width: size.width, height: size.height)
+        }
+        if let s = left {
+            return NSRect(x: s.visible.maxX - size.width - m, y: seamY(s.visible),
+                          width: size.width, height: size.height)
+        }
+        if let s = below {
+            return NSRect(x: seamX(s.visible), y: s.visible.maxY - size.height - m,
+                          width: size.width, height: size.height)
+        }
+        if let s = above {
+            return NSRect(x: seamX(s.visible), y: s.visible.minY + m, width: size.width, height: size.height)
+        }
+        return corner((others.first ?? home).visible)
     }
 
     /// The crosses, drawn. A three-column grid shared by both, so their centre

@@ -63,4 +63,35 @@ final class GestureHintBarTests: XCTestCase {
             }
         }
     }
+
+    // MARK: where it goes (2026-09-30) — Victor's desk: Retina + three DELLs
+
+    typealias Display = GestureHintBar.Display
+    let size = NSSize(width: 200, height: 100)
+    let retina = Display(frame: NSRect(x: 0, y: 0, width: 1728, height: 1117),
+                         visible: NSRect(x: 0, y: 0, width: 1728, height: 1079), builtIn: true)
+    func dell(_ x: CGFloat, _ y: CGFloat) -> Display {
+        let f = NSRect(x: x, y: y, width: 1920, height: 1080)
+        return Display(frame: f, visible: f, builtIn: false)
+    }
+
+    func testRightOfTheRetinaWinsAgainstItsLeftEdge() {
+        let r = GestureHintBar.placement(size: size, on: [dell(-89, 1117), dell(-1920, 37), retina, dell(1728, 37)])
+        XCTAssertEqual(r, NSRect(x: 1728 + 16, y: 37 + 16, width: 200, height: 100))
+    }
+
+    func testLeftScreenAgainstItsRightEdge() {
+        let r = GestureHintBar.placement(size: size, on: [retina, dell(-1920, 37)])
+        XCTAssertEqual(r, NSRect(x: -16 - 200, y: 37 + 16, width: 200, height: 100))
+    }
+
+    func testAboveTheRetinaOnItsBottomEdgeOverTheRetina() {
+        let r = GestureHintBar.placement(size: size, on: [retina, dell(-89, 1117)])
+        XCTAssertEqual(r, NSRect(x: 1728 - 200 - 16, y: 1117 + 16, width: 200, height: 100))
+    }
+
+    func testTheRetinaAloneKeepsItsCorner() {
+        let r = GestureHintBar.placement(size: size, on: [retina])
+        XCTAssertEqual(r, NSRect(x: 1728 - 200 - 16, y: 16, width: 200, height: 100))
+    }
 }
