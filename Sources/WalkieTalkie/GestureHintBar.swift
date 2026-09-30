@@ -54,15 +54,21 @@ final class GestureHintBar {
         if s.prompting {
             front.click = "🏁 end"
             front.up = s.spawn ? "" : "✨ new"
-            front.down = s.kamikaze ? "☠️ no kamikaze" : "☠️ kamikaze"
+            // Kamikaze is its emoji alone, crossed out once it is on (2026-09-30,
+            // Victor: *"instead of 'no kamikaze', kamikaze crossed out"*).
+            front.down = s.kamikaze ? Self.struck + "☠️" : "☠️"
             back.click = "📸 shot"
-            back.up = s.filming ? "⏹️ stop video" : "🔴 video"
+            // Stop is ⏹️, never the word (2026-09-30).
+            back.up = s.filming ? "⏹️ video" : "🔴 video"
         } else {
-            back.click = "⏎ stop + enter"
-            back.right = "⏹️ stop"
+            back.click = "⏹️ + ⏎"
+            back.right = "⏹️"
         }
         return [front, back]
     }
+
+    /// A label starting with this is drawn crossed out, without it.
+    static let struck = "~"
 
     private var panel: NSPanel?
     private var board: Board?
@@ -70,11 +76,15 @@ final class GestureHintBar {
 
     fileprivate static let font = NSFont.systemFont(ofSize: 12, weight: .medium)
     fileprivate static let boxHeight: CGFloat = 24
-    fileprivate static let minBoxWidth: CGFloat = 92
-    fileprivate static let padding: CGFloat = 10
+    fileprivate static let minBoxWidth: CGFloat = 68
+    fileprivate static let padding: CGFloat = 6
     fileprivate static let gap: CGFloat = 4
-    /// Between the 🔼 cross and the 🔽 one: a row's worth, as in the sketch.
-    fileprivate static let crossGap: CGFloat = 14
+    /// Between the 🔼 cross and the 🔽 one: a row's worth, as in the sketch —
+    /// widened 2026-09-30 so the two read as two buttons.
+    fileprivate static let crossGap: CGFloat = 24
+    /// The whole bar is see-through (2026-09-30, Victor: *"should be semi-transparent"*):
+    /// it sits over whatever he is working on in that corner.
+    fileprivate static let opacity: CGFloat = 0.6
     private static let margin: CGFloat = 16
 
     func update(_ stage: Stage) {
@@ -165,6 +175,10 @@ final class GestureHintBar {
             let w = Self.boxWidth(for: crosses)
             let h = GestureHintBar.boxHeight, gap = GestureHintBar.gap
             let crossHeight = h * 3 + gap * 2
+            let cg = NSGraphicsContext.current?.cgContext
+            cg?.setAlpha(GestureHintBar.opacity)
+            cg?.beginTransparencyLayer(auxiliaryInfo: nil)
+            defer { cg?.endTransparencyLayer() }
             for (i, c) in crosses.enumerated() {
                 let top = CGFloat(i) * (crossHeight + GestureHintBar.crossGap)
                 func box(_ text: String?, col: Int, row: Int) {
@@ -181,7 +195,9 @@ final class GestureHintBar {
             }
         }
 
-        private func drawBox(_ text: String, in r: NSRect) {
+        private func drawBox(_ label: String, in r: NSRect) {
+            let struck = label.hasPrefix(GestureHintBar.struck)
+            let text = struck ? String(label.dropFirst(GestureHintBar.struck.count)) : label
             let empty = text.isEmpty
             let path = NSBezierPath(roundedRect: r.insetBy(dx: 0.5, dy: 0.5), xRadius: 4, yRadius: 4)
             // An unused gesture is a plain gray box (2026-09-30, Victor: *"place
@@ -201,9 +217,18 @@ final class GestureHintBar {
                 .paragraphStyle: style,
             ]
             let s = text as NSString
-            let th = s.size(withAttributes: attrs).height
-            s.draw(in: NSRect(x: r.minX + 4, y: r.midY - th / 2, width: r.width - 8, height: th),
+            let ts = s.size(withAttributes: attrs)
+            s.draw(in: NSRect(x: r.minX + 4, y: r.midY - ts.height / 2, width: r.width - 8, height: ts.height),
                    withAttributes: attrs)
+            guard struck else { return }
+            let half = min(ts.width, r.width - 8) / 2 + 3
+            let slash = NSBezierPath()
+            slash.move(to: NSPoint(x: r.midX - half, y: r.maxY - 3))
+            slash.line(to: NSPoint(x: r.midX + half, y: r.minY + 3))
+            slash.lineWidth = 2.5
+            slash.lineCapStyle = .round
+            NSColor.systemRed.setStroke()
+            slash.stroke()
         }
     }
 }

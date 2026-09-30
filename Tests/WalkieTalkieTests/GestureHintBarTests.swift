@@ -13,7 +13,7 @@ final class GestureHintBarTests: XCTestCase {
 
     func testAPromptIsVictorsSketch() {
         XCTAssertEqual(GestureHintBar.crosses(for: .init(listening: true, prompting: true)), [
-            Cross(click: "🏁 end", up: "✨ new", down: "☠️ kamikaze", left: "🗑️ cancel", right: nil),
+            Cross(click: "🏁 end", up: "✨ new", down: "☠️", left: "🗑️ cancel", right: nil),
             Cross(click: "📸 shot", up: "🔴 video", down: "", left: "", right: ""),
         ])
     }
@@ -22,14 +22,14 @@ final class GestureHintBarTests: XCTestCase {
         let c = GestureHintBar.crosses(for: .init(listening: true, prompting: true, filming: true,
                                                   kamikaze: true, spawn: true))
         XCTAssertEqual(c[0].up, "", "a new session already marked: the box stays, empty")
-        XCTAssertEqual(c[0].down, "☠️ no kamikaze")
-        XCTAssertEqual(c[1].up, "⏹️ stop video")
+        XCTAssertEqual(c[0].down, "~☠️", "crossed out, no words")
+        XCTAssertEqual(c[1].up, "⏹️ video")
     }
 
     func testAPlainDictationOnlyStopsOrCancels() {
         XCTAssertEqual(GestureHintBar.crosses(for: .init(listening: true, prompting: false)), [
             Cross(click: "", up: "", down: "", left: "🗑️ cancel", right: nil),
-            Cross(click: "⏎ stop + enter", up: "", down: "", left: "", right: "⏹️ stop"),
+            Cross(click: "⏹️ + ⏎", up: "", down: "", left: "", right: "⏹️"),
         ])
     }
 
