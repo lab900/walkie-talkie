@@ -375,8 +375,11 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
   sentence (prompt at caret, plain dictation) the frontmost app's focused window — into
   `settleAim` (**in `Envelope`**), pushed to `CaretHalo.rewindAim` while settling. `aim` replaces
   `NSEvent.mouseLocation` in `panelFrame` / `aimEffectAtPointer` while rewinding, and `fadeAim`
-  keeps it through the fade. No window (a spawn, a held sentence, nothing found) → the pointer, as
-  before. Log `⏪ the rewind aims at the middle of <addr> (x, y)`.
+  keeps it through the fade. Log `⏪ the rewind aims at the middle of <addr> (x, y)`.
+  **No window → the middle of the pointer's screen** (2026-10-01: *"când n-ai pe ce centra tunelul
+  … pe centrul ecranului pe care e mouse-ul"*) — a spawn (🔼 ↑, its terminal does not exist yet), a
+  held sentence (set at once), or a window that did not answer (set when the read comes back). Log
+  `⏪ the rewind aims at the middle of the pointer's screen (x, y) — …`.
 - **The take is kept for every destination** (2026-09-30): the call ran for all since 09-23, but
   `settleTake` was still `latchedAtCaret ? lastTake() : []`, so every bound sentence logged `⏪ no
   rewind — only 0 samples`.

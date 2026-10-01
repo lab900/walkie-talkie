@@ -574,7 +574,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// settle ends.
     private var settleTake: [Int16] = []
     /// **Where that rewind converges** (2026-09-30) — the middle of the window
-    /// the sentence lands in, filled in by `aimRewind` a moment after the close;
+    /// the sentence lands in, filled in by `aimRewind` a moment after the close,
+    /// or the middle of the pointer's screen when there is none (2026-10-01);
     /// nil keeps it on the pointer.
     private var settleAim: NSPoint?
     private var settleGiveUp: DispatchWorkItem?
@@ -4697,18 +4698,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the latched terminal's, or the focused window for a caret sentence. Read
     /// off the main thread (AppleScript for a Terminal tab); an answer that
     /// comes back after another sentence has closed is dropped.
+    ///
+    /// **No window to aim at — the middle of the pointer's screen** (2026-10-01).
+    /// Victor: *"când n-ai pe ce centra tunelul … pe centrul ecranului pe care e
+    /// mouse-ul"* — a new session (🔼 ↑: its terminal does not exist yet), a
+    /// sentence held for a bind, or a window that did not answer.
     private func aimRewind() {
-        settleAim = nil
-        let target = latch?.target
-        guard latchedAtCaret || target != nil else { return }
         rewindAimToken &+= 1
         let token = rewindAimToken
+        let target = latch?.target
+        let screenAim = Self.pointerScreenMiddle()
+        guard latchedAtCaret || target != nil else {
+            Log.info(String(format: "⏪ the rewind aims at the middle of the pointer's screen (%.0f, %.0f) — no window to land in",
+                            screenAim.x, screenAim.y))
+            settleAim = screenAim
+            return
+        }
+        settleAim = nil
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let frame = TerminalBinding.receivingWindowFrame(target)
             DispatchQueue.main.async {
                 guard let self, token == self.rewindAimToken, self.settling else { return }
                 guard let frame else {
-                    Log.info("⏪ the rewind stays on the pointer — no window found for \(target?.address ?? "the caret")")
+                    Log.info(String(format: "⏪ the rewind aims at the middle of the pointer's screen (%.0f, %.0f) — no window found for %@",
+                                    screenAim.x, screenAim.y, target?.address ?? "the caret"))
+                    self.settleAim = screenAim
+                    self.caretHalo.rewindAim = screenAim
                     return
                 }
                 Log.info(String(format: "⏪ the rewind aims at the middle of %@ (%.0f, %.0f)",
@@ -4719,6 +4734,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     private var rewindAimToken = 0
+
+    /// The middle of the screen the pointer is on, in Cocoa global space (the
+    /// space `NSEvent.mouseLocation` and `NSScreen.frame` share).
+    private static func pointerScreenMiddle() -> NSPoint {
+        let p = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(p) }) ?? NSScreen.main
+        else { return p }
+        return NSPoint(x: screen.frame.midX, y: screen.frame.midY)
+    }
 
     private func beginSettling(atCaret: Bool) {
         settling = true
