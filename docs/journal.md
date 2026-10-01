@@ -15126,3 +15126,4 @@ de transmisie (white noise scurt) debifat by default în meniu"*. `StartChime` n
 flutter and a 25 ms cut at the end (peak −7 dBFS, RMS −19.5 dBFS). It plays only while the new
 top-level **Radio Squelch** row under Autosend is ticked (`UserDefaults` `startSquelch`, absent =
 off); ticking it plays it once so he hears what he chose. `WT_START_SOUND` is gone with the womp.
+Same day, after hearing it: *"fă-l de 3x mai discret"* — gain 0.9 → 0.3 (peak −17 dBFS, RMS −29 dBFS).
