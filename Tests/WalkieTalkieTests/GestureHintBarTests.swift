@@ -90,6 +90,12 @@ final class GestureHintBarTests: XCTestCase {
         XCTAssertEqual(r, NSRect(x: 1728 - 200 - 16, y: 1117 + 16, width: 200, height: 100))
     }
 
+    func testThreeTimesBiggerOffTheRetina() {
+        XCTAssertEqual(GestureHintBar.scale(on: [retina]), 1)
+        XCTAssertEqual(GestureHintBar.scale(on: [retina, dell(1728, 37)]), 3)
+        XCTAssertEqual(GestureHintBar.scale(on: [dell(0, 0)]), 3)
+    }
+
     func testTheRetinaAloneKeepsItsCorner() {
         let r = GestureHintBar.placement(size: size, on: [retina])
         XCTAssertEqual(r, NSRect(x: 1728 - 200 - 16, y: 16, width: 200, height: 100))

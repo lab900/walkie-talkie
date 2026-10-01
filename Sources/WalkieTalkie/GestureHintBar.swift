@@ -21,6 +21,11 @@ import AppKit
 /// to Retina"*). The Retina is where he works; the bar sits just across the seam,
 /// bottom of that seam, so a glance sideways finds it. See `placement`.
 ///
+/// **Three times bigger off the Retina** (2026-10-01, Victor: *"when the shortcuts
+/// appear on the secondary screen, make them twice as big. Even three times. Plenty
+/// of room, so I see them easily. If it's not on the Retina."*). A glance sideways
+/// at a farther, low-density screen needs the size; on the Retina it stays small.
+///
 /// Only in Logi mode — the glyphs are the side buttons' (`AboutWindow.logiGesturesOn`).
 /// Never in a screenshot (`sharingType = .none`), never takes the mouse, and it
 /// does not ride the pointer: a fixed spot, so it is read at a glance.
@@ -92,6 +97,8 @@ final class GestureHintBar {
     /// it sits over whatever he is working on in that corner.
     fileprivate static let opacity: CGFloat = 0.6
     static let margin: CGFloat = 16
+    /// How much bigger the bar is drawn on a screen that is not the Retina.
+    static let offRetinaScale: CGFloat = 3
 
     func update(_ stage: Stage) {
         let visible = stage.listening && !stage.held && AboutWindow.logiGesturesOn
@@ -102,15 +109,18 @@ final class GestureHintBar {
     }
 
     private func show(_ crosses: [Cross]) {
-        let size = Board.size(for: crosses)
         let screens = NSScreen.screens.map { s -> Display in
             let id = s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
             return Display(frame: s.frame, visible: s.visibleFrame,
                            builtIn: id.map { CGDisplayIsBuiltin($0) != 0 } ?? false)
         }
+        let scale = Self.scale(on: screens)
+        let base = Board.size(for: crosses)
+        let size = NSSize(width: base.width * scale, height: base.height * scale)
         guard let rect = Self.placement(size: size, on: screens) else { return }
-        Log.info("⌨️ hint bar: \(crosses.map(Self.describe).joined(separator: " / "))")
+        Log.info("⌨️ hint bar ×\(Int(scale)): \(crosses.map(Self.describe).joined(separator: " / "))")
         if let panel, let board {
+            board.scale = scale
             board.crosses = crosses
             panel.setFrame(rect, display: true)
             return
@@ -127,6 +137,7 @@ final class GestureHintBar {
         p.sharingType = .none
 
         let b = Board(frame: NSRect(origin: .zero, size: rect.size))
+        b.scale = scale
         b.crosses = crosses
         b.autoresizingMask = [.width, .height]
         p.contentView = b
@@ -156,6 +167,12 @@ final class GestureHintBar {
         var frame: NSRect
         var visible: NSRect
         var builtIn: Bool
+    }
+
+    /// `placement` puts the bar on the Retina only when it is the sole screen;
+    /// anywhere else (a secondary, or the lid closed) it is drawn `offRetinaScale`.
+    static func scale(on screens: [Display]) -> CGFloat {
+        screens.contains { !$0.builtIn } ? offRetinaScale : 1
     }
 
     /// Where the bar goes. The Retina alone (or no Retina at all, lid closed):
@@ -204,6 +221,8 @@ final class GestureHintBar {
     /// does not change width when a label does.
     final class Board: NSView {
         var crosses: [Cross] = [] { didSet { needsDisplay = true } }
+        /// Drawn at `size(for:)` × this; the frame is already that big.
+        var scale: CGFloat = 1 { didSet { needsDisplay = true } }
 
         override var isFlipped: Bool { true }
 
@@ -227,6 +246,7 @@ final class GestureHintBar {
             let h = GestureHintBar.boxHeight, gap = GestureHintBar.gap
             let crossHeight = h * 3 + gap * 2
             let cg = NSGraphicsContext.current?.cgContext
+            cg?.scaleBy(x: scale, y: scale)
             cg?.setAlpha(GestureHintBar.opacity)
             cg?.beginTransparencyLayer(auxiliaryInfo: nil)
             defer { cg?.endTransparencyLayer() }
