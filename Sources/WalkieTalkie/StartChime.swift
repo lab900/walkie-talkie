@@ -29,7 +29,7 @@ enum StartChime {
     /// 0.16 s of white noise squeezed into a radio's band (one-pole high-pass
     /// at ~350 Hz, two low-passes at ~3 kHz), a 30 ms fade in, a fast 60 Hz
     /// flutter for the crackle and a 50 ms fade out — the "kssh" of a key-up,
-    /// quiet (*"fă-l de 3x mai discret"*, then −30 %: gain 0.9 → 0.3 → 0.21).
+    /// quiet (*"fă-l de 3x mai discret"*, then −30 %, then half: gain 0.9 → 0.3 → 0.21 → 0.105).
     /// A fixed seed, so every launch hisses the same.
     private static func wav() -> Data {
         let rate = 44_100.0, seconds = 0.16
@@ -53,7 +53,7 @@ enum StartChime {
             let attack = 0.5 - 0.5 * cos(.pi * min(1, t / 0.030))
             let release = 0.5 - 0.5 * cos(.pi * min(1, (seconds - t) / 0.050))
             let flutter = 0.75 + 0.25 * sin(2 * .pi * 60 * t)
-            let v = lp2 * attack * release * flutter * 0.21
+            let v = lp2 * attack * release * flutter * 0.105
             samples[i] = Int16(max(-1, min(1, v)) * Double(Int16.max))
         }
         var d = Data()

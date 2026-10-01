@@ -15128,3 +15128,4 @@ top-level **Radio Squelch** row under Autosend is ticked (`UserDefaults` `startS
 off); ticking it plays it once so he hears what he chose. `WT_START_SOUND` is gone with the womp.
 Same day, after hearing it: *"fă-l de 3x mai discret"* — gain 0.9 → 0.3 (peak −17 dBFS, RMS −29 dBFS).
 Then *"pune fade in/out un pic ca e prea brutal. plus -30% volum"* — raised-cosine fades of 30 ms in and 50 ms out instead of linear 4/25 ms, gain 0.3 → 0.21.
+Then (2026-10-01) *"redu-l încă la jumătate din volum"* — gain 0.21 → 0.105 (−6 dB).
