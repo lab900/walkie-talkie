@@ -1336,7 +1336,9 @@ final class CaretHalo {
     /// **never quite ends** (2026-09-28: *"logarithmically decreasing so that we
     /// rarely hit the final size … 60 % of what it's currently at"*): a
     /// hyperbola, 80 % in at the prediction and creeping ever slower toward a
-    /// rest it never reaches; every size 0.42 × — `RewindTimeline`.
+    /// rest it never reaches; every size 0.42 × — then **slow from the start,
+    /// at rest at twice the prediction, shrinking past it** (2026-10-01) —
+    /// `RewindTimeline`.
     private var approachScale: (scale: CGFloat, alpha: CGFloat) {
         let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
                                        predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)

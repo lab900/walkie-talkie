@@ -83,67 +83,76 @@ final class RewindTimelineTests: XCTestCase {
     private func p(_ elapsed: Double, predicted: Double) -> Double {
         RewindTimeline.pose(elapsed: elapsed, predicted: predicted, visibleFrom: visible).progress
     }
+    /// The stamp's size × its resting size, `predictions` × the span in.
+    private func size(at predictions: Double) -> Double {
+        let span = 2.4                                                    // predicted 3, visible 0.6
+        let pose = RewindTimeline.pose(elapsed: visible + predictions * span, predicted: 3, visibleFrom: visible)
+        return RewindTimeline.stamp(pose, from: 7).scale / RewindTimeline.sizeFactor
+    }
 
     func testNothingMovesBeforeThePictureIsVisible() {
         XCTAssertEqual(p(0, predicted: 3), 0)
         XCTAssertEqual(p(visible, predicted: 3), 0)
     }
 
-    /// 2026-09-28: *"logarithmically decreasing so that we rarely hit the final
-    /// size"* — never at rest, however late the words are.
-    func testNeverArrives() {
-        for elapsed in stride(from: 0.0, through: 120, by: 0.5) {
-            XCTAssertLessThan(p(elapsed, predicted: 3), 1)
-        }
-        XCTAssertGreaterThan(p(3 + 4 * 3, predicted: 3), 0.94)              // five predictions in: close
-        XCTAssertLessThan(p(3 + 4 * 3, predicted: 3), 0.97)                 // and still visibly coming
+    /// 2026-10-01: *"să ajungă la dimensiunea finală abia la dublu față de cât
+    /// ar trebui estimat"* — at rest exactly at twice the prediction.
+    func testAtRestOnlyAtTwiceThePrediction() {
+        XCTAssertEqual(RewindTimeline.creep(RewindTimeline.reach), 1, accuracy: 1e-9)
+        XCTAssertEqual(size(at: 2), 1, accuracy: 1e-9)
+        XCTAssertGreaterThan(size(at: 1.9), 1.03)
     }
 
-    /// On time the words cut it off mid-approach: 80 % in, the stamp 1.5 × its
-    /// resting size, the opacity already full.
-    func testOnTimeWordsInterruptItBeforeItArrives() {
-        let pose = RewindTimeline.pose(elapsed: 3, predicted: 3, visibleFrom: visible)
-        XCTAssertEqual(pose.progress, RewindTimeline.tail / (1 + RewindTimeline.tail), accuracy: 1e-9)
-        XCTAssertEqual(pose.time, 1, accuracy: 1e-9)
-        let stamp = RewindTimeline.stamp(pose, from: 7)
-        XCTAssertGreaterThan(stamp.scale / RewindTimeline.sizeFactor, 1.4)
-        XCTAssertLessThan(stamp.scale / RewindTimeline.sizeFactor, 1.6)
-    }
-
-    /// *"more time collapsing, on a slower pace as it gets slower"*: steep first,
-    /// every step smaller than the one before, never flat.
-    func testDeceleratesForever() {
-        XCTAssertEqual(RewindTimeline.creep(0), 0)
-        XCTAssertEqual(RewindTimeline.creep(-1), 0)
+    /// *"mai puțin rapidă la început … imediat se duce spre centru"*: at a
+    /// quarter of the prediction it is barely a sixth of the way (the
+    /// hyperbola was half), and at the prediction still more than twice its rest.
+    func testSlowStart() {
+        XCTAssertLessThan(RewindTimeline.creep(0.25), 0.2)
+        XCTAssertGreaterThan(size(at: 1), 2)
         let h = 1e-4
-        XCTAssertEqual(RewindTimeline.creep(h) / h, RewindTimeline.tail, accuracy: 0.01)
+        XCTAssertLessThan(RewindTimeline.creep(h) / h, 0.75)              // was 4
+    }
+
+    /// *"să continue logaritmic să scadă în dimensiune, să nu se oprească"*:
+    /// every step smaller than the one before, none of them zero — through the
+    /// rest and below it, with no jump in speed where it passes rest.
+    func testShrinksForeverEverSlower() {
         var lastStep = Double.infinity
         for i in 1...400 {
             let u = Double(i) / 20
             let step = RewindTimeline.creep(u) - RewindTimeline.creep(u - 0.05)
-            XCTAssertLessThan(step, lastStep)
+            XCTAssertLessThanOrEqual(step, lastStep + 1e-12)
             XCTAssertGreaterThan(step, 0)
             lastStep = step
         }
-        // A quarter of the way to the prediction, half of the way in.
-        XCTAssertEqual(p(visible + 0.25 * 2.4, predicted: 3), 0.5, accuracy: 1e-9)
+        let h = 1e-6, r = RewindTimeline.reach
+        let before = (RewindTimeline.creep(r) - RewindTimeline.creep(r - h)) / h
+        let after = (RewindTimeline.creep(r + h) - RewindTimeline.creep(r)) / h
+        XCTAssertEqual(before, after, accuracy: 1e-3)
+    }
+
+    /// Past rest it keeps getting smaller, but slowly: never vanishing.
+    func testBelowRestButNotGone() {
+        XCTAssertLessThan(size(at: 4), 0.65)
+        XCTAssertGreaterThan(size(at: 4), 0.5)
+        XCTAssertGreaterThan(size(at: 10), 0.3)
+        XCTAssertLessThan(size(at: 10), size(at: 9))
     }
 
     /// Early: the words at half the prediction find it part-way, and the collapse
     /// that takes it from there is ≤ 150 ms — the animation holds nothing up.
     func testEarlyLandsMidApproachAndCollapsesFast() {
         let mid = p(1.8, predicted: 3)
-        XCTAssertGreaterThan(mid, 0.4)
+        XCTAssertGreaterThan(mid, 0.2)
         XCTAssertLessThan(mid, p(3, predicted: 3))
         XCTAssertLessThanOrEqual(RewindTimeline.collapse, 0.15)
     }
 
-    func testMonotonicAndBounded() {
+    func testMonotonic() {
         var last = -1.0
         for elapsed in stride(from: 0.0, through: 20, by: 0.01) {
             let now = p(elapsed, predicted: 2.4)
             XCTAssertGreaterThanOrEqual(now, last)
-            XCTAssertLessThan(now, 1)
             last = now
         }
     }
@@ -152,8 +161,7 @@ final class RewindTimelineTests: XCTestCase {
     /// real approach rather than a jump.
     func testShortPredictionStillHasASpan() {
         XCTAssertLessThan(p(visible + 0.1, predicted: 0.7), 0.5)
-        XCTAssertEqual(p(visible + RewindTimeline.minimumSpan, predicted: 0.7),
-                       RewindTimeline.tail / (1 + RewindTimeline.tail), accuracy: 1e-9)
+        XCTAssertEqual(p(visible + RewindTimeline.reach * RewindTimeline.minimumSpan, predicted: 0.7), 1, accuracy: 1e-9)
     }
 
     func testStampComesFromHugeAndFaintTowardRest() {
@@ -164,7 +172,7 @@ final class RewindTimelineTests: XCTestCase {
         XCTAssertEqual(start.alpha, 0, accuracy: 1e-9)
         let late = RewindTimeline.stamp(RewindTimeline.pose(elapsed: 60, predicted: 3, visibleFrom: visible), from: 7)
         XCTAssertEqual(late.alpha, 1, accuracy: 1e-9)
-        XCTAssertGreaterThan(late.scale, 0.42)                                 // never at rest
-        XCTAssertLessThan(late.scale, 0.42 * 1.1)                              // but nearly
+        XCTAssertLessThan(late.scale, 0.42)                                    // past rest, still going
+        XCTAssertGreaterThan(late.scale, 0.42 * 0.2)                           // but not gone
     }
 }
