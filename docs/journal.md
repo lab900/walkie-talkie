@@ -15108,3 +15108,12 @@ everything that has no sentence around it: a shutter outside a dictation, the re
 counts the new flat folders and the old nested ones from 2026-09-20 to 09-30. Only its comment
 changed. `dropEmptySessions` sweeps an empty dictation folder like an empty session; that is safe
 because `dictationDir` re-creates the folder on every capture.
+
+## A sound when the microphone opens (2026-10-01)
+
+Victor: *"când începe să asculte dictarea, să facă un zgomot ca de mică decepție, un hăuit scurt.
+Exact ca în…"* — the reference was cut off by the dictation itself. Built as a short falling
+"womp": 0.24 s, sine plus a soft second harmonic gliding 520 → 390 Hz, synthesised in
+`StartChime` (no audio file in the bundle), played from `dictationBegan` — every engine, once per
+sentence. `WT_START_SOUND=0` silences it for a run. Unmeasured: whether the speaker's chime leaks
+into the take's first 0.24 s enough to matter to a recogniser or the voiced meter.

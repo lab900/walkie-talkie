@@ -3332,6 +3332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         sentenceSerial += 1
+        StartChime.play()
         // The take only for the Engine's own recording — a Wispr sentence begun by
         // hand beside it must not answer to the Engine's last take.
         liveSentence = Sentence(id: sentenceSerial,
