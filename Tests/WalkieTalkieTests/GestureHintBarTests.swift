@@ -100,4 +100,38 @@ final class GestureHintBarTests: XCTestCase {
         let r = GestureHintBar.placement(size: size, on: [retina])
         XCTAssertEqual(r, NSRect(x: 1728 - 200 - 16, y: 16, width: 200, height: 100))
     }
+
+    // MARK: across the seam, solid; the pointer there sends it back (2026-10-01)
+
+    let base = NSSize(width: 200, height: 100)
+
+    func testAcrossTheSeamItIsSolidAndBig() {
+        let s = GestureHintBar.spot(base: base, on: [retina, dell(1728, 37)], pointer: NSPoint(x: 800, y: 500))
+        XCTAssertEqual(s, .init(rect: NSRect(x: 1728 + 16, y: 37 + 16, width: 600, height: 300),
+                                scale: 3, opacity: 1))
+    }
+
+    func testThePointerOnThatScreenSendsItToTheRetinasSideOfTheSeam() {
+        let s = GestureHintBar.spot(base: base, on: [retina, dell(1728, 37)], pointer: NSPoint(x: 2500, y: 500))
+        XCTAssertEqual(s, .init(rect: NSRect(x: 1728 - 200 - 16, y: 37 + 16, width: 200, height: 100),
+                                scale: 1, opacity: GestureHintBar.fledOpacity))
+    }
+
+    func testAThirdScreenLeavesItAcrossTheSeam() {
+        let s = GestureHintBar.spot(base: base, on: [dell(-1920, 37), retina, dell(1728, 37)],
+                                    pointer: NSPoint(x: -500, y: 500))
+        XCTAssertEqual(s?.opacity, 1)
+        XCTAssertEqual(s?.rect.minX, 1728 + 16)
+    }
+
+    func testFledFromALeftScreenItHugsTheRetinasLeftEdge() {
+        let s = GestureHintBar.spot(base: base, on: [retina, dell(-1920, 37)], pointer: NSPoint(x: -500, y: 500))
+        XCTAssertEqual(s?.rect, NSRect(x: 16, y: 37 + 16, width: 200, height: 100))
+    }
+
+    func testTheRetinaAloneHasNowhereToFlee() {
+        let s = GestureHintBar.spot(base: base, on: [retina], pointer: NSPoint(x: 1700, y: 20))
+        XCTAssertEqual(s, .init(rect: NSRect(x: 1728 - 200 - 16, y: 16, width: 200, height: 100),
+                                scale: 1, opacity: GestureHintBar.aloneOpacity))
+    }
 }

@@ -1696,6 +1696,10 @@ private let frontLabel = NSTextField(labelWithString: "")
     }
 
     private func followCursor() {
+        // The corner bar leaves whichever screen the pointer is on (2026-10-01),
+        // whatever the chip itself does with this move.
+        hintBar.pointerMoved(NSEvent.mouseLocation)
+
         // **A held spawn dialog does not follow anything.** It is the panel the
         // prompt was read on, kept where it was read while its terminal opens,
         // and the outline in the air is aimed at that exact rectangle — a dialog
