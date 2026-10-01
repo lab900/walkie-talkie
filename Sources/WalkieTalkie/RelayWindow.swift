@@ -3210,18 +3210,23 @@ private let frontLabel = NSTextField(labelWithString: "")
             // and returns a square of exactly `iconInk`, so the width the layout
             // asks for and the width that draws are the same number.
             //
-            // **Always lit, never dimmed.** The bar is a count of letters that
-            // have filled; a picture has no unlit state that reads as *not yet*,
-            // and dimming it by alpha is the halo problem again (`dim` is an
-            // opaque grey for exactly that reason). The device stays readable
-            // through the whole ramp, which is the one thing on this row that is
-            // a fact rather than a forecast.
+            // **The device is always lit, never dimmed.** The bar is a count of
+            // letters that have filled; an emoji has no unlit state that reads as
+            // *not yet*, and dimming it by alpha is the halo problem again (`dim`
+            // is an opaque grey for exactly that reason). The device stays
+            // readable through the whole ramp, which is the one thing on this row
+            // that is a fact rather than a forecast.
+            //
+            // **The recogniser's logo fills with the bar** (2026-10-01, Victor:
+            // *"iconița Wispr-ului să fie și ea gri și apoi să se aprindă"*). It
+            // is a line drawing in the row's own ink (`Glyphs.engine`), so it has
+            // the letters' unlit state for free — the same opaque `dim`, no alpha.
             //
             // **The `→` before the recogniser is a letter, not a picture**
             // (2026-09-24): it is typography, part of the sentence, and fills
             // with the bar like the words round it.
             guard ch.isASCII || ch == "→" else {
-                out.append(Self.inline(Self.wordGlyph(ch, ink: lit), font: hintFont))
+                out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }
             out.append(NSAttributedString(string: String(ch),
@@ -4032,10 +4037,10 @@ private let frontLabel = NSTextField(labelWithString: "")
             // **The recogniser's logo goes in as a picture**, `applyEngineText`'s
             // branch and its reason — this row had no such branch until the mark
             // moved onto it, because until then every character in it was ASCII.
-            // Always lit, never dimmed: the bar is a count of letters that have
-            // filled, and a picture has no unlit state that reads as *not yet*.
+            // It fills with the bar like the letters round it (2026-10-01) — a
+            // logo is drawn in the row's ink, so `dim` is its unlit state too.
             guard ch.isASCII else {
-                out.append(Self.inline(Self.wordGlyph(ch, ink: lit), font: hintFont))
+                out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }
             out.append(NSAttributedString(string: String(ch),

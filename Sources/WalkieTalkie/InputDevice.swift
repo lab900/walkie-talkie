@@ -252,12 +252,15 @@ enum InputDevice {
     /// transport suffix (`Elgato Wave XLR (USB)`), `Auto-detect (<name>)`, its
     /// own `Built-in mic (recommended)`, and `🎓 TO Wispr (Virtual)` — the
     /// `AudioBridge` loopback, whose voice is the relay's own recorder, so that
-    /// one honestly is `currentGlyph()`. Anything else (`krisp`, a Sony headset)
+    /// one honestly is `currentGlyph()`. So is **`From Walkie`** (2026-10-01): the
+    /// bridge's device since 2026-09-29, it is what Wispr names on nearly every
+    /// row since, and it fell through to *none of the six* — every Wispr sentence
+    /// lost its microphone off the chip. Anything else (`krisp`, a Sony headset)
     /// is none of the six and says nothing, which the chip renders as a plain
     /// `Listening...`.
     static func glyph(wisprName name: String) -> String {
         var n = name.lowercased()
-        if n.contains("to wispr") { return currentGlyph() }
+        if n.contains("to wispr") || n.contains("from walkie") { return currentGlyph() }
         if n.hasPrefix("auto-detect (") {
             n = String(n.dropFirst("auto-detect (".count))
             if n.hasSuffix(")") { n.removeLast() }

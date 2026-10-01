@@ -212,7 +212,12 @@ yields to `--label`).
 - **`Listening to 🎤 → ⬮...` since 2026-09-24** — the listening row names the recogniser too, after an
   arrow (*"place an arrow and then specify as well the transcription engine"*). Wispr's five bars
   whenever Wispr holds the mic, whatever `Engine` says, and the device glyph is then Wispr's own
-  `History.micDevice` (`AppDelegate.currentMicMark`). The `→` is a letter, not a picture. The two
+  `History.micDevice` (`AppDelegate.currentMicMark`) — **`From Walkie` reads as the relay's own
+  device** (2026-10-01: the bridge is Wispr's mic on nearly every row, and it fell through to *no
+  glyph*, so every Wispr prompt lost its microphone). The `→` is a letter, not a picture. **The
+  logo fills with the bar** (2026-10-01, *"iconița Wispr-ului să fie și ea gri și apoi să se
+  aprindă"*): drawn in the row's ink, it takes the letters' opaque `dim` until its step lights —
+  on both rows. The device emoji stays always lit. The two
   facts rode one row as `Listening(🎙️/E)...` from 2026-09-19 to 09-22 and should not have: while
   the mic is open nothing is transcribed yet.
 
@@ -282,7 +287,7 @@ yields to `--label`).
   — while the microphone is open nothing has been transcribed, and when something is, the
   microphone is shut — so saying both at once meant one of them was always a forecast. The bar's
   step count is `transcribeWord.count`, so the mark lengthens the ramp rather than sitting outside
-  it, and the logo is **always lit** for `applyEngineText`'s reason.
+  it, and the logo **fills with it** since 2026-10-01 (it was always lit until then).
 - **Past 150 % of the estimate the row says so — in two pictures, `  🤔⏱️`, no words since
   2026-09-23** (*"să apară doar emojiurile 🤔⏱️, fără textul de după"*; it read `🤔Taking longer
   than usual...` from 2026-09-22) — appended after the word, always lit, **outside the bar**: `transcribeWarmth` is a
