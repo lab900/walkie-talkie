@@ -127,4 +127,16 @@ final class WisprRowLifeTests: XCTestCase {
         XCTAssertGreaterThan(watch.events, 0, "woken by the file, not the 1 s tick")
         XCTAssertEqual(WisprHistory.newest()?.duration, 2)
     }
+
+    /// 2026-10-01, row 18156: a clean stop chord Wispr never took — NULL, no
+    /// duration, its microphone open — is the one state the relay acts on; a
+    /// stop that took (`processing`, a duration, or the microphone shut) is not.
+    func testStopWasLostOnlyWhileWisprStillListens() {
+        XCTAssertTrue(WisprState.stopWasLost(status: "", duration: nil, wisprMicOpen: true))
+        XCTAssertFalse(WisprState.stopWasLost(status: "processing", duration: nil, wisprMicOpen: true))
+        XCTAssertFalse(WisprState.stopWasLost(status: "", duration: 22.1, wisprMicOpen: true))
+        XCTAssertFalse(WisprState.stopWasLost(status: "", duration: nil, wisprMicOpen: false))
+        XCTAssertFalse(WisprState.stopWasLost(status: "formatted", duration: 22.1, wisprMicOpen: false))
+        XCTAssertGreaterThan(WisprState.stopTakesWithin, 0.453 * 2)        // the slowest taken stop, twice over
+    }
 }

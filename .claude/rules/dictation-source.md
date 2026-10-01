@@ -312,6 +312,12 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   (`WisprOwnership.ghostMic`). **Disarmed by the next relay chord**, and never while a relay capture
   is in flight (a microphone still open after the relay's stop while Wispr finishes its row — TW8a in
   wave 4 was dismissed that way, its row declared dead).
+- **A stop chord Wispr did not take is posted again, then dismissed** (2026-10-01,
+  `WisprState.stopWasLost`, `verifyStopTook`): 1.2 s after the relay's stop, row still NULL with no
+  `duration` **and** Wispr's microphone open → one more toggle; still so 1.2 s later → the sentence
+  ends on the relay's recording (Q14, local model) and **then** ⌃Escape (a `dismissed` row reaching a
+  live capture reads as his cancel). ⌘⌃X in flight dismisses such a Wispr too. Measured: 527/536
+  stops left NULL in ≤ 453 ms; on 17:31:00 a clean chord left row 18156 listening 435 s.
 - **A new dictation retires a standing capture only if its row is terminal**
   (`retireCaptureIfSettled`); otherwise it throws away the sentence in flight.
 

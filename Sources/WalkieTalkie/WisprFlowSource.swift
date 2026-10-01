@@ -1409,7 +1409,42 @@ final class WisprFlowSource: DictationSource {
         case .off:
             HotkeyTap.postWisprHandsFree()
         }
+        if startedMode != .scratchpad, let row = historyRow { verifyStopTook(row: row, armed: armedAt, retried: false) }
         closeListening("the relay's own stop gesture")
+    }
+
+    /// **Check that Wispr took the stop chord, and do not leave it listening if
+    /// it did not** (2026-10-01, Victor: *"s-a blocat adineauri wisprflow: a
+    /// rămas în ascultare"* — `WisprState.stopWasLost`). `stopTakesWithin` after
+    /// the chord: the row still NULL and Wispr's microphone open → the toggle is
+    /// posted once more (a second chord over a Wispr that did take the first
+    /// would start a dictation, which is why both witnesses are asked). Still
+    /// so after that: the sentence ends on the relay's own recording (Q14, the
+    /// local model) and **then** Wispr is dismissed — in that order, because a
+    /// row that comes back `dismissed` to a live capture is read as his cancel.
+    private func verifyStopTook(row: Int64, armed: CFAbsoluteTime, retried: Bool) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + WisprState.stopTakesWithin) { [weak self] in
+            guard let self, self.capturing, self.armedAt == armed, self.historyRow == row,
+                  !self.isRecording, !self.speculative, !self.cancelling, !self.discardOnArrival,
+                  let e = WisprHistory.entry(rowid: row),
+                  WisprState.stopWasLost(status: e.status, duration: e.duration,
+                                         wisprMicOpen: self.watch.sampleIsRunningInput()) else { return }
+            if !retried {
+                Log.error(String(format: "wispr: the stop chord did not take — row %lld still NULL and Wispr's "
+                                 + "microphone still open %.1f s on; posting the stop once more",
+                                 row, WisprState.stopTakesWithin))
+                WisprOwnership.noteRelayChord()
+                HotkeyTap.postWisprHandsFree()
+                self.verifyStopTook(row: row, armed: armed, retried: true)
+                return
+            }
+            Log.error("wispr: the second stop did not take either — row \(row) still listening: the relay's own "
+                      + "recording is the sentence (the local model), and Wispr is dismissed (⌃Escape)")
+            self.endCapture(quiet: true)
+            self.endWithRecording("Wispr Flow did not take the stop chord", row: row,
+                                  dismissedAt: Date().timeIntervalSince1970)
+            HotkeyTap.postWisprCancel()
+        }
     }
 
     func cancel() {
@@ -1505,6 +1540,15 @@ final class WisprFlowSource: DictationSource {
         discardOnArrival = true
         dismissedAt = CFAbsoluteTimeGetCurrent()
         Log.info("💻 ⌘⌃X — no longer waiting for Wispr's row; whatever it sends is only logged")
+        // **A Wispr still listening is dismissed** (2026-10-01): the stop it
+        // never took left it recording the room for 7 minutes after this ⌘⌃X.
+        // Only that case — a Wispr already transcribing is left to finish.
+        if let row = historyRow, let e = WisprHistory.entry(rowid: row),
+           WisprState.stopWasLost(status: e.status, duration: e.duration, wisprMicOpen: watch.sampleIsRunningInput()) {
+            Log.info("💻 ⌘⌃X — Wispr is still listening on row \(row) (its stop never took): dismissed (⌃Escape)")
+            relayDismissedAt = dismissedAt
+            HotkeyTap.postWisprCancel()
+        }
         state.reset("handed to the local model (⌘⌃X) — Wispr's answer is only logged")
         armDiscardClose()
         endWithRecording(DictationEnd.localForced, row: historyRow, forced: true)

@@ -213,6 +213,21 @@ final class WisprState {
     }
     /// Still open this long after the relay's own dismiss → dead.
     static let dismissGrace: Double = 1
+
+    /// **The relay's stop chord did not take** (2026-10-01) — the row still
+    /// NULL, no `duration`, and Wispr's microphone still open, `stopTakesWithin`
+    /// after the chord: Wispr is still listening. The one NULL row `deadRow`
+    /// keeps waiting on (its microphone is open), and nothing else would ever
+    /// end it. Measured on 17:31:00 that day: a clean chord (*"the wire was
+    /// bare"*), row 18156 listening on for 435 s until Victor dismissed it by
+    /// hand, every dictate gesture refused meanwhile (*"Wispr Flow's microphone
+    /// is already open"*) and the restart gate shut. 9 of 536 relay stops in the
+    /// log are like it; the other 527 left NULL in ≤ 453 ms (p50 172, p90 221).
+    static func stopWasLost(status: String, duration: Double?, wisprMicOpen: Bool) -> Bool {
+        status.isEmpty && duration == nil && wisprMicOpen
+    }
+    /// How long a taken stop needs to show on the row: 2.6 × the slowest of 527.
+    static let stopTakesWithin: Double = 1.2
     /// Still NULL this long after the close → the stop path never ran.
     static let nullStopCeiling: Double = 3
 
