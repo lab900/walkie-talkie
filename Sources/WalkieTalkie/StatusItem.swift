@@ -1152,6 +1152,14 @@ final class StatusItem: NSObject, NSMenuDelegate {
         applyAutosendIcon()
         menu.addItem(autosend)
 
+        // **📻 A squelch burst when the microphone opens** (2026-10-01), a
+        // switch like Autosend, so the same tick-or-blank; off until he ticks it.
+        squelch.action = #selector(squelchClicked)
+        squelch.target = self
+        squelch.toolTip = "A short burst of radio static each time dictation starts listening."
+        applySquelchIcon()
+        menu.addItem(squelch)
+
 
         menu.addItem(.separator())
 
@@ -2301,6 +2309,19 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// the same pair `applyReplaceWisprIcon` draws. See the note on the row.
     private func applyAutosendIcon() {
         autosend.image = autosendOn ? Self.symbolIcon("checkmark") : Self.blankIcon
+    }
+
+    private let squelch = NSMenuItem(title: StartChime.menuTitle, action: nil, keyEquivalent: "")
+
+    @objc private func squelchClicked() {
+        StartChime.isOn.toggle()
+        applySquelchIcon()
+        StartChime.play()   // ticking it on plays it once, so he hears what he chose
+        Log.info("Radio squelch \(StartChime.isOn ? "on" : "off") from the menu")
+    }
+
+    private func applySquelchIcon() {
+        squelch.image = StartChime.isOn ? Self.symbolIcon("checkmark") : Self.blankIcon
     }
 
 }

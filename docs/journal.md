@@ -15117,3 +15117,12 @@ Exact ca în…"* — the reference was cut off by the dictation itself. Built a
 `StartChime` (no audio file in the bundle), played from `dictationBegan` — every engine, once per
 sentence. `WT_START_SOUND=0` silences it for a run. Unmeasured: whether the speaker's chime leaks
 into the take's first 0.24 s enough to matter to a recogniser or the voiced meter.
+
+## The womp out, a radio squelch in — off by default (2026-10-01)
+
+Victor, the same morning: *"scoate zgomotul de la deschiderea walkie. înlocuiește-l cu un hârâit ca
+de transmisie (white noise scurt) debifat by default în meniu"*. `StartChime` now synthesises
+0.16 s of seeded white noise band-limited to a radio's ~350 Hz–3 kHz, a 4 ms attack, a 60 Hz
+flutter and a 25 ms cut at the end (peak −7 dBFS, RMS −19.5 dBFS). It plays only while the new
+top-level **Radio Squelch** row under Autosend is ticked (`UserDefaults` `startSquelch`, absent =
+off); ticking it plays it once so he hears what he chose. `WT_START_SOUND` is gone with the womp.
