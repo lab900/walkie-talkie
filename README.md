@@ -87,8 +87,8 @@ while the sentence is still being said.
 Nothing is drawn *into* the picture: a mark painted over a frame covers the thing
 it points at, and an agent reading the image cannot tell it from the UI.
 
-Shots go to `~/Library/Caches/ro.victorrentea.wispr-relay/shots/<session>/`,
-which macOS reclaims under disk pressure: they are a staging area, not an
+Shots go to `~/Library/Caches/ro.victorrentea.wispr-relay/shots/<yyyy-MM-dd-HH-mm-ss>/`,
+one folder per dictation stamped with when it started, which macOS reclaims under disk pressure: they are a staging area, not an
 archive.
 
 <img src="docs/prompt.png" width="308" alt="the finished prompt with a Cancel button counting down">

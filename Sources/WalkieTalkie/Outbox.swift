@@ -93,21 +93,21 @@ enum Outbox {
 
     static var shotsDir = cacheRoot.appendingPathComponent(sessionStamp)
 
-    /// **One folder per dictation, inside the session's** (2026-09-20).
+    /// **One folder per dictation, stamped with the date and second it opened**
+    /// (2026-10-01; nested inside the session's folder from 2026-09-20).
     ///
-    /// Victor, looking at two envelopes from the same session: *"se termină cu
-    /// … după numele pozei în loc de -original … cum se prinde sesiunea de
-    /// restul?"* — the answer was `screenshot-0-2-800px.jpg`, and it is a bad
-    /// one. Every dictation starts its numbering at `📸0`, so the second
-    /// sentence of a session collided with the first and `uniqueBase` hung a
-    /// `-2` on it: a disambiguator nobody can read, in the middle of a name
-    /// whose whole job is to be read.
+    /// A folder per dictation exists because every sentence numbers its
+    /// pictures from `📸0`: in one shared folder the second sentence collided
+    /// with the first and `uniqueBase` hung an unreadable `-2` on it. So `📁` in
+    /// the envelope means *this sentence's artifacts*, and every picture in it
+    /// is `screenshot-<n>` with nothing appended.
     ///
-    /// A folder per dictation removes the collision instead of labelling it.
-    /// `📁` in the envelope then means *this sentence's artifacts* rather than
-    /// *this relay session's*, which is what the footer's one `[📁=…]` line was
-    /// always trying to say, and every picture in it is `screenshot-<n>` with
-    /// nothing appended, for ever.
+    /// **Flat, not `<session>/<dictation>`.** Victor, reading
+    /// `$WALKIE_SHOTS/2026-09-30-23-56-21/07-20-31`: *"Shouldn't it just be the
+    /// date and then the hour and the second of the start of the dictation?
+    /// Why are there 2 subfolders?"* The session stamp told the agent nothing it
+    /// could use, and the dictation stamp alone, with its date, is already
+    /// unique. `prune` counts top-level folders, so it sees these directly.
     ///
     /// - Parameter start: when the dictation opened — its stamp names the
     ///   folder. Nil (a shutter with no sentence around it) keeps the session
@@ -116,8 +116,8 @@ enum Outbox {
         guard let start = start else { return shotsDir }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "HH-mm-ss"
-        let dir = shotsDir.appendingPathComponent(f.string(from: start))
+        f.dateFormat = "yyyy-MM-dd-HH-mm-ss"
+        let dir = cacheRoot.appendingPathComponent(f.string(from: start))
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

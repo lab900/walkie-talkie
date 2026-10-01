@@ -34,6 +34,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *The back button's two gestures swapped roles* (2026-09-23, `268b111`: 🔽 = the plain toggle, 🔽 → = Return) — superseded 2026-09-28 by *The back button's gestures swapped back*: 🔽 → is the plain toggle, 🔽 is Return (the shutter while a prompt records; stop + words + Return in a plain one)
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Auto fallback to local (p98): ⌘⌃X pressed by the clock* (2026-09-28, 22:25) — superseded 2026-09-29 by *Prepare local transcript (p95)*: p95, not p98; the local words are decoded **ahead** and **offered** (`💻 Use local  ⌘⌃X`), never inserted on a clock — `via: local-auto`, the countdown row and the over-budget flash are gone; the checkbox is *Prepare local transcript (p95)*. Q14 (hard failures) stays automatic
+- *One folder per dictation* (2026-09-20, `shots/<session>/<HH-mm-ss>/`) — superseded 2026-10-01 by *The dictation folder moves up a level*: `shots/<yyyy-MM-dd-HH-mm-ss>/`, flat; the session folder keeps only what has no sentence around it (stray shutters, WAVs, films)
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
 - *The beacon is gone* (2026-09-11) — `RecordingBeacon.swift` is deleted; the halo is up for every dictation
@@ -275,6 +276,7 @@ The journal contradicts itself over time, because it was written as things chang
 - [Voice affect: `[?]` where he hesitated, `[voice: hesitant]` when the sentence was (2026-09-27)](#voice-affect--where-he-hesitated-voice-hesitant-when-the-sentence-was-2026-09-27)
 - [Fixes to the test plan's findings, batch 7 (2026-09-27)](#fixes-to-the-test-plans-findings-batch-7-2026-09-27)
 - [Two lines that roll up (2026-09-28)](#two-lines-that-roll-up-2026-09-28)
+- [The dictation folder moves up a level (2026-10-01)](#the-dictation-folder-moves-up-a-level-2026-10-01)
 
 ---
 
@@ -15088,3 +15090,21 @@ has the table, what surprised, the recommendation and how to re-run.
   footer.
 - **Through the real relay in `wt-lab`:** 15/18 runs placed, 10/10 with Wispr 3 s late, at most
   1.6 s still queued at his stop. `evals/wispr-markers/README.md` → *The combined feature*.
+
+## The dictation folder moves up a level (2026-10-01)
+
+Victor, reading `[📁=$WALKIE_SHOTS/2026-09-30-23-56-21/07-20-31]`: *"I don't get why is this text so
+long. Shouldn't it just be the date and then the hour and the second of the start of the dictation
+sequence? Why are there 2 subfolders? Should be just merged."*
+
+The session stamp in the middle told the agent nothing it could use. The dictation stamp, once it
+carries its date, is unique on its own. So `Outbox.dictationDir(start)` is now
+`shots/<yyyy-MM-dd-HH-mm-ss>/`, a sibling of the session folders rather than a child of one:
+`[📁=$WALKIE_SHOTS/2026-10-01-07-20-31]`. The session folder still exists and still gets
+everything that has no sentence around it: a shutter outside a dictation, the recognisers' WAVs,
+`film-<stamp>/`.
+
+`prune` needed no change in behaviour: it already walks the top level and one level down, so it
+counts the new flat folders and the old nested ones from 2026-09-20 to 09-30. Only its comment
+changed. `dropEmptySessions` sweeps an empty dictation folder like an empty session; that is safe
+because `dictationDir` re-creates the folder on every capture.

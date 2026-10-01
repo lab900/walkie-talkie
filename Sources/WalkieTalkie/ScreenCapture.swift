@@ -520,11 +520,11 @@ enum ScreenCapture {
                                                     includingPropertiesForKeys: nil,
                                                     options: [.skipsHiddenFiles])) ?? []
         var jpgs: [URL] = []
-        // **Two levels now, not one** (2026-09-20): a session folder holds a
-        // folder per dictation, and a walk that stopped at the session would
-        // count nothing and delete nothing — the same trap `film-<stamp>/` fell
-        // into, written down there and repeated here the day the nesting
-        // arrived. `pruneFilms` still walks the sessions themselves.
+        // **Two levels**: dictation folders sit at the top since 2026-10-01,
+        // but from 2026-09-20 to then they were nested in a session folder, and
+        // a walk that stopped at the top would never count or delete those —
+        // the same trap `film-<stamp>/` fell into. `pruneFilms` still walks the
+        // sessions themselves.
         var folders = sessions
         for session in sessions {
             folders += ((try? fm.contentsOfDirectory(
