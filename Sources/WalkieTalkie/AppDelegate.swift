@@ -4952,7 +4952,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             aimAtBoundTerminal()
             return
         }
+        // **…and with nothing bound, at the terminal bound last** (2026-10-01).
+        // Victor: *"să pot să tranziționez din modul de dictare la caret … în
+        // modul de dictare legată de terminalul precedent … să dau forward și
+        // să mut la dreapta, ca să trimit promptul curent la terminalul legat
+        // precedent"*. Until now an unbound 🔼 → here had nowhere to aim and
+        // stopped the sentence. `aimAtPreviousTerminal`.
+        if pasteMode, !isBound, let previous = RebindHistory.shared.previous {
+            aimAtPreviousTerminal(previous)
+            return
+        }
         endDictation()
+    }
+
+    /// Point a caret sentence at the terminal the relay was bound to last, and
+    /// bind it again — see `toggleDictation`.
+    ///
+    /// The aim is taken at once and the bind follows off the main thread (it is
+    /// `osascript`, as in `rebindFromMenu`). Nothing waits on it: a sentence
+    /// whose microphone closes before the bind lands is unbound at the close, so
+    /// it is held (`awaitingBind`) and goes out when `showBound` sees the
+    /// target — the same terminal, a beat later. If the window is gone the bind
+    /// fails, the flash says so, and the sentence waits for a bind like any
+    /// other. No raise: he is looking at the window he was dictating into.
+    private func aimAtPreviousTerminal(_ previous: RebindHistory.Entry) {
+        guard let tty = previous.tty else { return endDictation() }
+        retarget(to: previous.label)
+        Log.info("↪️ redirected mid-sentence — nothing bound, so to the terminal bound last: "
+                 + "\(previous.label) (\(previous.address)), re-binding it")
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let bound = self.terminal.bind(tty: tty) else {
+                Log.info("↪️ the terminal bound last (\(previous.address)) is gone — the sentence waits for a bind")
+                DispatchQueue.main.async { [weak self] in
+                    self?.overlay.flash("⚠️ \(previous.label) is closed — bind a terminal", duration: 3)
+                }
+                return
+            }
+            Log.info("📍 re-bound to \(bound.address) by 🔼 → mid-sentence")
+            DispatchQueue.main.async { [weak self] in self?.showBound(bound) }
+        }
     }
 
     /// Take a sentence already in flight off the caret and point it at the bound
@@ -4965,6 +5003,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// of the two he is talking into, and a ring that goes on saying *caret*
     /// after he has redirected is the kind of lie this app takes seriously.
     private func aimAtBoundTerminal() {
+        retarget(to: terminal.target?.label ?? "the terminal")
+        Log.info("↪️ redirected mid-sentence — these words go to the bound terminal, not the caret")
+    }
+
+    /// The caret sentence's aim moved to a terminal — `aimAtBoundTerminal`,
+    /// `aimAtPreviousTerminal`.
+    private func retarget(to label: String) {
         pasteMode = false
         // **A clean sentence goes too** (2026-09-26, TG13): `deliver` sends a
         // `cleanSentence` to the caret whatever `pasteMode` says, so the flash
@@ -4973,9 +5018,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // reads this instead.
         if cleanSentence { cleanRedirected = true; submitAfterClean = false }
         overlay.setSpawnDestination(nil)
-        Log.info("↪️ redirected mid-sentence — these words go to the bound terminal, not the caret")
         syncBorrowedGestures()
-        overlay.flash("↪️ to \(terminal.target?.label ?? "the terminal")", duration: 1.5)
+        overlay.flash("↪️ to \(label)", duration: 1.5)
     }
 
     /// **Ask the source for a microphone**, and dress the gesture while it opens.

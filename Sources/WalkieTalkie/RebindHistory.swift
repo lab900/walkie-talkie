@@ -132,6 +132,14 @@ final class RebindHistory {
 
     // MARK: - Reading
 
+    /// **The terminal bound last** — the newest row that can be rebound (has a
+    /// tty). What 🔼 → aims a caret sentence at when nothing is bound
+    /// (2026-10-01), so `isCurrent` is not asked: a row a restart left marked
+    /// current is the last one bound all the same.
+    var previous: Entry? {
+        all.first { $0.tty != nil }
+    }
+
     var all: [Entry] {
         lock.lock(); defer { lock.unlock() }
         return entries.sorted { $0.lastContact > $1.lastContact }

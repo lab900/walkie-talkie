@@ -52,7 +52,7 @@ In this mode the app takes **no mouse button at all**. Every mouse event is hand
 
 | gesture | chord | what it does |
 |---|---|---|
-| 🔼 → | ⌃⌥⌘F10 | start the dictation, or end the one open (the same call ⌘⌃D makes) |
+| 🔼 → | ⌃⌥⌘F10 | start the dictation, or end the one open (the same call ⌘⌃D makes); **mid caret prompt it redirects instead** — to the bound terminal, or with nothing bound to the terminal bound last, re-binding it (2026-10-01, `aimAtPreviousTerminal`) |
 | 🔼 ← | ⌃⌥⌘F11 | cancel it — throw the audio away |
 | 🔼 ↑ | ⌃⌥⌘F8 | dictate at a session that does not exist yet |
 | ◀️ held, then 🔼 | ⌃⌥⌘F7 | **bind** the terminal in front — no toggle |

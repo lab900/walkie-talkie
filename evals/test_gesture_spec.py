@@ -130,7 +130,8 @@ def spec(src: dict):
                 ("F7 raises onPasteToggle", "HotkeyTap `case VK_F7`",
                  lambda: has(gesture_case(src, "VK_F7"), r"onPasteToggle\?\(\)")),
                 ("onPasteToggle starts a caret dictation", "AppDelegate `hotkeys.onPasteToggle`",
-                 lambda: has(closure(src, "hotkeys.onPasteToggle"), r"startDictation\(paste: true\)")),
+                 lambda: has(closure(src, "hotkeys.onPasteToggle"), r"forwardClickToggle\(\)")
+                 and has(function(src, "AppDelegate.swift", "forwardClickToggle"), r"startDictation\(paste: true\)")),
                 ("startDictation(paste:) marks the sentence a caret PROMPT", "AppDelegate `startDictation`",
                  lambda: has(function(src, ad, "startDictation"), r"caretPrompt = paste")),
                 ("the prompt takes the context shot at the press", "AppDelegate `dictationBegan`",
