@@ -379,6 +379,19 @@ final class AudioBridge {
     // MARK: - On `queue`
 
     private func take(_ buffer: AVAudioPCMBuffer, seconds: TimeInterval, marker: Bool = false) {
+        // **A buffer whose samples are not there any more is dropped, not read**
+        // (2026-10-02 08:47:43): `EXC_BAD_ACCESS` at 0x0 in `VoicedMeter.feed`
+        // under `judge`, 8 s into a Wispr clean dictation — the buffer's `mData`
+        // was NULL with ~521 frames declared, the same buffer the recorder had
+        // metered fine moments before. Cause not found yet; the log line below
+        // is how the next one is caught. A lost 85 ms is a glitch Wispr hears,
+        // a read through it is the relay dead mid-sentence.
+        guard Self.readable(buffer) else {
+            lock.lock(); pending = max(0, pending - seconds); lock.unlock()
+            Log.error(String(format: "🔀 bridge: a %@buffer of %d frames with no samples behind it (%@) — dropped",
+                             marker ? "marker " : "", Int(buffer.frameLength), Self.describeData(buffer)))
+            return
+        }
         let voiced = marker || judge(buffer)
         lock.lock()
         pending = max(0, pending - seconds)
@@ -475,6 +488,19 @@ final class AudioBridge {
             Log.info(String(format: "🔀 bridge caught up — Wispr hears him live %.1f s after the release "
                             + "(%.2f s of pauses shortened)", caughtUpAt - releasedAt, pacer.dropped))
         }
+    }
+
+    /// Every channel buffer has a data pointer and room for `frameLength` frames.
+    static func readable(_ buffer: AVAudioPCMBuffer) -> Bool {
+        let need = Int(buffer.frameLength) * Int(buffer.format.streamDescription.pointee.mBytesPerFrame)
+        let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: buffer.audioBufferList))
+        return list.count > 0 && list.allSatisfy { $0.mData != nil && Int($0.mDataByteSize) >= need }
+    }
+
+    private static func describeData(_ buffer: AVAudioPCMBuffer) -> String {
+        let list = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: buffer.audioBufferList))
+        return list.map { "mData \($0.mData == nil ? "nil" : "set"), \($0.mDataByteSize) bytes" }
+            .joined(separator: "; ")
     }
 
     /// Voiced or not, by the meter's own arithmetic over the stream; a buffer

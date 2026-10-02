@@ -2309,6 +2309,79 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         }
     }
 
+    /// 🔽 → and the keyboard's F5 / 🎤 — **start the plain dictation, or stop the
+    /// one open** (see the `VK_F5` case for the why of each guard). `gesture`
+    /// names the trigger in the log and the trace.
+    private func plainToggle(_ gesture: String, _ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let f5Now = CACurrentMediaTime()
+        let sinceLastF5 = f5Now - lastF5At
+        lastF5At = f5Now
+        guard sinceLastF5 >= Self.gestureRetriggerSeconds else {
+            Log.info("🎯 🔽 → F5 re-triggered \(String(format: "%.0f", sinceLastF5 * 1000))ms after the last one — still the same motion, dropped")
+            return swallow("\(gesture) — re-fire dropped", type, event)
+        }
+        let wisprSentence = backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation)
+        let ownClean = !wisprSentence && ownDictation && ownCleanSentence
+        guard f5Now - lastBackToggleAt >= Self.backToggleSettleSeconds else {
+            Log.info("🎯 🔽 → \(String(format: "%.0f", (f5Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
+            return swallow("\(gesture) — inside the plain toggle's settle", type, event)
+        }
+        if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {
+            Log.info("🎯 🔽 → \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
+            return swallow("\(gesture) — inside the stop dwell", type, event)
+        }
+        // **C: the press after a refused start is its stop, not a start.**
+        if !wisprSentence, !ownClean, lastRefusedPlainStartAt > 0 {
+            let since = f5Now - lastRefusedPlainStartAt
+            lastRefusedPlainStartAt = 0
+            if since < Self.refusedStartPairSeconds, !ownDictation {
+                lastBackToggleAt = f5Now
+                Log.info(String(format: "🎯 🔽 → %.1fs after a refused start — that start's stop: nothing is recording, nothing starts (C)", since))
+                onEngineBusy?("🔽 → — nothing was recording (the last start was refused)")
+                return swallow("\(gesture) — the stop of a refused start", type, event)
+            }
+        }
+        // **With the Engine off Wispr the plain sentence is the
+        // Engine's** (2026-09-25, `onCleanToggle`). A Wispr sentence
+        // already open is still stopped with Wispr's chord below — a
+        // stop must reach whoever is listening.
+        if !wisprSentence, backUsesOwnEngine {
+            if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
+                refuseBackClick("🔽 →")
+                lastRefusedPlainStartAt = f5Now
+                return swallow(gesture, type, event)
+            }
+            lastBackToggleAt = f5Now
+            if !ownClean { lastPlainStartAt = f5Now }
+            Log.info("🎙️ 🔽 → — a clean dictation on the Engine\(ownClean ? " (the stop)" : " (the start)")")
+            DispatchQueue.global().async { [weak self] in self?.onCleanToggle?() }
+            return swallow(gesture, type, event)
+        }
+        // The arm says *a start was posted and has not ended* even
+        // before Wispr's microphone warms up, so it wins over the
+        // microphone reading closed in that gap.
+        let closing = wisprSentence
+        // **Never a second microphone over the first** (2026-09-18):
+        // with the Engine on the local model or ElevenLabs the relay's
+        // own may be recording. Only the opening half is refused — a stop
+        // must never be. Victor: *"E absurd să pornesc două motoare de
+        // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
+        if !closing, ownDictation {
+            refuseBackClick("🔽 →")
+            lastRefusedPlainStartAt = f5Now
+            return swallow(gesture, type, event)
+        }
+        lastBackToggleAt = f5Now
+        if !closing { lastPlainStartAt = f5Now }
+        Log.info("🎙️ 🔽 → — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
+        Self.postWisprHandsFree()
+        // …and the chord says so to the state machine, which cannot see
+        // it any other way — see `onWisprRawChord`.
+        onWisprRawChord?(closing)
+        setWisprArm(closing ? 0 : CACurrentMediaTime())
+        return swallow(gesture, type, event)
+    }
+
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // Re-enable after a system timeout disable, else the tap dies silently.
         if type.rawValue == 0xFFFFFFFE || type.rawValue == 0xFFFFFFFF {
@@ -3371,6 +3444,16 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // **Autorepeat, and the re-fire guard, before the switch.** Six of the
         // ten had no re-fire guard at all (`lastFlickAt`); F10 and F5 keep
         // their own, which also feed their dwell and settle checks.
+        // **F5 on the keyboard, bare — the plain dictation's toggle** (2026-10-02,
+        // Victor: *"la f5 să facă toggle la dictare curată (adică să rămână
+        // pornită până apăs iarăși pe f5)"*). Arrives as key 96 with only the
+        // function-key flag (trace, 08:55). Same start/stop as 🔽 →, guards and
+        // all; the right ⌘⌥ pair stays the hold-to-talk one.
+        if keyCode == VK_F5, !ctrl, !opt, !cmd, !flags.contains(.maskShift) {
+            if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow("F5 (autorepeat)", type, event) }
+            return plainToggle("F5", type, event)
+        }
+
         if useLogiGestures && ctrl && opt && cmd, let gesture = Self.gestureNames[keyCode] {
             if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
                 return swallow("\(gesture) (autorepeat)", type, event)
@@ -3583,73 +3666,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             // it), and the 2 s dwell before a stop (a slow flick must not start
             // and end the same sentence — F10's `gestureStopDwellSeconds`).
             case VK_F5:
-                let f5Now = CACurrentMediaTime()
-                let sinceLastF5 = f5Now - lastF5At
-                lastF5At = f5Now
-                guard sinceLastF5 >= Self.gestureRetriggerSeconds else {
-                    Log.info("🎯 🔽 → F5 re-triggered \(String(format: "%.0f", sinceLastF5 * 1000))ms after the last one — still the same motion, dropped")
-                    return swallow("\(gesture) — re-fire dropped", type, event)
-                }
-                let wisprSentence = backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation)
-                let ownClean = !wisprSentence && ownDictation && ownCleanSentence
-                guard f5Now - lastBackToggleAt >= Self.backToggleSettleSeconds else {
-                    Log.info("🎯 🔽 → \(String(format: "%.0f", (f5Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
-                    return swallow("\(gesture) — inside the plain toggle's settle", type, event)
-                }
-                if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {
-                    Log.info("🎯 🔽 → \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
-                    return swallow("\(gesture) — inside the stop dwell", type, event)
-                }
-                // **C: the press after a refused start is its stop, not a start.**
-                if !wisprSentence, !ownClean, lastRefusedPlainStartAt > 0 {
-                    let since = f5Now - lastRefusedPlainStartAt
-                    lastRefusedPlainStartAt = 0
-                    if since < Self.refusedStartPairSeconds, !ownDictation {
-                        lastBackToggleAt = f5Now
-                        Log.info(String(format: "🎯 🔽 → %.1fs after a refused start — that start's stop: nothing is recording, nothing starts (C)", since))
-                        onEngineBusy?("🔽 → — nothing was recording (the last start was refused)")
-                        return swallow("\(gesture) — the stop of a refused start", type, event)
-                    }
-                }
-                // **With the Engine off Wispr the plain sentence is the
-                // Engine's** (2026-09-25, `onCleanToggle`). A Wispr sentence
-                // already open is still stopped with Wispr's chord below — a
-                // stop must reach whoever is listening.
-                if !wisprSentence, backUsesOwnEngine {
-                    if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
-                        refuseBackClick("🔽 →")
-                        lastRefusedPlainStartAt = f5Now
-                        return swallow(gesture, type, event)
-                    }
-                    lastBackToggleAt = f5Now
-                    if !ownClean { lastPlainStartAt = f5Now }
-                    Log.info("🎙️ 🔽 → — a clean dictation on the Engine\(ownClean ? " (the stop)" : " (the start)")")
-                    DispatchQueue.global().async { [weak self] in self?.onCleanToggle?() }
-                    return swallow(gesture, type, event)
-                }
-                // The arm says *a start was posted and has not ended* even
-                // before Wispr's microphone warms up, so it wins over the
-                // microphone reading closed in that gap.
-                let closing = wisprSentence
-                // **Never a second microphone over the first** (2026-09-18):
-                // with the Engine on the local model or ElevenLabs the relay's
-                // own may be recording. Only the opening half is refused — a stop
-                // must never be. Victor: *"E absurd să pornesc două motoare de
-                // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
-                if !closing, ownDictation {
-                    refuseBackClick("🔽 →")
-                    lastRefusedPlainStartAt = f5Now
-                    return swallow(gesture, type, event)
-                }
-                lastBackToggleAt = f5Now
-                if !closing { lastPlainStartAt = f5Now }
-                Log.info("🎙️ 🔽 → — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
-                Self.postWisprHandsFree()
-                // …and the chord says so to the state machine, which cannot see
-                // it any other way — see `onWisprRawChord`.
-                onWisprRawChord?(closing)
-                setWisprArm(closing ? 0 : CACurrentMediaTime())
-                return swallow(gesture, type, event)
+                return plainToggle(gesture, type, event)
 
             // The back button **clicked** — **Return**, posted by this app (see
             // `postReturn`: in Logi mode nothing upstream types it), with two
