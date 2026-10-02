@@ -77,7 +77,7 @@
   // ---- the keying pass ----------------------------------------------------
   const gl = out.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false });
   let prog = null, tex = null, uFade = null, uRadii = null, uRes = null, uFloor = null, uGain = null;
-  let fadeFloor = 0.10, gain = 1, rotX = 1, fadeStart = 0, uStart = null, pinCenter = false;
+  let fadeFloor = 0.10, gain = 1, rotX = 1, fadeStart = 0, uStart = null, pinCenter = false, noWaves = [];
   let hole = 0, peak = 1, uHole = null, uPeak = null;
   let core = 0, tailTop = 0, uCore = null, uTail = null;
   function compile(type, code) {
@@ -250,6 +250,8 @@
       tailTop = opts.tailTop || 0;
       rotX = opts.rot || 1;
       pinCenter = !!opts.pinCenter;
+      //   noWaves:    custom waves (`waves[i]`) switched off in our copy.
+      noWaves = opts.noWaves || [];
       //   speed:      how fast the preset's own clock runs, 1 = real time. See
       //               the frame loop for why this and not the frame cap.
       speed = opts.speed || 1;
@@ -288,6 +290,12 @@
           + (rotX !== 1 ? 'a.rot=a.rot*' + rotX + ';' : '')
           + (pinCenter ? 'a.cx=0.5;a.cy=0.5;' : '');
         note = (rotX !== 1 ? ' rot ×' + rotX : '') + (pinCenter ? ' centre pinned' : '');
+      }
+      if (noWaves.length && p.waves) {
+        // Mosaic's `wave_0` draws thin grey staircase lines over the tiles.
+        p = p === presets[name] ? JSON.parse(JSON.stringify(p)) : p;
+        noWaves.forEach(i => { if (p.waves[i]) p.waves[i].baseVals.enabled = 0; });
+        note += ' waves off ' + noWaves.join(',');
       }
       viz.loadPreset(p, 0.6);
       return 'ok' + (note ? ' (' + note.trim() + ')' : '');

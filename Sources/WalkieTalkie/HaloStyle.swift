@@ -229,6 +229,14 @@ enum HaloStyle: String, CaseIterable {
         /// Append `a.cx = a.cy = 0.5` to the preset's frame equations, so a
         /// composition that drifts its own centre stays on the pointer.
         var pinCenter = false
+        /// The preset's custom waves (`wavecode_N`) switched off in our copy.
+        /// Mosaic's `wave_0` is the reason (Victor, 2026-10-02: *"apar unele
+        /// linii gri subțiri, verticale … ascund animația reală"*): a 1-px white
+        /// additive line whose x moves on ~5 points of every 41, so it draws a
+        /// staircase of mostly vertical strokes, brightest on the beat
+        /// (`a = min(q22/8, .2)`), and the feedback tilts them with the lattice.
+        /// The tiles and the coloured dots are the shapes', not the wave's.
+        var noWaves: [Int] = []
         /// Pinned to the screen (not following the pointer), the canvas's
         /// centre — the preset's horizon — at this fraction of the screen's
         /// height from the bottom. Nil = the square follows the pointer.
@@ -613,7 +621,7 @@ enum HaloStyle: String, CaseIterable {
         // frame cap cannot do (see `Preset.speed`).
         case .milkdrop99:  return Preset(number: 99, name: "martin - reflections on black tiles", scale: 0.75,
                                          fade: true, fadeAtEdge: true, fadeFloor: 0, gain: 1,
-                                         webOnly: true, speed: 0.6, anchored: true)
+                                         noWaves: [0], webOnly: true, speed: 0.6, anchored: true)
         // **Water Dream is a hybrid** (Victor, 2026-09-20 late: *"the water stays
         // locked in the bottom 20% of the screen, but the meteors follow the
         // mouse"*): the preset gives the sky and the pool, pinned to the screen
