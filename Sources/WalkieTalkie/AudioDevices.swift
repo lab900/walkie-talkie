@@ -26,6 +26,26 @@ enum AudioDevices {
         return nil
     }
 
+    /// **By UID — the only way to reach a hidden device.** A device with
+    /// `kAudioDevicePropertyIsHidden` is left out of `kAudioHardwarePropertyDevices`
+    /// (so out of `output(matching:)` and every app's menus) but CoreAudio still
+    /// translates its UID. From Walkie's output-only twin lives exactly there.
+    static func output(uid: String) -> Device? {
+        var cfUID = uid as CFString
+        var id = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        let status = withUnsafeMutablePointer(to: &cfUID) {
+            AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
+                                       UInt32(MemoryLayout<CFString>.size), $0, &size, &id)
+        }
+        guard status == noErr, id != kAudioObjectUnknown,
+              channels(id, scope: kAudioObjectPropertyScopeOutput) > 0 else { return nil }
+        return Device(id: id, name: name(id) ?? uid)
+    }
+
     private static func all() -> [AudioDeviceID] {
         var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
                                                  mScope: kAudioObjectPropertyScopeGlobal,

@@ -86,6 +86,21 @@ final class AudioBridge {
         ProcessInfo.processInfo.environment["WT_BRIDGE_DEVICE"] ?? "From Walkie"
     }
 
+    /// **From Walkie has no output since 2026-10-02** — Victor saw it offered as a
+    /// *speaker* in Zoom: *"să fie doar microfon selectabil, nu și boxă"*. Its
+    /// input is fed through the driver's hidden, output-only twin "From Walkie
+    /// Mirror" (same BlackHole ring buffer), reachable only by UID. The needle is
+    /// the fallback for `WT_BRIDGE_DEVICE` and for any other pass-through device.
+    private static let mirrorUID = "FromWalkie_2_UID"
+
+    private static func target() -> AudioDevices.Device? {
+        if ProcessInfo.processInfo.environment["WT_BRIDGE_DEVICE"] == nil,
+           let mirror = AudioDevices.output(uid: mirrorUID) {
+            return mirror
+        }
+        return AudioDevices.output(matching: deviceNeedle)
+    }
+
     /// `WT_BRIDGE_RATE=1.0` turns the speed-up off; the pauses are still shortened.
     /// `WT_BRIDGE_MAX_RATE` is the ramp's ceiling (`BridgePacer`, 1.0–2.5).
     private static var tuning: BridgePacer.Tuning {
@@ -209,7 +224,7 @@ final class AudioBridge {
     func start(format: AVAudioFormat, holding: Bool) -> Bool {
         queue.sync {
             guard !isRunning else { return true }
-            guard let device = AudioDevices.output(matching: Self.deviceNeedle) else {
+            guard let device = Self.target() else {
                 Log.error("audio bridge: no output device matching '\(Self.deviceNeedle)' — "
                           + "his voice is not being carried anywhere")
                 return false
@@ -619,7 +634,7 @@ final class AudioBridge {
         lock.lock(); let lost = queued; queued = 0; lock.unlock()
         recoveries += 1
         guard recoveries <= Self.maxRecoveries,
-              let device = AudioDevices.output(matching: Self.deviceNeedle) else {
+              let device = Self.target() else {
             die(recoveries > Self.maxRecoveries
                 ? "the output changed \(recoveries) times in one take"
                 : "no output matching '\(Self.deviceNeedle)' after a device change")
