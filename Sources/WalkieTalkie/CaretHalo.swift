@@ -1389,11 +1389,21 @@ final class CaretHalo {
     /// durata transcripției, practic redând la o rată mai mare sunetul care acum
     /// intră în transcripție"*): the spawn's own dress, fed the take the same way
     /// the tunnel is, and left where it stands — Sparks is `centred`, the middle
-    /// of the screen, so no approach and no travel.
+    /// of the screen, so no approach and no travel. It does shrink, at the
+    /// tunnel's rate (`sparksShrink`, the same evening).
     private var rewindStyle: HaloStyle {
         destination == .spawn ? HaloStyle.current(for: .spawn) : Self.tunnelStyle
     }
     private var rewindApproaches: Bool { rewindStyle == Self.tunnelStyle }
+    /// **A spawn's Sparks shrinks through the transcription like the tunnel**
+    /// (2026-10-02) — `RewindTimeline.shrink` on the same clock, from its full
+    /// size and at full ink: it is on screen already, so there is no warm-up to
+    /// wait out (`visibleFrom` 0) and nothing to fade in.
+    private var sparksShrink: CGFloat {
+        let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
+                                       predicted: rewindEstimate, visibleFrom: 0)
+        return CGFloat(RewindTimeline.shrink(pose, from: Double(Self.approachFrom)))
+    }
     private static let rewindOff = ProcessInfo.processInfo.environment["WT_HALO_REWIND"] == "0"
     /// Half a second of audio: under it there is nothing to rewind.
     private static let rewindMinSamples = 8000
@@ -1552,6 +1562,7 @@ final class CaretHalo {
                     : Self.seeded(Self.tailed(Self.lift(Self.undoInputGain(self.samples?() ?? nil ?? [Float](repeating: 0, count: 1024)))))
                 web?.feed(samples)
                 if (self.rewinding && self.rewindApproaches) || Self.approachDemo > 0 { web?.approach(scale: self.approachScale.scale, alpha: self.approachScale.alpha) }
+                else if self.rewinding { web?.approach(scale: self.sparksShrink, alpha: 1) }
                 // The tunnel's centre travels on its own clock, not the pointer's.
                 if self.rewinding && self.rewindApproaches && self.rewindAim != nil { self.aimEffectAtPointer() }
                 self.under?.feed(samples)

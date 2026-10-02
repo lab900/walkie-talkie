@@ -195,4 +195,15 @@ final class RewindTimelineTests: XCTestCase {
         // A ring already narrower than half at the start: on the window at once.
         XCTAssertEqual(RewindTimeline.travel(.init(progress: 0, time: 0), from: 1.2, restRing: restRing), 1)
     }
+
+    /// 2026-10-02: Sparks shrinks by the same ratio the tunnel's stamp does, from full size.
+    func testShrinkFollowsTheTunnelsRatio() {
+        XCTAssertEqual(RewindTimeline.shrink(.init(progress: 0, time: 0), from: 7), 1, accuracy: 1e-9)
+        for p in [0.2, 0.58, 1, 1.4] {
+            let pose = RewindTimeline.Pose(progress: p, time: 1)
+            let tunnel = RewindTimeline.stamp(pose, from: 7).scale / RewindTimeline.stamp(.init(progress: 0, time: 0), from: 7).scale
+            XCTAssertEqual(RewindTimeline.shrink(pose, from: 7), tunnel, accuracy: 1e-9)
+        }
+        XCTAssertEqual(RewindTimeline.shrink(.init(progress: 1, time: 1), from: 7), 1.0 / 7, accuracy: 1e-9)
+    }
 }

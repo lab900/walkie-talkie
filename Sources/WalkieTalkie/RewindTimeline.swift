@@ -150,4 +150,15 @@ enum RewindTimeline {
     }
     /// The ring's diameter at which the tunnel has finished travelling, × the long side.
     static let arriveAt = 0.5
+
+    /// **Sparks shrinks at the tunnel's own rate** (2026-10-02, Victor: *"dacă
+    /// … Stars se micșorează în același stil în care se micșorează și Reverse
+    /// Tunnel … în loc să rămână activ pe tot ecranul, să se micșoreze în timp
+    /// ce redă animația"*). The tunnel's stamp is `sizeFactor × from^(1 − progress)`,
+    /// so against where it started it is `from^(−progress)` — that ratio, from
+    /// the picture's own full size: 1 as the transcription opens, ~0.32 at the
+    /// prediction, 1/`from` at twice it, and on past it like the tunnel.
+    static func shrink(_ pose: Pose, from: Double) -> Double {
+        pow(from, -pose.progress)
+    }
 }

@@ -155,6 +155,7 @@ final class MilkDropHalo: NSView, HaloWebHost {
         }
         let fresh = !configured
         if fresh { configure(); configured = true }
+        approach(scale: 1, alpha: 1)
         web.evaluateJavaScript("halo.fps(\(haloFrameCap)); halo.start()", completionHandler: nil)
         if !fresh { onVisible?() }
         // `WT_MD_SHOOT=<dir/name>`: at every whole second from 3 to 8 s, the engine's own frame, keyed,
@@ -197,6 +198,22 @@ final class MilkDropHalo: NSView, HaloWebHost {
 
     /// The engine's square follows the pointer as a window; nothing to tell the page.
     func center(_ p: CGPoint) {}
+
+    /// **The picture at `scale` × its size, about its middle** (2026-10-02, a
+    /// spawn's Sparks shrinking through the transcription). The page is not
+    /// told: its canvas stays at one pixel per point and the view's layer is
+    /// scaled, so nothing is re-laid out thirty times a second. `start` puts it
+    /// back to whole for the next sentence.
+    func approach(scale: CGFloat, alpha: CGFloat) {
+        guard let layer = layer else { return }
+        // `sublayerTransform` is about the anchor point (the corner, for a
+        // layer-backed view): over to the middle, scale, back.
+        let dx = bounds.width * (0.5 - layer.anchorPoint.x), dy = bounds.height * (0.5 - layer.anchorPoint.y)
+        CATransaction.begin(); CATransaction.setDisableActions(true)
+        layer.sublayerTransform = CATransform3DTranslate(CATransform3DScale(CATransform3DMakeTranslation(dx, dy, 0), scale, scale, 1), -dx, -dy, 0)
+        CATransaction.commit()
+        alphaValue = alpha
+    }
 
     private func fail(_ why: String) {
         guard !failed else { return }
