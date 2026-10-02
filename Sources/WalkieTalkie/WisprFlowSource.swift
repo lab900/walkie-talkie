@@ -1376,8 +1376,7 @@ final class WisprFlowSource: DictationSource {
         // sat out the 30 s `captureTimeout` before Q14. Now the relay's own take
         // is the sentence, closed here and handed to the local model (Q14's
         // path through `ownTakeOnly`); E still watches for a late start.
-        if relayStarted, historyRow == nil, !micSeen, !watch.sampleIsRunningInput(),
-           CFAbsoluteTimeGetCurrent() - gestureAt > 1.0, startedMode != .scratchpad {
+        if relayStarted, startWasLost {
             Log.error("wispr: stop without a chord — Wispr never took the start (no row, no microphone): "
                       + "the relay's own recording is the sentence, the local model now")
             ownTakeOnly = "Wispr Flow never took the start chord"
@@ -1637,6 +1636,35 @@ final class WisprFlowSource: DictationSource {
     /// toggle's two halves are told apart by `gestureSeen` from its own state,
     /// exactly as they are for his keyboard, so `closing` is a *description* of
     /// what the tap believed rather than an instruction.
+    /// **W6's question: did Wispr ever take this sentence's start?** No row, no
+    /// microphone, well past the 357 ms a row takes (p99 of 5395: 838 ms after the
+    /// chord) — a toggle posted now would *start* a ghost recording of the room.
+    private var startWasLost: Bool {
+        historyRow == nil && !micSeen && !watch.sampleIsRunningInput()
+            && CFAbsoluteTimeGetCurrent() - gestureAt > 1.0 && startedMode != .scratchpad
+    }
+
+    /// **The raw toggle's stop (🔽 →, F5, the back click) asks W6 first**
+    /// (2026-10-02, Victor: *"nu se închide dictarea în Wispr, e deschis"*). At
+    /// 11:07:00 F5 opened a plain sentence and Wispr never took the start chord —
+    /// no row, no microphone for 7 s. The tap posted the stop straight onto the
+    /// wire, past `stop()`'s W6, and that chord *started* Wispr: row 18220,
+    /// written at the stop, left listening while the relay ended the sentence on
+    /// its own recording. On main, before anything goes on the wire: a lost start
+    /// gets no chord, and the relay's own recording is the sentence (Q14).
+    func rawStop() {
+        if isRecording || speculative, startWasLost {
+            Log.error("wispr: 🔽 → stop without a chord — Wispr never took the start (no row, no microphone): "
+                      + "the relay's own recording is the sentence, the local model now")
+            ownTakeOnly = "Wispr Flow never took the start chord"
+            ownTakeSince = CFAbsoluteTimeGetCurrent()
+            closeListening("Victor's own 🔽 → (the stop) — Wispr never took the start, no chord posted")
+            return
+        }
+        HotkeyTap.postWisprHandsFree()
+        noteRawChord(closing: true)
+    }
+
     func noteRawChord(closing: Bool) {
         gestureSeen(closing ? "🔽 → (the stop) — Wispr's chord, posted raw"
                             : "🔽 → — Wispr's chord, posted raw",
@@ -2997,6 +3025,17 @@ final class WisprFlowSource: DictationSource {
             let row = e.rowid
             endCapture(quiet: true)
             if !wasDiscarding { endWithRecording("Wispr Flow never opened its microphone", row: row) }
+            // **…and a Wispr listening on that row now is dismissed** (2026-10-02,
+            // 11:07): its start was lost and the stop chord started it — row 18220,
+            // written at the stop, still NULL with Wispr's microphone open, and
+            // nothing else would ever end it. After the sentence ended, as in
+            // `verifyStopTook`. Only the row on top: a newer one is his own.
+            if WisprHistory.newest()?.rowid == row, watch.sampleIsRunningInput() {
+                Log.error("wispr: Wispr is listening on row \(row), which the relay has given up on — "
+                          + "its stop chord started it; dismissed (⌃Escape)")
+                relayDismissedAt = CFAbsoluteTimeGetCurrent()
+                HotkeyTap.postWisprCancel()
+            }
             return
         case let s where WisprState.intermediateStatuses.contains(s):
             // **Batch 3 (2026-09-28): a row Wispr will never finish is dead now,

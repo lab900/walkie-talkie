@@ -145,6 +145,21 @@ final class HotkeyTap {
     /// anyway, from its own state, exactly as it does for his keyboard.
     var onWisprRawChord: ((Bool) -> Void)?
 
+    /// **The raw toggle's stop, handed to the source instead of the wire**
+    /// (2026-10-02): it posts the chord itself, or none when Wispr never took
+    /// the start — a toggle then would *start* Wispr (`WisprFlowSource.rawStop`).
+    /// Unwired, the stop is posted here as before.
+    var onWisprRawStop: (() -> Void)?
+
+    private func postWisprRawStop() {
+        guard let stop = onWisprRawStop else {
+            Self.postWisprHandsFree()
+            onWisprRawChord?(true)
+            return
+        }
+        DispatchQueue.main.async(execute: stop)
+    }
+
     /// **🔽 ended a plain dictation, and the words are to be submitted**
     /// (2026-09-23 on 🔽 →; on the back click since 2026-09-28 — Victor: *"The
     /// back key should result in an Enter key being pressed"*). The click stops
@@ -2374,10 +2389,14 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         lastBackToggleAt = f5Now
         if !closing { lastPlainStartAt = f5Now }
         Log.info("🎙️ 🔽 → — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
-        Self.postWisprHandsFree()
-        // …and the chord says so to the state machine, which cannot see
-        // it any other way — see `onWisprRawChord`.
-        onWisprRawChord?(closing)
+        if closing {
+            postWisprRawStop()
+        } else {
+            Self.postWisprHandsFree()
+            // …and the chord says so to the state machine, which cannot see
+            // it any other way — see `onWisprRawChord`.
+            onWisprRawChord?(false)
+        }
         setWisprArm(closing ? 0 : CACurrentMediaTime())
         return swallow(gesture, type, event)
     }
@@ -3722,8 +3741,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                     }
                     lastBackToggleAt = f6Now
                     Log.info("⌨️ 🔽 — stopping the plain dictation; Return once its words land")
-                    Self.postWisprHandsFree()
-                    onWisprRawChord?(true)
+                    postWisprRawStop()
                     setWisprArm(0)
                     DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
                     return swallow(gesture, type, event)

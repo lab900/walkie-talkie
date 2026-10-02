@@ -2962,6 +2962,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onWisprRawChord = { [weak self] closing in
             DispatchQueue.main.async { self?.wisprSource.noteRawChord(closing: closing) }
         }
+        hotkeys.onWisprRawStop = { [weak self] in self?.wisprSource.rawStop() }
         // …and watched for the length of one, so the arm cannot be left
         // standing over a sentence that ended some other way.
         hotkeys.onWisprRawGesture = { [weak self] armed in

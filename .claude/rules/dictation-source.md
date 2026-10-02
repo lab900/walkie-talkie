@@ -610,6 +610,12 @@ was a blip); `wispr history: row R recorded X s, the relay closed its take at Y 
 
 - **A relay stop over a start Wispr never took** (no row, no microphone, > 1 s) posts no chord and
   goes to the local model at once (`ownTakeOnly`) — W6's `!isRecording` never held for a relay start.
+- **The raw toggle's stop asks W6 too** (2026-10-02, `HotkeyTap.onWisprRawStop` →
+  `WisprFlowSource.rawStop`): 🔽 →, F5 and the back click used to post the stop straight from the tap,
+  past `stop()`. At 11:07:00 F5's start was lost and the stop chord *started* Wispr (row 18220, written
+  at the stop, left listening). Now the tap hands the stop to the source on main, which posts no chord
+  for a lost start. Net under it: W2 (NULL row, no microphone seen, 3 s after the close) dismisses
+  (⌃Escape) a Wispr found listening on that row, if it is still the newest.
 - **A Wispr-side close whose row is still NULL with no `duration` is not Wispr's end** (`nullRowHold`):
   up to 4 s from the input going off; the input back → the sentence goes on, the row moving → ended
   as before, the ceiling → `holdOwnTake`. A blip under the F19 hold cut the take at 2.8 s of 10.
