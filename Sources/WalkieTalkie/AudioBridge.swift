@@ -91,14 +91,20 @@ final class AudioBridge {
     /// input is fed through the driver's hidden, output-only twin "From Walkie
     /// Mirror" (same BlackHole ring buffer), reachable only by UID. The needle is
     /// the fallback for `WT_BRIDGE_DEVICE` and for any other pass-through device.
+    ///
+    /// **The Mirror only once From Walkie has lost its output** (2026-10-02 14:45):
+    /// the app shipped before the new driver was installed, and on the old one the
+    /// Mirror *chops* his voice — From Walkie's own output cycle writes its silent
+    /// mix into the shared ring between the Mirror's writes (BlackHole does not mix
+    /// the two). A tone fed in came out 240 samples on, 272 zeros, over and over;
+    /// Wispr answered `no_audio` to all four sentences. A visible output means the
+    /// old driver: play into it, as before.
     private static let mirrorUID = "FromWalkie_2_UID"
 
     private static func target() -> AudioDevices.Device? {
-        if ProcessInfo.processInfo.environment["WT_BRIDGE_DEVICE"] == nil,
-           let mirror = AudioDevices.output(uid: mirrorUID) {
-            return mirror
-        }
-        return AudioDevices.output(matching: deviceNeedle)
+        if let direct = AudioDevices.output(matching: deviceNeedle) { return direct }
+        guard ProcessInfo.processInfo.environment["WT_BRIDGE_DEVICE"] == nil else { return nil }
+        return AudioDevices.output(uid: mirrorUID)
     }
 
     /// `WT_BRIDGE_RATE=1.0` turns the speed-up off; the pauses are still shortened.
