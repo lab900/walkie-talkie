@@ -127,4 +127,27 @@ enum RewindTimeline {
     static func stamp(_ pose: Pose, from: Double) -> (scale: Double, alpha: Double) {
         (sizeFactor * pow(from, 1 - pose.progress), pow(pose.time, 0.6))
     }
+
+    /// **On the window by the time the ring is half the screen across**
+    /// (2026-10-02, Victor: *"să meargă repede cât de departe și apoi să stea
+    /// acolo, centrat, în timp ce se mixează … când a ajuns ca diametrul [la]
+    /// jumate din lățimea ecranului, să fie deja centrat pe țintă"*). It used to
+    /// slide with the whole approach, landing only at rest (`reach` × the
+    /// prediction) — most of the sentence spent half-way between the pointer and
+    /// the terminal. Now the travel is the approach's own progress up to the
+    /// instant the ring's diameter is `arriveAt` × the screen's long side, 1
+    /// after it: the stamp is geometric in `progress`, so that instant is
+    /// `p* = 1 − ln(arriveAt / (restRing × sizeFactor)) / ln(from)` — ~0.11 with
+    /// the tunnel's numbers, ~15 % of the way to the prediction. A ring already
+    /// smaller than that at the start is on the window at once.
+    ///
+    /// - Parameter restRing: the ring's diameter at stamp scale 1, × the long side.
+    /// - Returns: 0 on the pointer … 1 on the window.
+    static func travel(_ pose: Pose, from: Double, restRing: Double, arriveAt: Double = arriveAt) -> Double {
+        let arrival = 1 - log(arriveAt / (restRing * sizeFactor)) / log(from)
+        guard arrival > 0 else { return 1 }
+        return min(max(pose.progress / arrival, 0), 1)
+    }
+    /// The ring's diameter at which the tunnel has finished travelling, × the long side.
+    static let arriveAt = 0.5
 }

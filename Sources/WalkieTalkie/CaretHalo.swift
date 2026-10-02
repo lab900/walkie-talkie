@@ -1315,14 +1315,16 @@ final class CaretHalo {
     /// reverse tunnel se deplasează, asta să nu-i influențeze traiectoria"*). So
     /// the start is the pointer **latched at the close** (`rewindStart`), never
     /// re-read, and the centre slides from it to `rewindAim` with the approach's
-    /// own progress — at the start of the shrink on the pointer, at rest on the
-    /// window. No window to go to: it stays where it started.
+    /// own progress — at the start of the shrink on the pointer, on the window
+    /// once the ring is half the screen across (2026-10-02, the same evening:
+    /// *"să meargă repede … și apoi să stea acolo, centrat"* — `RewindTimeline.travel`;
+    /// it used to land only at rest). No window to go to: it stays where it started.
     private var rewindPoint: NSPoint? {
         guard let from = rewindStart else { return rewindAim }
         guard let to = rewindAim else { return from }
         let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
                                        predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)
-        let t = CGFloat(min(max(pose.progress, 0), 1))
+        let t = CGFloat(RewindTimeline.travel(pose, from: Double(Self.approachFrom), restRing: Self.restRing))
         return NSPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
     }
     private var rewindStart: NSPoint?
@@ -1374,6 +1376,9 @@ final class CaretHalo {
     /// picture's radius) then spans ~1.5 of the screen's long side —
     /// 1.5 / (0.66 × 0.317) ≈ 7.2.
     private static let approachFrom: CGFloat = 7
+    /// The ring's diameter at rest (stamp scale 1), × the long side: 0.66 of the
+    /// picture, which is the preset's `scale` (0.317) of the long side.
+    private static let restRing = 0.66 * Double(tunnelStyle.preset?.scale ?? 0.317)
     /// `WT_HALO_APPROACH=<seconds>`: play the approach on any ring that comes up,
     /// as if a rewind with that estimate had begun — the only way to film it
     /// (`WT_HALO_DEMO`) without a real dictation.
