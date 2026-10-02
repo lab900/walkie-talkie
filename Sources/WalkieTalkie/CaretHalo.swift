@@ -782,7 +782,7 @@ final class CaretHalo {
     /// with it, the same way the arrow stops asking for a place to paste.
     func setDestination(_ new: HaloDestination) {
         destination = new
-        use(rewinding ? Self.rewindStyle : HaloStyle.current(for: new))
+        use(rewinding ? rewindStyle : HaloStyle.current(for: new))
     }
 
     /// Pick another halo **for one destination**, and write it down. If that
@@ -1244,10 +1244,10 @@ final class CaretHalo {
     func setRewind(_ on: Bool, take: @autoclosure () -> [Int16], estimate: TimeInterval) -> Bool {
         guard on != rewinding else { return rewinding }
         guard on else {
+            fadeAim = aim
             rewinding = false
-            fadeAim = rewindAim
             rewindEndedAt = CFAbsoluteTimeGetCurrent()
-            rewindTake = []
+            rewindTake = []; rewindStart = nil
             Log.info("⏪ the rewind ends")
             // The dress goes back once the ring is out of sight — changing it
             // now would rebuild the panel under the fade.
@@ -1257,7 +1257,7 @@ final class CaretHalo {
             }
             return false
         }
-        guard !Self.rewindOff, Self.rewindStyle.isAvailable, !delivering else { return false }
+        guard !Self.rewindOff, rewindStyle.isAvailable, !delivering else { return false }
         let samples = take()
         guard samples.count >= Self.rewindMinSamples else {
             Log.info("⏪ no rewind — only \(samples.count) samples in the take; the heads keep the job")
@@ -1273,12 +1273,13 @@ final class CaretHalo {
         rewindSpeed = min(max(seconds / max(predicted, 0.5), 1), Self.rewindMaxSpeed)
         rewindFrom = CFAbsoluteTimeGetCurrent()
         rewindEstimate = predicted
+        rewindStart = NSEvent.mouseLocation
         rewinding = true
         arrow.armed = false
         Log.info(String(format: "⏪ the rewind: %.1f s of his voice, backwards at %.1f×, fitted to %.2f s on %@ (chip's ceiling %.1f s, visible from %.2f s), on %@",
                         seconds, rewindSpeed, predicted, DecodeRate.activeEngine, estimate,
-                        Self.rewindVisibleFrom, Self.rewindStyle.rawValue))
-        use(Self.rewindStyle)
+                        Self.rewindVisibleFrom, rewindStyle.rawValue))
+        use(rewindStyle)
         return true
     }
 
@@ -1303,10 +1304,28 @@ final class CaretHalo {
     /// comes up — the settle clears the sentence's aim before the 0.15 s fade is
     /// over, and the fade must stay where the tunnel converged.
     private var fadeAim: NSPoint?
-    /// Where the effect is centred: the pointer, or the rewind's window.
+    /// Where the effect is centred: the pointer, or the rewind's path.
     private var aim: NSPoint {
-        (rewinding ? rewindAim : fadeAim) ?? NSEvent.mouseLocation
+        (rewinding ? rewindPoint : fadeAim) ?? NSEvent.mouseLocation
     }
+    /// **The tunnel starts where the pointer was and travels to the window as
+    /// it shrinks** (2026-10-02, Victor: *"întâi pe mouse și să apară mare ca
+    /// acum, și apoi să-și mute centrul, pe măsură ce se micșorează, către
+    /// terminalul care va primi dictarea"* — and *"dacă mișc mouse-ul în timp ce
+    /// reverse tunnel se deplasează, asta să nu-i influențeze traiectoria"*). So
+    /// the start is the pointer **latched at the close** (`rewindStart`), never
+    /// re-read, and the centre slides from it to `rewindAim` with the approach's
+    /// own progress — at the start of the shrink on the pointer, at rest on the
+    /// window. No window to go to: it stays where it started.
+    private var rewindPoint: NSPoint? {
+        guard let from = rewindStart else { return rewindAim }
+        guard let to = rewindAim else { return from }
+        let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
+                                       predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)
+        let t = CGFloat(min(max(pose.progress, 0), 1))
+        return NSPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
+    }
+    private var rewindStart: NSPoint?
     private var rewindTake: [Float] = []
     private var rewindFrom: CFAbsoluteTime = 0
     private var rewindSpeed: Double = 1
@@ -1349,7 +1368,7 @@ final class CaretHalo {
     /// (`HaloStyle.Preset.warmup`, shorter than the other presets') — the engine
     /// renders hidden before that.
     static var rewindVisibleFrom: TimeInterval {
-        rewindStyle.preset?.warmup ?? ProjectMHalo.warmup
+        tunnelStyle.preset?.warmup ?? ProjectMHalo.warmup
     }
     /// The stamp's size at the start, × its resting size: the ring (0.66 of the
     /// picture's radius) then spans ~1.5 of the screen's long side —
@@ -1359,7 +1378,17 @@ final class CaretHalo {
     /// as if a rewind with that estimate had begun — the only way to film it
     /// (`WT_HALO_DEMO`) without a real dictation.
     private static let approachDemo = TimeInterval(ProcessInfo.processInfo.environment["WT_HALO_APPROACH"] ?? "") ?? 0
-    private static let rewindStyle: HaloStyle = .milkdrop7Reversed
+    private static let tunnelStyle: HaloStyle = .milkdrop7Reversed
+    /// **A new session keeps its stars through the transcription** (2026-10-02,
+    /// Victor: *"mi-ar plăcea ca efectul principal de stars să fie animat pe
+    /// durata transcripției, practic redând la o rată mai mare sunetul care acum
+    /// intră în transcripție"*): the spawn's own dress, fed the take the same way
+    /// the tunnel is, and left where it stands — Sparks is `centred`, the middle
+    /// of the screen, so no approach and no travel.
+    private var rewindStyle: HaloStyle {
+        destination == .spawn ? HaloStyle.current(for: .spawn) : Self.tunnelStyle
+    }
+    private var rewindApproaches: Bool { rewindStyle == Self.tunnelStyle }
     private static let rewindOff = ProcessInfo.processInfo.environment["WT_HALO_REWIND"] == "0"
     /// Half a second of audio: under it there is nothing to rewind.
     private static let rewindMinSamples = 8000
@@ -1517,7 +1546,9 @@ final class CaretHalo {
                     ? Self.lift(Self.undoInputGain(self.rewindWindow()))
                     : Self.seeded(Self.tailed(Self.lift(Self.undoInputGain(self.samples?() ?? nil ?? [Float](repeating: 0, count: 1024)))))
                 web?.feed(samples)
-                if self.rewinding || Self.approachDemo > 0 { web?.approach(scale: self.approachScale.scale, alpha: self.approachScale.alpha) }
+                if (self.rewinding && self.rewindApproaches) || Self.approachDemo > 0 { web?.approach(scale: self.approachScale.scale, alpha: self.approachScale.alpha) }
+                // The tunnel's centre travels on its own clock, not the pointer's.
+                if self.rewinding && self.rewindApproaches && self.rewindAim != nil { self.aimEffectAtPointer() }
                 self.under?.feed(samples)
                 // The panel being replaced stays on screen until the new one has
                 // warmed up (1.7 s for a projectM preset) — fed meanwhile, so the

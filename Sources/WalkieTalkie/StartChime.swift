@@ -31,8 +31,10 @@ enum StartChime {
     /// flutter for the crackle and a 50 ms fade out — the "kssh" of a key-up,
     /// quiet (*"fă-l de 3x mai discret"*, then −30 %, then half: gain 0.9 → 0.3 → 0.21 → 0.105).
     /// A fixed seed, so every launch hisses the same.
+    /// 0.16 → 0.32 s (2026-10-02, Victor: *"îmi lungește de două ori durata …
+    /// acel hârâit de început"*); the edges stay as they were.
     private static func wav() -> Data {
-        let rate = 44_100.0, seconds = 0.16
+        let rate = 44_100.0, seconds = 0.32
         let n = Int(rate * seconds)
         var samples = [Int16](repeating: 0, count: n)
         var seed: UInt32 = 0x5EED_1234

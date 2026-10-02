@@ -619,8 +619,12 @@ enum HaloStyle: String, CaseIterable {
         //
         // 0.5 → 0.75 is his ×1.5; `speed` 0.6 is *"puțin mai lent"*, which the
         // frame cap cannot do (see `Preset.speed`).
+        //
+        // `gain` 1 → 1.2 (Victor, 2026-10-02: *"puzzle effect să fie +20% mai
+        // vizibil"*) — the page multiplies the colour before keying it to alpha,
+        // so it is opacity and intensity together.
         case .milkdrop99:  return Preset(number: 99, name: "martin - reflections on black tiles", scale: 0.75,
-                                         fade: true, fadeAtEdge: true, fadeFloor: 0, gain: 1,
+                                         fade: true, fadeAtEdge: true, fadeFloor: 0, gain: 1.2,
                                          noWaves: [0], webOnly: true, speed: 0.6, anchored: true)
         // **Water Dream is a hybrid** (Victor, 2026-09-20 late: *"the water stays
         // locked in the bottom 20% of the screen, but the meteors follow the

@@ -1514,6 +1514,15 @@ final class HotkeyTap {
     private var lastF10At: CFTimeInterval = 0
     /// The last 🔽 → (F5, the plain dictation's toggle), for the same re-trigger guard.
     private var lastF5At: CFTimeInterval = 0
+    /// **Right ⌥ tapped twice, alone — the plain dictation's toggle too**
+    /// (2026-10-02). When the lone right ⌥ went down (0 = not down, or not alone
+    /// any more), and when the last clean tap of it ended (0 = none pending).
+    private var rightOptTapDownAt: CFTimeInterval = 0
+    private var rightOptTapUpAt: CFTimeInterval = 0
+    /// Down to up, and release to the second press — longer is a hold or two
+    /// separate presses, not a double tap.
+    private static let rightOptTapSeconds: CFTimeInterval = 0.35
+    private static let rightOptGapSeconds: CFTimeInterval = 0.45
     /// The last toggle of a plain dictation (🔽 →'s start or stop, 🔽's stop) —
     /// see the F5 case.
     private var lastBackToggleAt: CFTimeInterval = 0
@@ -3037,6 +3046,38 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             // ~0.25 s into a hold — the sentence cancelled as "too short". Only
             // unstamped events move the pair.
             let ownPost = event.getIntegerValueField(.eventSourceUserData) == Self.backButtonStamp
+            // **Right ⌥ twice, alone, quickly = F5** (2026-10-02, Victor: *"să pot
+            // să apăs și de două ori repede tasta Option din partea dreaptă, ca să
+            // tot comute dictarea on și off"*). Only the right ⌥ with nothing else
+            // held counts; any other modifier, a key in between (keyDown below) or
+            // a slow press breaks the pair. The event itself always goes through —
+            // swallowing a modifier edge would leave ⌥ stuck in the app underneath.
+            if !ownPost {
+                let now = CACurrentMediaTime()
+                let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+                let others: CGEventFlags = [.maskCommand, .maskControl, .maskShift, .maskSecondaryFn, .maskAlphaShift]
+                let loneRightOpt = keyCode == Self.VK_RIGHT_OPTION
+                    && (raw & Self.deviceRightOption) != 0
+                    && event.flags.intersection(others).isEmpty
+                if loneRightOpt {
+                    rightOptTapDownAt = now
+                    if rightOptTapUpAt > 0, now - rightOptTapUpAt > Self.rightOptGapSeconds { rightOptTapUpAt = 0 }
+                } else if keyCode == Self.VK_RIGHT_OPTION, rightOptTapDownAt > 0,
+                          (raw & Self.deviceRightOption) == 0, event.flags.intersection(others).isEmpty,
+                          now - rightOptTapDownAt <= Self.rightOptTapSeconds {
+                    rightOptTapDownAt = 0
+                    if rightOptTapUpAt > 0 {
+                        rightOptTapUpAt = 0
+                        Log.info("🎙️ right ⌥ double-tapped — the plain dictation's toggle (as F5)")
+                        _ = plainToggle("right ⌥ ×2", type, event)
+                    } else {
+                        rightOptTapUpAt = now
+                    }
+                } else {
+                    rightOptTapDownAt = 0
+                    rightOptTapUpAt = 0
+                }
+            }
             let ptt = (raw & Self.deviceRightOption) != 0 && (raw & Self.deviceRightShift) != 0
             if !ownPost, ptt != wisprPttDown {
                 wisprPttDown = ptt
@@ -3060,6 +3101,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                 return Unmanaged.passUnretained(event)
             }
         }
+        // A key between or under the right ⌥ taps is ⌥ used as a modifier.
+        if type == .keyDown { rightOptTapDownAt = 0; rightOptTapUpAt = 0 }
         // **A key under the held pair makes it a shortcut, not a dictation**
         // (2026-09-25, `onCleanHold`). Right ⌘⌥ + a letter is a chord somebody
         // else owns; the sentence opened at the press is thrown away and the
@@ -5007,6 +5050,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
     private static let VK_COMMAND: CGKeyCode = 55
     private static let VK_ESC:     CGKeyCode = 53
     private static let VK_SPACE:   CGKeyCode = 49
+    private static let VK_RIGHT_OPTION: CGKeyCode = 61
     private static let VK_CONTROL: CGKeyCode = 59
     private static let VK_FN:      CGKeyCode = 63
 }
