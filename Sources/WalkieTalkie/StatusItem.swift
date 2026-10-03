@@ -1538,6 +1538,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
             // `NSMenuItem.state`, which would reserve a second column.
             row.image = id == engineId ? Self.symbolIcon("checkmark") : Self.blankIcon
             engineSubmenu.addItem(row)
+            if id == "whisper" { addWhisperModelRows() }
         }
         // **⏱ Prepare local transcript (p95)** (2026-09-28 as *Auto fallback to
         // local*, Victor: *"Auto fallback to local model should be a checkbox in
@@ -1609,6 +1610,44 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// if he opened the menu now.
     var wisprRowShown: Bool {
         Self.engineRowIds(wisprSwitch: Self.wisprEngineSwitch, current: engineId).contains("wispr")
+    }
+
+    /// Victor picked a local model (a repo id or a folder). `AppDelegate` stores
+    /// it and replaces the helper at the next idle moment.
+    var onPickWhisperModel: ((String) -> Void)?
+
+    /// **The local model's weights, one row each, indented under `Local 💻`**
+    /// (2026-10-03). Victor: both models visible — the published turbo and the
+    /// LoRA trained on his own dictations — the original the default, and he
+    /// switches himself. The tick is the *pick* (`WhisperModels.selected`); what
+    /// the helper actually holds is the `Local 💻` row's tooltip, which reads the
+    /// helper's own answer. Titles and tooltips come from each folder's
+    /// `model-card.json` (`WhisperModels.Option`), never written twice.
+    private func addWhisperModelRows() {
+        let picked = WhisperModels.selected
+        for option in WhisperModels.options() {
+            let row = NSMenuItem(title: option.title, action: #selector(whisperModelPicked(_:)),
+                                 keyEquivalent: "")
+            row.target = self
+            row.representedObject = option.id
+            row.indentationLevel = 1
+            row.toolTip = option.details
+            row.image = option.id == picked ? Self.symbolIcon("checkmark") : Self.blankIcon
+            engineSubmenu.addItem(row)
+        }
+    }
+
+    @objc private func whisperModelPicked(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        onPickWhisperModel?(id)
+    }
+
+    /// `GET /engine.whisperModels` — the rows `addWhisperModelRows` draws, as data.
+    static func whisperModelRows() -> [[String: Any]] {
+        let picked = WhisperModels.selected
+        return WhisperModels.options().map {
+            ["id": $0.id, "title": $0.title, "tooltip": $0.details, "selected": $0.id == picked]
+        }
     }
 
     /// The 🧾 row, rebuilt with the list and repainted in place when a fetch lands.
@@ -1829,7 +1868,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         case "wispr":
             return "Wispr Flow — its own microphone; its paste is blocked and the relay delivers the words"
         default:
-            let name = whisperModel?() ?? LocalWhisperSource.configuredModel
+            let name = whisperModel?() ?? WhisperModels.displayName(LocalWhisperSource.configuredModel)
             let memory: String
             if engineLoading { memory = "loading…" }
             else if let bytes = whisperFootprint?() {

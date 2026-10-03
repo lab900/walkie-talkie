@@ -225,6 +225,11 @@ final class LocalWhisper {
         var path = (env["PATH"] ?? "").split(separator: ":").map(String.init)
         for dir in dirs where !path.contains(dir) { path.append(dir) }
         env["PATH"] = path.joined(separator: ":")
+        // **The weights Victor picked in the Engine list** (2026-10-03) — the
+        // helper's `MODEL` is this variable, so the pick travels the same road
+        // a launch-time override always did. Read at each spawn: a switch is a
+        // new helper (`AppDelegate.applyWhisperModelWhenIdle`).
+        env["RELAY_WHISPER_MODEL"] = WhisperModels.selected
         return env
     }
 
@@ -316,6 +321,11 @@ final class LocalWhisper {
     }
 
     func stop() {
+        // **Not ready from the call, not from when the queue gets to it**
+        // (2026-10-03): `restartHelper` is `stop()` then `bringUpModel()`, and
+        // the latter returns early while `ready` is still true — so a restart
+        // only ever stopped. The start it now makes is queued behind this stop.
+        setReady(false)
         queue.async { [weak self] in
             guard let self = self else { return }
             self.setReady(false)

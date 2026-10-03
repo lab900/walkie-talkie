@@ -20,6 +20,15 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
 - **There is one recogniser and no setting to change it.** The relay records through `MicRecorder`
   and transcribes locally with `mlx_whisper` (`pip install mlx-whisper`) plus `ffmpeg`; the model is
   `mlx-community/whisper-large-v3-turbo`, overridable with `RELAY_WHISPER_MODEL`. → journal: *The recogniser*
+- **Which weights is a pick in the Engine list since 2026-10-03** (`WhisperModels`): the published
+  turbo (default) or any folder under `~/.walkie-talkie/models/` with `config.json` +
+  `weights.safetensors` — first `whisper-turbo-victor`, the LoRA on his 3,086 Wispr-labelled clips
+  (held-out WER 20.4 → 15.3 %). Titles/tooltips come from the folder's `model-card.json` only.
+  `UserDefaults` `localWhisperModel` → `RELAY_WHISPER_MODEL` in `helperEnvironment` at each spawn
+  (stored pick > env > original). A pick with the helper up replaces it via
+  `AppDelegate.applyWhisperModelWhenIdle` — waits while `restartBlockers` is non-empty or it is
+  loading. `LocalWhisper.stop()` clears `ready` synchronously: before that `restartHelper()` only
+  ever stopped (its `bringUpModel` saw `ready` still true).
 - **Never reintroduce the Wispr Flow database path.** Until 2026-08-29 the relay watched Wispr Flow's
   `flow.sqlite`, transcribed the WAV blob it found there, swallowed Wispr's own paste and fell back to
   Wispr's text. All of it went whole: `WisprWatcher.swift`, `FlowDB.swift`, `DictationMonitor.swift`,

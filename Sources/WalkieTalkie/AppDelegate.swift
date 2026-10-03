@@ -1344,6 +1344,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // it; `setEngine` is what decides, and it tells the row back what is
         // actually running — see its note on the sentence in flight.
         status.onPickEngine = { [weak self] id in self?.setEngine(id) }
+        // **The local model's weights** (2026-10-03) — stored at once, applied
+        // to the helper at the next idle moment (`applyWhisperModelWhenIdle`).
+        status.onPickWhisperModel = { [weak self] id in self?.pickWhisperModel(id, from: "the Engine menu") }
         // **The microphone picker** (2026-09-19). Three closures and no state of
         // its own: the menu asks what is plugged in and what would record, and
         // hands back an id. The preference lives in `InputDevice` beside the
@@ -1945,6 +1948,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if body["restart"] as? Bool == true {
                 DispatchQueue.main.async { self.whisperSource.restartHelper() }
                 did.append("restart")
+            }
+            // `{"model": "<repo id or folder>"}` — the Engine list's model pick (2026-10-03).
+            if let model = body["model"] as? String {
+                DispatchQueue.main.sync { self.pickWhisperModel(model, from: "POST /test/whisper") }
+                did.append("model")
             }
             if !did.isEmpty { Log.info("🧪 /test/whisper: \(did.joined(separator: ", "))") }
             Thread.sleep(forTimeInterval: 0.15)
@@ -2744,6 +2752,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           // `StatusItem.micRowsForTest`.
                           "rows": self.status.micRowsForTest()]
             out["whisper"] = self.whisperSource.describe()
+            // The Engine list's model rows as the menu would draw them now (2026-10-03).
+            out["whisperModels"] = StatusItem.whisperModelRows()
+            out["whisperModelSelected"] = WhisperModels.selected
+            out["whisperModelPending"] = self.whisperModelPending
             // Wispr's own shortcut table (C, W-C7): Q9 is coherent only while
             // Wispr's `ptt` is off Walkie's right ⌘⌥ (54+61) — 61+60 since Q23.
             // `wisprStandalone` is always true since Q9 step 2 (2026-09-28: the
@@ -4406,6 +4418,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The Engine submenu's checkbox (and `POST /test/local-auto {"on"}`).
+    /// **A local model picked from the Engine list** (2026-10-03). The pick is
+    /// written at once (the tick follows it); the helper is replaced only if it
+    /// is up (or coming up) with other weights, and only when nothing is in
+    /// flight — `applyWhisperModelWhenIdle`. A helper that is down simply loads
+    /// the new weights the next time anything brings it up.
+    private func pickWhisperModel(_ id: String, from: String) {
+        guard WhisperModels.isLoadable(id) else {
+            Log.error("💻 local model pick refused (\(from)) — no weights at \(id)")
+            return
+        }
+        WhisperModels.select(id)
+        Log.info("💻 local model picked (\(from)): \(WhisperModels.displayName(id))")
+        applyWhisperModelWhenIdle()
+    }
+
+    /// Whether a model switch is waiting for an idle moment — `GET /engine.whisperModelPending`.
+    private(set) var whisperModelPending = false
+
+    /// **Never under a sentence.** `restartBlockers` is the restart gate's own
+    /// list (every engine dictating or transcribing, the local fallback, a
+    /// sentence queued, audio staged for Recover); while it is not empty, or the
+    /// helper is still loading, ask again in a second. The helper's own queue
+    /// would finish a decode before the stop anyway; the gate is so the next
+    /// sentence does not meet a cold model it did not ask for.
+    private func applyWhisperModelWhenIdle() {
+        let want = WhisperModels.selected
+        let helperUp = whisperSource.isReady || whisperSource.isLoading
+        guard helperUp, whisperSource.isLoading || whisperSource.loadedModel != want else {
+            if whisperModelPending { Log.info("💻 local model switch: nothing left to do") }
+            whisperModelPending = false
+            return
+        }
+        let why = restartBlockers + (whisperSource.isLoading ? ["the helper is still loading"] : [])
+        guard why.isEmpty else {
+            if !whisperModelPending {
+                Log.info("💻 local model switch waits for idle — \(why.joined(separator: ", "))")
+            }
+            whisperModelPending = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.applyWhisperModelWhenIdle() }
+            return
+        }
+        whisperModelPending = false
+        Log.info("💻 local model switch: \(whisperSource.loadedModel ?? "?") → \(want) — replacing the helper")
+        whisperSource.restartHelper()
+    }
+
     private func setAutoLocal(_ on: Bool, from: String) {
         AutoLocal.isOn = on
         Log.info("⏱ prepare local transcript (p95) \(on ? "ON" : "OFF") — \(from)")

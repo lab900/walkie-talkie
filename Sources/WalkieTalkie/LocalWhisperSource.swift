@@ -90,9 +90,14 @@ final class LocalWhisperSource: DictationSource {
             ? String(configuredModel.split(separator: "/").last!) : configuredModel
     }
 
-    static let configuredModel = ProcessInfo.processInfo.environment["RELAY_WHISPER_MODEL"]
-        ?? "mlx-community/whisper-large-v3-turbo"
-    var displayModelName: String { whisper.modelName ?? Self.configuredModel }
+    /// Since 2026-10-03 the pick from the Engine list (`WhisperModels.selected`),
+    /// which falls back to `RELAY_WHISPER_MODEL` and then the published turbo.
+    static var configuredModel: String { WhisperModels.selected }
+    /// A folder shows as its card's name (`whisper-turbo-victor`), a repo id in full.
+    var displayModelName: String { WhisperModels.displayName(whisper.modelName ?? Self.configuredModel) }
+    /// The id the running helper reported — nil while it is down.
+    var loadedModel: String? { whisper.modelName }
+    var isLoading: Bool { loading }
     var footprintBytes: UInt64? { whisper.footprintBytes }
     /// Whether the weights are on their way up, so two gestures cannot stack two
     /// loads on one another.
