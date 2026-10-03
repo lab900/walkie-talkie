@@ -538,6 +538,16 @@ final class StatusItem: NSObject, NSMenuDelegate {
         }
     }
 
+    /// `GET /engine.engineRows` — the Engine list as AppKit holds it after a
+    /// rebuild: every row's title and whether it wears the tick (2026-10-03).
+    func engineRowsForTest() -> [[String: Any]] {
+        applyEngineRow()
+        return engineSubmenu.items.map { item -> [String: Any] in
+            if item.isSeparatorItem { return ["title": "—"] }
+            return ["title": item.title, "ticked": item.image != nil && item.image !== Self.blankIcon]
+        }
+    }
+
     @objc private func micPicked(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? String, id != micChosen else { return }
         onPickMic?(id)
@@ -1537,8 +1547,12 @@ final class StatusItem: NSObject, NSMenuDelegate {
             // The tick where every other switch in this menu draws it — never
             // `NSMenuItem.state`, which would reserve a second column.
             row.image = id == engineId ? Self.symbolIcon("checkmark") : Self.blankIcon
+            // **One row per local model, siblings of the cloud engines** (2026-10-03,
+            // Victor: one radio group, one tick, short titles) — `Local 💻` is not a
+            // row of its own any more; picking one of these is the engine *and* the
+            // weights in one click.
+            if id == "whisper" { addLocalModelRows(); continue }
             engineSubmenu.addItem(row)
-            if id == "whisper" { addWhisperModelRows() }
         }
         // **⏱ Prepare local transcript (p95)** (2026-09-28 as *Auto fallback to
         // local*, Victor: *"Auto fallback to local model should be a checkbox in
@@ -1554,6 +1568,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
             + "timed to be ready by the engine's p95 for that length (at least 1.5 s, at most 0.3 × the audio + 1 s).\n"
             + "The chip then offers it — Use local ⌘⌃X. Nothing is inserted unless you press it; "
             + "the engine's words landing first discard it.\n"
+            + "Uses \(WhisperModels.option(for: WhisperModels.selected).map { Self.localRowTitle($0, loading: false) } ?? "Local 💻").\n"
             + "Keeps the local model loaded while another engine is picked"
             + (ram.map { " (\($0) now)" } ?? "") + "."
         autoLocalRow = auto
@@ -1612,41 +1627,50 @@ final class StatusItem: NSObject, NSMenuDelegate {
         Self.engineRowIds(wisprSwitch: Self.wisprEngineSwitch, current: engineId).contains("wispr")
     }
 
-    /// Victor picked a local model (a repo id or a folder). `AppDelegate` stores
-    /// it and replaces the helper at the next idle moment.
-    var onPickWhisperModel: ((String) -> Void)?
-
-    /// **The local model's weights, one row each, indented under `Local 💻`**
-    /// (2026-10-03). Victor: both models visible — the published turbo and the
-    /// LoRA trained on his own dictations — the original the default, and he
-    /// switches himself. The tick is the *pick* (`WhisperModels.selected`); what
-    /// the helper actually holds is the `Local 💻` row's tooltip, which reads the
-    /// helper's own answer. Titles and tooltips come from each folder's
-    /// `model-card.json` (`WhisperModels.Option`), never written twice.
-    private func addWhisperModelRows() {
+    /// **The local engine, one row per model** (2026-10-03, flattened the same
+    /// day). Victor: every engine/model a sibling in one list, one tick, short
+    /// titles — `Local 💻 · turbo (original)`, `Local 💻 · turbo-victor (LoRA, your
+    /// voice)`; the date, the cost, the WER, the data and the method are on the
+    /// tooltip, read from the folder's `model-card.json` (`WhisperModels.Option`),
+    /// never written twice. The tick needs both: the local engine live **and**
+    /// this model picked.
+    private func addLocalModelRows() {
         let picked = WhisperModels.selected
         for option in WhisperModels.options() {
-            let row = NSMenuItem(title: option.title, action: #selector(whisperModelPicked(_:)),
-                                 keyEquivalent: "")
+            let mine = option.id == picked
+            let row = NSMenuItem(title: Self.localRowTitle(option, loading: mine && engineLoading),
+                                 action: #selector(localModelPicked(_:)), keyEquivalent: "")
             row.target = self
             row.representedObject = option.id
-            row.indentationLevel = 1
-            row.toolTip = option.details
-            row.image = option.id == picked ? Self.symbolIcon("checkmark") : Self.blankIcon
+            row.toolTip = option.details + (mine ? "\n" + engineDetails("whisper") : "")
+            row.image = engineId == "whisper" && mine ? Self.symbolIcon("checkmark") : Self.blankIcon
             engineSubmenu.addItem(row)
         }
     }
 
-    @objc private func whisperModelPicked(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        onPickWhisperModel?(id)
+    /// `Local 💻 · <short label>`, with the ⏳ the old `Local 💻` row carried while
+    /// the picked model loads.
+    static func localRowTitle(_ option: WhisperModels.Option, loading: Bool) -> String {
+        "Local 💻 · \(option.title)" + (loading ? " ⏳" : "")
     }
 
-    /// `GET /engine.whisperModels` — the rows `addWhisperModelRows` draws, as data.
-    static func whisperModelRows() -> [[String: Any]] {
+    /// Victor picked a local model (a repo id or a folder). `AppDelegate` stores
+    /// it and replaces the helper at the next idle moment.
+    var onPickWhisperModel: ((String) -> Void)?
+
+    /// The weights first, so the engine switch that follows brings up these.
+    @objc private func localModelPicked(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String else { return }
+        onPickWhisperModel?(id)
+        if engineId != "whisper" { onPickEngine?("whisper") }
+    }
+
+    /// `GET /engine.whisperModels` — the local rows of the Engine list, as data.
+    static func whisperModelRows(engineId: String) -> [[String: Any]] {
         let picked = WhisperModels.selected
         return WhisperModels.options().map {
-            ["id": $0.id, "title": $0.title, "tooltip": $0.details, "selected": $0.id == picked]
+            ["id": $0.id, "title": localRowTitle($0, loading: false), "tooltip": $0.details,
+             "selected": $0.id == picked, "ticked": engineId == "whisper" && $0.id == picked]
         }
     }
 

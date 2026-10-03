@@ -216,12 +216,16 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   fallback, deliberately, because an engine that can run but cannot be picked is the one state
   where the chip and the menu disagree.
 
-- **The local model's weights are rows indented under `Local 💻`** (2026-10-03, Victor: both
-  visible, original default, he switches): `whisper-large-v3-turbo (original)` and
-  `whisper-turbo-victor — trained on your voice · 3 Oct 2026 · $3.6 · WER 20.4→15.3%`, built from
-  `WhisperModels.options()` / `model-card.json` (never hard-coded), the whole card on the tooltip,
-  tick = the pick. `GET /engine.whisperModels` / `whisperModelSelected` / `whisperModelPending`;
-  `POST /test/whisper {"model": id}` picks. The `Local 💻` tooltip names what the helper loaded.
+- **The local engine is one row per model, siblings of the cloud engines** (2026-10-03; nested
+  under `Local 💻` for one build the same day — Victor: *one radio group, one checkmark, short
+  titles*). The list: `ElevenLabs ☁️ + Live 💸x3`, `ElevenLabs ☁️`, `Local 💻 · turbo (original)`,
+  `Local 💻 · turbo-victor (LoRA, your voice)`, `Wispr Flow ☁️`. The label after `·` is the card's
+  `label` (`model-card.json`, else its `name`); date, cost, WER, data, method, base go on the tooltip
+  (`WhisperModels.Option.details`, first line `summary`), never on the row. Tick = local engine live
+  **and** that model picked. A click picks the weights first, then the engine (`localModelPicked`),
+  so the bring-up loads the right ones. `GET /engine.engineRows` (the list as AppKit holds it),
+  `whisperModels`, `whisperModelSelected`, `whisperModelPending`; `POST /test/whisper {"model": id}`
+  picks the weights alone. The ⏱ checkbox's tooltip names the local model it would use.
 - **`Prepare local transcript (p95)` — a checkbox under the engine rows, between two separators**
   (2026-09-28, 22:25 as *Auto fallback to local (p98)*; renamed 2026-09-29 when it stopped
   inserting) — Victor: *"Auto fallback to local model should be a checkbox in the Engine submenu."*

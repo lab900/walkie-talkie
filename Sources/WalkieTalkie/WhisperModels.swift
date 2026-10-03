@@ -32,6 +32,9 @@ enum WhisperModels {
 
     struct Card: Equatable {
         var name: String
+        /// The short label on the Engine row (`turbo-victor (LoRA, your voice)`);
+        /// the name when the card has none.
+        var label: String?
         var base: String?
         var method: String?
         var data: String?
@@ -48,6 +51,7 @@ enum WhisperModels {
                   let name = j["name"] as? String, !name.isEmpty else { return nil }
             let wer = j["wer"] as? [String: Any]
             return Card(name: name,
+                        label: j["label"] as? String,
                         base: j["base"] as? String,
                         method: j["method"] as? String,
                         data: j["data"] as? String,
@@ -82,13 +86,18 @@ enum WhisperModels {
 
         var isOriginal: Bool { id == WhisperModels.original }
 
-        /// The row in the Engine list.
+        /// The short label after `Local 💻 · ` in the Engine list — the details
+        /// are the tooltip's.
         var title: String {
-            guard let card else {
-                return isOriginal ? "whisper-large-v3-turbo (original)" : (id as NSString).lastPathComponent
-            }
-            var parts = ["\(card.name) — trained on your voice"]
-            if let day = card.trainedDay { parts.append(day) }
+            if let card { return card.label ?? card.name }
+            return isOriginal ? "turbo (original)" : (id as NSString).lastPathComponent
+        }
+
+        /// The tooltip's first line: what the row stopped carrying.
+        var summary: String? {
+            guard let card else { return nil }
+            var parts = [card.name]
+            if let day = card.trainedDay { parts.append("trained \(day)") }
             if let cost = card.costUSD { parts.append(String(format: "$%g", cost)) }
             if let b = card.werBefore, let a = card.werAfter {
                 parts.append(String(format: "WER %g→%g%%", b, a))
@@ -103,7 +112,8 @@ enum WhisperModels {
                     ? "\(id) — the published weights, as downloaded from Hugging Face"
                     : id
             }
-            return [card.base.map { "Base: \($0)" },
+            return [summary,
+                    card.base.map { "Base: \($0)" },
                     card.method.map { "Method: \($0)" },
                     card.data.map { "Data: \($0)" },
                     card.trained.map { "Trained: \($0)" },

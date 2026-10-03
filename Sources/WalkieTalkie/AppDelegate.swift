@@ -2753,7 +2753,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           "rows": self.status.micRowsForTest()]
             out["whisper"] = self.whisperSource.describe()
             // The Engine list's model rows as the menu would draw them now (2026-10-03).
-            out["whisperModels"] = StatusItem.whisperModelRows()
+            out["whisperModels"] = StatusItem.whisperModelRows(engineId: self.engineId)
+            // The whole Engine list, rebuilt on main as the menu would draw it.
+            var rows: [[String: Any]] = []
+            if Thread.isMainThread { rows = self.status.engineRowsForTest() }
+            else { DispatchQueue.main.sync { rows = self.status.engineRowsForTest() } }
+            out["engineRows"] = rows
             out["whisperModelSelected"] = WhisperModels.selected
             out["whisperModelPending"] = self.whisperModelPending
             // Wispr's own shortcut table (C, W-C7): Q9 is coherent only while
