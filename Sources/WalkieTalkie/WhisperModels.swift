@@ -32,9 +32,12 @@ enum WhisperModels {
 
     struct Card: Equatable {
         var name: String
-        /// The short label on the Engine row (`turbo-victor (LoRA, your voice)`);
+        /// The label on the Engine row (`Large V3 Turbo - Victor (LoRA)`);
         /// the name when the card has none.
         var label: String?
+        /// The one word the top-level `Engine:` row wears (`Victor`); the label
+        /// when the card has none.
+        var short: String? = nil
         var base: String?
         var method: String?
         var data: String?
@@ -52,6 +55,7 @@ enum WhisperModels {
             let wer = j["wer"] as? [String: Any]
             return Card(name: name,
                         label: j["label"] as? String,
+                        short: j["short"] as? String,
                         base: j["base"] as? String,
                         method: j["method"] as? String,
                         data: j["data"] as? String,
@@ -86,11 +90,18 @@ enum WhisperModels {
 
         var isOriginal: Bool { id == WhisperModels.original }
 
-        /// The short label after `Local 💻 · ` in the Engine list — the details
-        /// are the tooltip's.
+        /// The row's name in the Engine list, before its 💻 — the details are
+        /// the tooltip's. **The model's own name, not `Local`** (2026-10-03,
+        /// Victor: *"în loc să fie local, scrie Large V3 Turbo"*).
         var title: String {
             if let card { return card.label ?? card.name }
-            return isOriginal ? "turbo (original)" : (id as NSString).lastPathComponent
+            return isOriginal ? "Large V3 Turbo" : (id as NSString).lastPathComponent
+        }
+
+        /// What the top-level `Engine:` row calls it — `Turbo`, `Victor`.
+        var shortTitle: String {
+            if let card { return card.short ?? title }
+            return isOriginal ? "Turbo" : title
         }
 
         /// The tooltip's first line: what the row stopped carrying.

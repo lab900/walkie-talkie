@@ -1385,7 +1385,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
     ///
     /// **One tab stop for the whole menu**, re-measured on every open, exactly as
     /// the old full-chord column was: half the rows get their real title long
-    /// after the menu is assembled (`Bound to: <folder>@<branch>`), and a title
+    /// after the menu is assembled (`<folder>@<branch>`), and a title
     /// wider than the tab widens the menu without moving the tab.
     private func layOutGestures(in menu: NSMenu) {
         let font = NSFont.menuFont(ofSize: 0)
@@ -1486,7 +1486,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         refreshGlyph()
     }
 
-    /// `Engine: Local (2.6 GB)` while the local model is the one listening;
+    /// `Engine: Turbo 💻 (2.6 GB)` while the local model is the one listening;
     /// `Engine: Wispr Flow` while the other one is.
     ///
     /// **The row is short and the submenu is long** (Victor, 2026-09-14): the
@@ -1629,8 +1629,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
 
     /// **The local engine, one row per model** (2026-10-03, flattened the same
     /// day). Victor: every engine/model a sibling in one list, one tick, short
-    /// titles — `Local 💻 · turbo (original)`, `Local 💻 · turbo-victor (LoRA, your
-    /// voice)`; the date, the cost, the WER, the data and the method are on the
+    /// titles — `Large V3 Turbo 💻`, `Large V3 Turbo - Victor (LoRA) 💻`; the date, the cost, the WER, the data and the method are on the
     /// tooltip, read from the folder's `model-card.json` (`WhisperModels.Option`),
     /// never written twice. The tick needs both: the local engine live **and**
     /// this model picked.
@@ -1648,10 +1647,11 @@ final class StatusItem: NSObject, NSMenuDelegate {
         }
     }
 
-    /// `Local 💻 · <short label>`, with the ⏳ the old `Local 💻` row carried while
-    /// the picked model loads.
+    /// `<model name> 💻` — `Large V3 Turbo 💻`, `Large V3 Turbo - Victor (LoRA) 💻`
+    /// (2026-10-03, Victor: the model's name, the laptop after it; no `Local`),
+    /// with the ⏳ while the picked model loads.
     static func localRowTitle(_ option: WhisperModels.Option, loading: Bool) -> String {
-        "Local 💻 · \(option.title)" + (loading ? " ⏳" : "")
+        "\(option.title) 💻" + (loading ? " ⏳" : "")
     }
 
     /// Victor picked a local model (a repo id or a folder). `AppDelegate` stores
@@ -1918,7 +1918,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         switch id {
         case "eleven", "eleven-live": (name, emoji) = ("ElevenLabs", "☁️")
         case "wispr": (name, emoji) = ("Wispr Flow", "☁️")
-        default: (name, emoji) = ("Local", "💻")
+        default: return engineShortTitle(id)   // already `Turbo 💻 (2.2 GB)`
         }
         let title = engineShortTitle(id)
         guard let r = title.range(of: name) else { return title + " " + emoji }
@@ -1934,9 +1934,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
             return elevenReady?() == true ? "ElevenLabs + Live" : "ElevenLabs + Live ⚠️"
         }
         if id == "wispr" { return "Wispr Flow" }
-        if engineLoading { return "Local (loading…)" }
-        guard let bytes = whisperFootprint?() else { return "Local" }
-        return String(format: "Local (%.1f GB)", Double(bytes) / 1_073_741_824)
+        // **The picked model's one word, the 💻 after it, then the RAM** —
+        // `Turbo 💻 (2.2 GB)`, `Victor 💻 (2.2 GB)` (2026-10-03, Victor: *"Engine
+        // și apoi fie Turbo cu laptop după … fie … Victor. Tot cu Giga după"*).
+        let name = (WhisperModels.option(for: WhisperModels.selected)?.shortTitle ?? "Local") + " 💻"
+        if engineLoading { return name + " (loading…)" }
+        guard let bytes = whisperFootprint?() else { return name }
+        return name + String(format: " (%.1f GB)", Double(bytes) / 1_073_741_824)
     }
 
     @objc private func enginePicked(_ sender: NSMenuItem) {
@@ -2256,7 +2260,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         applyGestureColumn()
     }
 
-    /// **`Bound to: petclinic@main`**, not the bare line the chip shows.
+    /// **The bare `petclinic@main` since 2026-10-03** (Victor: *"prima linie, nu
+    /// mai zice bound to, direct"*) — the app icon beside it says it is a
+    /// destination. Until then it read `Bound to: petclinic@main`, for this reason:
     ///
     /// The chip can afford to be bare: it rides the cursor, it appears when a
     /// binding does, and beside a pointer there is nothing else it could be
@@ -2280,7 +2286,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
     /// the chip's title row and the *bind to send* hint carry, so the two places
     /// the binding is named wear one mark. See `Glyphs`.
     private func applyHeader() {
-        header.title = destination.map { "Bound to: \($0)" } ?? "Unbound"
+        header.title = destination ?? "Unbound"
         header.image = destination == nil ? Self.unboundIcon : destinationIcon
     }
 
