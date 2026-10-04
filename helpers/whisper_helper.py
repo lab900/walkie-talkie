@@ -47,6 +47,7 @@ import contextlib
 import json
 import math
 import os
+import re
 import tempfile
 import sys
 import time
@@ -333,6 +334,98 @@ def _worst_ratio(res):
     return max((s.get("compression_ratio") or 0.0 for s in res.get("segments") or []), default=0.0)
 
 
+# **The temperature ladder is ours, and a loop ends it** (2026-10-04).
+#
+# mlx_whisper re-decodes a 30 s window at 0.2, 0.4 … 1.0 when the greedy pass
+# looks bad and keeps the **last** rung, whatever it is. On 16:28:10 a 90 s take
+# took 32.6 s (predicted 2.4 s) and came back with 669 × "AM": a near-silent
+# window decoded fine at 0.0 (cr 0.7) but under `avg_logprob` -1.0, so the
+# ladder climbed, and the 1.0 rung looped for 224 tokens and was kept — twice,
+# since the relay's no-prompt retry then climbed the same ladder again. Every
+# looped decode in `decode-rate.jsonl` is that animal: median 0.36× the audio
+# against 0.096× for the other 549.
+#
+# Here the transcriber is asked for one temperature, and `Whisper.decode` runs
+# the ladder itself, **for a loop only**: the greedy rung is kept unless it
+# loops, a loop climbs to 0.2 and 0.4 (each looped rung is 224 tokens of
+# decode, ~1.5 s; 0.6–1.0 are where the 16:28 loop was *made*), and the least
+# looped rung is kept. A low `avg_logprob` no longer climbs: on his clips those
+# windows are near-silence, heat only invents words there, and the relay's own
+# −0.6 floor already warns about them.
+LADDER = (0.0, 0.2, 0.4)
+
+
+def _install_ladder():
+    from dataclasses import replace
+    from mlx_whisper.whisper import Whisper
+    if getattr(Whisper.decode, "walkie_ladder", False):
+        return
+    plain = Whisper.decode
+
+    def decode(self, mel, options=None, **kw):
+        if options is None or options.temperature != 0.0 or mel.ndim != 2:
+            return plain(self, mel, options, **kw) if options is not None else plain(self, mel, **kw)
+        tried = []
+        for t in LADDER:
+            r = plain(self, mel, replace(options, temperature=t), **kw)
+            tried.append(r)
+            if r.compression_ratio <= LOOP_CEILING:
+                return r
+        return min(tried, key=lambda r: r.compression_ratio)
+
+    decode.walkie_ladder = True
+    Whisper.decode = decode
+
+
+# **What still loops is cut out of the words** (2026-10-04): a run of four or
+# more copies of the same stretch (1–40 characters, at least one letter in it)
+# keeps its first copy. "AM AM AM…" ×669 → "AM"; "们"×223 → "们". Four, because
+# Victor does say "nu, nu, nu" and "de exemplu, de exemplu". Done on each looped
+# segment's words, so the timed words and the text still join back into each other.
+_REPEAT = re.compile(r"([^\n]{1,40}?)\1{3,}")
+_LETTER = re.compile(r"[^\W\d_]")
+
+
+def collapse_repeats(text):
+    """`(text, [(start, end)…])` — the text with every loop cut, and the cut spans."""
+    cuts = [(m.start() + len(m.group(1)), m.end())
+            for m in _REPEAT.finditer(text) if _LETTER.search(m.group(1))]
+    out, at = [], 0
+    for a, b in cuts:
+        out.append(text[at:a])
+        at = b
+    out.append(text[at:])
+    return "".join(out), cuts
+
+
+def cut_loops(res):
+    """Cut the repeats out of every looped segment; returns how many characters went."""
+    gone = 0
+    for seg in res.get("segments") or []:
+        if (seg.get("compression_ratio") or 0.0) <= LOOP_CEILING:
+            continue
+        words = seg.get("words") or []
+        if words:
+            joined, starts, at = "", [], 0
+            for w in words:
+                starts.append(at)
+                joined += w.get("word", "")
+                at = len(joined)
+            _, cuts = collapse_repeats(joined)
+            keep = [w for w, s in zip(words, starts) if not any(a <= s < b for a, b in cuts)]
+            seg["words"] = keep
+            text = "".join(w.get("word", "") for w in keep)
+            gone += len(joined) - len(text)
+        else:
+            text, cuts = collapse_repeats(seg.get("text") or "")
+            gone += sum(b - a for a, b in cuts)
+        seg["text"] = text
+    if gone:
+        res["text"] = "".join(s.get("text") or "" for s in res.get("segments") or [])
+    res["cut"] = gone
+    return gone
+
+
 def transcribe(path, words=WORDS):
     with quiet():
         # Decoded once, here, and handed to both halves as an array: the LID pass
@@ -350,6 +443,7 @@ def transcribe(path, words=WORDS):
                 verbose=False,
                 condition_on_previous_text=False,
                 word_timestamps=words,
+                temperature=0.0,  # the ladder runs inside `Whisper.decode` — `_install_ladder`
             )
 
         res = decode(VOCABULARY_RO if lang == "ro" else VOCABULARY)
@@ -372,6 +466,7 @@ def transcribe(path, words=WORDS):
             again["duration"], again["retried"] = res["duration"], True
             again["_samples"] = samples
             res = again
+    cut_loops(res)
     return res
 
 
@@ -395,6 +490,7 @@ def coverage(res):
         "gap_at": round(at, 2),
         "temperature": max((s.get("temperature") or 0.0 for s in segs), default=0.0),
         "retried": bool(res.get("retried")),
+        "cut": res.get("cut") or 0,
     }
 
 
@@ -415,6 +511,8 @@ def _warmup_path():
             continue
     return os.path.join(tempfile.gettempdir(), ".warmup.wav")
 
+
+_install_ladder()
 
 try:
     warm = _warmup_path()

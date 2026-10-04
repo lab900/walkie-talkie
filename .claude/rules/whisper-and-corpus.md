@@ -141,6 +141,18 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   clips and cold decodes, the mean sat near 0.15, and a two-minute dictation was promised twenty
   seconds for four seconds of work (*"14 secunde și s-a terminat în 3"*). Least squares over those
   pairs is `0.0355 × audio − 0.10`, worst residual 0.39 s. → journal: *The recogniser*
+- **The temperature ladder climbs only on a loop** (2026-10-04, after a 90 s take decoded in
+  32.6 s into 669 × "AM"). mlx_whisper's own ladder climbed 0.2…1.0 on a *low-logprob* window
+  (near-silence) and kept the last rung, which looped; it ended in a loop on 8 of the 9 clips it
+  fired on (313 labelled clips). `_install_ladder` replaces `Whisper.decode`: greedy, climb to
+  0.2/0.4 only while the rung's cr > 2.4, keep the least looped; `transcribe(temperature=0.0)`.
+  On the 9: 111.9 s → **21.0 s**, loops 8 → **0**, WER 1.28 → 0.66; the 12 historical looped
+  decodes all come back clean in 1–3.3 s. Greedy alone is faster still but keeps 2 of the 9 loops.
+  **Never give the logprob climb back**, and never let the ladder reach 1.0. `evals/local-ladder/`.
+- **What still loops is cut, not shipped** — `cut_loops`: in a segment with cr > 2.4, a run of
+  ≥ 4 copies of one 1–40-char stretch with a letter in it keeps its first copy, on the words list
+  too so text and timings still join. Raw `compression_ratio` is still reported (DecodeRate's
+  evidence); `coverage.cut` > 0 turns the note into *the repeats were cut*.
 - **`~/.walkie-talkie/decode-rate.jsonl` is appended forever**, one `{at, audio, decode, load, cold, chars?, compression?}`
   per decode; the estimate reads only the tail. It supersedes `decode-rate.json`, which held bare
   ratios with no audio beside them — the reason the fault above could only be diagnosed from the

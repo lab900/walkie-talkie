@@ -397,10 +397,16 @@ final class LocalWhisperSource: DictationSource {
                           (c["gap"] as? Double) ?? 0, (c["gap_at"] as? Double) ?? 0)
         if let t = c["temperature"] as? Double, t > 0 { note += String(format: ", temperature %.1f", t) }
         if (c["retried"] as? Bool) == true { note += " (looped; retried without the prompt)" }
+        if let cut = c["cut"] as? Int, cut > 0 { note += " · loop cut: \(cut) chars" }
         return note
     }
 
     private static func warning(for r: LocalWhisper.Result) -> String? {
+        // The helper cuts a loop out of the words (`cut_loops`, 2026-10-04) — what
+        // is left reads, but whatever was said under the loop is not in it.
+        if let cut = r.coverage?["cut"] as? Int, cut > 0 {
+            return String(format: "⚠️ the model looped (%.1f) — the repeats were cut, check what was sent", r.compressionRatio)
+        }
         if r.compressionRatio > LocalWhisper.loopCeiling {
             return String(format: "⚠️ the model looped (%.1f) — check what was sent", r.compressionRatio)
         }

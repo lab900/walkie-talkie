@@ -15129,3 +15129,24 @@ off); ticking it plays it once so he hears what he chose. `WT_START_SOUND` is go
 Same day, after hearing it: *"fă-l de 3x mai discret"* — gain 0.9 → 0.3 (peak −17 dBFS, RMS −29 dBFS).
 Then *"pune fade in/out un pic ca e prea brutal. plus -30% volum"* — raised-cosine fades of 30 ms in and 50 ms out instead of linear 4/25 ms, gain 0.3 → 0.21.
 Then (2026-10-01) *"redu-l încă la jumătate din volum"* — gain 0.21 → 0.105 (−6 dB).
+
+## The temperature ladder climbs only on a loop (2026-10-04)
+
+Victor, 16:28: *"Tocmai ce am primit o halucinație de la modelul de transcriere local, lucru care
+a și întârziat foarte, foarte mult transcrierea, oare putem corela durata exagerat de lungă cu
+apariția unei bucle? … putem cumva preveni mai agresiv această buclă, detecta, elimina…"*
+
+The take: 90.4 s, decoded in 32.64 s against 2.37 s predicted (+1278 %), `cr 39.3`, 669 × "AM".
+**Yes, it correlates**: warm local decodes in `decode-rate.jsonl` run at a median 0.096× the audio,
+the looped ones at 0.36×. Replaying the clip showed the mechanism: the last window was
+near-silence, decoded fine greedily (cr 0.7) but under `avg_logprob` −1.0, so mlx_whisper climbed
+0.2, 0.4 … 1.0, and the 1.0 rung looped for 224 tokens — and the ladder keeps its *last* rung.
+The relay's no-prompt retry (09-29) then climbed the identical ladder a second time (cr 39.3 both).
+
+The ladder is now the helper's (`_install_ladder`, `Whisper.decode` wrapped, `transcribe` asked
+for `temperature=0.0`): climb only on a loop, 0.2 and 0.4 at most, keep the least looped. On the
+313 newest labelled clips mlx's ladder fired on 9; on those 9 the old path spent 111.9 s and
+looped 8 times, the new one 21.0 s and none (WER 1.28 → 0.66). Greedy alone (10.7 s) kept two
+loops — the cases where climbing pays. The 12 looped decodes in the file since 09-16 re-decode
+clean in 1.1–3.3 s. Anything that still loops is cut to its first copy (`cut_loops`) and the note
+says so. Numbers and scripts: `evals/local-ladder/`.
