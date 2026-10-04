@@ -1,4 +1,77 @@
-# Walkie Talkie
+# 📻 Walkie Talkie
+
+**Talk to your coding agent while you look at something else.**
+
+A macOS overlay. You speak, it transcribes, and the prompt lands in your
+Claude Code terminal, along with the screenshots, highlighted text and web
+elements you pointed at while talking.
+
+<p align="center">
+  <img src="docs/readme/hero.png" width="1057" alt="Dictating with three screenshots, a highlight and a Chrome element → the prompt held behind Send and Cancel → sent">
+  <br><sub>talk → a few seconds to check it → sent</sub>
+</p>
+
+## Why
+
+- 👀 **Your eyes stay on the work**: a browser, an IDE, the projector. The terminal can sit behind other windows.
+- 🎙️ **You speak instead of typing**, in Romanian, English or both mixed.
+- 📸 **Context comes along**: screenshots, highlighted text, elements picked in Chrome.
+- ⏱️ **You can still cancel**: every prompt waits a few seconds before it is sent.
+- 🛡️ **It never types at a shell prompt**, only into a running agent.
+
+## How it goes
+
+| step | what you see |
+|---|---|
+| **1. Bind** a terminal running Claude Code: <kbd>⌘⌃B</kbd> | the chip by your cursor names the session |
+| **2. Talk**: <kbd>⌘⌃D</kbd> to start, <kbd>⌘⌃D</kbd> again to stop | <img src="docs/readme/listening.png" width="348" alt="Dictating: the session name and one screenshot"> |
+| **3. Show it what you mean**: highlight some text… | <img src="docs/readme/listening-selection.png" width="348" alt="A highlighted line rides along"> |
+| …or <kbd>⌘⇧</kbd>-click an element in Chrome | <img src="docs/readme/listening-picks.png" width="348" alt="Two Chrome elements picked"> |
+| **4. Check it**: the prompt waits ~6 s behind **Cancel**, then goes | <img src="docs/readme/prompt-shots.png" width="409" alt="The held prompt with two screenshots, Send and Cancel"> |
+
+## More tricks
+
+- ✨ **Start a new session by voice.** A new Terminal opens Claude Code with your sentence as its first prompt, in `~/workspace` or a folder you pick.
+  <br><img src="docs/readme/spawn-folder.png" width="275" alt="A dictation aimed at a new session in training-assistant">
+- 🕐 **Nothing bound? Talk anyway.** The sentence waits 5 minutes for you to bind a terminal.
+  <br><img src="docs/readme/bind-to-send.png" width="255" alt="Dictating with nothing bound: bind to send">
+- 💻 **The cloud is slow?** <kbd>⌘⌃X</kbd> transcribes on this Mac, right away.
+- 🎵 **Your music pauses** in Chrome while you talk, and resumes after.
+- 📋 **The clipboard always holds the last sentence**, so <kbd>⌘V</kbd> pastes it again.
+
+## Keys
+
+| key | does |
+|---|---|
+| <kbd>⌘⌃B</kbd> | bind the terminal in front (press again to let go) |
+| <kbd>⌘⌃D</kbd> | start / stop a dictation |
+| <kbd>⌘⌃X</kbd> | transcribe on this Mac, now |
+| <kbd>⌘⇧</kbd>-click in Chrome | add that element to the prompt |
+
+🖱️ It can also be driven entirely from the mouse, with Logitech side-button gestures or the
+wheel. The menu bar icon lists every action next to the gesture that does it.
+
+## Install
+
+```bash
+./build-app.sh          # → /Applications/Walkie Talkie.app
+```
+
+- 📦 Needs `victor-mac-kit` checked out next to this folder.
+- 🔐 Grant **Accessibility**, **Screen Recording** and **Microphone** when asked.
+- 🗣️ Pick a recogniser from the menu: **ElevenLabs Scribe** (key in `~/.walkie-talkie/elevenlabs.env`), a **local Whisper** (`pip install mlx-whisper`, plus `ffmpeg`) or **Wispr Flow**.
+- 🧩 Optional, for picking elements in Chrome: `chrome://extensions` → Developer mode → **Load unpacked** → `chrome-extension/`.
+
+👉 Every state the overlay can be in, photographed: [docs/overlay-states.html](docs/overlay-states.html)
+
+<br>
+
+---
+
+# The long version
+
+*For agents, and for anyone who wants the details behind each feature.*
+
 
 A small macOS overlay that **relays your dictation into a running coding agent**
 — along with the text you had selected and screenshots of what you were looking

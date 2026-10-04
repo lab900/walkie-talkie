@@ -28,6 +28,7 @@ bound_owner="$(relay_bound_owner)"
 rm -rf docs/states
 RELAY_SHOOT="$PWD/docs/states" ./.build/debug/WalkieTalkie
 python3 docs/build-overlay-states.py
+python3 docs/build-readme-shots.py
 
 if [ "$was_running" = 1 ]; then
   open -g "/Applications/Walkie Talkie.app"
