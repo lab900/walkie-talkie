@@ -18,6 +18,7 @@ The journal contradicts itself over time, because it was written as things chang
 
 - *Unbound is inert*, *What the rule was, and why the premise expired*, *`awaitingBind`* — retired 2026-09-11 — with nothing bound the app does everything and holds the sentence for a bind (`holdsForBind`)
 - *F10 nu mai comută dictarea de două ori pe un singur gest* (2026-09-16) — the guard was right and both of its numbers were wrong; superseded 2026-09-18 by *One slow flick right is one gesture, and it cannot close what it just opened* (sliding window, 0.6 s, plus a 2 s dwell before the flick may stop)
+- *Q7 — F8 on a caret sentence: stays ignored* (2026-09-26) — reversed 2026-10-04: *🔼 ↑ turns a caret sentence into a spawn*, folder menu included
 - *The oblique wipe: a message replaces a message*, *What the cancel actually looked like…*, *`WT_SHOOT_WIPE` — because this is the least reviewable thing in the app* — **retired 2026-09-18**: `ChipWipe.swift`, its rule file and the `WT_SHOOT_WIPE` harness are deleted; a chip message is swapped in one frame (*The chip swaps in one frame*)
 - *The DJI receiver is the microphone whenever it is plugged in* (2026-09-01) — superseded 2026-09-19: *automatic* is a ladder, 🎙️ XLR ▸ 🎤 DJI ▸ 🎧 Bose ▸ 💻 built-in, and the receiver is its second rung (*The chip says which microphone, and the menu picks it*)
 - *`raw_transcript` is a finished sentence Wispr never labelled* (2026-09-22) and Q24's *wait without the 30 s cap while `processing`* (2026-09-28) — superseded 2026-09-29 by *fix batch 3*: `raw_transcript` is terminal (Wispr's own code), and a row Wispr will never finish is called dead on the commit that shows it (`WisprState.deadRow`); the rest waits to 40 s, not 300 s
@@ -12256,7 +12257,7 @@ open questions. These rule every fix that follows; the later date wins over olde
 - **Q5 — `ssh` / `sudo -s` / `script` / a pager in the bound terminal: REFUSE**, like a shell at
   its prompt.
 - **Q6 — cancel (🔼←, ✕, menu) while the prompt panel is held: cancels the panel.**
-- **Q7 — F8 on a caret sentence: stays ignored** (no conversion, no flash).
+- **Q7 — F8 on a caret sentence: stays ignored** (no conversion, no flash). *Reversed 2026-10-04 — see* 🔼 ↑ turns a caret sentence into a spawn.
 - **The local model must never delay him** (*"eu nu trebuie să am nicio întârziere vizibilă în
   vorbă; trebuie să pot vorbi direct; le bufferizezi tu"*): the microphone opens at the gesture
   even when the model is cold; the audio waits for the model, not the other way round. This
@@ -15150,3 +15151,14 @@ looped 8 times, the new one 21.0 s and none (WER 1.28 → 0.66). Greedy alone (1
 loops — the cases where climbing pays. The 12 looped decodes in the file since 09-16 re-decode
 clean in 1.1–3.3 s. Anything that still loops is cut to its first copy (`cut_loops`) and the note
 says so. Numbers and scripts: `evals/local-ladder/`.
+
+## 🔼 ↑ turns a caret sentence into a spawn (2026-10-04)
+
+Victor: *"Dintr-o dictare la caret se poate transforma într-o dictare în terminal nou, făcând
+gestul în sus. Să îmi arate atunci din nou dialogul cu unde vreau să pornesc."* Reverses Q7
+(2026-09-26), which kept 🔼 ↑ a logged no-op on a caret sentence. `convertDictationToSpawn` now
+drops `pasteMode` the way `retarget` does for 🔼 → (a clean sentence is marked `cleanRedirected`,
+so it leaves with the agent's envelope rather than as bare words), sets the spawn, re-syncs the
+ring (its halo is per destination) and offers the folder menu at the pointer. Only a sentence
+that is already a spawn still ignores the gesture. The destination is latched at the mic's close,
+so clearing the flag before it is the whole redirect.

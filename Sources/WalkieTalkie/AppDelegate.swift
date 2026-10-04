@@ -2313,12 +2313,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // (2026-09-22) — see `convertDictationToSpawn`. At rest it opens a
                 // spawn dictation as it always has.
                 if self.listening {
-                    // **Q7 (2026-09-26): a caret sentence stays at the caret** —
-                    // ignored, but not in silence (TG17).
+                    // **A caret sentence converts too** (2026-10-04, reverses Q7)
+                    // — ignored only when it is already a spawn, not in silence (TG17).
                     if !self.convertDictationToSpawn() {
-                        Log.info(self.pasteMode
-                                 ? "✨ 🔼 ↑ on a caret sentence — ignored (Q7: it stays at the caret)"
-                                 : "✨ 🔼 ↑ on a sentence already headed for a new session — ignored")
+                        Log.info("✨ 🔼 ↑ on a sentence already headed for a new session — ignored")
                     }
                     return
                 }
@@ -5514,15 +5512,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// *"atunci când, în timpul unei dictări, mă hotărăsc să pornesc într-un
     /// terminal nou, să meargă în continuare gestul"*.
     ///
+    /// **A caret sentence converts as well** (2026-10-04, reverses Q7 of
+    /// 2026-09-26). Victor: *"o dictare la caret se poate transforma într-o
+    /// dictare în terminal nou, făcând gestul în sus. Să îmi arate atunci din nou
+    /// dialogul cu unde vreau să pornesc."* The caret is taken off it the way
+    /// 🔼 → takes it off for a terminal (`retarget`): `pasteMode` cleared, a
+    /// clean sentence marked `cleanRedirected` so it carries the agent's envelope.
+    ///
     /// Returns false when there is nothing to convert, or when the sentence is
-    /// already a spawn / already headed for the caret.
+    /// already a spawn.
     @discardableResult
     private func convertDictationToSpawn() -> Bool {
         guard listening else { return false }
-        guard !spawnPending, !pasteMode else { return false }
+        guard !spawnPending else { return false }
+        if pasteMode {
+            pasteMode = false
+            if cleanSentence { cleanRedirected = true; submitAfterClean = false }
+            Log.info("✨ 🔼 ↑ on a caret sentence — off the caret, into a new session")
+        }
         spawnPending = true
         spawnFolder = nil
         overlay.setSpawnDestination("✨ \(Self.spawnFolderName)", mark: "✨")
+        // The ring's halo is per destination — it stops saying *caret* now.
+        syncBorrowedGestures()
         offerSpawnFolders()
         return true
     }
