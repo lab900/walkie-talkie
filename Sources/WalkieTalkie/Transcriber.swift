@@ -33,6 +33,30 @@ final class LocalWhisper {
         /// Where in the audio the words came from, for the log line — the
         /// helper's `coverage` (segments, span covered, longest silent gap).
         let coverage: [String: Any]?
+        /// **Every word with the second it began at, on the WAV's own clock**
+        /// (2026-10-04, `word_timestamps=True` in the helper). The tokens join
+        /// back into `text` — Whisper's leading spaces included — which is what
+        /// `ShotMarker.place` needs to put a picture's reference between two
+        /// words. Nil when the helper sent none or they do not spell the text.
+        var words: [TimedWord]? = nil
+
+        /// The helper's `words`, kept only if they spell `text` exactly.
+        static func timedWords(_ raw: Any?, spelling text: String) -> [TimedWord]? {
+            guard let list = raw as? [[String: Any]], !list.isEmpty else { return nil }
+            let words: [TimedWord] = list.compactMap {
+                guard let t = $0["text"] as? String,
+                      let a = ($0["start"] as? NSNumber)?.doubleValue,
+                      let b = ($0["end"] as? NSNumber)?.doubleValue else { return nil }
+                return TimedWord(text: t, start: a, end: b, isSpacing: false)
+            }
+            guard words.count == list.count,
+                  words.map(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines) == text
+            else {
+                Log.error("local whisper: the word timings do not spell the transcript — dropped")
+                return nil
+            }
+            return words
+        }
     }
 
     /// Below this, the transcript is not delivered as if it were what Victor
@@ -368,7 +392,9 @@ final class LocalWhisper {
     }
 
     /// Transcribes a WAV already on disk. Answers on a background queue.
-    func transcribe(wav: String, _ done: @escaping (Result?) -> Void) {
+    /// `words`: ask the helper for word timings — +45 % decode time, so only
+    /// when a marker is waiting to be placed (2026-10-04, `evals/local-word-timing/`).
+    func transcribe(wav: String, words: Bool = false, _ done: @escaping (Result?) -> Void) {
         queue.async { [weak self] in
             guard let self = self else { done(nil); return }
             self.lastFailure = nil
@@ -376,7 +402,7 @@ final class LocalWhisper {
                 self.lastFailure = "the local model was not up"
                 done(nil); return
             }
-            guard let req = try? JSONSerialization.data(withJSONObject: ["wav": wav]) else {
+            guard let req = try? JSONSerialization.data(withJSONObject: ["wav": wav, "words": words] as [String: Any]) else {
                 done(nil); return
             }
             var line = req
@@ -407,7 +433,9 @@ final class LocalWhisper {
                         language: obj["language"] as? String,
                         avgLogprob: logprob,
                         compressionRatio: (obj["compression_ratio"] as? Double) ?? 0,
-                        coverage: obj["coverage"] as? [String: Any]))
+                        coverage: obj["coverage"] as? [String: Any],
+                        words: Result.timedWords(obj["words"],
+                                                 spelling: text.trimmingCharacters(in: .whitespacesAndNewlines))))
         }
     }
 

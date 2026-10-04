@@ -941,6 +941,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let stateLock = NSLock()
 
+    /// **A marker is waiting for the local model's word timings** (2026-10-04):
+    /// the helper is asked for them only then — they cost +45 % decode time.
+    /// Main thread, never under `stateLock`.
+    private var wantsLocalWordTimings: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return !markerCues.isEmpty
+    }
+    /// `POST /test/local-fallback {"words": true}` — timings without a cue.
+    private var forceLocalWords = false
+
     /// A dictation that never arrives (nothing was said, or the model returned
     /// nothing) must not strand the shots. After this long with no transcript
     /// they are released as a message of their own.
@@ -1492,6 +1502,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // The ⏳ in the menu bar belongs to whichever source is slow to come up,
         // and only one of them ever is.
+        whisperSource.wantsWordTimings = { [weak self] in self?.wantsLocalWordTimings ?? false }
         whisperSource.onLoadingChanged = { [weak self] loading in
             guard let self else { return }
             self.status.setEngineLoading(loading)
@@ -2003,7 +2014,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let live: Any = ElevenLabsLive.fault ?? NSNull()
             return ["fault": batch, "live": live]
         }
-        picker.onTestLocalFallback = { [weak self] wav in
+        picker.onTestLocalFallback = { [weak self] wav, words in
             let done = DispatchSemaphore(value: 0)
             var answer: [String: Any] = ["ok": false, "error": "no words"]
             DispatchQueue.main.async {
@@ -2011,10 +2022,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let url = URL(fileURLWithPath: wav)
                 let seconds = Double((try? FileManager.default.attributesOfItem(atPath: wav)[.size] as? Int) ?? 0) / 32000
                 let t0 = Date()
+                self.forceLocalWords = words
                 self.transcribeLocally(wav: url, duration: seconds, standingInFor: "a test") { r in
+                    self.forceLocalWords = false
                     if let r {
                         answer = ["ok": true, "text": r.text, "via": r.via, "engine": r.engine,
-                                  "warning": r.warning ?? "", "seconds": Date().timeIntervalSince(t0)]
+                                  "warning": r.warning ?? "", "seconds": Date().timeIntervalSince(t0),
+                                  // The local word timings (2026-10-04) — what `ShotMarker.place`
+                                  // would be handed; `evals/test_local_marker_place.py` feeds
+                                  // them back through `/test/shot-marker`.
+                                  "words": (r.words ?? []).map { ["text": $0.text, "start": $0.start, "end": $0.end] }]
                     }
                     done.signal()
                 }
@@ -3830,10 +3847,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let originalWords = result.words
         pendingAffect = nil
         if !clean, prompt || !(latchedAtCaret || pasteMode) {
-            let a = applyingAffect(text: result.text, words: result.words,
+            // **Not on the local model's words** (2026-10-04): they exist only
+            // when a marker was cued, and `VoiceAffect`'s thresholds were fitted
+            // on Scribe's (spacing tokens, fillers kept) — a `[?]` on some local
+            // sentences and not others would be the timings' accident.
+            let localWords = result.engine == "whisper-local"
+            let a = applyingAffect(text: result.text, words: localWords ? nil : result.words,
                                    hops: result.voiceHops, language: result.language)
             result.text = a.text
-            result.words = a.words
+            if !localWords { result.words = a.words }
             pendingAffect = a.report
         }
         // No marker rewrite for it either: that is what splices a highlight
@@ -4619,7 +4641,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 delivery: .route, via: forced ? "local-forced" : "local-fallback",
                 // The failed engine spliced its markers into this very file.
                 markersInAudio: true,
-                engineLabel: LocalWhisperSource.modelLabel))
+                engineLabel: LocalWhisperSource.modelLabel,
+                // Same WAV the failed engine recorded, so its cues share the ruler.
+                words: r.words))
         }
         if let sp = spec, !sp.consumed, sp.phase != .discarded,
            sp.wav.map({ $0.standardizedFileURL.path == wav.standardizedFileURL.path })
@@ -4667,7 +4691,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             let started = Date()
-            whisperSource.transcribe(wav: wav.path) { r in
+            whisperSource.transcribe(wav: wav.path, words: forceLocalWords || wantsLocalWordTimings) { r in
                 DispatchQueue.main.async {
                     // **A helper found dead by this very request is brought back
                     // and asked again** (2026-09-26, the test plan's TR10). A

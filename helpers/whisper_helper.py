@@ -10,9 +10,10 @@ audio's length.
 
 Protocol, one JSON object per line each way:
 
-    →  {"wav": "/path/to/file.wav"}
+    →  {"wav": "/path/to/file.wav", "words": true}      (`words` optional)
     ←  {"ok": true, "text": "…", "language": "ro", "avg_logprob": -0.21,
-        "compression_ratio": 1.4, "no_speech_prob": 0.0,
+        "compression_ratio": 1.4, "no_speech_prob": 0.0, "decode_s": 0.83,
+        "words": [{"text": " există", "start": 1.54, "end": 2.56}, …],
         "memory": {"active_mb": 1543.3, "cache_mb": 512.2, "peak_mb": 2365.8,
                    "cache_limit_mb": 512}}
     ←  {"ok": false, "error": "…"}
@@ -48,6 +49,7 @@ import math
 import os
 import tempfile
 import sys
+import time
 
 MODEL = os.environ.get("RELAY_WHISPER_MODEL", "mlx-community/whisper-large-v3-turbo")
 
@@ -216,6 +218,66 @@ if _CACHE_LIMIT > 0:
     mx.set_cache_limit(_CACHE_LIMIT)
 
 
+# **Word timings, for the screenshot markers** (2026-10-04). `ShotMarker.place`
+# puts a picture's reference in front of the first word that had not started at
+# the press, which needs every word's start on the recording's own clock — what
+# ElevenLabs' `words[]` gave and this model did not. `word_timestamps=True` is
+# mlx_whisper's cross-attention DTW. **It costs +45 % decode time** (60 clips,
+# 952 s of audio, same process, alternating), so it is off unless the request
+# says `"words": true` — the relay asks only when a picture, highlight or pick
+# was cued during the take. `RELAY_WHISPER_WORDS=1` makes it the default.
+# Precision: `evals/local-word-timing/`.
+WORDS = os.environ.get("RELAY_WHISPER_WORDS", "0") == "1"
+
+# **Which decoder heads the DTW reads.** mlx_whisper does not load any from the
+# model folder — it uses every head of the last half of the decoder (40 on
+# turbo) unless told. OpenAI's own list for large-v3-turbo (the
+# `alignment_heads` in openai/whisper-large-v3-turbo's generation_config.json,
+# same as `_ALIGNMENT_HEADS["large-v3-turbo"]` in openai/whisper) is six of them.
+# Applied only to a model with turbo's decoder shape (4 layers × 20 heads) —
+# the LoRA keeps it. `RELAY_WHISPER_ALIGNMENT=default` keeps mlx's 40.
+TURBO_ALIGNMENT_HEADS = [[2, 4], [2, 11], [3, 3], [3, 6], [3, 11], [3, 14]]
+ALIGNMENT = os.environ.get("RELAY_WHISPER_ALIGNMENT", "official")
+
+
+def use_alignment_heads():
+    if ALIGNMENT != "official":
+        return
+    try:
+        model = ModelHolder.get_model(MODEL, mx.float16)
+        if (model.dims.n_text_layer, model.dims.n_text_head) == (4, 20):
+            model.set_alignment_heads(np.array(TURBO_ALIGNMENT_HEADS))
+    except Exception as e:  # noqa: BLE001 — timings are a nicety; the words are not
+        print(f"alignment heads not set: {e}", file=sys.stderr)
+
+
+try:  # beside this file — in the bundle's Resources and in helpers/
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from word_onsets import snap_starts
+except Exception as e:  # noqa: BLE001 — the words still go out, unsnapped
+    snap_starts = None
+    print(f"word_onsets not importable: {e}", file=sys.stderr)
+
+
+def timed_words(res, samples=None):
+    """`[{text, start, end}]` across every segment, the text exactly as Whisper
+    spelled it (leading space included), so the tokens join back into `text`.
+    With the samples, each start is moved onto the voice it names
+    (`word_onsets.snap_starts` — Whisper starts the word after a pause in the pause)."""
+    out = []
+    for seg in res.get("segments") or []:
+        for w in seg.get("words") or []:
+            out.append({"text": w.get("word", ""),
+                        "start": round(float(w.get("start", 0.0)), 3),
+                        "end": round(float(w.get("end", 0.0)), 3)})
+    if samples is not None and out and snap_starts is not None:
+        try:
+            out = snap_starts(out, samples)
+        except Exception as e:  # noqa: BLE001 — unsnapped timings beat none
+            print(f"word onsets not snapped: {e}", file=sys.stderr)
+    return out
+
+
 def memory_stats():
     """MLX's own accounting, in MB — the only honest view of this process.
 
@@ -271,7 +333,7 @@ def _worst_ratio(res):
     return max((s.get("compression_ratio") or 0.0 for s in res.get("segments") or []), default=0.0)
 
 
-def transcribe(path):
+def transcribe(path, words=WORDS):
     with quiet():
         # Decoded once, here, and handed to both halves as an array: the LID pass
         # needs the samples anyway, and passing the path twice would shell out to
@@ -287,10 +349,12 @@ def transcribe(path):
                 initial_prompt=prompt,
                 verbose=False,
                 condition_on_previous_text=False,
+                word_timestamps=words,
             )
 
         res = decode(VOCABULARY_RO if lang == "ro" else VOCABULARY)
     res["duration"] = len(samples) / A.SAMPLE_RATE
+    res["_samples"] = samples
     res["retried"] = False
     # **A loop gets one more try, without the vocabulary prompt** (2026-09-29).
     # The prompt is what buys the loops (`evals/short-clip-lid.md`), and on
@@ -306,6 +370,7 @@ def transcribe(path):
               f"{'kept the retry' if second < first else 'kept the first'}", file=sys.stderr)
         if second < first:
             again["duration"], again["retried"] = res["duration"], True
+            again["_samples"] = samples
             res = again
     return res
 
@@ -361,6 +426,7 @@ try:
             w.setframerate(16000)
             w.writeframes(b"\x00" * 32000)
     transcribe(warm)
+    use_alignment_heads()
     emit({"ready": True, "model": MODEL, "memory": memory_stats()})
 except Exception as e:  # noqa: BLE001
     emit({"ready": False, "error": f"warm-up failed: {e}"})
@@ -377,7 +443,10 @@ for line in sys.stdin:
         if not os.path.exists(wav):
             emit({"ok": False, "error": f"no such file: {wav}"})
             continue
-        res = transcribe(wav)
+        t0 = time.monotonic()
+        want_words = bool(req.get("words", WORDS))
+        res = transcribe(wav, words=want_words)
+        decode_s = time.monotonic() - t0
         segs = res.get("segments") or []
         # The worst segment, not the average: a dictation is unusable if any part
         # of it was hallucinated, and averaging hides one bad segment inside
@@ -396,6 +465,10 @@ for line in sys.stdin:
             "compression_ratio": max((s.get("compression_ratio", 0.0) for s in segs), default=0.0),
             "no_speech_prob": max((s.get("no_speech_prob", 0.0) for s in segs), default=0.0),
             "coverage": coverage(res),
+            # Present only when asked for (the default): `[{text, start, end}]`,
+            # seconds into the WAV, the ruler `MicRecorder.offset(of:)` measures on.
+            **({"words": timed_words(res, res.get("_samples"))} if want_words else {}),
+            "decode_s": round(decode_s, 3),
             # Rides along on every answer rather than needing its own request:
             # the interesting question about this pool is how it moves across a
             # day of dictations, and a number nobody has to ask for is the only

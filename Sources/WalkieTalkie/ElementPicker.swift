@@ -492,7 +492,7 @@ final class ElementPicker {
     var onTestLiveCaption: (([String: Any]) -> Void)?
     /// `POST /test/local-fallback {"wav": path}` — the local model standing in
     /// for a failed engine, on that file; answers the result, delivers nothing.
-    var onTestLocalFallback: ((String) -> [String: Any])?
+    var onTestLocalFallback: ((String, Bool) -> [String: Any])?
     /// `POST /test/whisper {"kill"|"stop"|"cont"|"restart": true}` — gap G4.
     var onTestWhisper: (([String: Any]) -> [String: Any])?
     /// `POST /test/eleven {...}` — the ElevenLabs fault switch, gap G3.
@@ -944,7 +944,7 @@ final class ElementPicker {
             // every other route (`/up`, `/test/state`, `/test/cancel`) stood
             // behind it. The answer is still this request's; only the wait moved.
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                let answer = self?.onTestLocalFallback?(wav) ?? ["ok": false]
+                let answer = self?.onTestLocalFallback?(wav, (body?["words"] as? Bool) ?? false) ?? ["ok": false]
                 self?.respond(conn, 200, answer)
             }
 

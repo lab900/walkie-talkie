@@ -442,8 +442,16 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
 - **Timestamp markers (2026-09-19, current, `ShotMarker.place`, `WT_MARKER_TIMESTAMPS=0` off).**
   Scribe's `words[]` carry `start`/`end` on the WAV this app recorded; a press measured on the same
   ruler (`MicRecorder.offset(of:)` — frames written, answered backwards, ≤ 85 ms buffer correction)
-  lands between words. Only for a source with `audioOffset(of:)` (ElevenLabs, local); Wispr answers
-  nil and frames keep their `mm:ss` rows under the words.
+  lands between words. Only for a source with `audioOffset(of:)`; Wispr answers nil and frames keep
+  their `mm:ss` rows under the words.
+- **The local engine places them too since 2026-10-04.** Until then `LocalWhisperSource` had **no**
+  `audioOffset(of:)` (the protocol default nil — this file claimed otherwise) and the helper sent no
+  timings: outbox 135 local dictations, 224 shots, **0 inline**. Now `whisper_helper.py` decodes with
+  `word_timestamps=True` (OpenAI's six turbo alignment heads, `RELAY_WHISPER_ALIGNMENT`), answers
+  `words[{text,start,end}]` (Whisper's leading spaces kept, so they join into `text` — else
+  `LocalWhisper.Result.timedWords` drops them), the source answers `meter.offset(of:)`, and both
+  `didTranscribe` and the local fallback hand `words` to `resolvingMarkers`. Precision, cost:
+  `evals/local-word-timing/`; desk proof `evals/test_local_marker_place.py`.
 - **Reserved at the gesture, keyed by path** (`shotMarkerNumbers`, before `screencapture` runs); the
   safety net is a **set** of real pictures, not a count. `ShotMarker.render` is the one vocabulary.
   Selection numbers are reserved under `fileSelection`'s lock (`reserveMarkerLocked`) and spoken after.

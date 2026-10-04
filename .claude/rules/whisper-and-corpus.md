@@ -29,6 +29,16 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   `AppDelegate.applyWhisperModelWhenIdle` — waits while `restartBlockers` is non-empty or it is
   loading. `LocalWhisper.stop()` clears `ready` synchronously: before that `restartHelper()` only
   ever stopped (its `bringUpModel` saw `ready` still true).
+- **Word timings on request, starts snapped to the voice** (2026-10-04, for the screenshot markers —
+  `dictation-source.md`, *Markers*). `{"wav", "words": true}` → `word_timestamps=True` + OpenAI's six
+  large-v3-turbo alignment heads (mlx_whisper reads none from the folder; default = all 40 of the last
+  two layers, measured no better) → `words[{text,start,end}]`. **+45 % decode time** (60 `-11l` clips,
+  952 s audio, words off 70.7 s vs on 102.4 s, same process alternating; text identical 59/60), so the
+  relay asks only when a cue is pending (`LocalWhisperSource.wantsWordTimings`). **Whisper starts the
+  word after a pause in the pause** (median 620 ms before the voice): `helpers/word_onsets.py` moves a
+  start that is silent, or a ≤ 240 ms voiced stub + ≥ 200 ms silence, to the next voice onset (20 ms
+  RMS, floor p10 + 12 dB). A press mid-pause landed in that pause **45.7 % → 88.6 %** (35 real pauses,
+  truth = the clip cut there and both halves decoded alone). `evals/local-word-timing/`.
 - **Never reintroduce the Wispr Flow database path.** Until 2026-08-29 the relay watched Wispr Flow's
   `flow.sqlite`, transcribed the WAV blob it found there, swallowed Wispr's own paste and fell back to
   Wispr's text. All of it went whole: `WisprWatcher.swift`, `FlowDB.swift`, `DictationMonitor.swift`,

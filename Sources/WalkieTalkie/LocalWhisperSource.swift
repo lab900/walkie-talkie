@@ -159,6 +159,20 @@ final class LocalWhisperSource: DictationSource {
     /// Reset at `start()`, because it describes one recording.
     private var markersInAudio = false
 
+    /// **The file this decodes is the file this recorded** (2026-10-04) — so a
+    /// shutter press and a word's `start` from the helper are two readings of
+    /// one ruler, exactly as on `ElevenLabsSource`. Until this the local engine
+    /// answered the protocol's default nil: no cue was ever reserved and every
+    /// picture of 135 local dictations went to the footer.
+    /// → `MicRecorder.offset(of:)`, `ShotMarker.place`
+    func audioOffset(of moment: Date) -> TimeInterval? { meter.offset(of: moment) }
+
+    /// **Whether this take's decode should carry word timings** — asked at the
+    /// decode; `AppDelegate` answers *a marker was cued*. They cost +45 % decode
+    /// time (60 clips, `evals/local-word-timing/`), so a take with no picture,
+    /// highlight or pick does not pay for them.
+    var wantsWordTimings: (() -> Bool)?
+
     @discardableResult
     func start() -> String? {
         guard !isRecording else { return nil }
@@ -287,7 +301,7 @@ final class LocalWhisperSource: DictationSource {
         // the whole round trip: the JSON out, the helper's answer, and the queue
         // hop back. **After the wait for the weights**, which is not a decode.
         let decodeStartedAt = Date()
-        whisper.transcribe(wav: wav.path) { [weak self] result in
+        whisper.transcribe(wav: wav.path, words: wantsWordTimings?() ?? false) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.decoding === decode { self.decoding = nil }
@@ -323,7 +337,7 @@ final class LocalWhisperSource: DictationSource {
                     text: r.text, language: r.language, audio: wav, duration: duration,
                     engine: "whisper-local", warning: Self.warning(for: r), delivery: .route,
                     via: "local-whisper", markersInAudio: self.markersInAudio,
-                    engineLabel: Self.modelLabel))
+                    engineLabel: Self.modelLabel, words: r.words))
                 self.phase = .done("formatted")
                 self.didEnd?(.delivered)
             }
@@ -443,7 +457,7 @@ final class LocalWhisperSource: DictationSource {
 
     /// The five-minute recovery's re-read. The one place outside `stop()` that
     /// still asks the model for anything.
-    func transcribe(wav: String, _ done: @escaping (LocalWhisper.Result?) -> Void) {
-        whisper.transcribe(wav: wav, done)
+    func transcribe(wav: String, words: Bool = false, _ done: @escaping (LocalWhisper.Result?) -> Void) {
+        whisper.transcribe(wav: wav, words: words, done)
     }
 }

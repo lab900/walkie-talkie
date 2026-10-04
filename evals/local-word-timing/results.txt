@@ -1,0 +1,13 @@
+latency (whisper-turbo-victor, 60 clips, 952 s audio): words off 70.7 s, on 102.4 s → total +44.9 %, median per-clip ratio 1.448 (p90 1.567); text identical on 59/60
+victor-official: 1131 matched words — |Δstart| median 120 ms, p90 400 ms; |Δend| median 120 ms, p90 440 ms; markers in the same gap 523/796 = 65.7 % (±1 word 98.6 %; 384 of 1180 unscorable); signed Δstart median -100 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 21/86 = 24.4 %
+victor-default: 1129 matched words — |Δstart| median 120 ms, p90 400 ms; |Δend| median 120 ms, p90 440 ms; markers in the same gap 517/791 = 65.4 % (±1 word 99.5 %; 389 of 1180 unscorable); signed Δstart median -100 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 17/84 = 20.2 %
+orig-official: 1117 matched words — |Δstart| median 120 ms, p90 400 ms; |Δend| median 120 ms, p90 480 ms; markers in the same gap 486/799 = 60.8 % (±1 word 99.0 %; 381 of 1180 unscorable); signed Δstart median -100 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 16/83 = 19.3 %
+victor-official+snap: 1131 matched words — |Δstart| median 120 ms, p90 300 ms; |Δend| median 120 ms, p90 440 ms; markers in the same gap 568/811 = 70.0 % (±1 word 99.1 %; 369 of 1180 unscorable); signed Δstart median -60 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 55/86 = 64.0 %
+victor-default+snap: 1129 matched words — |Δstart| median 120 ms, p90 320 ms; |Δend| median 120 ms, p90 440 ms; markers in the same gap 540/780 = 69.2 % (±1 word 99.7 %; 400 of 1180 unscorable); signed Δstart median -80 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 52/84 = 61.9 %
+orig-official+snap: 1117 matched words — |Δstart| median 120 ms, p90 320 ms; |Δend| median 120 ms, p90 480 ms; markers in the same gap 533/795 = 67.0 % (±1 word 98.9 %; 385 of 1180 unscorable); signed Δstart median -60 ms; a press in one of his pauses (≥ 0.25 s) lands in that pause 48/83 = 57.8 %
+victor-official: a press in the middle of a real pause (cut-halves truth) lands in it 16/35 = 45.7 %
+victor-default: a press in the middle of a real pause (cut-halves truth) lands in it 15/36 = 41.7 %
+orig-official: a press in the middle of a real pause (cut-halves truth) lands in it 12/30 = 40.0 %
+victor-official+snap: a press in the middle of a real pause (cut-halves truth) lands in it 31/35 = 88.6 %
+victor-default+snap: a press in the middle of a real pause (cut-halves truth) lands in it 32/36 = 88.9 %
+orig-official+snap: a press in the middle of a real pause (cut-halves truth) lands in it 25/30 = 83.3 %
