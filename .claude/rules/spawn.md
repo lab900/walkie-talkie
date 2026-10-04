@@ -334,6 +334,14 @@ recently bound terminals under the folders, `RebindHistory.openTerminals` — de
   spre terminal"*, 2026-09-07). A quarter second is a third of the flight, and the half-second fade
   then ends within a hair of the arrival.
   → journal: *The spawn's flight leaves the dialog, and the dialog waits for it*
+- **Then the dialog waits, inactive, for the session to take the prompt** (2026-10-04, Victor:
+  *"să rămână dialogul acela sus inactiv … până când terminalul efectiv primește și începe să
+  lucreze"*). After the flight leaves, `releaseWhenSessionStarts` polls (¼ s, off main) for a `.jsonl`
+  in `~/.claude/projects/<folder>/` created since the launch with a `"type":"user"` line, then fades
+  it; `spawnStartWait` = 90 s is the cap. While held the panel `ignoresMouseEvents` (no hover, no ✕,
+  no click) and **only a dictation, a wait, a flash or a new prompt end the hold** — the spawn's own
+  bind and the 10 s title tick no longer relayout over it (`layoutContent`'s early return;
+  `reposition` is guarded too). A resumed session (`resumeClaude`) keeps the old release.
 - **The terminal is open before any of this starts.** A flight needs a real rectangle, which is
   why `adoptSpawnedWindow` polls up to `spawnWindowWait` = 4 s and why the panel is *held* rather
   than dismissed when the prompt resolves.

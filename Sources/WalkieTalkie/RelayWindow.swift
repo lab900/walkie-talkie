@@ -1762,6 +1762,8 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// Called on every entry to and exit from a panel state, so the move happens
     /// with the state change rather than waiting on the next pointer event.
     private func reposition() {
+        // The held dialog stays where it was read — see `layoutContent`.
+        if spawnPanelHeld || spawnPanelFading { return }
         guard let screen = Self.screenUnderMouse() ?? NSScreen.main else { return }
         // **The catalogue is shot off-screen** (2026-09-18). Victor: *"când faci
         // pozele de tooltip + dialog, trebuie neapărat să le randezi pe ecran?
@@ -1837,8 +1839,14 @@ private let frontLabel = NSTextField(labelWithString: "")
                                  kamikaze: kamikaze, spawn: spawnMarked, held: heldPair))
         }
         // A held spawn dialog is the last frame of a state that has already been
-        // cleared. Any relayout means newer state has arrived, and newer state
-        // wins the chip — see `releaseSpawnPanel`.
+        // cleared. Newer state wins the chip — see `releaseSpawnPanel` — but
+        // **only state he would be looking for** (2026-10-04): the hold now lasts
+        // until the new session shows the prompt, many seconds, and in them the
+        // spawn's own bind and the 10 s title tick relayout too. Those wait for
+        // the release, whose completion lays out anyway; a dictation, a wait, a
+        // flash or a new prompt end the hold as they always did.
+        if spawnPanelHeld || spawnPanelFading,
+           !listening, !transcribing, flashMessage == nil, sentPrompt == nil { return }
         endSpawnHold()
         // Hug the content of the *current* state, not the widest state there is:
         // standing by is what the overlay does for hours, and it should take no
@@ -5027,6 +5035,12 @@ private let frontLabel = NSTextField(labelWithString: "")
         promptWarning = nil
         if holdForSpawn {
             spawnPanelHeld = true
+            // **Inactive while held** (2026-10-04, Victor: *"să rămână dialogul
+            // acela sus inactiv, adică să nu pot să dau hover pe el sau click pe
+            // el"*): it is there to be read, and a hover would bring the ✕ and a
+            // relayout back onto a prompt that has already gone.
+            panel.ignoresMouseEvents = true
+            setHovering(false)
         } else {
             layoutContent()
             reposition()
@@ -5166,6 +5180,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         }, completionHandler: { [weak self] in
             guard let self = self, self.spawnPanelFading else { return }
             self.spawnPanelFading = false
+            self.panel.ignoresMouseEvents = false
             self.layoutContent()
             self.reposition()
             self.refreshOpacity()
@@ -5179,6 +5194,7 @@ private let frontLabel = NSTextField(labelWithString: "")
         guard spawnPanelHeld || spawnPanelFading else { return }
         spawnPanelHeld = false
         spawnPanelFading = false
+        panel.ignoresMouseEvents = false
         // Not `alphaValue = 1`: a fade already in the air is driven by the
         // animator, and only another animation on the same property replaces it.
         refreshOpacity()

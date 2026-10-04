@@ -7521,6 +7521,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the fallback for a sentence that never closed a microphone, and
         // `latchedMouse` is cleared by `clearSpawn` a moment from now.
         let near = latchedMouse ?? NSEvent.mouseLocation
+        let launched = Date()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             let outcome = SpawnTerminal.launchClaude(prompt: line, directory: m.directory, near: near)
@@ -7532,7 +7533,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // screen of evidence, and a flash would be a panel thrown over
                 // his work to repeat what it already shows.
                 case .opened(let tty):
-                    self.adoptSpawnedWindow(tty: tty) { [weak self] _ in
+                    self.adoptSpawnedWindow(tty: tty, session: (m.directory, launched)) { [weak self] _ in
                         guard let self = self else { return }
                         // The window is there (bound, or at least opened with the
                         // prompt in its `argv`): now it is a delivery.
@@ -7642,7 +7643,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// waiting on the label.
     /// `adopted` runs on main once the bind has been attempted and shown — the
     /// spawn's receipt (`spawnClaude`).
-    private func adoptSpawnedWindow(tty: String,
+    /// - Parameter session: the folder the session was started in and when —
+    ///   the held dialog waits for that session's transcript to show the prompt
+    ///   (`releaseWhenSessionStarts`); nil releases it behind the flight, as before.
+    private func adoptSpawnedWindow(tty: String, session: (directory: String, since: Date)? = nil,
                                     adopted: ((TerminalBinding.Target?) -> Void)? = nil) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -7694,11 +7698,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         // it lands the panel's half-second fade almost exactly on
                         // the outline's arrival, so the dialog is gone when the
                         // window has it.
+                        //
+                        // **…and then it waits for the session to have the prompt**
+                        // (2026-10-04, Victor: *"să rămână acolo și după ce a fost
+                        // lansat terminalul … până când terminalul efectiv primește
+                        // și începe să lucreze … un timp în care aș vrea să pot să
+                        // mă uit la prompt"*). A new Claude Code takes seconds to
+                        // boot after its window exists; the dialog stays, inactive,
+                        // until the prompt is in the new transcript.
                         DispatchQueue.main.asyncAfter(deadline: .now() + Self.spawnPanelFadeDelay) { [weak self] in
                             // `releaseSpawnPanel` no-ops unless the hold is still
                             // this one's, so a second dictation that took the chip
                             // in the meantime is not faded out from under itself.
-                            self?.overlay.releaseSpawnPanel(fadeOver: Self.spawnPanelFade)
+                            guard let self = self else { return }
+                            guard let session = session else {
+                                return self.overlay.releaseSpawnPanel(fadeOver: Self.spawnPanelFade)
+                            }
+                            self.releaseWhenSessionStarts(directory: session.directory, since: session.since)
                         }
                     } else {
                         // No panel to leave from, so nothing to hold back for.
@@ -7787,6 +7803,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// half-second fade within a hair of the outline's arrival, so the dialog
     /// finishes emptying out just as the window receives it.
     private static let spawnPanelFadeDelay: TimeInterval = 0.25
+
+    /// The longest the held dialog waits for a spawned session to take its
+    /// prompt — past it the dialog goes anyway (a session stuck on a trust
+    /// question, or one whose transcript went somewhere unexpected).
+    private static let spawnStartWait: TimeInterval = 90
+
+    /// **Release the held dialog once the spawned session shows the prompt**
+    /// (2026-10-04). The signal is Claude Code's own transcript: a `.jsonl` in
+    /// `~/.claude/projects/<folder>/` created since the launch, holding a
+    /// `"type":"user"` line — the prompt from `argv`, written as the session
+    /// takes it. Polled off the main thread every quarter second; the folder is
+    /// named the way Claude Code names it (every non-alphanumeric → `-`).
+    private func releaseWhenSessionStarts(directory: String, since: Date) {
+        let folder = String((directory as NSString).standardizingPath.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        let dir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/projects").appendingPathComponent(folder)
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let deadline = since.addingTimeInterval(Self.spawnStartWait)
+            var took: URL?
+            while took == nil, Date() < deadline {
+                guard let self = self else { return }
+                var holding = true
+                DispatchQueue.main.sync { holding = self.overlay.isHoldingSpawnPanel }
+                if !holding { return }   // newer state took the chip already
+                took = Self.startedTranscript(in: dir, since: since)
+                if took == nil { Thread.sleep(forTimeInterval: 0.25) }
+            }
+            let waited = Date().timeIntervalSince(since)
+            if let took = took {
+                Log.info(String(format: "✨ the spawned session took the prompt %.1f s after the launch (%@) — the dialog goes", waited, took.lastPathComponent))
+            } else {
+                Log.error(String(format: "✨ no transcript with the prompt in %@ after %.0f s — the dialog goes anyway", dir.path, waited))
+            }
+            DispatchQueue.main.async { self?.overlay.releaseSpawnPanel(fadeOver: Self.spawnPanelFade) }
+        }
+    }
+
+    /// A transcript created in `dir` since `since` that already has a user line.
+    private static func startedTranscript(in dir: URL, since: Date) -> URL? {
+        let keys: [URLResourceKey] = [.creationDateKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys)
+        else { return nil }
+        let floor = since.addingTimeInterval(-1)
+        for file in files where file.pathExtension == "jsonl" {
+            guard let born = try? file.resourceValues(forKeys: Set(keys)).creationDate, born >= floor,
+                  let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            if text.contains("\"type\":\"user\"") { return file }
+        }
+        return nil
+    }
 
     /// How long to keep asking Terminal for the new window before giving up on
     /// the flight. Generous, because it costs nothing when the window is up in
