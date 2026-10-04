@@ -1486,7 +1486,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         refreshGlyph()
     }
 
-    /// `Engine: Turbo 💻 (2.6 GB)` while the local model is the one listening;
+    /// `Engine: V3t💻 1.5 GB` while the local model is the one listening;
     /// `Engine: Wispr Flow` while the other one is.
     ///
     /// **The row is short and the submenu is long** (Victor, 2026-09-14): the
@@ -1629,7 +1629,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
 
     /// **The local engine, one row per model** (2026-10-03, flattened the same
     /// day). Victor: every engine/model a sibling in one list, one tick, short
-    /// titles — `Large V3 Turbo 💻`, `Large V3 Turbo - Victor (LoRA) 💻`; the date, the cost, the WER, the data and the method are on the
+    /// titles — `Large V3 Victor 💻`, `Large V3-turbo 💻`, `Large V3-turbo Victor LoRA 💻`; the date, the cost, the WER, the data and the method are on the
     /// tooltip, read from the folder's `model-card.json` (`WhisperModels.Option`),
     /// never written twice. The tick needs both: the local engine live **and**
     /// this model picked.
@@ -1647,7 +1647,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         }
     }
 
-    /// `<model name> 💻` — `Large V3 Turbo 💻`, `Large V3 Turbo - Victor (LoRA) 💻`
+    /// `<model name> 💻` — `Large V3-turbo 💻`, `Large V3-turbo Victor LoRA 💻`
     /// (2026-10-03, Victor: the model's name, the laptop after it; no `Local`),
     /// with the ⏳ while the picked model loads.
     static func localRowTitle(_ option: WhisperModels.Option, loading: Bool) -> String {
@@ -1918,7 +1918,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         switch id {
         case "eleven", "eleven-live": (name, emoji) = ("ElevenLabs", "☁️")
         case "wispr": (name, emoji) = ("Wispr Flow", "☁️")
-        default: return engineShortTitle(id)   // already `Turbo 💻 (2.2 GB)`
+        default: return engineShortTitle(id)   // already `V3t💻 1.5 GB`
         }
         let title = engineShortTitle(id)
         guard let r = title.range(of: name) else { return title + " " + emoji }
@@ -1934,13 +1934,14 @@ final class StatusItem: NSObject, NSMenuDelegate {
             return elevenReady?() == true ? "ElevenLabs + Live" : "ElevenLabs + Live ⚠️"
         }
         if id == "wispr" { return "Wispr Flow" }
-        // **The picked model's one word, the 💻 after it, then the RAM** —
-        // `Turbo 💻 (2.2 GB)`, `Victor 💻 (2.2 GB)` (2026-10-03, Victor: *"Engine
-        // și apoi fie Turbo cu laptop după … fie … Victor. Tot cu Giga după"*).
-        let name = (WhisperModels.option(for: WhisperModels.selected)?.shortTitle ?? "Local") + " 💻"
-        if engineLoading { return name + " (loading…)" }
+        // **The picked model's short name, the 💻 against it, then the RAM** —
+        // `V3t💻 1.5 GB`, `V3t-victor💻 1.5 GB`, `V3-victor💻 2.9 GB` (2026-10-04,
+        // Victor: *"v3[-turbo][-victor]💻 #.# GB"*, *"V3t … fara ( ) in jurul
+        // GB"*; it read `Turbo 💻 (2.2 GB)` from 2026-10-03).
+        let name = (WhisperModels.option(for: WhisperModels.selected)?.shortTitle ?? "Local") + "💻"
+        if engineLoading { return name + " loading…" }
         guard let bytes = whisperFootprint?() else { return name }
-        return name + String(format: " (%.1f GB)", Double(bytes) / 1_073_741_824)
+        return name + String(format: " %.1f GB", Double(bytes) / 1_073_741_824)
     }
 
     @objc private func enginePicked(_ sender: NSMenuItem) {

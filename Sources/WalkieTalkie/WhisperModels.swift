@@ -32,7 +32,7 @@ enum WhisperModels {
 
     struct Card: Equatable {
         var name: String
-        /// The label on the Engine row (`Large V3 Turbo - Victor (LoRA)`);
+        /// The label on the Engine row (`Large V3-turbo Victor LoRA`);
         /// the name when the card has none.
         var label: String?
         /// The one word the top-level `Engine:` row wears (`Victor`); the label
@@ -95,14 +95,21 @@ enum WhisperModels {
         /// Victor: *"în loc să fie local, scrie Large V3 Turbo"*).
         var title: String {
             if let card { return card.label ?? card.name }
-            return isOriginal ? "Large V3 Turbo" : (id as NSString).lastPathComponent
+            return isOriginal ? "Large V3-turbo" : (id as NSString).lastPathComponent
         }
 
-        /// What the top-level `Engine:` row calls it — `Turbo`, `Victor`.
+        /// What the top-level `Engine:` row calls it — `V3`, `t` for turbo,
+        /// `-victor` for his LoRA: `V3-victor`, `V3t`, `V3t-victor` (2026-10-04,
+        /// Victor: *"v3[-turbo][-victor]💻 #.# GB"*, then *"V3t, t=turbo"*). A
+        /// card's `short` says it for a folder.
         var shortTitle: String {
             if let card { return card.short ?? title }
-            return isOriginal ? "Turbo" : title
+            return isOriginal ? "V3t" : title
         }
+
+        /// Turbo after the full-size V3; within a base, the published weights
+        /// before a LoRA on them.
+        fileprivate var turbo: Bool { isOriginal || (card?.base ?? id).lowercased().contains("turbo") }
 
         /// The tooltip's first line: what the row stopped carrying.
         var summary: String? {
@@ -136,9 +143,12 @@ enum WhisperModels {
         }
     }
 
-    /// The original first, then every installed folder that has MLX weights,
-    /// by name. Read from disk on every call — the list is built when the menu
-    /// opens, and a folder copied in while the app runs shows up there.
+    /// Every installed folder that has MLX weights, plus the original. **Large
+    /// V3 before turbo, and within each the published weights before the LoRA**
+    /// (2026-10-04, Victor's order: *Large V3 Victor · Large V3-turbo · Large
+    /// V3-turbo Victor LoRA*), then by name. Read from disk on every call — the
+    /// list is built when the menu opens, and a folder copied in while the app
+    /// runs shows up there.
     static func options(in dir: URL = modelsDir) -> [Option] {
         var out = [Option(id: original, card: nil)]
         let fm = FileManager.default
@@ -152,7 +162,11 @@ enum WhisperModels {
                 .flatMap(Card.parse)
             out.append(Option(id: folder.path, card: card))
         }
-        return out
+        return out.enumerated().sorted { a, b in
+            if a.element.turbo != b.element.turbo { return !a.element.turbo }
+            if a.element.isOriginal != b.element.isOriginal { return a.element.isOriginal }
+            return a.offset < b.offset
+        }.map(\.element)
     }
 
     /// What the helper is to load: the pick, if its weights are still there;
