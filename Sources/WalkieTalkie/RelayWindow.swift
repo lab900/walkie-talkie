@@ -1047,13 +1047,13 @@ private let frontLabel = NSTextField(labelWithString: "")
         if listening { layoutContent() }
     }
 
-    /// **The microphone breathes in the orange disc, where the walkie did**
-    /// (2026-10-04, Victor: *"în loc de simbolul de Walkie Talkie care clipește
-    /// lent când dictez, pune simbolul microfonului folosit pentru dictare"*).
+    /// **The microphone breathes where the walkie did** (2026-10-04, Victor:
+    /// *"în loc de simbolul de Walkie Talkie care clipește lent când dictez, pune
+    /// simbolul microfonului folosit pentru dictare"*) — the bare emoji, no ring.
     /// The device left `micMark` for it — one place, in front of the word. An
     /// unknown device (empty) keeps the walkie.
     func setRecordDevice(_ glyph: String) {
-        recordDot.image = (glyph.isEmpty ? nil : Self.ringedDevice(glyph))
+        recordDot.image = (glyph.isEmpty ? nil : Self.deviceGlyph(glyph))
             ?? Self.walkieLiveGlyph ?? Self.pulseGlyph
     }
 
@@ -2592,26 +2592,15 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// orange one looking like the same object.
     private static let walkieDeviceShare: CGFloat = 0.60
 
-    /// The device's emoji on `walkie-bound.png`'s orange disc — its two
-    /// oranges, top and bottom, sampled off the artwork — at the walkie's share
-    /// of it, so the ring is the same object whatever sits inside. One per
-    /// device, cached: there are five.
-    private static var ringedDevices: [String: NSImage] = [:]
-    private static func ringedDevice(_ glyph: String) -> NSImage {
-        if let cached = ringedDevices[glyph] { return cached }
-        let side = walkieInk
-        let image = NSImage(size: NSSize(width: side, height: side))
-        image.lockFocus()
-        NSGraphicsContext.current?.imageInterpolation = .high
-        NSGradient(starting: NSColor(srgbRed: 1, green: 172 / 255, blue: 31 / 255, alpha: 1),
-                   ending: NSColor(srgbRed: 240 / 255, green: 138 / 255, blue: 23 / 255, alpha: 1))?
-            .draw(in: NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: side, height: side)), angle: -90)
-        let inner = (side * walkieDeviceShare).rounded()
-        Glyphs.emoji(glyph, ink: inner).draw(in: NSRect(x: ((side - inner) / 2).rounded(),
-                                                       y: ((side - inner) / 2).rounded(),
-                                                       width: inner, height: inner))
-        image.unlockFocus()
-        ringedDevices[glyph] = image
+    /// The device's own emoji at the column's size, one per device — there are
+    /// five. **Bare, no disc** (2026-10-04, Victor, an hour after the disc:
+    /// *"nu trebuie înconjurat cu cerc portocaliu, ci doar … emoji-ul normal"*);
+    /// the breathing is what says the microphone is open.
+    private static var deviceGlyphs: [String: NSImage] = [:]
+    private static func deviceGlyph(_ glyph: String) -> NSImage {
+        if let cached = deviceGlyphs[glyph] { return cached }
+        let image = Glyphs.emoji(glyph, ink: iconInk)
+        deviceGlyphs[glyph] = image
         return image
     }
 

@@ -325,12 +325,17 @@ enum SpawnTerminal {
     /// **Where this window goes so that it covers as little as possible of what
     /// is already open.**
     ///
-    /// Each display is cut into a grid of cells the size of the window itself —
-    /// two columns of a 905pt terminal on a 1920pt monitor — and the grid is
-    /// centred in whatever the cells did not use, so a single-column screen does
-    /// not park the window against its left edge. Every cell on every display is
-    /// then scored by how many square points of *other* Terminal windows it would
-    /// sit on, and the first cell with the lowest score wins.
+    /// **Each display is cut into Victor Addons' four quadrants** (2026-10-04,
+    /// Victor: *"să le așezi în modul de tile pe care îl pune default Mac OS
+    /// addons. Nu rulat tile efectiv, dar … în colțuri"*) — the same rectangles
+    /// as its `TerminalTileLayout.quadrants`: halves of the visible frame, 2 pt
+    /// in from the outer edges, none between them, and the window takes the
+    /// quadrant's size. The other windows are not touched; ⌘⌃A is still the tile.
+    /// Until that day the cells were the size of the window itself, centred,
+    /// which put two default-size terminals side by side in the middle. Every
+    /// cell on every display is scored by how many square points of *other*
+    /// Terminal windows it would sit on, and the first cell with the lowest
+    /// score wins — TL, TR, BL, BR.
     ///
     /// **Scored rather than filtered**, so it degrades instead of failing: with
     /// every slot taken — six terminals across three monitors — the answer is the
@@ -347,13 +352,13 @@ enum SpawnTerminal {
     private static func slot(for window: Box, on screens: [Box], avoiding taken: [Box]) -> Box {
         var best: (cover: Int, box: Box)?
         for screen in screens {
-            let w = min(window.w, screen.w), h = min(window.h, screen.h)
-            guard w > 0, h > 0 else { continue }
-            let cols = max(1, screen.w / w), rows = max(1, screen.h / h)
-            let padX = (screen.w - cols * w) / 2, padY = (screen.h - rows * h) / 2
-            for row in 0..<rows {
-                for col in 0..<cols {
-                    let cell = Box(x: screen.x + padX + col * w, y: screen.y + padY + row * h, w: w, h: h)
+            let hw = screen.w / 2, hh = screen.h / 2
+            guard hw > quadrantMargin, hh > quadrantMargin else { continue }
+            for row in 0..<2 {
+                for col in 0..<2 {
+                    let x = col == 0 ? screen.x + quadrantMargin : screen.x + hw
+                    let y = row == 0 ? screen.y + quadrantMargin : screen.y + hh
+                    let cell = Box(x: x, y: y, w: hw - quadrantMargin, h: hh - quadrantMargin)
                     let cover = taken.reduce(0) { $0 + overlap(cell, $1) }
                     // Strictly less, so ties go to the earlier cell and the order
                     // of the grid is the order windows fill it in.
@@ -365,6 +370,10 @@ enum SpawnTerminal {
         }
         return best?.box ?? window
     }
+
+    /// Victor Addons' `TerminalTileLayout.margin` — kept equal by hand, the
+    /// two apps share no code for it.
+    private static let quadrantMargin = 2
 
     /// Square points two rectangles share, or zero.
     private static func overlap(_ a: Box, _ b: Box) -> Int {

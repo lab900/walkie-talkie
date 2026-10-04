@@ -284,11 +284,13 @@ recently bound terminals under the folders, `RebindHistory.openTerminals` — de
   the one case that still steals it — a Terminal launched from cold by `do script`. It gives back
   focus only; raised windows stay raised, which is why `activate` had to go rather than be undone.
   → journal: *Where a spawned window opens (2026-09-04)*
-- **A grid of the window's own size, scored not filtered.** Cells as big as the window Terminal
-  just made (two columns of a 905 pt terminal on a 1920 pt monitor), grid centred; every cell
-  scored by square points of *other* Terminal windows it would cover, first lowest wins. With every
-  slot taken — six terminals across three monitors — the answer is the least-covered cell, and
-  left-to-right lands a second spawn beside the first.
+- **Victor Addons' four quadrants, scored not filtered** (2026-10-04, *"să le așezi în modul de
+  tile pe care îl pune default Mac OS addons. Nu rulat tile efectiv, dar … în colțuri"*). Each
+  screen's visible frame is cut like `TerminalTileLayout.quadrants` (halves, `quadrantMargin` 2 pt
+  at the outer edges only) and the window **takes the quadrant's size**; the other windows are not
+  moved (⌘⌃A remains the tile). Every quadrant scored by square points of *other* Terminal windows
+  it would cover, first lowest wins, TL → TR → BL → BR, screens left to right. Until that day the
+  cells were the window's own default size, centred — two terminals side by side mid-screen.
   → journal: *Where a spawned window opens (2026-09-04)*
 - **Only Terminal's own windows are avoided, listed in the same `osascript` round trip that
   opened the window.** A second interpreter launch is a launch for nothing; asking the window
