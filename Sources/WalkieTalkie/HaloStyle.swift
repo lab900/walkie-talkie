@@ -778,13 +778,15 @@ enum HaloDestination: String, CaseIterable {
     /// should have the label listening. The other three modes … should be
     /// prompting, not dictating"*). The same two words the chip says while the
     /// sentence is open (`RelayWindow.prompting`): a clean sentence is only
-    /// words at the caret; the other three are prompts to an agent.
+    /// words at the caret; the other three are prompts to an agent. The clean
+    /// one says `Dictating` since 2026-10-04 (*"ar trebui să fie dictating, nu
+    /// listening"*).
     var title: String {
         switch self {
         case .caret: return "Prompting at caret"
         case .bound: return "Prompting bound"
         case .spawn: return "Prompting to new"
-        case .wispr: return "Listening"
+        case .wispr: return "Dictating"
         }
     }
 

@@ -301,7 +301,7 @@ class Sampler(object):
         return [r["lat"] for r in self.rows if r["lat"] > over]
 
 def _listening_row(r):
-    return r.get("listening") or "Listening" in r.get("chip", "")
+    return r.get("listening") or any(w in r.get("chip", "") for w in ("Dictating", "Prompting"))
 
 
 # ---------------------------------------------------------------- one relay sentence, broken open

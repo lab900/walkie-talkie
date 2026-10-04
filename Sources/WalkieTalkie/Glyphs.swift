@@ -879,6 +879,12 @@ extension Glyphs {
     /// the bar like the words round it.
     static let loraMark: Character = "\u{1D65}"
 
+    /// **A thin space before a row's three dots** (2026-10-04, Victor: *"pune
+    /// un mic spațiu înainte de cele trei puncte finale"*) — the dots used to
+    /// sit flush against the recogniser's logo. A letter of the row like the
+    /// `v`, so it counts as one step of the bar.
+    static let dotsGap: Character = "\u{2009}"
+
     /// The logo for a character that names one, or nil for anything else — the
     /// form the chip calls, because the chip is handed a string and never an
     /// engine.

@@ -360,7 +360,7 @@ enum OverlayStates {
                  note: "**A subscript `ᵥ` after the local model's 💻** (2026-10-04, Victor: *\"pune un v mic după acel măr … dacă e modelul meu cu Lora\"*, then *\"ca indice\"*, and the apple became the laptop: *\"ca să se înțeleagă local\"*) — on `Transcribing via` and on the listening row's arrow alike. Small and lowered in the font itself, and it fills with the bar like the letters round it. The published Turbo weights wear the bare laptop.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
-                o.setEngineMark(" via \(Glyphs.Engine.mac.rawValue)\(Glyphs.loraMark)")
+                o.setEngineMark(" via \(Glyphs.Engine.mac.rawValue) \(Glyphs.loraMark)")
                 o.setTranscribing(true)
                 o.setShotCount(1)
                 o.pinTranscribeWarmth(0.45)

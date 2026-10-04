@@ -957,7 +957,7 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// three dots are the last three steps, which is the part Victor reads to
     /// know it is done.
     private var listeningWord: String {
-        opening ? "Opening Wispr Flow..." : "\(prompting ? "Prompting" : "Listening")\(micMark)..."
+        opening ? "Opening Wispr Flow..." : "\(prompting ? "Prompting" : "Dictating")\(micMark)\(Glyphs.dotsGap)..."
     }
 
     /// **`Opening Wispr Flow...` until Wispr's microphone is really open** (Q20,
@@ -972,10 +972,9 @@ private let frontLabel = NSTextField(labelWithString: "")
         if listening { layoutContent() }
     }
 
-    /// **`Prompting...` for a sentence to an agent, `Listening...` for a clean
-    /// one** (2026-09-25, Victor: *"The clean dictation should have the label
-    /// listening. The other three modes, such as prompting at caret, prompting
-    /// bound, and prompting to new should be prompting"*). The menu's names for
+    /// **`Prompting...` for a sentence to an agent, `Dictating...` for a clean
+    /// one** (2026-09-25 as `Listening`; 2026-10-04, Victor: *"când nu e
+    /// prompting, ar trebui să fie dictating, nu listening"*). The menu's names for
     /// the four (`HaloDestination.title`), said on the chip. Nine letters
     /// either way, so the warmth bar keeps its step count. `AppDelegate`
     /// writes it with the destination, before the row goes up.
@@ -3259,7 +3258,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             // **The `→` before the recogniser is a letter, not a picture**
             // (2026-09-24): it is typography, part of the sentence, and fills
             // with the bar like the words round it.
-            guard ch.isASCII || ch == "→" || ch == Glyphs.loraMark else {
+            guard ch.isASCII || ch == "→" || ch == Glyphs.loraMark || ch == Glyphs.dotsGap else {
                 out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }
@@ -4017,7 +4016,7 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// **Three full stops, not `…`** — `listeningWord`'s reason, applied to the
     /// row that is the same slot at the next moment: the word fills a character
     /// at a time, and an ellipsis is one glyph that would light in one step.
-    private var transcribeWord: String { "Transcribing\(engineMark)..." }
+    private var transcribeWord: String { "Transcribing\(engineMark)\(Glyphs.dotsGap)..." }
 
     /// How far through the estimate this decode is, 0…1 — the same reading
     /// `listenWarmth` is, off a different clock. **Full when there is no
@@ -4073,7 +4072,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             // moved onto it, because until then every character in it was ASCII.
             // It fills with the bar like the letters round it (2026-10-01) — a
             // logo is drawn in the row's ink, so `dim` is its unlit state too.
-            guard ch.isASCII || ch == Glyphs.loraMark else {
+            guard ch.isASCII || ch == Glyphs.loraMark || ch == Glyphs.dotsGap else {
                 out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }

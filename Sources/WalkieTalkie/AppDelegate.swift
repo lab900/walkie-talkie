@@ -324,8 +324,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // LoRA** (2026-10-04, Victor: *"pune un v mic după acel măr … dacă e
         // modelul meu cu Lora"*). Read from the pick, which the helper loads at
         // the next idle moment — the same moment this mark is next pushed.
+        // A space between the two (2026-10-04, *"pune un spațiu între laptop
+        // și v"*): flush, the subscript read as part of the laptop.
         case "whisper": return String(Glyphs.Engine.mac.rawValue)
-            + (WhisperModels.selected == WhisperModels.original ? "" : String(Glyphs.loraMark))
+            + (WhisperModels.selected == WhisperModels.original ? "" : " " + String(Glyphs.loraMark))
         case "eleven", "eleven-live": return String(Glyphs.Engine.eleven.rawValue)
         case "wispr": return String(Glyphs.Engine.wispr.rawValue)
         // The default's logo, like `engine(named:)`'s default source.
