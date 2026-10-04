@@ -872,11 +872,12 @@ extension Glyphs {
         case mac = "\u{E013}"
     }
 
-    /// **The small `v` after the Apple mark: the local model is Victor's LoRA**
-    /// (2026-10-04). A modifier letter, so it is already small and raised in
-    /// the font; the chip draws it as a letter of the row, not a picture,
-    /// filling with the bar like the words round it.
-    static let loraMark: Character = "\u{1D5B}"
+    /// **The small `v` after the local model's mark: the weights are Victor's
+    /// LoRA** (2026-10-04) — **a subscript** (*"pune V-ul acela ca indice"*;
+    /// it was the raised `ᵛ` for an hour). Small and lowered in the font itself;
+    /// the chip draws it as a letter of the row, not a picture, filling with
+    /// the bar like the words round it.
+    static let loraMark: Character = "\u{1D65}"
 
     /// The logo for a character that names one, or nil for anything else — the
     /// form the chip calls, because the chip is handed a string and never an
@@ -902,7 +903,12 @@ extension Glyphs {
         // `emoji` for that function's own reason: it trims to the ink and
         // returns a square of exactly the size every other glyph on the row
         // gets, which is what makes the lot line up.
-        case .mac: return emoji("\u{F8FF}", ink: ink, colour: colour)
+        //
+        // **A laptop, not the apple, since 2026-10-04** (Victor: *"în loc de măr
+        // pune laptop ca să se înțeleagă local"*) — the apple named a vendor,
+        // the laptop says *this machine*. A colour emoji, so it ignores the ink
+        // and stays lit through the bar, like the device emoji.
+        case .mac: return emoji("💻", ink: ink, colour: colour)
         }
     }
 

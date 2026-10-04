@@ -357,7 +357,7 @@ enum OverlayStates {
 
             Shot(slug: "transcribing-lora", group: "Dictating", title: "…on Victor's own model",
                  when: "The wait, when the local model is the Engine and its weights are the LoRA trained on his voice.",
-                 note: "**A small `ᵛ` after the Apple mark** (2026-10-04, Victor: *\"pune un v mic după acel măr … dacă e modelul meu cu Lora\"*) — on `Transcribing via` and on the listening row's arrow alike. A modifier letter, so it is small and raised in the font itself, and it fills with the bar like the letters round it. The published Turbo weights wear the bare apple.",
+                 note: "**A subscript `ᵥ` after the local model's 💻** (2026-10-04, Victor: *\"pune un v mic după acel măr … dacă e modelul meu cu Lora\"*, then *\"ca indice\"*, and the apple became the laptop: *\"ca să se înțeleagă local\"*) — on `Transcribing via` and on the listening row's arrow alike. Small and lowered in the font itself, and it fills with the bar like the letters round it. The published Turbo weights wear the bare laptop.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
                 o.setEngineMark(" via \(Glyphs.Engine.mac.rawValue)\(Glyphs.loraMark)")

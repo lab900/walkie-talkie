@@ -214,8 +214,8 @@ yields to `--label`).
   simbolul microfonului in fata, inainte de Dictating/Prompting"*). `AppDelegate.pushMicMark` sends
   the device to `RelayWindow.setRecordDevice` (its emoji on `walkie-bound.png`'s two oranges, at
   `walkieDeviceShare`) and only `→ <logo>` to `setMicMark`; an unknown device keeps the walkie. The
-  row reads `🎤(disc) Prompting → ⬮...`. **The local model's apple wears a small `ᵛ`
-  (`Glyphs.loraMark`, U+1D5B) when the weights are not the published Turbo** — drawn as a letter,
+  row reads `🎤(disc) Prompting → ⬮...`. **The local model's mark is 💻 (the Apple mark until 2026-10-04) and wears a subscript `ᵥ`
+  (`Glyphs.loraMark`, U+1D65) when the weights are not the published Turbo** — drawn as a letter,
   filling with the bar (state `transcribing-lora`). The film row's icon is 🎞️ (📹 until 2026-10-04).
 - **`Listening to 🎤 → ⬮...` since 2026-09-24** (the device moved into the disc on 2026-10-04, above) — the listening row names the recogniser too, after an
   arrow (*"place an arrow and then specify as well the transcription engine"*). Wispr's five bars

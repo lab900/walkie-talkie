@@ -294,7 +294,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// **The logo the chip wears while that engine is listening** — ElevenLabs'
-    /// pause-in-a-ring, Wispr Flow's five bars, the Apple mark for the model
+    /// pause-in-a-ring, Wispr Flow's five bars, a laptop (the Apple mark until
+    /// 2026-10-04) for the model
     /// that runs on this Mac. Victor, 2026-09-22: *"în loc de litera care
     /// urmează, aș vrea să am logo-ul lor stilizat cu gri. Exact culoarea
     /// fontului."*
@@ -319,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// this is already a bug somewhere above.
     private static func engineMark(_ id: String) -> String {
         switch id {
-        // **A small `ᵛ` after the Apple mark when the weights are Victor's
+        // **A subscript `ᵥ` after the laptop when the weights are Victor's
         // LoRA** (2026-10-04, Victor: *"pune un v mic după acel măr … dacă e
         // modelul meu cu Lora"*). Read from the pick, which the helper loads at
         // the next idle moment — the same moment this mark is next pushed.
