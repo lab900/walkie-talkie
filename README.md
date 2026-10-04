@@ -70,610 +70,199 @@ wheel. The menu bar icon lists every action next to the gesture that does it.
 
 # The long version
 
-*For agents, and for anyone who wants the details behind each feature.*
+*For agents, and for anyone who wants the details.* This is the map. Every rule,
+with the measurement or the incident behind it, lives in
+[`.claude/rules/`](.claude/rules/) (one file per area) and
+[`docs/journal.md`](docs/journal.md). Where they disagree with this page, they win.
 
+The relay is **one-way and non-interactive** by design: the agent gets your words
+and cannot ask anything back, because you are not reading the terminal.
 
-A small macOS overlay that **relays your dictation into a running coding agent**
-— along with the text you had selected and screenshots of what you were looking
-at — so you can drive the agent while looking at something else entirely: a
-browser, an IDE, a projector.
+## Where the words go
 
-It records and transcribes on its own, with a Whisper running on your Mac: click
-the mouse wheel to start, click it again to stop, and the words go to whatever
-agent is watching its queue rather than into whatever holds the caret. That is the whole
-idea, and the name — it is not tied to any one agent (it was called Claude Bubble
-until it turned out to work with all of them).
+| destination | how you aim at it | what happens |
+|---|---|---|
+| **a bound terminal** | <kbd>⌘⌃B</kbd> on it | typed in and submitted, wherever your cursor is |
+| **a new Claude Code session** | 🔼 ↑ | a new Terminal window starts `claude "<your words>"`, then gets bound |
+| **the caret** | 🔼 (forward click) | pasted where you are typing; submitted if that is a Claude Code prompt |
 
-It is **one-way and non-interactive** by design. The agent gets your words; it
-cannot ask you anything back, because you are not reading the terminal.
+- **Nothing bound? The sentence is held**, five minutes each, in order, and delivered on the next bind. The chip says `bind to send`; on expiry it says `⌘V to paste it`.
+- **The recipient is fixed when the microphone closes.** Binding something else afterwards does not redirect a sentence already said. If its terminal is gone at delivery, the words go to the caret.
+- **The clipboard always holds the last finished sentence**, so <kbd>⌘V</kbd> pastes it again.
 
-Every state the overlay can be in — all 32 of them, with the moment each appears —
-is photographed in **[docs/overlay-states.html](docs/overlay-states.html)**,
-regenerated from the code by `./docs/shoot-overlay-states.sh`.
+### Bound terminals
 
-<img src="docs/idle.png" width="196" alt="the idle chip: a robot emoji and the session name, trailing the cursor">
+| what | addressed by | delivered with | takes focus? |
+|---|---|---|---|
+| Terminal.app tab | its **tty** | `do script` | no |
+| tmux pane | its **`%pane`** | `send-keys` | no |
+| VS Code / IntelliJ terminal | the editor's extension ([`victor-vsc`](https://github.com/victorrentea/victor-vsc), [`live-coding`](https://github.com/victorrentea/live-coding)) | the terminal widget's own API | no |
+| any other editor (fallback) | its pid | paste + Return | ~200 ms, then put back |
 
-At rest it is just a label riding along near your cursor, telling you *which*
-session is listening — `folder@branch`, the same thing Claude Code's status line
-shows. It disappears while you type and comes back when you move the mouse.
+- **It never types at a shell prompt.** Before *every* delivery it checks the foreground job; a shell, or anything that hands the line to one (`ssh`, `sudo`, `less`, `docker`…), is refused. The test fails closed. At a prompt, a dictated *"delete the build folder"* would be run.
+- **A raw chunk plus Return, never a bracketed paste**: Claude Code wraps a paste in `<pasted_content>` and the model treats it as data. Up to four more Returns follow if the sentence is still sitting under `❯`.
+- Binding draws a blue rectangle that flies from the window into the chip; sending draws a white outline from the panel onto the terminal.
 
-<img src="docs/listening.png" width="196" alt="dictating: the session name, a pulsing red dot, the shot count and the shot hint">
+### A new session
 
-When dictation starts the chip stays where it is and grows one row: a pulsing 🔴,
-how many pictures the message is carrying, and the two ways to add another
-(`🔴 📸 ×2 🖱️/F3`). Behind that row the screen is photographed, whatever was
-selected is captured and frozen for the whole dictation, and either the **back
-mouse button** or **F3** attaches extra screenshots as you talk — the count going
-up is the receipt.
+- **🔼 ↑** (in Wheel mode: ⌘ + wheel click, or double click) aims the dictation at a session that does not exist yet. Mid-sentence it re-aims the open one.
+- A **folder menu** pops up: active terminals, pinned and recent projects. Untouched, the folder is `~/workspace`.
+- The prompt travels in **argv** (via a file, never through the keyboard), so it cannot be run by a shell, typed early, or mangled by quotes.
 
-**A picture can be a region rather than a screen.** Hold the **wheel** and drag
-while a dictation is running: the screen dims, a box follows the pointer, ⌘ moves
-it whole, ⌥ draws it from its middle and Esc calls it off. What joins the message
-is that rectangle — named `area-00:38(1200x800px).jpg`, so what receives it knows
-the edges are yours and not the display's, and costing the pixels you framed
-instead of the pixels your monitor has. It is Victor Addons' own crop, literally:
-both apps now draw it out of one shared package. A middle **click** is untouched
-— nothing is taken until the pointer has moved six points.
+### The caret
 
-**Highlighting something is enough — you do not have to press anything.** While a
-dictation is running the relay reads whatever is selected once a second and files
-each new highlight once — after three identical reads, so a selection made by
-dragging is not filed halfway through, and once more when the microphone closes,
-so one made in the last second is not missed. `Select the paragraph, say what to
-do with it` is the whole gesture. It reads through Accessibility only, so it
-never touches your clipboard and never posts a keystroke — the cost is that a
-selection inside a **Chrome page** is invisible to it, which is what the back
-button (and ⌘⇧-click) are still for. This is what makes the shutter optional: a
-screenshot costs a megabyte on disk and several hundred tokens to read, a
-highlight costs the characters in it.
+- **🔼, the forward click**: a prompt at the caret, carrying everything below (screenshots, highlights, picks).
+- **🔽 →, or right ⌘⌥ held**: a plain dictation, the words alone. Wispr Flow's habit, with this app's engine.
 
-Every highlight reaches the agent stamped with when in the sentence you made it
-and the window you made it in, as one list:
+## What rides along with the words
+
+Every attachment is a **token where you made it**, and a legend under the words says
+where the files are. A real one:
 
 ```
-text selected during dictation:
-- 00:00 in 'IntelliJ IDEA — OrderService.java': "public Order placeOrder(Cart cart) {"
-- 00:19 in 'Google Chrome — Stripe docs': "amount is in the smallest currency unit"
+[📸0🖱️@1958:1511 auto]
+make the overlay draw above the screen grow effect, right now it ends up under it
+
+kamikaze
+
+[Dictated in RO or EN]
+[📁=$WALKIE_SHOTS/2026-10-04-17-13-27]
+[📸0 = 📁/screenshot-0-800px.jpg, or -original.jpg at 3456x2234px]
 ```
 
-The first one is the subject — whatever you select *during* the dictation, not
-whatever happened to be highlighted before you started talking, which is rarely
-what you meant. The rest are what you reached for after it, in the order you
-reached for them, so *"the one I mentioned after the tax bit"* resolves to a
-string instead of to a guess.
+### Screenshots
 
-`Listening...` is itself a gauge: it fills a character at a time as *speech*
-arrives — not as the clock runs — and is full at three voiced seconds, which is
-where a short clip stops being the kind the recogniser mangles. When it fills, a
-blue **HQ** tag pops out beside it. After the first whole minute, `(2m)` follows,
-so a monologue is distinguishable from a sentence at a glance.
+- **📸0 is automatic**: the screen as it was when you started talking (`auto`), with where the pointer was (`🖱️@x:y`).
+- **More shots**: the shutter (🔽 in Logi mode, the back button in Wheel mode) while a prompt records. The frame flies into the chip's 📸 and a red target blooms on the desktop where the pointer was. **Nothing is drawn into the picture**: a mark would cover what it points at.
+- **A region**: hold the wheel and drag during a dictation (`✂️x,y→x,y` in the token). ⌘ moves the box, ⌥ draws it from the middle, Esc calls it off. It is Victor Addons' crop, shared through `victor-mac-kit`.
+- **Two files per shot**: the retina original, and an 800 px copy that the agent reads. Same answers in the evals, about 40% fewer tokens.
+- `$WALKIE_SHOTS` must be exported in `~/.zshrc`. It points at `~/Library/Caches/ro.victorrentea.wispr-relay/shots/` (the newest 300 frames are kept).
 
-The mouse button is borrowed **only while that row is up**, so a dictation never
-needs the keyboard at all; the rest of the time the button keeps doing whatever
-your mouse software says it does. Each shot records where the pointer was —
-in the file name (`shot-01:23(mouse-at-1034x1466px).jpg`: how far into the
-dictation it was taken, and where the pointer was in that image) and as **a red
-target dropped on the desktop** for a couple of seconds. So pointing at something
-while you talk about it is enough, and a shot aimed at the wrong thing is noticed
-while the sentence is still being said.
+### Highlighted text
 
-Nothing is drawn *into* the picture: a mark painted over a frame covers the thing
-it points at, and an agent reading the image cannot tell it from the UI.
+- **Highlighting is enough.** During a dictation the selection is read every second through Accessibility (never ⌘C, never the clipboard) and filed after three identical reads, plus once more when the microphone closes.
+- The shutter reads it too, falling back to ⌘C with the clipboard restored. That is how a highlight inside a **Chrome page** gets in.
+- The text lands **inside the sentence**, where you said it. If it cannot be placed, it goes in a list under the words, with `mm:ss` and the window it came from.
 
-Shots go to `~/Library/Caches/ro.victorrentea.wispr-relay/shots/<yyyy-MM-dd-HH-mm-ss>/`,
-one folder per dictation stamped with when it started, which macOS reclaims under disk pressure: they are a staging area, not an
-archive.
+### Elements in Chrome
 
-<img src="docs/prompt.png" width="308" alt="the finished prompt with a Cancel button counting down">
+- **Hold ⌘⇧ for 400 ms** over a page during a dictation: the element under the cursor is outlined and named. **Click** it to add its selector, its text (up to 2000 chars) and the page URL. **Drag** it to say where to move it; the page itself never changes.
+- Only live during a dictation, and only after the 400 ms hold, so a quick ⌘⇧-click still opens a link in a new tab.
+- A Chrome extension ([`chrome-extension/`](chrome-extension/), loaded unpacked), not CDP: since Chrome 136, remote debugging is refused on the default profile. It talks to the relay on `127.0.0.1:8917–8919`.
+- **Music pauses**: every audible Chrome tab is paused while a microphone is open, and exactly those resume after (WebSocket on `:8920`).
 
-The finished prompt is shown whole — and **held for 4–7 seconds behind a Cancel
-button** before it is written anywhere. That delay is the feature: once a line is
-in the queue the agent may already be acting on it, so the only honest moment to
-cancel is before it is written.
+### Other markers
 
-Its last line is the pictures it carries and **when each was taken**, as m:ss
-from the moment you started talking (`📸 ×2 0:38`). The count says the
-shots landed; the times say *which* moments you caught, which is the thing you
-cannot reconstruct once the panel is gone.
+- **`kamikaze`** (🔼 ↓): appended on its own line, the agent's cue to close its terminal when done. Again to take it back.
+- **`[voice: hesitant]` / `[voice: tense]`** and **`[?]` where you paused**: what the transcript loses. ElevenLabs only, since it needs word timings.
 
-## Pointing at things in a web page
+## The held prompt
 
-"Make **this** button blue and move **that** panel" is a sentence an agent cannot
-act on. Hold **⌘⇧** over a page in Chrome and the element under the cursor is
-outlined and named, DevTools-style; **⌘⇧-click** it and its CSS selector joins the
-message you are about to dictate — the demonstrative arrives already resolved.
+- Shown whole, **held 4–7 s** (scaled by length) behind **Send** and **Cancel**. Once a line is in the terminal the agent may already be acting on it, so that is the only honest moment to cancel.
+- <kbd>⏎</kbd> sends now. Clicking the words edits them, and the clock stops while you do.
+- **Autosend** (menu) skips the buttons; the pointer on the panel still pauses it.
+- Thumbnails carry the `m:ss` at which each shot was taken. With ElevenLabs, two sentences can be in flight at once, delivered in order.
 
-**It is live only while you are dictating** — the same window in which the back
-mouse button is borrowed, and for the same reason. The chip grows a third row
-saying so, right beside the cursor, behind Chrome's own icon: `select element
-⌘⇧🖱️` before you have picked anything, then `×2 div#cart > span.price` once you
-have. The held prompt lists
-them with when each was taken:
+## Recognisers
 
-```
-↪ public Order placeOrder(Cart cart) {
-extract the tax calculation out of this method
-📸 ×2 0:38
-🎯 0:12 main.content > button.buy-button
-🎯 0:21 div#cart > span.price
-```
+Picked from the menu's **Engine** row:
 
-What reaches the agent names every element you clicked, when in the sentence you
-clicked it, and the page it came from:
+| engine | notes |
+|---|---|
+| ☁️ **ElevenLabs + Live** | Scribe, plus the words streaming beside the pointer as you speak |
+| ☁️ **ElevenLabs** (default) | Scribe, one upload at the end; key in `~/.walkie-talkie/elevenlabs.env` |
+| 💻 **Local** | Whisper on MLX (`pip install mlx-whisper` + `ffmpeg`); loaded at launch, ~2.5 GB resident |
+| ☁️ **Wispr Flow** | its own app, behind a firewall: its ⌘V is dropped and the words are read from its History row |
 
-```
-elements picked in Chrome during dictation, on 'https://shop.example/cart' (Cart — Shop), oldest first:
-- 00:12 div#cart > span.price: "1.299,00 lei"
-- 00:21 button.buy-button: "Cumpără acum"
-```
+- <kbd>⌘⌃X</kbd> **transcribes on this Mac now**: the take being recorded or uploaded goes to the local model instead. A cloud failure falls back to it automatically.
+- The local interpreter is found by probing, not from `PATH` (an app launched by Finder gets launchd's bare `PATH`). `RELAY_WHISPER_PYTHON` and `RELAY_WHISPER_MODEL` override it.
+- The **Mic** row picks the input. Automatic prefers a wireless receiver over the laptop microphone.
 
-Each line quotes what the element actually **said** — up to 2000 characters of its
-text, with `… (truncated, N chars)` when there was more — so *"the error it showed
-me"* resolves to words and not just to a selector.
+## Gestures
 
-A negative stamp is normal — you usually find the thing before you say what to do
-with it. The URL is factored out when every pick came from the same page and
-written per element when they did not.
+| key | |
+|---|---|
+| <kbd>⌘⌃B</kbd> | bind the terminal in front; on the bound one, let go |
+| <kbd>⌘⌃D</kbd> | start / stop a dictation |
+| <kbd>⌘⌃X</kbd> | the local model, now |
 
-**⌘⇧-drag says where you would move it, and moves nothing.** Press on an element
-with the chord held and drag: only the outline travels, translucent and dashed,
-the cursor closes into a `grabbing` hand, and the label follows it with the
-coordinate you are aiming at. Let go and that element's entry gains
-`, moved from 120,340 to 500,205 (top-left, page coordinates)`. The page itself
-is never touched — what the agent gets
-is an instruction to carry out in the source, not a change the next render would
-throw away.
+**Logi mode** (default, *Gestures* in the menu): the side buttons arrive as ⌃⌥⌘F3–F12 chords from
+Logi Options+, and the app takes no mouse button at all.
 
-**If the outline is slow to appear, a small spinner says so** beside the cursor.
-The hold is 400ms by design and the extension's service worker sometimes has to
-be woken before it can answer; the probe now runs alongside the hold rather than
-after it, and the console line `[walkie] armed 431ms after ⌘⇧ went down` is what
-to look at if a click ever falls through to Chrome. A hold that arms nothing at
-all almost always means **no dictation is open** — the gesture only exists while
-one is.
+| gesture | does |
+|---|---|
+| 🔼 → | start / stop a prompt at the bound terminal |
+| 🔼 | a prompt at the caret |
+| 🔼 ↑ | a prompt at a new session |
+| 🔼 ← | cancel |
+| 🔼 ↓ | kamikaze |
+| ◀️ held, then 🔼 | bind the window in front |
+| 🔽 → | plain dictation at the caret |
+| 🔽 | Return; the shutter while a prompt records |
+| 🔽 ↓ | unbind |
 
-**A quick ⌘⇧-click is still a quick ⌘⇧-click.** ⌘⇧-click opens a link in a new
-tab and jumps to it, so the inspector arms only after the chord has been held on
-its own for 400ms — longer than any shortcut, and longer than the hand takes to
-click. Press any other key and the hold is abandoned. So the gesture is borrowed
-twice over: only during a dictation, and only when you mean it. Outside that,
-Chrome gets it back.
+**Wheel mode** needs no Logitech software: click the wheel to start and stop, hold 2 s to cancel,
+left button held plus a wheel click to bind, right button held plus a wheel click to unbind, the
+back button as the shutter.
 
-This half is a small **Chrome extension** in [`chrome-extension/`](chrome-extension/),
-and it needs loading once:
+The menu bar icon lists every action with its gesture. The spec is `evals/test_gesture_spec.py`,
+the reasoning `.claude/rules/mouse-gestures.md`.
 
-> `chrome://extensions` → **Developer mode** on → **Load unpacked** → pick the
-> `chrome-extension` folder.
+## The outbox
 
-It is an extension rather than the DevTools protocol because since Chrome 136
-`--remote-debugging-port` is refused on the default profile — reaching *your*
-browser, with your tabs and your logins, would mean relaunching it against a
-throwaway profile. It also puts the work in the only place where no coordinate
-maths is needed: inside the page, `elementFromPoint` and `getBoundingClientRect`
-are already in the coordinate system the outline is drawn in, at any zoom.
-
-The extension talks to the overlay over loopback only (`127.0.0.1:8917-8919`,
-first free port per relay session; it posts to all of them, so several sessions
-can share one browser). With nothing dictating, every relay refuses its probe and
-the extension never arms at all — its toolbar badge is how you tell.
-
-### It also pauses your music while you talk
-
-The moment a dictation opens, every Chrome tab that is making sound is paused,
-and exactly those tabs resume when it closes — a tab you had already paused by
-hand is left alone. Nothing to turn on: it rides the same extension.
-
-This has to happen inside the browser. CoreAudio funnels every tab through one
-Chrome audio helper process, so from outside, "Chrome is making sound" is the
-finest grain there is — you cannot name the tab, let alone stop it.
-`chrome.tabs.query({audible: true})` is the per-tab answer, and it only exists in
-here. The relay pushes the window over a second loopback socket
-(`ws://127.0.0.1:8920`) rather than being polled, so the pause lands with the
-recording row instead of up to a poll interval later.
-
-It follows the *relayed* dictation, not the microphone: unbound, you are talking
-into some other app and your music is none of the relay's business. If the relay dies mid-sentence the extension resumes on the
-dead socket, so the music can never be left off with nothing alive to restore it.
-
-## How it reaches the agent
-
-Two ways, and they are not alternatives — the second is layered on the first.
-
-### Typed straight into a terminal
-
-Press **⌘⌃B** while looking at a terminal and the relay is pointed at it: every
-dictation from then on is typed into that session and submitted, wherever your
-cursor happens to be when you speak. No command to run in the terminal first,
-nothing to arm, nothing watching a file.
-
-A Terminal.app tab is addressed by its **tty** and a tmux pane by its **`%id`**,
-so the delivery finds the target even when the window is behind others or on
-another Space — and it never takes focus. Anything else (VS Code's integrated
-terminal, IntelliJ's) is driven with a paste and a Return, which does move the
-focus for a moment and puts it back.
-
-**It refuses to type at a shell prompt.** Before every delivery the relay checks
-what is running on the target, and if that is a shell it sends nothing: at a
-prompt a dictation is not a message to an agent, it is a command to be executed.
-The check is on the *shell*, not on any particular agent, and it fails closed.
-
-The overlay's chip then names the session it is aimed at — `📍 petclinic@main ·
-✳ fixing the tax bug`, the repo plus whatever the agent is currently calling
-itself. Binding also draws a translucent blue rectangle over the window it just
-captured, which shrinks and flies to your cursor: that window is now this chip.
-
-### Spoken at a session that does not exist yet
-
-**Click the wheel twice** — inside 0.6s — and the dictation is aimed at a session
-that does not exist yet. At rest the double click starts it; on a dictation
-already running it re-aims that one, same words, new destination. When it ends, the
-relay opens a new Terminal window, starts an interactive Claude Code in it, and
-hands over what you said as the session's first prompt.
-
-**The relay then binds that window**: the session you just created is where your
-next ordinary dictation goes too, so the conversation you started by talking can
-be continued by talking. The blue rectangle flies from it into the chip, the same
-answer any other bind gives.
-
-It runs whenever the app does, bound or not: everything else here has to be
-*pointed* at a terminal, and the one thing that cannot express is the way most
-sessions actually begin — you have a thought and there is no window for it yet.
-
-The session always starts in **`~/workspace`** — a fixed destination you never
-have to check before you start talking, and the one folder Claude Code already
-trusts. The prompt is passed as an **argument** to `claude`, never typed: it
-cannot be executed by a shell, cannot land in an editor, and cannot arrive before
-the agent is ready to read it.
-
-### The outbox
-
-While bound, the overlay *also* appends JSON lines to
-`~/.walkie-talkie/outbox.jsonl`. Anything that watches that file can consume
-them; there is no back-channel.
-
-**Unbound, nothing is written** — and nothing else happens either: no dictation
-can be started, no picture is taken, and no mouse button is borrowed. The app
-runs from login and is aimed at nothing most of the day; a relay with no
-destination has no business opening a microphone. Bind a terminal and both
-routes come alive together.
+Each delivered message is also appended to `~/.walkie-talkie/outbox.jsonl`, **at delivery and
+never before**: a held sentence leaves no trace. `kind` is `dictation` | `screenshot` |
+`session_end`, and every line carries its `session`, so several relays can share one queue.
 
 ```json
-{"ts":"2026-07-30T08:12:03Z","session":"myrepo@main","kind":"dictation",
- "text":"extract the tax calculation out of this method",
- "selection":"public Order placeOrder(Cart cart) {","app":"com.microsoft.VSCode"}
+{"ts":"2026-10-04T14:13:27Z","session":"walkie-talkie@master","kind":"dictation",
+ "text":"…","line":"<the envelope, as typed>","screen":"…/screenshot-0-original.jpg",
+ "selection":"…","selections":[{"at":"0:31","seconds":31,"text":"…","in":"<window>"}],
+ "elements":[{"path":"div#cart > span.price","text":"…","url":"…","at":12}]}
 ```
 
-Elements picked in the browser ride in an `elements` array of
-`{path, tag, text, label, href, url, title, frame}` — plus `move`, as
-`{from: {x, y}, to: {x, y}}`, when you dragged it — in the order they were
-picked, so the first demonstrative in the sentence is the first entry. `url` is
-the page's address (the top document's, even when the element sits in an iframe —
-the frame's own URL travels in `frame`), and `text` is what the element says: its
-rendered text, or the `value` of a form control, which has none.
+Any agent that can tail a file can consume it. The Claude Code side is the `relay` skill in
+[`victorrentea/skills-private`](https://github.com/victorrentea/skills-private).
 
-`kind` is `dictation` | `screenshot` | `session_end`. Every message carries the
-`session` it belongs to, so several overlays can share one queue without an agent
-acting on another project's words.
+## Loopback control
 
-Any agent that can tail a file will do. The Claude Code side is the `relay` skill
-in [`victorrentea/skills-private`](https://github.com/victorrentea/skills-private)
-(`skills/relay/`),
-which ships the built binary, installs `/relay`, and watches the outbox.
-
-### Loopback control
-
-The relay listens on the first free port of **8917–8919** (several can run at
-once, each taking one):
+The relay listens on the first free port of **8917–8919**:
 
 | route | |
 |---|---|
-| `POST /bind` | point it at the frontmost terminal |
-| `POST /unbind` | stop — the relay goes inert until something is bound again |
-| `GET /target` | what it is currently aimed at |
-| `POST /test/dictation` | `{"text":"…"}` — put a sentence through the whole path without speaking one |
-| `POST /test/spawn` | the same, for ⇧ + the wheel: opens the window and starts the session |
-| `GET /engine` | which recogniser is loaded, and whether it is ready |
+| `POST /bind` · `POST /unbind` · `GET /target` | bind the front terminal · let go · what it is aimed at |
+| `GET /engine` · `POST /engine {"id"}` | which recogniser, and is it ready · pick one |
+| `GET /test/state` | `busy` and the rest of the live state |
+| `POST /test/dictation {"text"}` | put a sentence through the whole path without speaking |
+| `POST /test/spawn` | the same, at a new session |
 
-## Input
+About forty more `/test/*` routes drive every feature from a desk: see `.claude/rules/desk-testing.md`.
 
-| input | effect |
-|---|---|
-| **⌘⌃B** | Points the relay at the terminal in front — or ends the session when it is already pointed there |
-| **⌘⌃D** | Starts a dictation, and ends the open one — the wheel's click from the keyboard |
-| **click the wheel** | Starts a dictation — red flash, screen captured, selection grabbed — and ends the open one. Only while a terminal is bound |
-| **click the wheel twice** | The same dictation, aimed at a session that does not exist yet: at the end of it a **new Terminal window** opens in `~/workspace` with an interactive Claude Code in it, and the words are its first prompt. Works bound or unbound; on a dictation already open it re-aims that one instead of starting another |
-| **hold the wheel 2s** | Cancels the open dictation — the audio is discarded, nothing is transcribed |
-| **hold left, click the wheel** | Points the relay at the window in front — the same call as ⌘⌃B, minus the toggle: made twice on the same terminal it binds twice rather than letting go |
-| **hold left, hold the wheel 1s** | The same bind, **and** it starts the dictation at it — one gesture instead of the chord followed by a second click |
-| **hold right, click the wheel** | Lets the binding go — the same call as the menu's **Disconnect**. Outranks every other meaning the wheel has, so it works mid-dictation too |
-| **back mouse button** | One more screenshot — but only while dictating; otherwise the button is untouched |
-| **back button + move right** | Wispr Flow's own hands-free toggle, raw. For the length of that dictation the back **click** is its stop, so ending it does not mean making the whole flick a second time; when the microphone closes the button goes back to what it was |
-| **F3** | The same shot, from the keyboard |
-| **hold ⌘⇧ in Chrome** | Outlines and names the element under the cursor |
-| **⌘⇧-click in Chrome** | Adds that element's selector, page URL and text to the message; the page never sees the click |
-| **Cancel** | Stops the displayed prompt from ever being written |
-| click | On a prompt: send it now. Otherwise: nothing — the chip is a label, not a switch |
-| hover | Reveals the ✕ that ends the session — **panel only**, never on the chip beside the pointer |
-| menu bar **Autosend** | Off at every launch. Ticked, the pre-send panel opens for one second with no Send and no Cancel on it, and the message goes |
-| menu bar **Engine** | Which recogniser is listening — the local MLX model by name, or ElevenLabs Scribe. Clicking the row opens the two, ticked; picking the local one loads its weights, and the cloud row says what it costs and whether its key is there. **Wispr Flow is not one of them** (2026-09-22): it delivers by pasting into whatever has focus rather than handing the relay a transcript, and every attempt to intercept that reliably failed — it keeps 🔽 → only, where pasting for itself is the point |
-| menu bar 🤖 | Always there while the app runs — shows which session it is, and **every action with the gesture that performs it**. Rows grey out when they cannot act right now; they never disappear |
+## The voice corpus
 
-**The chip itself teaches nothing.** It carries state — the pulse, what is being
-recorded, where the words go — and no legend of gestures; those live in the menu
-bar, which is read while reaching for the thing it does.
+- Every dictation leaves its **WAV beside its transcript** in `~/.walkie-talkie/voice-corpus/` (about 35 MB a day, never pruned), so a recogniser can be judged, and later trained, on your own voice.
+- `helpers/corpus_harvest.py` (a LaunchAgent, every 2 h) also copies Wispr Flow's recordings before Wispr prunes them after about a week, read-only.
+- Measured on 60 clips (2026-09-01): the local turbo model is at **19.7% WER**, 22.7% on Romanian and 7.1% on English. Bigger models, a pinned language and a vocabulary prompt all made it worse, which is the case for a fine-tune. That work continues in `voice-distill`.
+- `docs/teacher-loopback.md` covers labelling recordings by playing them back into Wispr. Read it before running `helpers/teacher_label.py`.
 
-**There is no pause.** With nothing bound the relay already touches no dictation,
-borrows no button and writes no line, which is everything pause used to do — so
-the switch went, along with the ⏸️ badge and the chip click that toggled it.
-Letting go of a terminal is **Disconnect**: the right-held chord, or the menu.
-
-## How dictation is captured
-
-The relay owns the whole path. **Click the mouse wheel** while a terminal is bound
-and it opens the microphone itself; **click it again** to end the recording, or
-hold it for two seconds to throw the dictation away. Binding is the wheel with
-the **left button already held** — a chord, so that a bare click is free to mean
-the thing it means dozens of times a day — and **keeping the wheel down for a
-second** binds *and* starts talking to it in one gesture. Letting go of the
-binding is the same chord with the **right button**, which is the mirror gesture
-for the mirror action. The WAV goes to a Whisper
-running on this Mac, and the transcript goes to the agent — nothing is ever typed
-or pasted into whatever holds the caret.
-
-It records through a **DJI wireless receiver** whenever one is plugged in, and
-through the system's default input when it is not — a lavalier on your collar
-beats a laptop microphone across the desk, and the choice is made per recording
-rather than following whatever macOS last pointed the default at.
-
-The selection is read via Accessibility (`kAXSelectedTextAttribute`), falling
-back to a simulated ⌘C for apps that don't expose it — with the full clipboard,
-every representation, snapshotted and restored around the probe.
-
-### The recogniser
-
-It needs `mlx_whisper` (`pip install mlx-whisper`) and `ffmpeg`, which
-`mlx_whisper` shells out to for decoding; the model is
-`mlx-community/whisper-large-v3-turbo`, overridable with `RELAY_WHISPER_MODEL`.
-
-The weights are ~1.5 GB resident, so the helper is **not** started at login: it
-comes up when a bind or a wheel click says a dictation is coming, and it is
-released when the session ends. The menu bar's **Engine** row says whether it is
-loading, and what it is holding while it is up — and picking it there is what
-brings it up.
-
-The interpreter is **found by probing, not taken from PATH**: an app launched from
-Finder or a LaunchAgent inherits launchd's bare `PATH=/usr/bin:/bin:/usr/sbin:/sbin`,
-where `python3` is Apple's — which has no `mlx_whisper` and cannot be given one.
-The first `python3` that can see the module wins, and `RELAY_WHISPER_PYTHON` names
-one outright. `/opt/homebrew/bin` and `/usr/local/bin` are put on the helper's PATH
-for the same reason, so its `ffmpeg` is findable too.
-
-There is one reading of each recording and nothing to fall back on, so a
-low-confidence transcript is **sent with a warning** rather than swallowed:
-silence is the one outcome you cannot notice and correct. The pre-send panel
-holds it long enough to fix or cancel.
-
-Measured over 442 real dictations (163 min): 2.5% of local transcripts come back
-semantically broken, and they are overwhelmingly clips under five seconds, where
-Whisper hallucinates fluent nonsense. A gate on decoder confidence catches most
-of those; the message an agent receives says the text came through a recogniser
-that can invent a sentence.
-
-### Three cloud recognisers, and each gives up something different
-
-Both are picks, never defaults, and both are off until a key is put in a file:
-
-| | ElevenLabs Scribe | Speechmatics | Gemini |
-|---|---|---|---|
-| key file | `elevenlabs.env` | `speechmatics.env` | `gemini.env` |
-| variable | `ELEVENLABS_API_KEY` | `SPEECHMATICS_API_KEY` | `GEMINI_API_KEY` |
-| $/hour of audio | 0.22 | ~0.13 | **~0.09** |
-| the audio goes out | in one upload | **as it is spoken** | in one upload |
-| language | detected | **pinned** (`WT_SM_LANG`) | detected |
-| can be given instructions | no | a word list | **yes, in a sentence** |
-
-(all three live in `~/.walkie-talkie/`)
-
-Speechmatics is a WebSocket the microphone is streamed into, so most of the
-sentence is transcribed before the key comes up; what is left at the release is
-the last words and whatever the recogniser was holding for context. It still
-writes the same WAV as every other engine — the corpus needs it, and if the
-connection dies mid-sentence that file is the only copy of what was said, so it
-is kept and offered back through *Recover Cancelled Dictation* rather than
-thrown away.
-
-Real-time transcription there has no language detection, so the session has to
-be told what it is about to hear. That is the one thing it gives up against the
-others, and it is why the menu row prints the language it is listening for.
-
-Nor can it be told two languages: one `language` per session, and the bilingual
-packs Speechmatics does offer (Arabic, Mandarin, Malay, Tamil, Tagalog and
-Spanish, each paired with English) do not include Romanian. What it *can* be
-told is the vocabulary — `~/.walkie-talkie/speechmatics-vocab.txt`, one term per
-line with optional pronunciations:
-
-```
-pull request
-Wispr Flow: whisper flow, uispăr flou
-commit: comit, camit
-```
-
-It is sent with every dictation and re-read each time, so a word that came back
-wrong is fixed by editing a line — no restart. `tools/speechmatics-vocab.txt` is
-the starter list, built from the English words that actually turn up in the voice
-corpus.
-
-`tools/speechmatics-test.sh <file.wav>` (or `--corpus 5`) streams a recording at
-the speed it was spoken and prints the partials as they arrive, then how long the
-first words took and how long the tail took after the audio stopped.
-
-Gemini is the cheapest of the three and the only one that can be *told* what
-it is about to hear. It gets a Romanian instruction — transcribe word for word,
-leave the English technical terms in English, do not summarise — with the terms
-from `vocab.txt` appended to it.
-
-That last clause is not decoration. A language model asked to transcribe
-something it cannot quite follow will sometimes return a shorter, tidier version
-of it: fluent, plausible, and missing half of what was said. So this engine
-measures what came back against the **voiced** seconds of the recording, and
-hangs a warning on anything under 13 characters per voiced second — a threshold
-picked off the corpus, where real dictation averages 26 and only one sample in a
-hundred falls below the line.
-
-`tools/gemini-test.sh --corpus 10 --compare` runs each of the last ten samples
-twice, with and without the vocabulary, and prints the two readings one above the
-other.
-
-### The voice corpus
-
-While the relay runs, every dictation also leaves the **recording** beside the
-transcript, in `~/.walkie-talkie/voice-corpus/`:
-
-```
-2026-08-17/14-30-22-local123.wav    16 kHz mono — what you said
-2026-08-17/14-30-22-local123.txt    what the model made of it
-corpus.jsonl                        one line per sample, with metadata
-```
-
-It exists so a recogniser can be judged on **your own voice** later — the words
-you actually say to an agent, at the speed and in the accent you say them. The
-`.txt` is the transcript alone, so it can be diffed directly against another
-model's output over the same WAVs; everything else (duration, detected language,
-the app that was in front, `engine: "whisper-local"`) is in the manifest.
-
-Note what it is **not**: a reference transcript. The line beside each recording
-is what the model that produced it heard, so scoring that same model against it
-would measure nothing.
-
-Nothing prunes this folder — it is meant to accumulate, at roughly 35 MB a day
-of speech. Delete it if you don't want it; the relay recreates only what arrives
-after that.
-
-#### Wispr Flow's dictations end up here too
-
-The relay only records what *it* was asked to take, which is a fraction of a day's
-speech. The rest goes through Wispr Flow, and Wispr keeps its own recordings —
-briefly. Measured on 2026-09-01 its database held **12,186 transcripts going back
-to January and 185 recordings**, none older than six days: the text is kept, the
-audio is pruned after about a week.
-
-`helpers/corpus_harvest.py` copies each pair out before that happens, into the
-same folders, and into a `corpus.db` beside the manifest that this and the
-relay's own samples both live in:
+## Build and run
 
 ```bash
-/usr/bin/python3 helpers/corpus_harvest.py    # ~1.5s, idempotent, no model involved
-sqlite3 ~/.walkie-talkie/voice-corpus/corpus.db 'SELECT COUNT(*), SUM(seconds)/3600 FROM samples'
+./relay-restart.sh --build     # build, wait for a quiet moment, swap the app, relaunch
 ```
 
-A LaunchAgent (`ro.victorrentea.voice-corpus-harvest`) runs it every two hours —
-far inside the week of margin, so a shut lid never costs a recording. It opens
-`flow.sqlite` **read-only** and writes nothing back to it, ever.
+- The restart **waits** until 5 s after the last dictation and refuses while anything is recording or transcribing. A bare `./build-app.sh` only when the app is not running: a bundle replaced under a running app breaks every bind.
+- Launch it with `open "/Applications/Walkie Talkie.app"`, never by its executable path, which macOS registers as a second app for permissions.
+- The `.app` is signed (`CODESIGN_IDENTITY`) because macOS keys Accessibility, Screen Recording and Microphone grants to the signing identity plus the bundle id (`ro.victorrentea.wispr-relay`, kept from its old name on purpose).
+- Needs `../victor-mac-kit` checked out beside this folder.
+- **After any overlay change, run `./docs/shoot-overlay-states.sh`.** It regenerates [the states page](docs/overlay-states.html) and the README's pictures.
 
-It also comes back to rows it has already taken. `editedText` is the column where
-Wispr records what you *fixed by hand* after it got a word wrong, and it fills
-that in later, by watching what you type over the pasted text — so a row taken
-the minute it appeared has no correction in it yet. Every run re-reads the last
-fortnight and updates the transcript if it has moved. That column is the only
-label in the corpus that Wispr did not write itself, which makes it the only one
-that could ever teach a model to *beat* Wispr rather than imitate it.
+## Debugging
 
-#### What the local recogniser costs, and what does not fix it
-
-`helpers/corpus_baseline.py` scores the local model against Wispr's raw
-`asrText` over the same WAVs — raw, not the formatted text, since scoring a
-transcript against a punctuated one measures the formatter. Measured on 60
-clips, 2026-09-01, at parity with what `whisper_helper.py` actually calls:
-
-```
-turbo (production)   WER 19.7%   ro 22.7%   en 7.1%   median 17.4%
-```
-
-**The error is almost entirely Romanian**, which is 81% of the corpus. English
-is already close to Wispr; Romanian is three times worse. That asymmetry is the
-case for fine-tuning, and it is also why every cheap alternative was tried
-first. All three lost:
-
-| tried | result |
-|---|---|
-| `large-v3` instead of turbo | WER 24.0%, p90 73% — **worse**, despite being the bigger model |
-| forcing `language="ro"` | ro 22.7 → 23.0% (flat), en 7.1 → 17.1% — **worse** |
-| the 67-term Wispr dictionary as `initial_prompt` | 19.6 → 21.0% on clips that did not collapse — **worse** |
-
-`condition_on_previous_text=False` was already set and stays. Note that it does
-**not** prevent collapses: 2–3 clips in 60 still fail, and the cause is language
-detection, not repetition — on a short Romanian clip turbo sometimes decides it
-is hearing English and writes fluent invented English. `large-v3` is better at
-that one thing (1 collapse instead of 3) and worse at everything else.
-
-So there is no free win left. The remaining path is a LoRA fine-tune, which is
-what the corpus is for.
-
-#### The audio is ours now, and the label is asked for afterwards
-
-The harvester's ceiling is not its code, it is the deletion it races. So since
-2026-09-11 the corpus is **collected rather than harvested**: `victor-macos-addons`
-records utterance-sized WAVs of Victor's own voice through the workday
-(`whisper-transcribe/corpus_recorder.py`, 🎓 in its Transcribing submenu), gated
-on the same RMS threshold the live transcription uses plus a speech-band check
-and the enrolled voiceprint, and writes them into `<corpus>/mic/`. Wispr is then
-asked to transcribe them **later** — including months later — by being played
-them through a Loopback virtual device while its push-to-talk key is held down.
-
-```bash
-/usr/bin/python3 helpers/mic_corpus_ingest.py   # files → corpus.db, idempotent
-python3 helpers/wispr_probe.py                  # the go/no-go, ~10 min
-python3 helpers/teacher_label.py --limit 20     # one careful batch
-python3 helpers/teacher_label.py --all          # overnight, real time, resumable
-```
-
-**The batch gets out of the way by itself** (2026-09-22). A listen-only event tap
-(`helpers/human_watch.py`) watches for real mouse and keyboard input, and the run
-suspends for as long as somebody is using the Mac, resuming after
-`--quiet-minutes` (default 5) of quiet: the locks come down, a clip in flight is
-cut short and thrown away rather than labelled from half its audio, and the paste
-sink is re-established before the next one. It reads real input by the event's
-source pid — Victor's carry **0**, everything posted with `CGEventPost` carries
-the poster's — because the ordinary idle counter counts the batch's own
-keystrokes and would suspend the run against itself.
-
-**Read `docs/teacher-loopback.md` before running any of it.** The probe is a
-genuine go/no-go — if Wispr will not take played-back audio the idea ends there —
-and the batch synthesises keystrokes into an app that pastes wherever the focus
-is, which has a whole section of its own.
-
-`helpers/corpus_report.py` runs daily, mails a summary every fourteenth day —
-minutes collected, dictations, rate per day, and how far the corpus is from the
-ten hours that a single-speaker fine-tune wants — and does nothing on the other
-thirteen.
-
-## Build
-
-```bash
-./build-app.sh          # → /Applications/Walkie Talkie.app, signed
-```
-
-The `.app` wrapper is not cosmetic: macOS keys Accessibility and Screen Recording
-grants to a signing identity plus bundle id, and a bare SwiftPM binary is ad-hoc
-signed with a fresh identity on every rebuild — so you would re-grant permission
-after every change. Set `CODESIGN_IDENTITY` to your own signing identity.
-
-Requires macOS, **Accessibility** (event tap + selection read), **Screen
-Recording** (screenshots) and the **Microphone**.
-
-## Debug switches
-
-- `kill -USR1 <pid>` — writes what is on screen to `~/.walkie-talkie/snapshot.png`.
-  The overlay sets `sharingType = .none` so it never lands in the screenshots it
-  takes, which also makes it impossible to photograph while working on it — and
-  on macOS 15 the old opt-out below no longer buys it back. So it draws itself
-  instead: the pictures above were made this way.
-- `RELAY_DEMO=1` — walks the UI through its states with canned content, which is
-  what makes those pictures reproducible. Nothing is written to the outbox.
-- `RELAY_CAPTURABLE=1` — asks for `sharingType = .readOnly`. Kept for older
-  systems; on macOS 15 `screencapture` returns a transparent image regardless.
+- `~/.walkie-talkie/relay.log` is the log. `GET /test/state` is the live state.
+- `kill -USR1 <pid>` writes what the overlay shows to `~/.walkie-talkie/snapshot.png`. The overlay is `sharingType = .none`, so it never lands in its own screenshots, and no screenshot can show it either.
+- `POST /test/key-trace {"on":true}` logs every key the tap sees and what it decided.
 
 ## Licence
 
-[The Unlicense](LICENSE) — public domain. Take it, change it, ship it, sell it;
-no attribution required.
+[The Unlicense](LICENSE): public domain. Take it, change it, ship it, sell it; no attribution required.
