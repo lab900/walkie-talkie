@@ -87,6 +87,9 @@ enum RewindTimeline {
         let progress: Double
         /// 0…1 of the time to the prediction, clamped — what the opacity reads.
         let time: Double
+        /// 0 while the engine is still warming up hidden, rising to 1 over
+        /// `fadeIn` once the picture can be seen.
+        var shown: Double = 1
     }
 
     /// 0 at `u` ≤ 0, 1 at `reach`, logarithmic all the way and never flat:
@@ -106,9 +109,10 @@ enum RewindTimeline {
     ///     warm-up. `u` = 1 at the prediction.
     static func pose(elapsed: TimeInterval, predicted: TimeInterval, visibleFrom: TimeInterval) -> Pose {
         let since = elapsed - visibleFrom
-        guard since > 0 else { return Pose(progress: 0, time: 0) }
+        guard since > 0 else { return Pose(progress: 0, time: 0, shown: 0) }
         let span = max(predicted - visibleFrom, minimumSpan)
-        return Pose(progress: creep(since / span), time: min(since / span, 1))
+        return Pose(progress: creep(since / span), time: min(since / span, 1),
+                    shown: min(since / fadeIn, 1))
     }
 
     /// **The whole tunnel 30 % smaller** (Victor, 2026-09-23: *"reduce the
@@ -124,32 +128,45 @@ enum RewindTimeline {
     /// starting at `from` × `sizeFactor` — geometric in the scale, so each
     /// second shrinks it by the same ratio; the opacity rises ahead of it
     /// (t^0.6), so the tunnel is there, huge and faint, from the first frames.
+    ///
+    /// **Already 20 % opaque the moment it can be seen** (2026-10-04, Victor:
+    /// *"un reverse tunnel vizibil deja trebuie să apară, dar … douăzeci la sută
+    /// opac"*) — it rose from nothing, so the first second of the wait showed no
+    /// tunnel at all. `startAlpha` is the floor, reached over `fadeIn` so it
+    /// does not pop; the rise above it keeps its old curve.
     static func stamp(_ pose: Pose, from: Double) -> (scale: Double, alpha: Double) {
-        (sizeFactor * pow(from, 1 - pose.progress), pow(pose.time, 0.6))
+        (sizeFactor * pow(from, 1 - pose.progress),
+         pose.shown * (startAlpha + (1 - startAlpha) * pow(pose.time, 0.6)))
+    }
+    static let startAlpha = 0.2
+    /// How long the tunnel takes to reach `startAlpha` once it can be seen.
+    static let fadeIn: TimeInterval = 0.15
+
+    /// **`from` such that the ring starts as tall as the screen** (2026-10-04,
+    /// Victor: *"de diametru egal cu înălțimea ecranului"*): the ring's diameter
+    /// is `restRing × sizeFactor × from` of the long side at the start.
+    static func from(screenHeight: Double, longSide: Double, restRing: Double) -> Double {
+        max(1.01, screenHeight / max(longSide, 1) / (restRing * sizeFactor))
     }
 
-    /// **On the window by the time the ring is half the screen across**
-    /// (2026-10-02, Victor: *"să meargă repede cât de departe și apoi să stea
-    /// acolo, centrat, în timp ce se mixează … când a ajuns ca diametrul [la]
-    /// jumate din lățimea ecranului, să fie deja centrat pe țintă"*). It used to
-    /// slide with the whole approach, landing only at rest (`reach` × the
-    /// prediction) — most of the sentence spent half-way between the pointer and
-    /// the terminal. Now the travel is the approach's own progress up to the
-    /// instant the ring's diameter is `arriveAt` × the screen's long side, 1
-    /// after it: the stamp is geometric in `progress`, so that instant is
-    /// `p* = 1 − ln(arriveAt / (restRing × sizeFactor)) / ln(from)` — ~0.11 with
-    /// the tunnel's numbers, ~15 % of the way to the prediction. A ring already
-    /// smaller than that at the start is on the window at once.
+    /// **On the window at half the predicted transcription** (2026-10-04,
+    /// Victor: *"din loc în care era mouse-ul … începe să se ducă spre aplicația
+    /// receptor, urmând să se centreze pe centrul ei progresiv, ca să ajungă
+    /// acolo … la jumătatea duratei estimate a transcrierii, urmând ca apoi să se
+    /// micșoreze"*). On the clock rather than on the ring's size (2026-10-02 to
+    /// 10-04 it landed when the ring was half the screen across, ~15 % of the
+    /// way): `elapsed` from the close, eased in and out so it leaves the pointer
+    /// and settles on the window gently. The shrink is untouched.
     ///
-    /// - Parameter restRing: the ring's diameter at stamp scale 1, × the long side.
     /// - Returns: 0 on the pointer … 1 on the window.
-    static func travel(_ pose: Pose, from: Double, restRing: Double, arriveAt: Double = arriveAt) -> Double {
-        let arrival = 1 - log(arriveAt / (restRing * sizeFactor)) / log(from)
-        guard arrival > 0 else { return 1 }
-        return min(max(pose.progress / arrival, 0), 1)
+    static func travel(elapsed: TimeInterval, predicted: TimeInterval) -> Double {
+        let span = arriveShare * predicted
+        guard span > 0 else { return 1 }
+        let u = min(max(elapsed / span, 0), 1)
+        return u * u * (3 - 2 * u)
     }
-    /// The ring's diameter at which the tunnel has finished travelling, × the long side.
-    static let arriveAt = 0.5
+    /// The share of the prediction by which the tunnel is on the window.
+    static let arriveShare = 0.5
 
     /// **Sparks shrinks at the tunnel's own rate** (2026-10-02, Victor: *"dacă
     /// … Stars se micșorează în același stil în care se micșorează și Reverse

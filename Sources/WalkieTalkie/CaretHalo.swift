@@ -1274,6 +1274,16 @@ final class CaretHalo {
         rewindFrom = CFAbsoluteTimeGetCurrent()
         rewindEstimate = predicted
         rewindStart = NSEvent.mouseLocation
+        // The ring starts as tall as the pointer's screen (2026-10-04) —
+        // `RewindTimeline.from`; the old fixed 7× when there is no screen.
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }) {
+            let f = screen.frame
+            rewindApproachFrom = RewindTimeline.from(screenHeight: Double(f.height),
+                                                     longSide: Double(max(f.width, f.height)),
+                                                     restRing: Self.restRing)
+        } else {
+            rewindApproachFrom = Double(Self.approachFrom)
+        }
         rewinding = true
         arrow.armed = false
         Log.info(String(format: "⏪ the rewind: %.1f s of his voice, backwards at %.1f×, fitted to %.2f s on %@ (chip's ceiling %.1f s, visible from %.2f s), on %@",
@@ -1317,17 +1327,19 @@ final class CaretHalo {
     /// re-read, and the centre slides from it to `rewindAim` with the approach's
     /// own progress — at the start of the shrink on the pointer, on the window
     /// once the ring is half the screen across (2026-10-02, the same evening:
-    /// *"să meargă repede … și apoi să stea acolo, centrat"* — `RewindTimeline.travel`;
-    /// it used to land only at rest). No window to go to: it stays where it started.
+    /// *"să meargă repede … și apoi să stea acolo, centrat"*; it used to land
+    /// only at rest), and **since 2026-10-04 at half the predicted transcription**
+    /// — `RewindTimeline.travel`. No window to go to: it stays where it started.
     private var rewindPoint: NSPoint? {
         guard let from = rewindStart else { return rewindAim }
         guard let to = rewindAim else { return from }
-        let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
-                                       predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)
-        let t = CGFloat(RewindTimeline.travel(pose, from: Double(Self.approachFrom), restRing: Self.restRing))
+        let t = CGFloat(RewindTimeline.travel(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
+                                              predicted: rewindEstimate))
         return NSPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
     }
     private var rewindStart: NSPoint?
+    /// This rewind's `approachFrom`, fitted to the pointer's screen at the close.
+    private var rewindApproachFrom = Double(approachFrom)
     private var rewindTake: [Float] = []
     private var rewindFrom: CFAbsoluteTime = 0
     private var rewindSpeed: Double = 1
@@ -1363,7 +1375,7 @@ final class CaretHalo {
     private var approachScale: (scale: CGFloat, alpha: CGFloat) {
         let pose = RewindTimeline.pose(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
                                        predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom)
-        let s = RewindTimeline.stamp(pose, from: Double(Self.approachFrom))
+        let s = RewindTimeline.stamp(pose, from: rewindApproachFrom)
         return (CGFloat(s.scale), CGFloat(s.alpha))
     }
     /// When Reverse tunnel can first be seen after the close: its own warm-up

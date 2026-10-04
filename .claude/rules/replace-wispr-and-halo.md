@@ -380,6 +380,16 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
   … pe centrul ecranului pe care e mouse-ul"*) — a spawn (🔼 ↑, its terminal does not exist yet), a
   held sentence (set at once), or a window that did not answer (set when the read comes back). Log
   `⏪ the rewind aims at the middle of the pointer's screen (x, y) — …`.
+- **Visible from the start at 20 %, as tall as the screen, on the window at half the prediction**
+  (2026-10-04, Victor: *"un reverse tunnel vizibil deja … douăzeci la sută opac … de diametru egal
+  cu înălțimea ecranului și din locul în care era mouse-ul … să ajungă acolo … la jumătatea duratei
+  estimate a transcrierii, urmând ca apoi să se micșoreze"*; not for a spawn, which keeps Sparks).
+  `RewindTimeline.stamp`'s opacity floor `startAlpha` 0.2, reached over `fadeIn` 0.15 s once the
+  warm-up is over (`Pose.shown`); the start size `RewindTimeline.from(screenHeight:…)` per rewind
+  (`CaretHalo.rewindApproachFrom`, the pointer's screen at the close); `travel(elapsed:predicted:)`
+  is a smoothstep on the clock to `arriveShare` 0.5 × `DecodeRate.predict`. Supersedes the
+  2026-10-02 *on the window once the ring is half the screen across*. Shrink untouched. The
+  tunnel still cannot show before projectM's warm-up.
 - **The take is kept for every destination** (2026-09-30): the call ran for all since 09-23, but
   `settleTake` was still `latchedAtCaret ? lastTake() : []`, so every bound sentence logged `⏪ no
   rewind — only 0 samples`.

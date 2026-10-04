@@ -169,31 +169,35 @@ final class RewindTimelineTests: XCTestCase {
         XCTAssertEqual(RewindTimeline.sizeFactor, 0.42, accuracy: 1e-9)
         let start = RewindTimeline.stamp(RewindTimeline.Pose(progress: 0, time: 0), from: 7)
         XCTAssertEqual(start.scale, 7 * 0.42, accuracy: 1e-9)
-        XCTAssertEqual(start.alpha, 0, accuracy: 1e-9)
+        // 2026-10-04: already 20 % opaque once it can be seen, nothing while it warms up hidden.
+        XCTAssertEqual(start.alpha, 0.2, accuracy: 1e-9)
+        let warming = RewindTimeline.stamp(RewindTimeline.pose(elapsed: visible / 2, predicted: 3, visibleFrom: visible), from: 7)
+        XCTAssertEqual(warming.alpha, 0, accuracy: 1e-9)
+        let justShown = RewindTimeline.stamp(RewindTimeline.pose(elapsed: visible + RewindTimeline.fadeIn, predicted: 3, visibleFrom: visible), from: 7)
+        XCTAssertGreaterThanOrEqual(justShown.alpha, 0.2)                       // the floor, plus the rise above it
+        XCTAssertLessThan(justShown.alpha, 0.4)
         let late = RewindTimeline.stamp(RewindTimeline.pose(elapsed: 60, predicted: 3, visibleFrom: visible), from: 7)
         XCTAssertEqual(late.alpha, 1, accuracy: 1e-9)
         XCTAssertLessThan(late.scale, 0.42)                                    // past rest, still going
         XCTAssertGreaterThan(late.scale, 0.42 * 0.2)                           // but not gone
     }
 
-    /// 2026-10-02: on the window once the ring is half the screen across, not at rest.
-    func testTravelLandsWhenTheRingIsHalfTheScreen() {
-        let restRing = 0.66 * 0.647 * 0.7 * 0.7
-        func ring(_ p: Double) -> Double {
-            restRing * RewindTimeline.stamp(.init(progress: p, time: 1), from: 7).scale
-        }
-        func travel(_ p: Double) -> Double {
-            RewindTimeline.travel(.init(progress: p, time: 1), from: 7, restRing: restRing)
-        }
-        XCTAssertEqual(travel(0), 0)
-        XCTAssertGreaterThan(ring(0), 0.5)                                    // starts wider than half
-        let arrival = stride(from: 0.0, through: 1, by: 0.001).first { travel($0) >= 1 }!
-        XCTAssertEqual(ring(arrival), 0.5, accuracy: 0.01)
-        XCTAssertLessThan(arrival, 0.2)                                       // early in the approach
-        XCTAssertEqual(travel(1), 1)                                          // and stays there
-        XCTAssertEqual(travel(3), 1)
-        // A ring already narrower than half at the start: on the window at once.
-        XCTAssertEqual(RewindTimeline.travel(.init(progress: 0, time: 0), from: 1.2, restRing: restRing), 1)
+    /// 2026-10-04: on the window at half the predicted transcription, eased; on the pointer at the close.
+    func testTravelLandsAtHalfThePrediction() {
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 0, predicted: 4), 0)
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 1, predicted: 4), 0.5, accuracy: 1e-9)   // half-way at a quarter
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 2, predicted: 4), 1)
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 9, predicted: 4), 1)                     // and stays there
+        XCTAssertLessThan(RewindTimeline.travel(elapsed: 0.2, predicted: 4), 0.1)             // leaves gently
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 0, predicted: 0), 1)
+    }
+
+    /// 2026-10-04: the ring starts as tall as the screen.
+    func testRingStartsAsTallAsTheScreen() {
+        let restRing = 0.66 * 0.317
+        let from = RewindTimeline.from(screenHeight: 1080, longSide: 1920, restRing: restRing)
+        let ring = restRing * RewindTimeline.stamp(.init(progress: 0, time: 0), from: from).scale
+        XCTAssertEqual(ring * 1920, 1080, accuracy: 0.5)
     }
 
     /// 2026-10-02: Sparks shrinks by the same ratio the tunnel's stamp does, from full size.
