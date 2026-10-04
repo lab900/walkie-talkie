@@ -872,6 +872,12 @@ extension Glyphs {
         case mac = "\u{E013}"
     }
 
+    /// **The small `v` after the Apple mark: the local model is Victor's LoRA**
+    /// (2026-10-04). A modifier letter, so it is already small and raised in
+    /// the font; the chip draws it as a letter of the row, not a picture,
+    /// filling with the bar like the words round it.
+    static let loraMark: Character = "\u{1D5B}"
+
     /// The logo for a character that names one, or nil for anything else — the
     /// form the chip calls, because the chip is handed a string and never an
     /// engine.

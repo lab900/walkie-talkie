@@ -164,7 +164,7 @@ enum OverlayStates {
                  note: "The caret is a destination like any other, and it takes the line a spawn takes — the bound terminal is still there, and for the length of this sentence the words are not going to it. Bare, it looks like this: no shots row, because this mode still takes no picture of its own — the row appears the moment he takes one — and no ⌘⇧ hint unless Chrome is in front.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
-                o.setSpawnDestination("at caret", icon: RelayWindow.pinGlyph)
+                o.setSpawnDestination("caret", icon: RelayWindow.pinGlyph)
                 o.setListening(true)
             },
 
@@ -174,7 +174,7 @@ enum OverlayStates {
                  note: "It borrowed nothing before, on the argument that both gestures add to a *message* and this mode has none. Victor overruled the premise: a paste is a message whose recipient happens to be whatever holds the caret, which is routinely another agent. So the rows a bound dictation grows, this one grows too — the tally included — and what gets pasted carries `[the shots I took: …]`, `[selected: …]` and `[elements I picked in Chrome: …]` in the wording the terminal already uses. **The highlights joined them on 2026-09-09**, on his ask: they were the one deliberate attachment this envelope refused, and the refusal was really about the *probe* rather than about the highlight. What it still does not carry is anything **automatic**: no opening frame, no `[Focused window: …]` and no `dictated aloud` hint. Attach nothing and it pastes the words alone, byte for byte as before.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
-                o.setSpawnDestination("at caret", icon: RelayWindow.pinGlyph)
+                o.setSpawnDestination("caret", icon: RelayWindow.pinGlyph)
                 o.setListening(true)
                 o.setShotCount(2)
                 o.setPicks(count: 2, newest: "div#cart > span.price")
@@ -350,6 +350,17 @@ enum OverlayStates {
                  note: "The one row left in which Victor is waiting on the app — `preparing`, the model coming up, was the other, and it stopped existing once the weights started loading at launch instead of at the first gesture. It used to be a flash, which put it at the foot of a panel while the thing it replaced sat at the top. The seconds it used to count down came off on 2026-09-08 — the filling word says the same estimate, and a number ticking toward zero is a deadline to watch.",
                  shape: "chip", alpha: 0.80) { o in
                 o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setTranscribing(true)
+                o.setShotCount(1)
+                o.pinTranscribeWarmth(0.45)
+            },
+
+            Shot(slug: "transcribing-lora", group: "Dictating", title: "…on Victor's own model",
+                 when: "The wait, when the local model is the Engine and its weights are the LoRA trained on his voice.",
+                 note: "**A small `ᵛ` after the Apple mark** (2026-10-04, Victor: *\"pune un v mic după acel măr … dacă e modelul meu cu Lora\"*) — on `Transcribing via` and on the listening row's arrow alike. A modifier letter, so it is small and raised in the font itself, and it fills with the bar like the letters round it. The published Turbo weights wear the bare apple.",
+                 shape: "chip", alpha: 0.80) { o in
+                o.setBound(label: "petclinic", folder: "petclinic@main", title: "✳ petclinic — Fix the tax rounding", icon: terminal)
+                o.setEngineMark(" via \(Glyphs.Engine.mac.rawValue)\(Glyphs.loraMark)")
                 o.setTranscribing(true)
                 o.setShotCount(1)
                 o.pinTranscribeWarmth(0.45)
@@ -695,7 +706,8 @@ enum OverlayStates {
         // the picture to pin for the same reason Wispr's mark is: it is what he
         // teaches through, and *automatic* means it wins whenever it is there.
         o.setEngineMark(" via \(Glyphs.Engine.wispr.rawValue)")
-        o.setMicMark(" 🎤 → \(Glyphs.Engine.wispr.rawValue)")
+        o.setMicMark(" → \(Glyphs.Engine.wispr.rawValue)")
+        o.setRecordDevice("🎤")
         // **Settled, unless a shot says otherwise.** `Listening…` ramps from dark
         // grey to full over six seconds (`RelayWindow.listenWarmth`), so without
         // a chosen frame every dictating state on this page would be a picture of

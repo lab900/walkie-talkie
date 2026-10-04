@@ -1047,6 +1047,16 @@ private let frontLabel = NSTextField(labelWithString: "")
         if listening { layoutContent() }
     }
 
+    /// **The microphone breathes in the orange disc, where the walkie did**
+    /// (2026-10-04, Victor: *"în loc de simbolul de Walkie Talkie care clipește
+    /// lent când dictez, pune simbolul microfonului folosit pentru dictare"*).
+    /// The device left `micMark` for it — one place, in front of the word. An
+    /// unknown device (empty) keeps the walkie.
+    func setRecordDevice(_ glyph: String) {
+        recordDot.image = (glyph.isEmpty ? nil : Self.ringedDevice(glyph))
+            ?? Self.walkieLiveGlyph ?? Self.pulseGlyph
+    }
+
     /// **A tag that says `HQ`, where a gold star used to sit** — Victor's ask,
     /// 2026-09-09: *"la steluța care apare după listening, desenez un tag micuț
     /// care scrie HQ, de la High Quality … un tag micuț, pe albastru"*.
@@ -2574,6 +2584,29 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// orange one looking like the same object.
     private static let walkieDeviceShare: CGFloat = 0.60
 
+    /// The device's emoji on `walkie-bound.png`'s orange disc — its two
+    /// oranges, top and bottom, sampled off the artwork — at the walkie's share
+    /// of it, so the ring is the same object whatever sits inside. One per
+    /// device, cached: there are five.
+    private static var ringedDevices: [String: NSImage] = [:]
+    private static func ringedDevice(_ glyph: String) -> NSImage {
+        if let cached = ringedDevices[glyph] { return cached }
+        let side = walkieInk
+        let image = NSImage(size: NSSize(width: side, height: side))
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        NSGradient(starting: NSColor(srgbRed: 1, green: 172 / 255, blue: 31 / 255, alpha: 1),
+                   ending: NSColor(srgbRed: 240 / 255, green: 138 / 255, blue: 23 / 255, alpha: 1))?
+            .draw(in: NSBezierPath(ovalIn: NSRect(x: 0, y: 0, width: side, height: side)), angle: -90)
+        let inner = (side * walkieDeviceShare).rounded()
+        Glyphs.emoji(glyph, ink: inner).draw(in: NSRect(x: ((side - inner) / 2).rounded(),
+                                                       y: ((side - inner) / 2).rounded(),
+                                                       width: inner, height: inner))
+        image.unlockFocus()
+        ringedDevices[glyph] = image
+        return image
+    }
+
     private static func makeWisprGlyph() -> NSImage? {
         guard let url = walkieURL("walkie-idle"), let device = NSImage(contentsOf: url),
               device.size.height > 0 else { return nil }
@@ -3229,7 +3262,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             // **The `→` before the recogniser is a letter, not a picture**
             // (2026-09-24): it is typography, part of the sentence, and fills
             // with the bar like the words round it.
-            guard ch.isASCII || ch == "→" else {
+            guard ch.isASCII || ch == "→" || ch == Glyphs.loraMark else {
                 out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }
@@ -4043,7 +4076,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             // moved onto it, because until then every character in it was ASCII.
             // It fills with the bar like the letters round it (2026-10-01) — a
             // logo is drawn in the row's ink, so `dim` is its unlit state too.
-            guard ch.isASCII else {
+            guard ch.isASCII || ch == Glyphs.loraMark else {
                 out.append(Self.inline(Self.wordGlyph(ch, ink: i < steps ? lit : dim), font: hintFont))
                 continue
             }
@@ -4348,7 +4381,7 @@ private let frontLabel = NSTextField(labelWithString: "")
     private var filmTick: Timer?
 
     /// **Every recording this sentence carries, on one row** (2026-09-18) —
-    /// since 2026-09-29 `📹 ×2(∑5s/25×📸) + 1s/5×📸 🔴`, Victor's own format:
+    /// since 2026-09-29 `🎞️ ×2(∑5s/25×📸) + 1s/5×📸 🔴`, Victor's own format:
     /// the finished clips summed (how many, total seconds, total frames), then
     /// the live one, and a pulsing red dot only while the screen is recording.
     ///
@@ -4449,8 +4482,9 @@ private let frontLabel = NSTextField(labelWithString: "")
     }
 
 
-    /// 🎬 at the size of the rest of the icon column.
-    private static let filmGlyphImage = Glyphs.emoji("📹", ink: iconInk)
+    /// 🎞️ at the size of the rest of the icon column (📹 until 2026-10-04,
+    /// Victor: *"in loc de 📹, pune 🎞️ prin tooltip"*).
+    private static let filmGlyphImage = Glyphs.emoji("🎞️", ink: iconInk)
 
     // MARK: - The live caption (2026-09-25; a subtitle band since 2026-09-26)
 

@@ -319,7 +319,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// this is already a bug somewhere above.
     private static func engineMark(_ id: String) -> String {
         switch id {
+        // **A small `ᵛ` after the Apple mark when the weights are Victor's
+        // LoRA** (2026-10-04, Victor: *"pune un v mic după acel măr … dacă e
+        // modelul meu cu Lora"*). Read from the pick, which the helper loads at
+        // the next idle moment — the same moment this mark is next pushed.
         case "whisper": return String(Glyphs.Engine.mac.rawValue)
+            + (WhisperModels.selected == WhisperModels.original ? "" : String(Glyphs.loraMark))
         case "eleven", "eleven-live": return String(Glyphs.Engine.eleven.rawValue)
         case "wispr": return String(Glyphs.Engine.wispr.rawValue)
         // The default's logo, like `engine(named:)`'s default source.
@@ -352,7 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// corpus's — while the words came from whatever Wispr had picked inside
     /// its own settings. Victor: *"poate să fie un pic mincinos să zici că
     /// asculți la microfonul lui Walkie … ar trebui să-i citești microfonul
-    /// activ al lui Wispr"*. See `currentMicMark`.
+    /// activ al lui Wispr"*. See `pushMicMark`.
     private static func mark(engine id: String) -> String { " via " + engineMark(id) }
 
     /// **Whose microphone the chip names: whoever is doing the hearing.**
@@ -368,13 +373,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// half rather than being a third mark because it is the same question —
     /// *who is hearing me* — and it names Wispr whenever Wispr is the one
     /// holding the microphone, whatever the Engine row says.
-    private func currentMicMark() -> String {
-        let wispr = wisprSource.isRecording || wisprHearing || source === wisprSource
+    ///
+    /// **The device left the sentence for the ring** (2026-10-04, Victor: *"în
+    /// loc de simbolul de Walkie Talkie care clipește lent când dictez, pune
+    /// simbolul microfonului folosit pentru dictare"*, then *"muta simbolul
+    /// microfonului in fata, inainte de Dictating/Prompting"*). The text keeps
+    /// only the arrow and the recogniser; the device is what breathes in the
+    /// orange disc in front of the word (`RelayWindow.setRecordDevice`).
+    private func pushMicMark() {
+        let wispr = wisprHearsThis
         let device = wispr ? InputDevice.glyph(wisprName: wisprMicName) : InputDevice.currentGlyph()
-        let engine = " → " + Self.engineMark(wispr ? "wispr" : engineId)
         // No "to" (2026-09-29, Victor: "Prompting to" -> "Prompting").
-        return (device.isEmpty ? "" : " " + device) + engine
+        overlay.setMicMark(" → " + Self.engineMark(wispr ? "wispr" : engineId))
+        overlay.setRecordDevice(device)
     }
+
+    private var wisprHearsThis: Bool { wisprSource.isRecording || wisprHearing || source === wisprSource }
 
     /// Wispr's name for its microphone — the adopted row's once Wispr fills it
     /// in, until then the last row that named one (`WisprHistory.lastNamedMic`).
@@ -399,7 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         micId = id
         status.setMic(id)
         overlay.setEngineMark(Self.mark(engine: engineId))
-        overlay.setMicMark(currentMicMark())
+        pushMicMark()
         let resolved = InputDevice.currentLabel()
         Log.info("🎚️ microphone → \(id == "auto" ? "automatic" : id) — recording through \(resolved)")
         if listening {
@@ -1368,7 +1382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard id != self.micId else { return }
             self.micId = id
             self.status.setMic(id)
-            self.overlay.setMicMark(self.currentMicMark())
+            self.pushMicMark()
             Log.info("🎚️ microphone ← the other app: \(id == "auto" ? "automatic" : id)")
         }
         micId = InputDevice.chosenId
@@ -1473,7 +1487,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Log.info("🎚️ Wispr Flow is hearing through \(name)")
             }
             self.wisprMicName = name
-            self.overlay.setMicMark(self.currentMicMark())
+            self.pushMicMark()
         }
         // The ⏳ in the menu bar belongs to whichever source is slow to come up,
         // and only one of them ever is.
@@ -2468,7 +2482,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // because it does its own hop; this one had to be given one.
             DispatchQueue.main.async {
                 if paste {
-                    self.overlay.setSpawnDestination("at caret", icon: RelayWindow.pinGlyph)
+                    self.overlay.setSpawnDestination("caret", icon: RelayWindow.pinGlyph)
                 }
                 self.listening = true
                 // **The ten-minute ceiling arms here too**, although this route
@@ -3266,7 +3280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // one place in the app that is allowed to know there are three of them;
         // the overlay renders the string and cannot ask what it means.
         overlay.setEngineMark(Self.mark(engine: engineId))
-        overlay.setMicMark(currentMicMark())
+        pushMicMark()
         // **The shutter runs on `DispatchQueue.global()`, not the main thread**
         // (`HotkeyTap.onScreenshot`), so `reserveMarker` may not read `source` —
         // `setEngine` reassigns it from the main thread and that is a race on a
@@ -3377,13 +3391,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // *this* sentence. `InputDevice.resolve()` is two CoreAudio reads and
         // the chip relayouts only when the string actually changes.
         overlay.setEngineMark(Self.mark(engine: engineId))
-        overlay.setMicMark(currentMicMark())
+        pushMicMark()
 
         // **The chip says where these words are going.** A spawn names its
         // folder (armed at the gesture), a caret sentence says so and outranks
         // the bound terminal for its own length, and a sentence with nothing
         // bound names the gesture that would give it somewhere to go.
-        if pasteMode { overlay.setSpawnDestination("at caret", icon: RelayWindow.pinGlyph) }
+        if pasteMode { overlay.setSpawnDestination("caret", icon: RelayWindow.pinGlyph) }
         else if !spawnPending, !isBound {
             overlay.setSpawnDestination("bind to send", icon: RelayWindow.pinGlyph)
         }
@@ -6558,7 +6572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the relay's own sentence wears an orange one. The music pause and this
         // are the same fact read twice; see `RelayWindow.walkieWisprGlyph`.
         overlay.setWisprHearing(on)
-        overlay.setMicMark(currentMicMark())
+        pushMicMark()
         // **…and the ⚡ ring goes up round the pointer, which is the third
         // reading of the same fact** (2026-09-18) — `syncBorrowedGestures`
         // rather than `syncMusic`, because the halo hangs off that one switch

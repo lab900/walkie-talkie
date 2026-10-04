@@ -380,7 +380,7 @@ def tg1():
         dt = now() - t
         s, L = st(), g.log()
         chip = chip_text(s)
-        caret = bool(s.get("pasteMode")) and "at caret" in chip
+        caret = bool(s.get("pasteMode")) and "caret" in chip  # "at caret" until 2026-10-04
         clicked = "forward button — a dictation at the caret" in L
         downs = n(r"⌨️trace ↓ key 98 pid", L)
         ups = n(r"⌨️trace ↑ key 98 pid \d+ \(ours\)[^\n]*passed", L)
