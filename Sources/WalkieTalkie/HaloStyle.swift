@@ -548,6 +548,15 @@ enum HaloStyle: String, CaseIterable {
         //   ×1.4 → 0.65212875        2026-09-29, with it pinned to the screen's
         //                            centre: *"a bit bigger to better fill the
         //                            entire screen"* — 1127 pt, the Retina's height
+        //   ×2   → 1.3042575         2026-10-04: *"când efectul de dust este prea
+        //                            opac și nu mă lasă să văd ce e sub mouse,
+        //                            mărește dimensiunea de două ori și fă-l mai
+        //                            translucid un pic"* — 2254 pt, with `peak`
+        //                            0.75 and `renderScale` halved to 0.5, so the
+        //                            canvas stays 1127 px and the sparks keep the
+        //                            composition he starred, only twice as large:
+        //                            the same 2254 px canvas at 1 px/pt would merge
+        //                            them into the fog this was asked against
         // The last three are him homing in by eye on a thing that only exists
         // while it is running. Since the halving the direction has been one
         // way, so multiply **this** number for the next ask: do not average the
@@ -589,13 +598,13 @@ enum HaloStyle: String, CaseIterable {
         // Worth knowing before anyone "fixes" this back: real MilkDrop windows
         // its FFT too, so the chain is arguably the preset's intended look and
         // the cloud is butterchurn's deviation. The cloud is the one he picked.
-        // **Sparks renders at 1 canvas pixel per point, half the screen's own
-        // resolution** — see `Preset.renderScale`. It is the one preset whose
-        // sparks were merging into a wash at 1:1, and the only one that asks
-        // for this.
-        case .milkdrop87:  return Preset(number: 87, name: "martin - chain breaker", scale: 0.65212875,
+        // **Sparks renders at half a canvas pixel per point, a quarter of the
+        // screen's own resolution** (1 px/pt until the ×2 of 2026-10-04) — see
+        // `Preset.renderScale`. It is the one preset whose sparks were merging
+        // into a wash at 1:1, and the only one that asks for this.
+        case .milkdrop87:  return Preset(number: 87, name: "martin - chain breaker", scale: 1.3042575,
                                          fade: true, fadeAtEdge: true, fadeFloor: 0, webOnly: true,
-                                         renderScale: 1, anchored: true, centred: true)
+                                         renderScale: 0.5, peak: 0.75, anchored: true, centred: true)
         // **Mosaic, back from the `−` list for Wispr Flow** (Victor, 2026-09-21:
         // *"când am Wispr Flow, dictare să apară mozaic"*). It was dropped on
         // 2026-09-20 with the other `−` effects — *"the bricks look lame"* —
