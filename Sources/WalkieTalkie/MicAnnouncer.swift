@@ -82,8 +82,16 @@ final class MicAnnouncer {
 
     /// **Say what engine this launch runs on** — main thread, once, right after
     /// the engine is decided. Never under `RELAY_SHOOT`.
-    func announceStartup(engine text: String) {
+    ///
+    /// **The microphone in front of it** (2026-10-05, Victor: *"să afișeze
+    /// înaintea motorului folosit și device-ul de microfon, simbolul pentru
+    /// microfonul în folosire la pornire"*) — the resolved device's glyph, the
+    /// green tab's own, or `🎙️ <name>` for one `known` does not name.
+    func announceStartup(engine: String) {
         guard !RelayWindow.shooting else { return }
+        let r = InputDevice.resolve()
+        let mic = r.known?.glyph ?? r.device.map { "🎙️ \($0.name)" }
+        let text = [mic, engine].compactMap { $0 }.joined(separator: " ")
         startupText = text
         Log.info("🚀 up on \(text) — the launch tab")
         tab.show(text, tint: Self.startupTint, hold: Self.startupHold)
