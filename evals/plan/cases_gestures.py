@@ -533,13 +533,14 @@ def back_pair(g, gap):
     return log_since(m), sink_events(), s, t2 - t1
 
 def wispr_quiet(g, timeout=15):
-    """Wait for Wispr's microphone to close; cancel, then dismiss (🔽←) if it stays open."""
+    """Wait for Wispr's microphone to close; cancel, then toggle it off if it stays open
+    (🔽← dismissed it until 2026-10-05; it is Return now)."""
     if wait_for(lambda: not st().get("wisprHearing", True), timeout, 0.25):
         return True
     post("/test/cancel")
     if wait_for(lambda: not st().get("wisprHearing", True), 4, 0.25):
         return True
-    g.step("back-left")
+    post("/test/wispr-handsfree", {})
     return bool(wait_for(lambda: not st().get("wisprHearing", True), 6, 0.25))
 
 
@@ -1101,10 +1102,11 @@ def tg26():
 
 
 def tour(g):
-    """The ten chords, each once, each made harmless: four at idle (🔽→ types a Return into the sink,
+    """The ten chords, each once, each made harmless: five at idle (🔽← types a Return into the sink,
     🔼← and 🔽↓ find nothing, 🔼↓ is ignored), then a caret sentence (🔼) in which 🔼→ is refused by the
-    dwell, 🔼↑ is refused on a caret sentence, 🔽↑ films, 🔽 is the shutter and 🔽← cancels it."""
-    for name in ("back-click", "forward-left", "back-down", "forward-down"):
+    dwell, 🔼↑ is refused on a caret sentence, 🔽↑ films, 🔽 is the shutter and 🔼← cancels it
+    (🔽← until 2026-10-05)."""
+    for name in ("back-click", "back-left", "forward-left", "back-down", "forward-down"):
         g.step(name)
         time.sleep(0.6)
     g.step("forward-click")
@@ -1115,7 +1117,7 @@ def tour(g):
     for name in ("forward-up", "back-up", "back-right"):
         g.step(name)
         time.sleep(0.7)
-    g.step("back-left")
+    g.step("forward-left")
     wait_for(lambda: not st().get("listening", True), 5, 0.1)
 
 
@@ -1167,19 +1169,13 @@ def tg29():
                 g.flags(label, t)
             handsfree("postWisprHandsFree (start)")
             if wait_for(lambda: st().get("wisprHearing"), 8, 0.2):
-                m = log_mark()
-                g.step("back-left")               # foreign Wispr sentence → postWisprCancel
-                time.sleep(0.8)
-                dismissed = "dismissing Wispr Flow's dictation" in log_since(m)
-                closed = wait_for(lambda: not st().get("wisprHearing", True), 4, 0.2)
-                if not closed:
-                    handsfree("postWisprHandsFree (stop)")
-                    closed = wispr_quiet(g, 8)
-                wispr = (f"postWisprHandsFree exercised; postWisprCancel "
-                         f"{'exercised' if dismissed else 'not reached (🔽← took the relay-cancel branch)'}; "
-                         f"Wispr closed={bool(closed)}")
+                # 🔽← dismissed this foreign sentence with postWisprCancel until
+                # 2026-10-05; it is Return now, so the stop is the chord again.
+                handsfree("postWisprHandsFree (stop)")
+                closed = wispr_quiet(g, 8)
+                wispr = f"postWisprHandsFree exercised; Wispr closed={bool(closed)}"
             else:
-                wispr = "postWisprHandsFree posted but Wispr's microphone never opened — postWisprCancel not exercised"
+                wispr = "postWisprHandsFree posted but Wispr's microphone never opened"
         checks = len(g.sent)
         if g.stale:
             return g.done("FAIL", f"{len(g.stale)} of {checks} steps left a modifier held · {wispr}")

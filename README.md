@@ -198,7 +198,8 @@ Logi Options+, and the app takes no mouse button at all.
 | 🔼 ↓ | kamikaze |
 | ◀️ held, then 🔼 | bind the window in front |
 | 🔽 → | plain dictation at the caret |
-| 🔽 | Return; the shutter while a prompt records |
+| 🔽 | start / stop a plain dictation (ends in Return); the shutter while a prompt records |
+| 🔽 ← | Return, at any moment |
 | 🔽 ↓ | unbind |
 
 **Wheel mode** needs no Logitech software: click the wheel to start and stop, hold 2 s to cancel,

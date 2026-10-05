@@ -15199,3 +15199,15 @@ two `anchored` presets (Sparks = stars, Mosaic = puzzle) are placed on the built
 the pointer's screen; Mosaic keeps starting from the pointer when it is on the Retina and sits in
 the middle otherwise. `panelFrame` sizes a fresh panel from the same frame, and the engine is
 told the Retina's size. No built-in display ⇒ the pointer's screen, as before.
+
+## 🔽 ← is Return, at any moment (2026-10-05)
+
+Victor: *"If I do the gesture for back and swipe to the left at any point, this means an Enter.
+Hitting an Enter in the terminal, for example, to submit a prompt or enter in a text file."*
+Supersedes *🔽 ← cancels a Wispr Flow sentence* (2026-09-21) and its fallback to the relay's own
+cancel. `case VK_F3` is now `postReturn()` alone: no dictation state read, and it does not go
+through `submitAfterCleanWords`, since that function's shell-prompt guard (Q18) would hold back the
+Return he asked for at a shell. Stamped `backButtonStamp`, so a held prompt panel lets it through
+to the front app. The 0.6 s re-fire guard keeps one flick to one Return. Cancel is 🔼 ← alone.
+`HotkeyTap.onWisprCancel` lost its only caller and went too. Spec row *🔽 back · drag left* plus
+a mutation that brings the cancel back (`evals/test_gesture_spec.py`).

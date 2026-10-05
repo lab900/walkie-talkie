@@ -339,6 +339,18 @@ def spec(src: dict):
             ],
         },
         {
+            # Victor, 2026-10-05: "If I do the gesture for back and swipe to the
+            # left at any point, this means an Enter." A cancel until then.
+            "row": ("🔽 back", "drag left, any moment"),
+            "does": "Return — this app's stamped key, ungated, no cancel",
+            "checks": [
+                ("F3 posts the Return and is swallowed", "HotkeyTap `case VK_F3`",
+                 lambda: has(gesture_case(src, "VK_F3"), r"Self\.postReturn\(\)\s*return swallow\(gesture, type, event\)\s*$")),
+                ("…and cancels nothing, whatever is dictating", "HotkeyTap `case VK_F3`",
+                 lambda: not has(gesture_case(src, "VK_F3"), r"onLocalCancel|postWisprCancel|ownDictation|wisprMicIsOpen")),
+            ],
+        },
+        {
             "row": ("🔽 back", "plain dictation, any moment"),
             "does": "NO screenshot — not at the start, not during, not at the end",
             "checks": [
@@ -423,7 +435,7 @@ def main(argv: list[str]) -> int:
         return self_test()
     code, failures = run(load())
     if failures:
-        print("\nThe gesture spec (2026-09-23, back button swapped back 2026-09-28, bare click plain 2026-10-05) no longer holds:")
+        print("\nThe gesture spec (2026-09-23, back button swapped back 2026-09-28, bare click plain 2026-10-05, 🔽 ← Return 2026-10-05) no longer holds:")
         for f in failures:
             print(f"  ✗ {f}")
     return code
@@ -483,6 +495,9 @@ MUTATIONS = [
      "if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return swallow(\"⌘⌃X (autorepeat)\", type, event) }", ""),
     ("⌘⌃X stops the take the ordinary way (the cloud still gets it)", "AppDelegate.swift",
      "        guard source.handToLocal() else {", "        guard { endDictation(); return true }() else {"),
+    ("🔽 ← cancels again (before 2026-10-05)", "HotkeyTap.swift",
+     "                Self.postReturn()\n                return swallow(gesture, type, event)\n\n            // ⬆️ — dictate",
+     "                DispatchQueue.global().async { [weak self] in self?.onLocalCancel?() }\n                return swallow(gesture, type, event)\n\n            // ⬆️ — dictate"),
     ("bare F7/F9 swallowed for the halo again (Q10)", "HotkeyTap.swift",
      "(keyCode == VK_F7 || keyCode == VK_F9) && fnKeyHeld && ", "(keyCode == VK_F7 || keyCode == VK_F9) && "),
 ]

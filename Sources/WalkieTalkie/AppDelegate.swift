@@ -2117,7 +2117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // is untouched — `cancelDictationInFlight` tries `localRecording` first.
         hotkeys.onLocalCancel = { [weak self] in
             DispatchQueue.main.async {
-                self?.cancelSentenceOrPanel(reason: "⬅️ a cancel flick (🔼 ← / 🔽 ←)")
+                self?.cancelSentenceOrPanel(reason: "⬅️ a cancel flick (🔼 ←)")
             }
         }
         // `onWisprMaybeStarting` belongs to `WisprFlowSource` now — it is the
@@ -2919,11 +2919,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the tap may not touch AppKit.
         hotkeys.onEngineBusy = { [weak self] why in
             DispatchQueue.main.async { self?.overlay.flash("⚠️ \(why)", duration: 5) }
-        }
-        // The same word the relay's own cancel flashes, because from where he is
-        // sitting it is the same thing happening — see `HotkeyTap.onWisprCancel`.
-        hotkeys.onWisprCancel = { [weak self] in
-            DispatchQueue.main.async { self?.overlay.flash("🗑️ Cancelled", duration: 1.5) }
         }
         // 🔽 or 🔽 → ended the plain dictation (both since 2026-10-05): the words
         // go in clean, then Return — see `submitAfterClean`.
