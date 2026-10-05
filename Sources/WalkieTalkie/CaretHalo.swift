@@ -681,7 +681,7 @@ final class CaretHalo {
     /// than the window moved, so nothing an effect draws to the screen's edge
     /// is ever clipped by a window smaller than the screen.
     private func panelFrame() -> NSRect {
-        if drawn.preset?.anchored == true, let a = anchor { return a }
+        if drawn.preset?.anchored == true, let a = anchor ?? anchoredFrame() { return a }
         let mouse = aim
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
             ?? NSScreen.main ?? NSScreen.screens[0]
@@ -707,17 +707,31 @@ final class CaretHalo {
     /// screen, the overflow is split by where the pointer is — at the left edge,
     /// all of it hangs off the right — so the placement still says where he was.
     /// A `centred` one ignores the pointer's place: the middle of its screen.
+    ///
+    /// **Always on the Retina** (2026-10-05, Victor, of Stars and the puzzle —
+    /// the only two anchored ones: *"aș vrea atât timpul efectele să fie astea …
+    /// să fie mereu pe retina când apar"*), whichever screen the pointer is on;
+    /// with the pointer elsewhere, the puzzle has no place to start from there
+    /// and sits in the Retina's middle like Stars. No built-in display (lid
+    /// shut): the pointer's screen, as before.
     private func anchoredFrame() -> NSRect? {
         guard let preset = drawn.preset else { return nil }
         let mouse = NSEvent.mouseLocation
-        let f = (NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]).frame
+        let f = (Self.retina ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]).frame
         let s = (max(f.width, f.height) * preset.scale).rounded()
-        if preset.centred { return NSRect(x: (f.midX - s / 2).rounded(), y: (f.midY - s / 2).rounded(), width: s, height: s) }
+        if preset.centred || !NSMouseInRect(mouse, f, false) { return NSRect(x: (f.midX - s / 2).rounded(), y: (f.midY - s / 2).rounded(), width: s, height: s) }
         func place(_ p: CGFloat, _ lo: CGFloat, _ len: CGFloat) -> CGFloat {
             if s <= len { return min(max(p - s / 2, lo), lo + len - s) }
             return lo - (s - len) * min(max((p - lo) / len, 0), 1)
         }
         return NSRect(x: place(mouse.x, f.minX, f.width).rounded(), y: place(mouse.y, f.minY, f.height).rounded(), width: s, height: s)
+    }
+
+    /// The built-in display, if the lid is open.
+    static var retina: NSScreen? {
+        NSScreen.screens.first {
+            ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID).map { CGDisplayIsBuiltin($0) != 0 } ?? false
+        }
     }
 
     /// **A preset's host, by `HaloEngine.current`**: butterchurn in a web view
@@ -2766,7 +2780,7 @@ final class CaretHalo {
         } else if let preset = drawn.preset, let host = Self.engineHost(preset: preset,
                                                               // a trail's panel is the screen; its square is the preset's
                                                               side: drawn.hasTrail ? (max(frame.width, frame.height) * preset.scale).rounded() : frame.width,
-                                                              screen: (NSScreen.screens.first { NSMouseInRect(aim, $0.frame, false) } ?? NSScreen.main)?.frame.size ?? frame.size) {
+                                                              screen: ((preset.anchored ? Self.retina : nil) ?? NSScreen.screens.first { NSMouseInRect(aim, $0.frame, false) } ?? NSScreen.main)?.frame.size ?? frame.size) {
             // **The engine, in its own page** (`MilkDropHalo`) or natively
             // (`ProjectMHalo`, `HaloEngine.current`). The square follows the
             // pointer as a window (`follow`).

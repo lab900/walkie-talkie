@@ -711,6 +711,10 @@ closes. Between the two is the whole transcription — the stretch in which he i
   moves for the sentence; Mosaic (the puzzle) stays `anchored` alone, placed from the pointer.
   Size ×1.4 the same ask (*"a bit bigger to better fill the entire screen"*): 0.4658 → 0.6521,
   1127 pt — the Retina's height.
+  **Both live on the Retina since 2026-10-05** (*"să fie mereu pe retina când apar"*): `anchoredFrame`
+  places them on the built-in display whatever screen the pointer is on (`CaretHalo.retina`);
+  the puzzle starts from the pointer only when it is on the Retina, else from the middle.
+  Lid shut ⇒ the pointer's screen.
 - **A replaced halo panel fades out in 300 ms, never cuts** (2026-09-29, *"when the puzzle effect
   ends, it should not disappear abruptly"*): the mic's close swaps Mosaic for the rewind through
   `CaretHalo.retireOld`, which used to `orderOut` in one frame. Every dress change crossfades now.

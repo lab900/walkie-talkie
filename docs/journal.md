@@ -15167,3 +15167,14 @@ so it leaves with the agent's envelope rather than as bare words), sets the spaw
 ring (its halo is per destination) and offers the folder menu at the pointer. Only a sentence
 that is already a spawn still ignores the gesture. The destination is latched at the mic's close,
 so clearing the flag before it is the whole redirect.
+
+## Stars and the puzzle always on the Retina (2026-10-05)
+
+Victor, after a new-terminal dictation started on the other screen: *"efectul acela de steluțe
+trebuie să fie centrat pe ecranul pe care am început dictarea … mai bine aș vrea ca efectele astea
+să urmeze ecranul … Nu, de fapt aș vrea atât timpul efectele să fie astea, deci stars-ul, puzzle-ul.
+Doar astea două de fapt au rămas. Să fie mereu pe retina când apar."* The last sentence wins: the
+two `anchored` presets (Sparks = stars, Mosaic = puzzle) are placed on the built-in display, not
+the pointer's screen; Mosaic keeps starting from the pointer when it is on the Retina and sits in
+the middle otherwise. `panelFrame` sizes a fresh panel from the same frame, and the engine is
+told the Retina's size. No built-in display ⇒ the pointer's screen, as before.
