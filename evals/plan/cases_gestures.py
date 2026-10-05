@@ -320,8 +320,9 @@ class G:
         return False
 
 
-def spoken(g, start="forward-right", stop="forward-right", after_play=1.0):
-    """Start with `start`, play CLIP_EN into WT Inject, stop with `stop` (flags checked, ~0.13 s, so
+def spoken(g, start="forward-right", stop="forward-click", after_play=1.0):
+    """Start with `start`, play CLIP_EN into WT Inject, stop with `stop` — 🔼, since 🔼 → flips a bound
+    sentence to the caret (2026-10-05) — (flags checked, ~0.13 s, so
     the next gesture still lands in the ~1.3 s upload). Returns the log mark, or None when the
     microphone never opened."""
     m = log_mark()
@@ -395,7 +396,8 @@ def tg1():
 
 @case("TG2", tags=("gesture",),
       expect="F10 train at 0/300/600/900 ms → one start and three `re-triggered … dropped`; at 1.6 s "
-             "`only NNN ms old — not stopping`; at 2.3 s it stops. Predicted defect (R21): the 2 s dwell "
+             "`only NNN ms old — not stopping`; at 2.3 s it acts — stops, or flips a bound sentence to the "
+             "caret (2026-10-05). Predicted defect (R21): the 2 s dwell "
              "runs from the main-thread edge, so the 2.3 s stop is refused too")
 def tg2():
     """F10 re-fire train, the sliding 0.6 s window and the 2 s dwell."""
@@ -415,6 +417,7 @@ def tg2():
         refused = re.findall(r"only (\d+)ms old — not stopping", L)
         starts = n(r"🎙️ recording started for", L) or n(r"mic: recording through", L)
         stopped = n(r"🎙️ recording stopped", L) > 0 or not s.get("listening")
+        stopped = stopped or "↩️ redirected mid-sentence" in L
         msg = (f"starts={starts}, re-triggered at {retrig} ms, refused at sentence ages {refused} ms, "
                f"stopped by +3.2 s={stopped}")
         if starts == 1 and len(retrig) == 3 and len(refused) == 1 and stopped:
@@ -621,7 +624,7 @@ def tg8():
         if m is None:
             return g.done("FAIL", "the microphone never opened")
         if not wait_stopped(m):
-            return g.done("FAIL", "the F10 stop did not land")
+            return g.done("FAIL", "the F7 stop did not land")
         early = "📦 delivery:" in log_since(m)
         g.step("forward-left")
         wait_for(lambda: "📦 delivery:" in log_since(m) or not st().get("busy", True), 40, 0.3)
@@ -656,7 +659,7 @@ def tg9():
         if m is None:
             return g.done("FAIL", "the microphone never opened")
         if not wait_stopped(m):
-            return g.done("FAIL", "the F10 stop did not land")
+            return g.done("FAIL", "the F7 stop did not land")
         early = "📦 delivery:" in log_since(m)
         g.step("forward-left")
         wait_for(lambda: "📦 delivery:" in log_since(m) or not st().get("busy", True), 40, 0.3)
@@ -920,9 +923,9 @@ def tg18():
         chip = chip_text(st())
         play(CLIP_EN)
         time.sleep(1.0)
-        g.step("forward-right")
+        g.step("forward-click")
         if not wait_stopped(m):
-            return g.done("FAIL", "the F10 stop did not land")
+            return g.done("FAIL", "the F7 stop did not land")
         early = "📦 delivery:" in log_since(m)
         bind_witness()
         wait_delivery(m, 40)
@@ -988,7 +991,7 @@ def tg20():
         if m is None:
             return g.done("FAIL", "the microphone never opened")
         if not wait_stopped(m):
-            return g.done("FAIL", "the F10 stop did not land")
+            return g.done("FAIL", "the F7 stop did not land")
         early = "📦 delivery:" in log_since(m)
         g.step("back-down")
         unbound = wait_for(lambda: st().get("bound") is None, 3, 0.05)
@@ -1258,7 +1261,7 @@ def tg40():
         if m is None:
             return g.done("FAIL", "the microphone never opened")
         if not wait_stopped(m):
-            return g.done("FAIL", "the F10 stop did not land")
+            return g.done("FAIL", "the F7 stop did not land")
         # Q12's admission refuses a start within `queueStartAfterStop` (0.8 s) of the stop — a second
         # click of the same stop, and the refusal then says `words still in flight`, rightly. The
         # case is about a back click *in the settle*, so it waits the guard out first (2026-09-27:
@@ -1319,7 +1322,7 @@ def tg41():
         play(CLIP_EN)
         time.sleep(1.0)
         t_stop = now_iso()
-        g.step("forward-right")
+        g.step("forward-click")
         landed = wait_for(lambda: "dictat" in witness_text().lower(), 120, 0.3)
         # `lastDelivery` is written after the keystrokes (batch 1): the words reach the witness first.
         # Wait for a row newer than the stop — the witness is shared across cases, and an earlier

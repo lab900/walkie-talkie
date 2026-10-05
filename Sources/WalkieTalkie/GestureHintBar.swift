@@ -13,7 +13,8 @@ import AppKit
 /// 🔼 on top, 🔽 under it, as the buttons sit on the mouse. The centre box is the
 /// click, the arms are the swipes, and a gesture with nothing to do right now
 /// keeps an empty box so the shape — and where his thumb goes — never moves.
-/// 🔼 → has no box at all: it ends the sentence like the click does.
+/// 🔼 → has no box at all: mid-sentence it flips bound ⇄ caret (2026-10-05),
+/// which the chip's destination row already shows.
 ///
 /// **Off the Retina, against its edge** (2026-09-30, Victor: *"displayed on any
 /// secondary monitor if there are any, otherwise on the Retina. Prefer the monitor

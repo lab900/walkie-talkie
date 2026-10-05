@@ -86,7 +86,7 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
   the clean words for a plain one, whatever the engine or destination; never restored. ⌘V re-pastes.
 - **Side buttons** (Options+ → ⌃⌥⌘F3…F12, duplicated in `HotkeyTap`, must not drift;
   `evals/test_gesture_spec.py` is the spec): 🔼 = prompt at the caret (full envelope); 🔼 → at the
-  bound terminal; 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; **🔽 and 🔽 →
+  bound terminal (mid-sentence: flips bound ⇄ caret, 2026-10-05 — 🔼 ends it); 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; **🔽 and 🔽 →
   = plain dictation** (start/stop; words only, follows the Engine; **every stop inserts, then
   Return** — 2026-10-05: the bare 🔽 at rest is no longer Return); 🔽 is the shutter while a prompt
   records.

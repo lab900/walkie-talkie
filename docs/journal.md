@@ -34,6 +34,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *The eraser waits 5 s and fades letter by letter* (2026-09-26 14:20), the eraser of *The caption after a night of use*, and the single centred line that scrolled left once wider than the band (*The caption is centred…*) — superseded 2026-09-28 by *Two lines that roll up*: two centred lines ≤ 80 % of the band, a roll-up on the third, silence rolls lines out after a read time; no eraser, no horizontal scroll
 - *Two escapes, both said out loud: a relay that has not answered for a minute* (2026-09-23, `restart_gate.py`) — superseded 2026-09-28 by *A restart waits for every engine and for his hands*: an app that does not answer is refused (exit 4), never restarted
 - *The back button's two gestures swapped roles* (2026-09-23, `268b111`: 🔽 = the plain toggle, 🔽 → = Return) — superseded 2026-09-28 by *The back button's gestures swapped back*: 🔽 → is the plain toggle, 🔽 is Return (the shutter while a prompt records; stop + words + Return in a plain one)
+- *🔼 → ends the one open* for a sentence aimed at the bound terminal — superseded 2026-10-05 by *🔼 → mid-sentence flips bound ⇄ caret*: it goes to the caret, and back on the next flick; 🔼 is the stop, ⌘⌃D keeps its own
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Auto fallback to local (p98): ⌘⌃X pressed by the clock* (2026-09-28, 22:25) — superseded 2026-09-29 by *Prepare local transcript (p95)*: p95, not p98; the local words are decoded **ahead** and **offered** (`💻 Use local  ⌘⌃X`), never inserted on a clock — `via: local-auto`, the countdown row and the over-budget flash are gone; the checkbox is *Prepare local transcript (p95)*. Q14 (hard failures) stays automatic
 - *One folder per dictation* (2026-09-20, `shots/<session>/<HH-mm-ss>/`) — superseded 2026-10-01 by *The dictation folder moves up a level*: `shots/<yyyy-MM-dd-HH-mm-ss>/`, flat; the session folder keeps only what has no sentence around it (stray shutters, WAVs, films)
@@ -15211,3 +15212,23 @@ Return he asked for at a shell. Stamped `backButtonStamp`, so a held prompt pane
 to the front app. The 0.6 s re-fire guard keeps one flick to one Return. Cancel is 🔼 ← alone.
 `HotkeyTap.onWisprCancel` lost its only caller and went too. Spec row *🔽 back · drag left* plus
 a mutation that brings the cancel back (`evals/test_gesture_spec.py`).
+
+## 🔼 → mid-sentence flips bound ⇄ caret (2026-10-05)
+
+Victor: *"If, during a bound dictation, I do the gesture again to start a bound dictation, that
+dictation becomes a caret. If I'm repeating it one more time, it gets back to the bound status, so
+it's a toggle, just like kamikaze is."* Supersedes, for a sentence aimed at the bound terminal,
+*🔼 → ends the one open*. The caret → terminal half already existed (2026-09-14 `aimAtBoundTerminal`,
+2026-10-01 `aimAtPreviousTerminal`); the missing half is `aimAtCaret`: `pasteMode` on, and the
+sentence becomes what 🔼 would have opened — `caretPrompt`, the full envelope, submitted into a
+Claude Code prompt — or, for a plain sentence that had been redirected, plain words again
+(`cleanRedirected` off). The chip's destination row says `caret`, flash `↩️ to the caret`. Only while the microphone
+is open: the recipient is latched at the close, as ever.
+
+**The gesture's alone.** F10 raises a new `onForwardRight` → `toggleDictation(flipsDestination:
+true)`; ⌘⌃D and the wheel stay on `onLocalToggle` and keep their stop, so the keyboard can still end
+a bound sentence. 🔼 (the forward click) is the stop of every prompt. 🔼 → still ends a spawn
+(🔼 ↑ owns that destination), an unbound sentence held for a bind, and a caret one with nowhere to
+go. The 2 s dwell still guards the flick, so the start's own slow re-fire cannot flip it. Desk evals
+that used 🔼 → as a stop now use `forward-click` (`spoken`, `cases_audio.stop`, TG2 accepts the
+flip); the spec row checks both halves and two mutations bring the old stop back or let ⌘⌃D flip.

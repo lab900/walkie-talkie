@@ -2299,6 +2299,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.toggleDictation()
             }
         }
+        hotkeys.onForwardRight = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.toggleCoalescedByStall() { return }
+                self.toggleDictation(flipsDestination: true)
+            }
+        }
         // ⬆️ held, mouse moved up — **dictate at a session that does not exist
         // yet.** A gesture of its own, where from 2026-09-05 it was the wheel
         // clicked twice converting a dictation already in flight: the wheel had
@@ -2647,7 +2654,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.sync {
                 switch name {
                 case "forward-right":
-                    if !self.toggleCoalescedByStall() { self.toggleDictation() }
+                    if !self.toggleCoalescedByStall() { self.toggleDictation(flipsDestination: true) }
                     out = ["direct": "toggleDictation"]
                 case "forward-click":
                     self.forwardClickToggle()
@@ -5018,7 +5025,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// to a minute or more, and a mouse button held for a minute is a hand that
     /// cannot do anything else — including take the screenshots (mouse 4) that
     /// the same minute is for.
-    private func toggleDictation() {
+    private func toggleDictation(flipsDestination: Bool = false) {
         // **F1 (lab wave 4): the late stop of a sentence the relay closed for
         // him** — nothing re-routed, nothing opened (a new sentence here would be
         // parked behind the decode and run on to the ceiling).
@@ -5046,9 +5053,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the only gesture that could have said *not the caret, the terminal*
         // was spending itself as the stop.
         //
-        // Nothing else moves: the gesture keeps its stop for a dictation already
-        // aimed at a terminal, and with nothing bound there is nowhere to aim, so
-        // it stops as it always did.
+        // ~~Nothing else moves: the gesture keeps its stop for a dictation
+        // already aimed at a terminal~~ — since 2026-10-05 🔼 → flips that one to
+        // the caret (below); ⌘⌃D still stops it.
         if pasteMode, isBound {
             aimAtBoundTerminal()
             return
@@ -5063,7 +5070,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             aimAtPreviousTerminal(previous)
             return
         }
+        // **…and 🔼 → on a bound sentence takes it to the caret, so the gesture
+        // is a toggle** (2026-10-05). Victor: *"If, during a bound dictation, I
+        // do the gesture again to start a bound dictation, that dictation
+        // becomes a caret. If I'm repeating it one more time, it gets back to
+        // the bound status, so it's a toggle, just like kamikaze is."* The
+        // branch above is the way back. 🔼 is the stop now; ⌘⌃D keeps its own
+        // (`flipsDestination` is the gesture's alone), and a spawn is not a
+        // bound sentence — 🔼 ↑ owns its destination.
+        if flipsDestination, !pasteMode, !spawnPending, isBound {
+            aimAtCaret()
+            return
+        }
         endDictation()
+    }
+
+    /// Point a sentence aimed at the bound terminal at the caret instead — the
+    /// other half of `aimAtBoundTerminal`, see `toggleDictation`. It becomes
+    /// what 🔼 would have opened: the caret **prompt**, envelope and all (a
+    /// plain sentence that was redirected goes back to being plain words).
+    private func aimAtCaret() {
+        pasteMode = true
+        if cleanSentence { cleanRedirected = false } else { caretPrompt = true }
+        overlay.setSpawnDestination("caret", icon: RelayWindow.pinGlyph)
+        syncBorrowedGestures()
+        overlay.flash("↩️ to the caret", duration: 1.5)
+        Log.info("↩️ redirected mid-sentence — these words go to the caret, not the bound terminal")
     }
 
     /// Point a caret sentence at the terminal the relay was bound to last, and

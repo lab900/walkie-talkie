@@ -67,6 +67,12 @@ final class HotkeyTap {
     /// anything else, including take the screenshots the same minute is for.
     var onLocalToggle: (() -> Void)?
 
+    /// 🔼 → — `onLocalToggle`'s start and stop, **plus the destination toggle**
+    /// (2026-10-05): mid-sentence it flips a bound prompt to the caret and a
+    /// caret one back to the terminal, like 🔼 ↓ flips kamikaze. Its own
+    /// callback so ⌘⌃D keeps its stop.
+    var onForwardRight: (() -> Void)?
+
     /// **⌘⌃X — the local model, now** (2026-09-28): the take being recorded, or
     /// the one whose words are still on their way, is transcribed on this Mac
     /// instead of waiting for the cloud. X for *exit* — Victor's *"quick exit"*;
@@ -3530,10 +3536,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             }
             switch keyCode {
             // ➡️ — the mouse moved right with the forward button held: start the
-            // dictation, or end the one already open. The same call ⌘⌃D makes,
-            // so a dictation started with the key ends with the gesture and the
-            // other way round. Where it goes is not this gesture's business: a
-            // bound terminal takes it, and Replace Wispr sends it to the caret.
+            // dictation, or — mid-sentence — flip it between the bound terminal
+            // and the caret (2026-10-05, `onForwardRight`); 🔼 ends it.
             case VK_F10:
                 let f10Now = CACurrentMediaTime()
                 // **The window slides** (2026-09-18): a dropped re-fire counts
@@ -3566,7 +3570,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                     return swallow("\(gesture) — the sentence is too young to stop", type, event)
                 }
                 queueToggle()
-                DispatchQueue.global().async { [weak self] in self?.onLocalToggle?() }
+                DispatchQueue.global().async { [weak self] in self?.onForwardRight?() }
                 return swallow(gesture, type, event)
 
             // ⬅️ — throw the running dictation away. Deliberately the mirror
@@ -4492,7 +4496,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         [("forward-click", VK_F7,  "⌃⌥⌘F7",
           "prompt at the caret (screenshot, dictated marker, attachments; submitted in a Claude Code prompt) — or bind, with the left button held"),
          ("forward-right", VK_F10, "⌃⌥⌘F10",
-          "start the dictation, or end the one open — with the left button held, bind and dictate"),
+          "start the dictation; mid-sentence flip it between the bound terminal and the caret — with the left button held, bind and dictate"),
          ("forward-left",  VK_F11, "⌃⌥⌘F11", "cancel the dictation in flight"),
          ("forward-up",    VK_F8,  "⌃⌥⌘F8",  "dictate at a session that does not exist yet"),
          ("forward-down",  VK_F9,  "⌃⌥⌘F9",  "kamikaze — appends the word to the sentence in flight"),

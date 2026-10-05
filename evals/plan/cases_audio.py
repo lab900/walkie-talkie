@@ -91,9 +91,10 @@ def start(mark=None):
     return mark
 
 def stop():
-    """F10 only while our sentence is still listening — otherwise the chord would start a new one."""
+    """🔼 (F7) only while our sentence is still listening — otherwise the chord would start a new one.
+    Not 🔼 → (F10): on a bound sentence it flips it to the caret since 2026-10-05."""
     if state()["listening"]:
-        gesture("forward-right")
+        gesture("forward-click")
     else:
         post("/test/cancel")
 
@@ -781,7 +782,7 @@ def lc13():
         th = play_async(CLIP_EN, tail=1.0)
         S = sample(4.5, hz=10, fn=state)
         th.join()
-        gesture("forward-right")
+        gesture("forward-click")
         S2 = sample(4.0, hz=20, fn=state)
         delivered(m, 60)
         settle_out(60)
@@ -834,7 +835,7 @@ def b1():
         t_first = wait_for(lambda: time.time() if lc()["words"] > 0 else None, 8, 0.03)
         live = state().get("live") or {}
         th.join()
-        gesture("forward-right")
+        gesture("forward-click")
         delivered(m, 60)
         settle_out(60)
     since = log_since(m)
@@ -956,7 +957,7 @@ def b5():
         while th.is_alive():
             kt = max(kt, (state().get("live") or {}).get("keyterms") or 0)
             time.sleep(0.3)
-        gesture("forward-right")
+        gesture("forward-click")
         delivered(m, 60)
         settle_out(60)
         c1 = state()["elevenCost"]
