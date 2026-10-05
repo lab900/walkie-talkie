@@ -89,6 +89,42 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   wait out a load. `POST /test/dictation` enters *below* the recogniser with a fabricated string, so
   it says nothing about it. → journal: *The recogniser*
 
+## Live captions from the local model (2026-10-05, `LocalLiveCaption`)
+
+Victor: *"Pe stilul Eleven Labs Live Captions … cu ajutorul modelului local … un fel de sliding
+window … să le trimiți atunci când fac o pauză în vorbire"*, then *"în niciun caz nu trebuie să
+întârzii transcrierea finală … instantaneu anulezi orice se întâmpla în curs … vei tăia unde pare
+că nu mai vorbesc"*. Engine submenu `Live captions (local)` (default on, `UserDefaults`
+`localLiveCaptions`, `WT_LOCAL_LIVE=0|1`); the band is `LiveCaptionBand`, fed through the
+protocol's `didHearLive` / `didOpenLive` like ElevenLabs + Live.
+
+- **A second helper, `LocalWhisper(live: true)`** — same weights, its own process, ~2 GB more.
+  Up while a local model is the engine (`prepare`), let go when `didHearLive` is nilled
+  (`setEngine` / `swapSource`). It never touches `DecodeRate`.
+- **The final decode never waits on it.** `stop()` / `cancel()` call `live.end()` first; a window
+  still decoding is **SIGKILLed** (`LocalWhisper.killNow`) and the helper comes back 1 s after the
+  sentence's own decode answered (`warmLater`). **A cancel inside one helper was measured and
+  rejected:** SIGUSR1 → a Python exception took up to **0.7 s** to land (MLX holds the
+  interpreter; a whole 20 s window decodes in 0.9 s), and it would have queued the final behind it.
+- **When:** 0.5 s of the meter's quiet after ≥ 0.3 s of new speech, or every 2.5 s of steady
+  speech. **What:** the in-memory take (`MicRecorder.takeSlice`, absolute ruler `takeEnd` —
+  `takeDropped` survives the 120 s cap) from `anchor` to the voice's end + 0.25 s, never the
+  trailing silence; raw int16 to the helper's `{"pcm", "segments": true}` request (no ffmpeg).
+  Started only once the microphone is open (before that `takeEnd` is the last take's).
+- **Window size is free up to 30 s**: Whisper pads to 30 s, his decodes are 1.24 s median at
+  3–6 s of audio and 1.68 s at 20–60 s. Measured on a 46 s dictation: 27 windows, median 0.87 s.
+- **What stays fixed — `LiveAgreement`** (pure, `LiveAgreementTests`): LocalAgreement on
+  Whisper's own segments (no word timings — +45 %). A segment two decodes in a row agree on
+  (case/punctuation aside), not the last one, ending ≥ 1 s before the voice stopped, is settled and
+  the window starts at its end. Segments starting in the trailing silence are dropped; a looped
+  window (cr > 2.4) is not shown. Past 28 s with nothing settled, the pending segments that end
+  before the kept last 20 s are settled as heard (`commitBefore`) — never a cut inside one, or
+  its words come back twice; one segment spanning it all → kept, window starts afresh.
+- Log: `💬 live: N s window (pause|steady) decoded in X s, on screen Y s after the ask — k settled,
+  m moving`, `💬 live: a window was still decoding at the close — its helper killed…`, one
+  summary per take. `GET /engine` → `whisper.live {on, ready, active, pid}`.
+- **A/B against ElevenLabs + Live:** `evals/live-local-vs-eleven/` (`ab.py`, report in its README).
+
 ## The decode-time estimate (`DecodeRate.swift`)
 
 - **One line per engine since 2026-09-23** — `Sample.engine` (`whisper-local` · `elevenlabs` ·
