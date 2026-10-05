@@ -15141,6 +15141,9 @@ Still nothing, though the new log line said `play()` started (0.31 s, volume 1, 
 Taken to be the built-in speakers waking late and eating a clip whose sound is all in its first
 0.2 s. Then Victor cut the clip himself (`~/Downloads/… (mp3cut.net).mp3`, 0.26 s): *"Pune-l pe ăla la
 volum mic"* — now his clip, mono, −10 dB (peak −20 dBFS), behind 150 ms of silence.
+It then hissed twice (*"să hârâie o singură dată, nu de 2 ori"*): `adelay=150` delays only the first
+channel, so the stereo→mono mix held the clip twice, 150 ms apart. Rebuilt with the mix first and
+`adelay=150:all=1`; −15 dB so the single copy is as loud as each half-copy was.
 
 ## The temperature ladder climbs only on a loop (2026-10-04)
 

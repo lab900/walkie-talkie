@@ -7,10 +7,13 @@ import AppKit
 /// noise until 2026-10-05, when he picked a real one from youtu.be/nt71N59hydQ
 /// and cut it himself (*"Am pus clipul pe care îl doresc în Downloads tăiat
 /// frumos. Pune-l pe ăla la volum mic"*): `assets/start-squelch.wav` is his
-/// 0.26 s mp3, mono 44.1 kHz, −10 dB (peak −20 dBFS), led by 150 ms of silence —
+/// 0.26 s mp3, mono 44.1 kHz, −15 dB (peak −21 dBFS), led by 150 ms of silence —
 /// `play()` was starting and he heard nothing, because the built-in speakers
 /// wake late and swallowed the whole short clip, where the old 0.32 s hiss
 /// outlasted the wake.
+/// The silence goes on **both** channels before the mono mix (`adelay=150:all=1`):
+/// on the left alone it summed two copies 150 ms apart — *"să hârâie o singură
+/// dată, nu de 2 ori"*.
 enum StartChime {
 
     /// `UserDefaults` beside `autosend`: a preference, not data. Absent = off.
