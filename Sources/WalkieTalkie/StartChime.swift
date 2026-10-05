@@ -6,8 +6,8 @@ import AppKit
 /// and it plays only while the `Radio Squelch` row is ticked. Synthesised white
 /// noise until 2026-10-05, when he picked a real one: *"de la 0:24 taie efectul
 /// de stație pornită"* from youtu.be/nt71N59hydQ — `assets/start-squelch.wav`,
-/// 25.03–25.34 s of it, mono 44.1 kHz, turned down 17.4 dB to the old hiss's
-/// loudness (RMS −38 dB), 3 ms in / 40 ms out.
+/// 25.03–25.34 s of it, mono 44.1 kHz, turned down 6 dB (−17.4 dB, the old hiss.s
+/// RMS, was inaudible: *"nu aud nimic"* — it is mostly a click), 3 ms in / 40 ms out.
 enum StartChime {
 
     /// `UserDefaults` beside `autosend`: a preference, not data. Absent = off.
