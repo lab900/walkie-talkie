@@ -187,6 +187,8 @@ cp "$DIR/assets/caret-halo-5x5.png" "$CONTENTS/Resources/caret-halo-5x5.png"
 # The halo preview's voice: one clip of his own, copied out of the corpus (see
 # `ClipVoice`). Never played aloud.
 cp "$DIR/assets/halo-voice.wav" "$CONTENTS/Resources/halo-voice.wav"
+# The Radio Squelch row's sound, cut from a YouTube walkie-talkie SFX (see `StartChime`).
+cp "$DIR/assets/start-squelch.wav" "$CONTENTS/Resources/start-squelch.wav"
 # The voice-halo page, which the halo runs whole in a web view (`HaloPage`):
 # vendored from a pinned tag of the sibling repo by `tools/vendor-voice-halo.sh`
 # (a no-op without the sibling — the committed copy is what ships), then copied

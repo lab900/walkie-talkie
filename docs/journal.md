@@ -15130,6 +15130,11 @@ off); ticking it plays it once so he hears what he chose. `WT_START_SOUND` is go
 Same day, after hearing it: *"fă-l de 3x mai discret"* — gain 0.9 → 0.3 (peak −17 dBFS, RMS −29 dBFS).
 Then *"pune fade in/out un pic ca e prea brutal. plus -30% volum"* — raised-cosine fades of 30 ms in and 50 ms out instead of linear 4/25 ms, gain 0.3 → 0.21.
 Then (2026-10-01) *"redu-l încă la jumătate din volum"* — gain 0.21 → 0.105 (−6 dB).
+Then (2026-10-05) a real one in place of the synthesis: *"de la 0:24 taie efectul de stație pornită"*
+from youtu.be/nt71N59hydQ ("Walkie Talkie Sound Effect"). The first burst after 0:24 is a click plus
+a short hiss at 25.04–25.33 s; `assets/start-squelch.wav` is 25.03–25.34 s, mono 44.1 kHz,
+−17.4 dB to land on the old hiss's RMS (−38 dBFS; peak −22 dBFS, the click), 3 ms in / 40 ms out.
+`StartChime` loads it from `Resources/` (or `assets/` from a `.build` binary); the row and its default are unchanged.
 
 ## The temperature ladder climbs only on a loop (2026-10-04)
 
