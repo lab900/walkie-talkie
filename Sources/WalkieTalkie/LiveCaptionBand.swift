@@ -8,7 +8,7 @@ import AppKit
 /// textul. Îl scoți așadar din tooltip."*
 ///
 /// One borderless, click-through panel, `bandHeight` tall, pinned to the top
-/// of the screen the pointer was on when the sentence began — under the menu
+/// of the Retina (since 2026-10-05; the pointer's screen before) — under the menu
 /// bar, so neither covers the other. White text with a black outline and a
 /// soft shadow, and since 2026-09-28 a backdrop (below).
 ///
@@ -214,15 +214,21 @@ final class LiveCaptionBand {
 
     // MARK: - Open / close
 
-    /// Opens the band across the top of the screen under the pointer, empty,
-    /// or fades it out. `RELAY_SHOOT` never shows it: it is not a chip state.
+    /// Opens the band across the top of the Retina, empty, or fades it out.
+    /// `RELAY_SHOOT` never shows it: it is not a chip state.
+    ///
+    /// **Always the built-in display** (2026-10-05, Victor: *"Mută subtitrarea
+    /// să apară mereu pe retina, indiferent unde pornesc dictarea efectivă"*) —
+    /// it used to open on the screen under the pointer. The pointer's screen
+    /// only when the lid is closed (`CaretHalo.retina` nil), as Stars do.
     func setOpen(_ open: Bool) {
         guard open != isOpen else { return }
         isOpen = open
         if open {
             guard !RelayWindow.shooting else { isOpen = false; return }
             let mouse = NSEvent.mouseLocation
-            let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+            let screen = CaretHalo.retina
+                ?? NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
             guard let screen else { isOpen = false; return }
             let v = screen.visibleFrame
             screenFrame = v

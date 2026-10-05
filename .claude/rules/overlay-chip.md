@@ -158,7 +158,8 @@ yields to `--label`).
 ## `Listening...` and `Transcribing...`
 
 - **The live caption is not on the chip since 2026-09-26** — it is `LiveCaptionBand`, a click-through
-  band across the top of the screen under the pointer (below the menu bar), white text with a black
+  band across the top of **the Retina** (below the menu bar; since 2026-10-05, *"mereu pe retina,
+  indiferent unde pornesc dictarea"* — the pointer's screen before, and still with the lid closed), white text with a black
   outline and shadow, like a film subtitle. Victor: *"îl scoți așadar din tooltip"*. **Never put it
   back on the chip.** → journal: *The live caption is a subtitle band (2026-09-26)*
 - **Two lines that roll up, since 2026-09-28** (*"Not very happy with how they look, scrolling text
