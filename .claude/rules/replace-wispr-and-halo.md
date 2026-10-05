@@ -714,7 +714,11 @@ closes. Between the two is the whole transcription — the stretch in which he i
   **Both live on the Retina since 2026-10-05** (*"să fie mereu pe retina când apar"*): `anchoredFrame`
   places them on the built-in display whatever screen the pointer is on (`CaretHalo.retina`);
   the puzzle starts from the pointer only when it is on the Retina, else from the middle.
-  Lid shut ⇒ the pointer's screen.
+  Lid shut ⇒ the pointer's screen. **`rebuild` clears `anchor` before `makePanel`** (same day,
+  *"arăți puzzle-ul pe ecranul de sus, nu pe retina"*): a Mosaic built after a Sparks sentence was
+  sized from Sparks' 2254pt anchor, `show` moved only its origin, and the ~2254pt-tall window sat
+  mostly on the screen above — with separate Spaces per display, macOS shows it only there. Log
+  witness: `Mosaic, a 2254pt square` (right after a `Sparks` line) instead of 1296pt.
 - **A replaced halo panel fades out in 300 ms, never cuts** (2026-09-29, *"when the puzzle effect
   ends, it should not disappear abruptly"*): the mic's close swaps Mosaic for the rewind through
   `CaretHalo.retireOld`, which used to `orderOut` in one frame. Every dress change crossfades now.

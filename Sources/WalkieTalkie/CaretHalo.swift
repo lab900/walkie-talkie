@@ -891,6 +891,12 @@ final class CaretHalo {
             under?.stop()
         }
         panel = nil; stage = nil; pulse = nil; web = nil; under = nil
+        // **The last sentence's anchor is not this panel's** (2026-10-05):
+        // after a Sparks sentence `panelFrame` sized Mosaic from Sparks' 2254pt
+        // square, `show` then moved only the origin, and the puzzle stood
+        // ~950pt tall above the Retina — on the screen over it. `show` sets
+        // the new one.
+        anchor = nil
         _ = makePanel()
         Log.info("◯ halo panel rebuilt \(Self.sinceStyleChange)")
         if retiring != nil {
