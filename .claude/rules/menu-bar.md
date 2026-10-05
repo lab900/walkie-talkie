@@ -383,8 +383,10 @@ and source should be selectable via menu too. those unavailable disabled"* — a
 - **The local model's name reads `mlx-community/whisper-large-v3-turbo — 2.6 GB RAM`, in full,
   read when the menu opens — in the *submenu*.** It was a disabled row of its own at the bottom of
   the menu until 2026-09-14, then the Engine row's own title; since the same day the top-level row
-  says only `Engine: Local (2.6 GB)` (`engineShortTitle`; **since 2026-10-04 `Engine: V3t💻 1.5 GB`** —
-  `V3`, `t` for turbo, `-victor` for his LoRA, no brackets round the GB; the list reads *Large V3
+  says only `Engine: Local (2.6 GB)` (`engineShortTitle`; **since 2026-10-05 `Engine: Turbo💻 1.5 GB`,
+  `Turbo LoRA Victor💻`, `Large LoRA Victor💻`** (*"V3t-victor -> rename to "Turbo LoRA Victor💻". si
+  celelalte similar"*; 2026-10-04 it was `V3t` / `V3t-victor` / `V3-victor`), no brackets round the GB;
+  a LoRA's short name is the `short` of its `~/.walkie-talkie/models/<folder>/model-card.json`; the list reads *Large V3
   Victor · Large V3-turbo · Large V3-turbo Victor LoRA*, full-size before turbo, original before LoRA,
   names from each `model-card.json`'s `label`/`short`) and the full id stays one hover away, in
   the list under the arrow. A model id on the top-level row stretched the whole menu to the width

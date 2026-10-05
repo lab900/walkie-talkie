@@ -1486,7 +1486,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         refreshGlyph()
     }
 
-    /// `Engine: V3t💻 1.5 GB` while the local model is the one listening;
+    /// `Engine: Turbo💻 1.5 GB` while the local model is the one listening;
     /// `Engine: Wispr Flow` while the other one is.
     ///
     /// **The row is short and the submenu is long** (Victor, 2026-09-14): the
@@ -1918,7 +1918,7 @@ final class StatusItem: NSObject, NSMenuDelegate {
         switch id {
         case "eleven", "eleven-live": (name, emoji) = ("ElevenLabs", "☁️")
         case "wispr": (name, emoji) = ("Wispr Flow", "☁️")
-        default: return engineShortTitle(id)   // already `V3t💻 1.5 GB`
+        default: return engineShortTitle(id)   // already `Turbo💻 1.5 GB`
         }
         let title = engineShortTitle(id)
         guard let r = title.range(of: name) else { return title + " " + emoji }
@@ -1935,9 +1935,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         }
         if id == "wispr" { return "Wispr Flow" }
         // **The picked model's short name, the 💻 against it, then the RAM** —
-        // `V3t💻 1.5 GB`, `V3t-victor💻 1.5 GB`, `V3-victor💻 2.9 GB` (2026-10-04,
-        // Victor: *"v3[-turbo][-victor]💻 #.# GB"*, *"V3t … fara ( ) in jurul
-        // GB"*; it read `Turbo 💻 (2.2 GB)` from 2026-10-03).
+        // `Turbo💻 1.5 GB`, `Turbo LoRA Victor💻 1.5 GB`, `Large LoRA Victor💻 2.9 GB`
+        // (2026-10-05; `V3t…` / `V3-victor…` 2026-10-04, *"fara ( ) in jurul GB"*;
+        // it read `Turbo 💻 (2.2 GB)` from 2026-10-03).
         let name = (WhisperModels.option(for: WhisperModels.selected)?.shortTitle ?? "Local") + "💻"
         if engineLoading { return name + " loading…" }
         guard let bytes = whisperFootprint?() else { return name }

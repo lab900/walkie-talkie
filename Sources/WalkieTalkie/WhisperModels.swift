@@ -98,13 +98,13 @@ enum WhisperModels {
             return isOriginal ? "Large V3-turbo" : (id as NSString).lastPathComponent
         }
 
-        /// What the top-level `Engine:` row calls it — `V3`, `t` for turbo,
-        /// `-victor` for his LoRA: `V3-victor`, `V3t`, `V3t-victor` (2026-10-04,
-        /// Victor: *"v3[-turbo][-victor]💻 #.# GB"*, then *"V3t, t=turbo"*). A
-        /// card's `short` says it for a folder.
+        /// What the top-level `Engine:` row calls it — `Turbo`, `Turbo LoRA
+        /// Victor`, `Large LoRA Victor` (2026-10-05, Victor: *"V3t-victor -> rename
+        /// to "Turbo LoRA Victor💻". si celelalte similar"*; `V3t` / `V3t-victor` /
+        /// `V3-victor` since 2026-10-04). A card's `short` says it for a folder.
         var shortTitle: String {
             if let card { return card.short ?? title }
-            return isOriginal ? "V3t" : title
+            return isOriginal ? "Turbo" : title
         }
 
         /// Turbo after the full-size V3; within a base, the published weights

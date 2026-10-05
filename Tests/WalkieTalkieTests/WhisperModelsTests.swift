@@ -6,7 +6,7 @@ import XCTest
 final class WhisperModelsTests: XCTestCase {
 
     private let card = """
-    {"name": "whisper-turbo-victor", "label": "Large V3-turbo Victor LoRA", "short": "V3t-victor", "base": "openai/whisper-large-v3-turbo",
+    {"name": "whisper-turbo-victor", "label": "Large V3-turbo Victor LoRA", "short": "Turbo LoRA Victor", "base": "openai/whisper-large-v3-turbo",
      "method": "LoRA r=32", "data": "3,086 clips / 9.3 h", "trained": "2026-10-03 on Runpod H100 SXM",
      "cost_usd": 3.6, "held-out": "733 Wispr dictations: WER 20.4% → 15.3%",
      "wer": {"before": 20.4, "after": 15.3}}
@@ -17,7 +17,7 @@ final class WhisperModelsTests: XCTestCase {
         let option = WhisperModels.Option(id: "/x/whisper-turbo-victor", card: c)
         XCTAssertEqual(StatusItem.localRowTitle(option, loading: false),
                        "Large V3-turbo Victor LoRA 💻")
-        XCTAssertEqual(option.shortTitle, "V3t-victor")
+        XCTAssertEqual(option.shortTitle, "Turbo LoRA Victor")
         XCTAssertTrue(option.details.hasPrefix(
             "whisper-turbo-victor · trained 3 Oct 2026 · $3.6 · WER 20.4→15.3%\n"))
         XCTAssertTrue(option.details.contains("Base: openai/whisper-large-v3-turbo"))
@@ -28,7 +28,7 @@ final class WhisperModelsTests: XCTestCase {
         XCTAssertEqual(StatusItem.localRowTitle(WhisperModels.Option(id: WhisperModels.original, card: nil),
                                                 loading: false),
                        "Large V3-turbo 💻")
-        XCTAssertEqual(WhisperModels.Option(id: WhisperModels.original, card: nil).shortTitle, "V3t")
+        XCTAssertEqual(WhisperModels.Option(id: WhisperModels.original, card: nil).shortTitle, "Turbo")
         let noLabel = WhisperModels.Card(name: "x-model")
         XCTAssertEqual(WhisperModels.Option(id: "/m/x", card: noLabel).title, "x-model")
     }
