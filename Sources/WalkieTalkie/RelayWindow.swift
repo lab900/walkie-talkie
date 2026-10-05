@@ -5029,6 +5029,7 @@ private let frontLabel = NSTextField(labelWithString: "")
             // relayout back onto a prompt that has already gone.
             panel.ignoresMouseEvents = true
             setHovering(false)
+            spawnHoldPointer = NSEvent.mouseLocation
         } else {
             layoutContent()
             reposition()
@@ -5160,6 +5161,11 @@ private let frontLabel = NSTextField(labelWithString: "")
     /// chip back.
     func releaseSpawnPanel(fadeOver seconds: TimeInterval = 0.5) {
         guard spawnPanelHeld else { return }
+        if pointerReadsSpawnPanel {
+            lingerWhileRead(fadeOver: seconds)
+            return
+        }
+        spawnLinger?.invalidate(); spawnLinger = nil
         spawnPanelHeld = false
         spawnPanelFading = true
         NSAnimationContext.runAnimationGroup({ ctx in
@@ -5175,10 +5181,44 @@ private let frontLabel = NSTextField(labelWithString: "")
         })
     }
 
+    /// **The pointer on the held dialog keeps it, even after the prompt has gone**
+    /// (2026-10-05, Victor: *"dacă țin mouse-ul pe căsuța aceea care are textul,
+    /// chiar dacă textul a plecat deja în terminal … chiar dacă nu pot da click să
+    /// editez textul, când duc mouse-ul acolo trebuie să rămână pe ecran, să pot
+    /// să citesc mai atent"*). The release waits while the pointer is inside the
+    /// panel's frame and fades the moment it leaves. Still inactive — no hover,
+    /// no ✕, no click (2026-10-04) — so it is read from geometry, polled at 10 Hz.
+    /// A pointer that has not moved since the hold began is resting, not
+    /// reading (the autosend rule, `promptPointerSlack`), and does not keep it.
+    /// Anything that ends the hold — a dictation, a flash — ends this too.
+    private var spawnHoldPointer: NSPoint?
+    private var spawnLinger: Timer?
+
+    private var pointerReadsSpawnPanel: Bool {
+        let p = NSEvent.mouseLocation
+        guard panel.isVisible, panel.frame.contains(p) else { return false }
+        guard let at = spawnHoldPointer else { return true }
+        return hypot(p.x - at.x, p.y - at.y) > Self.promptPointerSlack
+    }
+
+    private func lingerWhileRead(fadeOver seconds: TimeInterval) {
+        guard spawnLinger == nil else { return }
+        Log.info("✨ the spawn's dialog stays — the pointer is on it")
+        spawnLinger = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] t in
+            guard let self = self else { t.invalidate(); return }
+            guard self.spawnPanelHeld else { t.invalidate(); self.spawnLinger = nil; return }
+            guard !self.pointerReadsSpawnPanel else { return }
+            t.invalidate(); self.spawnLinger = nil
+            Log.info("✨ the pointer left the spawn's dialog — it goes")
+            self.releaseSpawnPanel(fadeOver: seconds)
+        }
+    }
+
     /// The hold is over because something else wants the chip. Called from
     /// `layoutContent`, so there is no state change that can draw over a held
     /// dialog and leave it half on screen.
     private func endSpawnHold() {
+        spawnLinger?.invalidate(); spawnLinger = nil
         guard spawnPanelHeld || spawnPanelFading else { return }
         spawnPanelHeld = false
         spawnPanelFading = false

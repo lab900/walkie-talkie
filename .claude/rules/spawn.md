@@ -344,6 +344,13 @@ recently bound terminals under the folders, `RebindHistory.openTerminals` — de
   no click) and **only a dictation, a wait, a flash or a new prompt end the hold** — the spawn's own
   bind and the 10 s title tick no longer relayout over it (`layoutContent`'s early return;
   `reposition` is guarded too). A resumed session (`resumeClaude`) keeps the old release.
+- **The pointer on it keeps it past the release** (2026-10-05, Victor: *"dacă țin mouse-ul pe
+  căsuța aceea … chiar dacă textul a plecat deja în terminal … să rămână pe ecran, să pot să citesc
+  mai atent"*). `releaseSpawnPanel` defers while `NSEvent.mouseLocation` is inside `panel.frame`
+  (polled at 10 Hz — the panel still ignores mouse events, so no tracking area), and fades as soon
+  as the pointer leaves. A pointer that has not moved > 2 pt since the hold began is resting, not
+  reading, and does not keep it. Log `✨ the spawn's dialog stays — the pointer is on it` /
+  `✨ the pointer left the spawn's dialog — it goes`. A dictation or a flash still ends it.
 - **The terminal is open before any of this starts.** A flight needs a real rectangle, which is
   why `adoptSpawnedWindow` polls up to `spawnWindowWait` = 4 s and why the panel is *held* rather
   than dismissed when the prompt resolves.
