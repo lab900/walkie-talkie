@@ -362,6 +362,14 @@ enum HaloStyle: String, CaseIterable {
         /// in afara ecranului si aproape invizibile, iar 1,5 s ascuns mancau
         /// jumatate dintr-o transcriere Scribe. `WT_REWIND_WARMUP` il muta.
         var warmup: TimeInterval? = nil
+        /// **Warm-up dintr-o rafala, nu pe ceas** (2026-10-05, Victor: *"începe
+        /// să scrie transcribing, deși încă n-a apărut reverse tunnel-ul"*). Cele
+        /// `warmup` secunde de cadre ascunse sunt randate pe loc, una dupa alta,
+        /// pe zgomotul de start (`ProjectMHalo.preroll`), si imaginea se arata
+        /// imediat dupa — nu dupa `warmup` secunde de ceas. Pe ceas, cele 0,6 s +
+        /// incarcarea presetului (~0,17 s) mancau aproape tot o transcriere locala
+        /// (~1 s): tunelul aparea deja pe fereastra si se stingea pe loc.
+        var burstWarmup = false
         /// **Cat a curs deja efectul cand apare** (2026-09-26, Victor: *"în loc să
         /// văd linia, vreau să văd urmele lungi deja construite, ca și cum ar fi
         /// trecut 100–200 ms"*). Un inel ridicat din nou pe acelasi motor pornea din
@@ -480,7 +488,8 @@ enum HaloStyle: String, CaseIterable {
                                          // maresti sensibilitatea tunelului"*)
                                          hole: 0.22, peak: 0.80, audioGain: 0.8, trail: 0.01, lag: 0,
                                          nativeOnly: true, invert: 0.9,
-                                         warmup: TimeInterval(ProcessInfo.processInfo.environment["WT_REWIND_WARMUP"] ?? "") ?? 0.6)
+                                         warmup: TimeInterval(ProcessInfo.processInfo.environment["WT_REWIND_WARMUP"] ?? "") ?? 0.6,
+                                         burstWarmup: ProcessInfo.processInfo.environment["WT_REWIND_BURST"] != "0")
         // **Cauldron needs `gain: 6` to be seen at all** (2026-09-21). It came
         // out of the catalogue at the default 1 and nobody had worn it for a
         // whole dictation until it became Wispr's dress; Victor's report was

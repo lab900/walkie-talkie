@@ -1334,7 +1334,7 @@ final class CaretHalo {
         guard let from = rewindStart else { return rewindAim }
         guard let to = rewindAim else { return from }
         let t = CGFloat(RewindTimeline.travel(elapsed: CFAbsoluteTimeGetCurrent() - rewindFrom,
-                                              predicted: rewindEstimate))
+                                              predicted: rewindEstimate, visibleFrom: Self.rewindVisibleFrom))
         return NSPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t)
     }
     private var rewindStart: NSPoint?
@@ -1380,10 +1380,14 @@ final class CaretHalo {
     }
     /// When Reverse tunnel can first be seen after the close: its own warm-up
     /// (`HaloStyle.Preset.warmup`, shorter than the other presets') — the engine
-    /// renders hidden before that.
+    /// renders hidden before that. **Since 2026-10-05 that warm-up is a burst**
+    /// (`Preset.burstWarmup`): what is left is loading the preset (~0.17 s in
+    /// the log) and the burst itself, so `burstVisibleFrom`.
     static var rewindVisibleFrom: TimeInterval {
-        tunnelStyle.preset?.warmup ?? ProjectMHalo.warmup
+        if tunnelStyle.preset?.burstWarmup == true { return burstVisibleFrom }
+        return tunnelStyle.preset?.warmup ?? ProjectMHalo.warmup
     }
+    private static let burstVisibleFrom: TimeInterval = 0.25
     /// The stamp's size at the start, × its resting size: the ring (0.66 of the
     /// picture's radius) then spans ~1.5 of the screen's long side —
     /// 1.5 / (0.66 × 0.317) ≈ 7.2.

@@ -158,11 +158,20 @@ enum RewindTimeline {
     /// way): `elapsed` from the close, eased in and out so it leaves the pointer
     /// and settles on the window gently. The shrink is untouched.
     ///
+    /// **It leaves the pointer only once it can be seen** (2026-10-05, Victor:
+    /// *"trebuia să apară … în jurul mouse-ului cu opacitate 20% și … cât timp
+    /// transcrie, să se deplaseze spre centrul ferestrei țintă"*). The clock
+    /// started at the close, so with the tunnel hidden for its warm-up (~0.77 s)
+    /// and a local transcription of ~1 s predicted, it had arrived (0.5 s) before
+    /// it showed — it appeared on the window and was gone. Now `visibleFrom`
+    /// holds it on the pointer until then, and the half is of what is left of
+    /// the prediction (at least `minimumSpan`).
+    ///
     /// - Returns: 0 on the pointer … 1 on the window.
-    static func travel(elapsed: TimeInterval, predicted: TimeInterval) -> Double {
-        let span = arriveShare * predicted
+    static func travel(elapsed: TimeInterval, predicted: TimeInterval, visibleFrom: TimeInterval = 0) -> Double {
+        let span = arriveShare * (visibleFrom > 0 ? max(predicted - visibleFrom, minimumSpan) : predicted)
         guard span > 0 else { return 1 }
-        let u = min(max(elapsed / span, 0), 1)
+        let u = min(max((elapsed - visibleFrom) / span, 0), 1)
         return u * u * (3 - 2 * u)
     }
     /// The share of the prediction by which the tunnel is on the window.

@@ -190,6 +190,11 @@ final class RewindTimelineTests: XCTestCase {
         XCTAssertEqual(RewindTimeline.travel(elapsed: 9, predicted: 4), 1)                     // and stays there
         XCTAssertLessThan(RewindTimeline.travel(elapsed: 0.2, predicted: 4), 0.1)             // leaves gently
         XCTAssertEqual(RewindTimeline.travel(elapsed: 0, predicted: 0), 1)
+        // held on the pointer until it can be seen, then half of what is left
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 0.25, predicted: 1, visibleFrom: 0.25), 0)
+        XCTAssertLessThan(RewindTimeline.travel(elapsed: 0.3, predicted: 1, visibleFrom: 0.25), 0.1)
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 0.25 + 0.375, predicted: 1, visibleFrom: 0.25), 1)
+        XCTAssertEqual(RewindTimeline.travel(elapsed: 0.25 + 0.3, predicted: 0.5, visibleFrom: 0.25), 1)  // minimumSpan
     }
 
     /// 2026-10-04: the ring starts as tall as the screen.

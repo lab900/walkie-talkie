@@ -388,8 +388,16 @@ fade out foarte repede, după ce dictarea s-a injectat cu succes. În timp cât 
   warm-up is over (`Pose.shown`); the start size `RewindTimeline.from(screenHeight:…)` per rewind
   (`CaretHalo.rewindApproachFrom`, the pointer's screen at the close); `travel(elapsed:predicted:)`
   is a smoothstep on the clock to `arriveShare` 0.5 × `DecodeRate.predict`. Supersedes the
-  2026-10-02 *on the window once the ring is half the screen across*. Shrink untouched. The
-  tunnel still cannot show before projectM's warm-up.
+  2026-10-02 *on the window once the ring is half the screen across*. Shrink untouched.
+- **The warm-up is a burst, and the travel waits for it** (2026-10-05: *"începe să scrie
+  transcribing, deși încă n-a apărut reverse tunnel-ul"*). Measured in the log: the fresh engine
+  showed at +770 ms after the close (preset load ~170 ms + the 0.6 s wall-clock warm-up), local
+  Whisper landed at 0.9–1.8 s, and `travel` had already arrived at 0.5 × prediction — so the
+  tunnel appeared on the window and went out. Now `Preset.burstWarmup` renders the warm-up's
+  frames at once off screen (`ProjectMHalo.preroll`, log `◯ projectM 7: the warm-up in one burst —
+  … in X ms`), `CaretHalo.rewindVisibleFrom` is 0.25 s, and `travel(…, visibleFrom:)` holds it on
+  the pointer until then, arriving at half of what is left of the prediction (≥ 0.3 s).
+  `WT_REWIND_BURST=0` brings the wall-clock warm-up back.
 - **The take is kept for every destination** (2026-09-30): the call ran for all since 09-23, but
   `settleTake` was still `latchedAtCaret ? lastTake() : []`, so every bound sentence logged `⏪ no
   rewind — only 0 samples`.

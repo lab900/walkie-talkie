@@ -412,7 +412,7 @@ final class ProjectMHalo: NSView, HaloWebHost {
             CATransaction.commit()
             renderQueue.async { [weak self] in
                 guard let self = self else { return }
-                self.preroll()
+                self.preroll(seconds: self.prerollSeconds, why: "pre-rolled")
                 self.visibleFrame = self.totalFrames
                 self.visibleWall = CFAbsoluteTimeGetCurrent()
                 self.visibleFading = false
@@ -432,21 +432,33 @@ final class ProjectMHalo: NSView, HaloWebHost {
         startTimer()
         if !fresh { onVisible?(); return }
         picture.opacity = 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + (preset.warmup ?? Self.warmup)) { [weak self] in
-            guard let self = self else { return }
-            self.renderQueue.async { [weak self] in
+        let warmup = preset.warmup ?? Self.warmup
+        if preset.burstWarmup {
+            // The warm-up's frames at once, off screen — see `Preset.burstWarmup`.
+            renderQueue.async { [weak self] in
                 guard let self = self else { return }
-                self.visibleFrame = self.totalFrames
-                self.visibleWall = CFAbsoluteTimeGetCurrent()
-                self.visibleFading = true
+                self.preroll(seconds: warmup, why: "the warm-up in one burst")
+                DispatchQueue.main.async { [weak self] in self?.reveal() }
             }
-            CATransaction.begin()
-            let fade = CABasicAnimation(keyPath: "opacity"); fade.fromValue = 0; fade.toValue = 1; fade.duration = 0.25
-            self.picture.add(fade, forKey: "fadeIn"); self.picture.opacity = 1
-            CATransaction.commit()
-            Log.info("◯ projectM \(self.preset.number): fading in after the warm-up \(CaretHalo.sinceStyleChange)")
-            self.onVisible?()
+            return
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + warmup) { [weak self] in self?.reveal() }
+    }
+
+    /// A fresh engine's picture, out of its warm-up: shown over 0.25 s.
+    private func reveal() {
+        self.renderQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.visibleFrame = self.totalFrames
+            self.visibleWall = CFAbsoluteTimeGetCurrent()
+            self.visibleFading = true
+        }
+        CATransaction.begin()
+        let fade = CABasicAnimation(keyPath: "opacity"); fade.fromValue = 0; fade.toValue = 1; fade.duration = 0.25
+        self.picture.add(fade, forKey: "fadeIn"); self.picture.opacity = 1
+        CATransaction.commit()
+        Log.info("◯ projectM \(self.preset.number): fading in after the warm-up \(CaretHalo.sinceStyleChange)")
+        self.onVisible?()
     }
 
     // MARK: Opening on a picture already in flow (2026-09-26)
@@ -492,10 +504,12 @@ final class ProjectMHalo: NSView, HaloWebHost {
     /// **Cost, measured and logged**: one engine frame each — 5–15 ms for six
     /// at 1118 px, under the 33 ms of one frame at 30 fps — spent on the render
     /// queue before the first visible frame. The fresh path has the 1.5 s
-    /// warm-up for this already and is left alone.
-    private func preroll() {
-        guard let r = renderer, !failed, !trail else { return }
-        let n = Int((prerollSeconds * Double(fps)).rounded())
+    /// warm-up for this already and is left alone — except a `burstWarmup`
+    /// preset, whose warm-up is this, run on a fresh engine (trail included:
+    /// the trail's τ forgets the burst's stamps within a frame).
+    private func preroll(seconds: Double, why: String) {
+        guard let r = renderer, !failed, !trail || preset.burstWarmup else { return }
+        let n = Int((seconds * Double(fps)).rounded())
         guard n > 0 else { return }
         let t0 = CFAbsoluteTimeGetCurrent()
         let per = Self.sampleRate / max(1, fps) + 16
@@ -503,7 +517,7 @@ final class ProjectMHalo: NSView, HaloWebHost {
         // 0, nothing it writes could show the line even if a compositor pass
         // caught one of these surfaces.
         let band = preset.centreBand
-        pmh_set_centre(r, centreFadeSeconds > 0 ? 0 : 1, Float(band.lowerBound), Float(band.upperBound))
+        if !trail { pmh_set_centre(r, centreFadeSeconds > 0 ? 0 : 1, Float(band.lowerBound), Float(band.upperBound)) }
         // **Its loudness is the last voice's, not the seed's alone** (measured
         // 2026-09-26): the engine judges a sound against what it has been
         // hearing, so after four seconds of lifted speech the seed's level is
@@ -531,8 +545,8 @@ final class ProjectMHalo: NSView, HaloWebHost {
             _ = pmh_render(r)
         }
         let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
-        Log.info(String(format: "◯ projectM %d: pre-rolled %d frames (%.0f ms of flow, noise at rms %.3f) in %.1f ms — %@ one frame (%.1f ms)",
-                        preset.number, n, Double(n) * 1000 / Double(fps), rawRms * k, ms,
+        Log.info(String(format: "◯ projectM %d: %@ — %d frames (%.0f ms of flow, noise at rms %.3f) in %.1f ms — %@ one frame (%.1f ms)",
+                        preset.number, why, n, Double(n) * 1000 / Double(fps), rawRms * k, ms,
                         ms <= 1000 / Double(fps) ? "under" : "OVER", 1000 / Double(fps)))
     }
 
