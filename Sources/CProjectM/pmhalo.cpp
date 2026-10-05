@@ -253,6 +253,10 @@ struct Look {
     float velFrame = 0.f, dyeFrame = 0.f;          // legacy: fade factor per 60 Hz frame
     bool puffs = false;                            // the voice blows smoke out of the pointer
     bool dust = false;                             // the voice sprinkles paint round the pointer
+    // the pointer's push by speed (Smoke, 2026-10-05): 0 = linear in the move, as
+    // Pavel's; else the move counts by s³/(s³ + knee³), s in screen widths a
+    // second, and `boost` is what a full sweep is worth against the linear push
+    float motionKnee = 0.f, motionBoost = 1.f;
 };
 // Cursify's constants (above). dt = the frame's time, as Pavel's loop does.
 const Look kCursify = { 3.f, 0.1f, 2.f, 3.5f, 6000.f, 0.2f / 100.f, true, true, 1.f, 1.f, 0, 0.15f, 20, true };
@@ -298,8 +302,16 @@ const Look kInk = { 4.f, 0.84f, 0.f, 2.0f, 12000.f, 0.20f / 100.f, true, true, 1
 // **Plus the voice** (Victor, the same day: *"sa reactioneze si la sunet,
 // aruncand alternativ, in functie de intensitate, in directii diferite, cate un
 // mic gest sa iasa fum"*) — see `voice_puffs`.
+// **Small moves barely count, big ones count more** (Victor, 2026-10-05: *"mai
+// puțin sensibil de mișcări scurte din mouse și mai sensibil la mișcări mai
+// pronunțate … dacă dau doar un pic stânga-dreapta … se umple ecranul de
+// culoare"*). Linear in the move, a jiggle splatted full-strength dye every frame
+// and the 0.98 fade let ~25 frames of it pile up. Now the move is weighed by its
+// speed — knee 0.5 screen widths a second, cubed: a wiggle at ~0.2 is worth 6 %,
+// a sweep at 1 is worth 89 % ×1.5 — and the dye by the same weight.
 const Look kSmoke = { 35.f, 0.8f, 0.f, 0.f, 0.f, 0.002f, false, false, 1.f, 1.f, 2, 0.3f,
-                      25, false, false, false, 0.3f, 0.6f, 0.7f, 1.f, true, 0.99f, 0.98f, true };
+                      25, false, false, false, 0.3f, 0.6f, 0.7f, 1.f, true, 0.99f, 0.98f, true,
+                      false, 0.5f, 1.5f };
 }
 
 struct pmh {
@@ -818,7 +830,7 @@ void apply_sunrays(pmh* h) {
 // plus a little jitter) from the last, so consecutive puffs never go the same
 // way and the round fills evenly; how loud it was sets how far, how hard and how
 // thick. Louder speech also puffs more often: the pause between gestures runs
-// from 0.35 s for a murmur down to 0.12 s for a shout. The loudness is judged
+// from 0.29 s for a murmur down to 0.10 s for a shout. The loudness is judged
 // against a ceiling that falls slowly (−50 % over ~4 s), so it works whatever
 // the microphone's gain.
 //
@@ -844,15 +856,17 @@ void voice_puffs(pmh* h, const Look& L, float dt) {
     h->puffCool -= dt;
     const float I = std::min(1.f, h->level / h->levelCeil);
     // `voiceThreshold` (the tuner's *Voice threshold*, 2026-09-23) moves both bars
-    // together; at its default 0.1 they are the 0.2 and 1.25× this shipped with.
+    // together; at its default 0.1 they were the 0.2 and 1.25× this shipped with,
+    // a quarter lower since 2026-10-05 (*"la voce iarăși să fie oleacă mai
+    // sensibil"*): 0.15 and 1.19×, and the pause between puffs a sixth shorter.
     const float t = h->voiceThreshold;
-    if (h->puffLeft == 0 && h->puffCool <= 0 && in > bar && I > 2.f * t && h->level > h->levelSlow * (1.f + 2.5f * t)) {
+    if (h->puffLeft == 0 && h->puffCool <= 0 && in > bar && I > 1.5f * t && h->level > h->levelSlow * (1.f + 1.875f * t)) {
         h->puffAngle += 2.39996f + ((float)std::rand() / RAND_MAX - 0.5f) * 0.6f;
         h->puffDx = std::cos(h->puffAngle); h->puffDy = std::sin(h->puffAngle);
         h->puffStrength = 0.35f + 0.65f * I;
         h->puffLeft = 4; h->puffAlong = 0;
         if (L.palette == 2) h->colorTimer += 1.f;   // a gesture counts as a move for the colour
-        h->puffCool = 0.35f - 0.23f * I;
+        h->puffCool = 0.29f - 0.19f * I;
     }
     if (h->puffLeft == 0 || !h->havePointer) return;
     // one frame of the gesture: a step of up to 1.2 % of the screen's width
@@ -940,8 +954,13 @@ IOSurfaceRef render_pure_fluid(pmh* h, const Look& L) {
             float radius = L.radius * (L.radiusByAspect && aspect > 1 ? aspect : 1.f);
             float x = h->sx / h->ow, y = h->sy / h->oh;
             float ddy = L.deltaByAspect && aspect > 1 ? dy / aspect : dy;
-            splat(h, h->vel, h->vc, h->vw, h->vh, x, y, dx * L.force, ddy * L.force, 0, radius);
-            splat(h, h->dye, h->dc, h->dw, h->dh, x, y, h->cr, h->cg, h->cb, radius);
+            float g = 1.f, push = 1.f;
+            if (L.motionKnee > 0) {
+                const float sp = std::hypot(dx, dy / aspect) / dt, s3 = sp * sp * sp, k3 = L.motionKnee * L.motionKnee * L.motionKnee;
+                g = s3 / (s3 + k3); push = g * L.motionBoost;
+            }
+            splat(h, h->vel, h->vc, h->vw, h->vh, x, y, dx * L.force * push, ddy * L.force * push, 0, radius);
+            splat(h, h->dye, h->dc, h->dw, h->dh, x, y, h->cr * g, h->cg * g, h->cb * g, radius);
         }
     }
     if (L.puffs) voice_puffs(h, L, dt);
