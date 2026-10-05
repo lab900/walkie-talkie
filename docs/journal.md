@@ -19,6 +19,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *Unbound is inert*, *What the rule was, and why the premise expired*, *`awaitingBind`* — retired 2026-09-11 — with nothing bound the app does everything and holds the sentence for a bind (`holdsForBind`)
 - *F10 nu mai comută dictarea de două ori pe un singur gest* (2026-09-16) — the guard was right and both of its numbers were wrong; superseded 2026-09-18 by *One slow flick right is one gesture, and it cannot close what it just opened* (sliding window, 0.6 s, plus a 2 s dwell before the flick may stop)
 - *Q7 — F8 on a caret sentence: stays ignored* (2026-09-26) — reversed 2026-10-04: *🔼 ↑ turns a caret sentence into a spawn*, folder menu included
+- *🔼 ↑ turns a caret sentence into a spawn*'s *a sentence already a spawn still ignores the gesture* (2026-10-04) — superseded 2026-10-05 by *🔼 ↑ on a spawn sentence offers the folder menu again*
 - *The oblique wipe: a message replaces a message*, *What the cancel actually looked like…*, *`WT_SHOOT_WIPE` — because this is the least reviewable thing in the app* — **retired 2026-09-18**: `ChipWipe.swift`, its rule file and the `WT_SHOOT_WIPE` harness are deleted; a chip message is swapped in one frame (*The chip swaps in one frame*)
 - *The DJI receiver is the microphone whenever it is plugged in* (2026-09-01) — superseded 2026-09-19: *automatic* is a ladder, 🎙️ XLR ▸ 🎤 DJI ▸ 🎧 Bose ▸ 💻 built-in, and the receiver is its second rung (*The chip says which microphone, and the menu picks it*)
 - *`raw_transcript` is a finished sentence Wispr never labelled* (2026-09-22) and Q24's *wait without the 30 s cap while `processing`* (2026-09-28) — superseded 2026-09-29 by *fix batch 3*: `raw_transcript` is terminal (Wispr's own code), and a row Wispr will never finish is called dead on the commit that shows it (`WisprState.deadRow`); the rest waits to 40 s, not 300 s
@@ -15176,6 +15177,17 @@ so it leaves with the agent's envelope rather than as bare words), sets the spaw
 ring (its halo is per destination) and offers the folder menu at the pointer. Only a sentence
 that is already a spawn still ignores the gesture. The destination is latched at the mic's close,
 so clearing the flag before it is the whole redirect.
+
+## 🔼 ↑ on a spawn sentence offers the folder menu again (2026-10-05)
+
+Victor: *"I should be able to do the gesture of forward and swipe up to choose another target for
+where the prompt lands. Even if I already am in the state of opening in a new terminal, I might be
+able to choose a new one, or I may just as well leave it in a new terminal."* Supersedes the last
+exception of 2026-10-04 (*a sentence already a spawn still ignores the gesture*):
+`convertDictationToSpawn` now re-runs `offerSpawnFolders()` when `spawnPending` is already up. The
+destination is untouched until a row is clicked — a folder row replaces `spawnFolder`, an *Active
+Terminals* row redirects to that session — and a menu left to fade keeps the folder already chosen.
+The wheel's second click (`onWheelDoubleSpawn`) shares the method, so it does the same.
 
 ## Stars and the puzzle always on the Retina (2026-10-05)
 

@@ -2318,11 +2318,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // (2026-09-22) — see `convertDictationToSpawn`. At rest it opens a
                 // spawn dictation as it always has.
                 if self.listening {
-                    // **A caret sentence converts too** (2026-10-04, reverses Q7)
-                    // — ignored only when it is already a spawn, not in silence (TG17).
-                    if !self.convertDictationToSpawn() {
-                        Log.info("✨ 🔼 ↑ on a sentence already headed for a new session — ignored")
-                    }
+                    // **A caret sentence converts too** (2026-10-04, reverses Q7);
+                    // one already a spawn gets the folder menu again (2026-10-05).
+                    self.convertDictationToSpawn()
                     return
                 }
                 self.startDictation(spawn: true)
@@ -5524,12 +5522,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 🔼 → takes it off for a terminal (`retarget`): `pasteMode` cleared, a
     /// clean sentence marked `cleanRedirected` so it carries the agent's envelope.
     ///
-    /// Returns false when there is nothing to convert, or when the sentence is
-    /// already a spawn.
+    /// **A sentence already headed for a new session gets the menu again**
+    /// (2026-10-05) — it used to be ignored. Victor: *"I should be able to do the
+    /// gesture of forward and swipe up to choose another target … Even if I
+    /// already am in the state of opening in a new terminal, I might be able to
+    /// choose a new one, or I may just as well leave it in a new terminal."* The
+    /// spawn stays as it is — folder already picked included — until a row is
+    /// clicked; letting the menu fade changes nothing.
+    ///
+    /// Returns false when there is nothing to convert.
     @discardableResult
     private func convertDictationToSpawn() -> Bool {
         guard listening else { return false }
-        guard !spawnPending else { return false }
+        if spawnPending {
+            Log.info("✨ 🔼 ↑ on a sentence already headed for a new session — folder menu again")
+            offerSpawnFolders()
+            return true
+        }
         if pasteMode {
             pasteMode = false
             if cleanSentence { cleanRedirected = true; submitAfterClean = false }
