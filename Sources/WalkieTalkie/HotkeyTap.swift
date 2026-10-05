@@ -2333,25 +2333,30 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         }
     }
 
-    /// 🔽 → and the keyboard's F5 / 🎤 — **start the plain dictation, or stop the
-    /// one open** (see the `VK_F5` case for the why of each guard). `gesture`
-    /// names the trigger in the log and the trace.
+    /// 🔽 →, the bare 🔽 at rest (2026-10-05) and the keyboard's F5 / 🎤 —
+    /// **start the plain dictation, or stop the one open** (see the `VK_F5` case
+    /// for the why of each guard). `gesture` names the trigger in the log and the
+    /// trace. **Every stop here queues the Return after the words**
+    /// (`onBackSubmit`, 2026-10-05) — Victor: *"după ce inserezi textul, să pui
+    /// un Enter întotdeauna … dictarea se termină cu o linie goală"*; until then
+    /// 🔽 →'s stop never pressed one.
     private func plainToggle(_ gesture: String, _ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let who = gesture.hasPrefix("🔽 →") ? "🔽 →" : gesture.hasPrefix("🔽") ? "🔽" : gesture
         let f5Now = CACurrentMediaTime()
         let sinceLastF5 = f5Now - lastF5At
         lastF5At = f5Now
         guard sinceLastF5 >= Self.gestureRetriggerSeconds else {
-            Log.info("🎯 🔽 → F5 re-triggered \(String(format: "%.0f", sinceLastF5 * 1000))ms after the last one — still the same motion, dropped")
+            Log.info("🎯 \(who) re-triggered \(String(format: "%.0f", sinceLastF5 * 1000))ms after the last one — still the same motion, dropped")
             return swallow("\(gesture) — re-fire dropped", type, event)
         }
         let wisprSentence = backStopsWispr || (wisprMicIsOpen?() == true && !ownDictation)
         let ownClean = !wisprSentence && ownDictation && ownCleanSentence
         guard f5Now - lastBackToggleAt >= Self.backToggleSettleSeconds else {
-            Log.info("🎯 🔽 → \(String(format: "%.0f", (f5Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
+            Log.info("🎯 \(who) \(String(format: "%.0f", (f5Now - lastBackToggleAt) * 1000))ms after the last toggle — dropped")
             return swallow("\(gesture) — inside the plain toggle's settle", type, event)
         }
         if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {
-            Log.info("🎯 🔽 → \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
+            Log.info("🎯 \(who) \(String(format: "%.1f", f5Now - lastPlainStartAt))s after it opened the plain dictation — too young to stop, dropped")
             return swallow("\(gesture) — inside the stop dwell", type, event)
         }
         // **C: the press after a refused start is its stop, not a start.**
@@ -2360,8 +2365,8 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             lastRefusedPlainStartAt = 0
             if since < Self.refusedStartPairSeconds, !ownDictation {
                 lastBackToggleAt = f5Now
-                Log.info(String(format: "🎯 🔽 → %.1fs after a refused start — that start's stop: nothing is recording, nothing starts (C)", since))
-                onEngineBusy?("🔽 → — nothing was recording (the last start was refused)")
+                Log.info(String(format: "🎯 %@ %.1fs after a refused start — that start's stop: nothing is recording, nothing starts (C)", who, since))
+                onEngineBusy?("\(who) — nothing was recording (the last start was refused)")
                 return swallow("\(gesture) — the stop of a refused start", type, event)
             }
         }
@@ -2371,14 +2376,18 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // stop must reach whoever is listening.
         if !wisprSentence, backUsesOwnEngine {
             if ownDictation, !ownClean, ownMicOpen || !sentenceQueueAccepts {
-                refuseBackClick("🔽 →")
+                refuseBackClick(who)
                 lastRefusedPlainStartAt = f5Now
                 return swallow(gesture, type, event)
             }
             lastBackToggleAt = f5Now
             if !ownClean { lastPlainStartAt = f5Now }
-            Log.info("🎙️ 🔽 → — a clean dictation on the Engine\(ownClean ? " (the stop)" : " (the start)")")
-            DispatchQueue.global().async { [weak self] in self?.onCleanToggle?() }
+            let stopping = ownClean && ownMicOpen
+            Log.info("🎙️ \(who) — a clean dictation on the Engine\(ownClean ? " (the stop; Return once its words land)" : " (the start)")")
+            DispatchQueue.global().async { [weak self] in
+                if stopping { self?.onBackSubmit?() }
+                self?.onCleanToggle?()
+            }
             return swallow(gesture, type, event)
         }
         // The arm says *a start was posted and has not ended* even
@@ -2391,15 +2400,16 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         // must never be. Victor: *"E absurd să pornesc două motoare de
         // transcriere simultan. Trebuie exclusiv, ba unu, ba altu."*
         if !closing, ownDictation {
-            refuseBackClick("🔽 →")
+            refuseBackClick(who)
             lastRefusedPlainStartAt = f5Now
             return swallow(gesture, type, event)
         }
         lastBackToggleAt = f5Now
         if !closing { lastPlainStartAt = f5Now }
-        Log.info("🎙️ 🔽 → — Wispr Flow's hands-free toggle\(closing ? " (the stop)" : " (the start)")")
+        Log.info("🎙️ \(who) — Wispr Flow's hands-free toggle\(closing ? " (the stop; Return once its words land)" : " (the start)")")
         if closing {
             postWisprRawStop()
+            DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
         } else {
             Self.postWisprHandsFree()
             // …and the chord says so to the state machine, which cannot see
@@ -3715,12 +3725,16 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             // of 2026-09-17: 🔽 → starts and stops the plain sentence, the click
             // is Return, the shutter while a prompt records, and the way out of
             // an open plain sentence — here with its words submitted.
+            //
+            // **2026-10-05: the bare click starts it too**, so at rest the
+            // click is no longer Return — see `case VK_F6`.
 
             // 🔽 → — **a plain dictation**: start, or stop the one open. Clean
             // words at the caret, bound or not, nothing added
             // (`AppDelegate.cleanSentence`); heard by the Engine — Wispr's
             // hands-free chord on Engine = Wispr, the relay's own source
-            // (`onCleanToggle`) otherwise. Never a Return, never a picture.
+            // (`onCleanToggle`) otherwise. Never a picture; **its stop ends in a
+            // Return after the words** since 2026-10-05, as the click's always did.
             //
             // Three guards, because one flick can re-fire: the 0.6 s sliding
             // re-trigger window (F10's), the 0.8 s settle after a toggle (Wispr's
@@ -3730,9 +3744,12 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
             case VK_F5:
                 return plainToggle(gesture, type, event)
 
-            // The back button **clicked** — **Return**, posted by this app (see
-            // `postReturn`: in Logi mode nothing upstream types it), with two
-            // exceptions decided by what is open:
+            // The back button **clicked** — **at rest, the plain dictation's
+            // start** (2026-10-05; Return from 2026-09-28 until then — Victor:
+            // *"butonul de back de pe mouse, gestul de back simplu, ar trebui să
+            // pornească dictarea curată. Nu doar gestul de back cu swipe la
+            // dreapta"*) — the same `plainToggle` as 🔽 →, with two exceptions
+            // decided by what is open:
             //
             // - **a prompt dictation recording** (🔼, 🔼 →, 🔼 ↑ — the relay's own,
             //   not clean): the **shutter**. A prompt still in flight after its
@@ -3793,9 +3810,7 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
                     refuseBackClick()
                     return swallow(gesture, type, event)
                 }
-                Log.info("⌨️ 🔽 — Return")
-                Self.postReturn()
-                return swallow(gesture, type, event)
+                return plainToggle(gesture, type, event)
 
             default:
                 break

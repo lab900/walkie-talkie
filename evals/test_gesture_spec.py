@@ -29,6 +29,13 @@ superseding the 09-23 swap (268b111) for 🔽 and 🔽 →:
      pressed, unless I'm doing a dictation of a prompt, in which case it results
      in a screenshot being taken."
 
+Victor, 2026-10-05 (dictated) — the bare click starts the plain dictation too,
+and every plain dictation ends in a Return:
+
+    "butonul de back de pe mouse, gestul de back simplu, ar trebui să pornească
+     dictarea curată. Nu doar gestul de back cu swipe la dreapta … Iar după ce
+     inserezi textul, să pui un Enter întotdeauna."
+
 The gesture map has been rewritten five times in two weeks and every rewrite
 left a path behind that still did the previous thing (the back click that was
 still a shutter, the forward click that still went to the bound terminal). So
@@ -87,6 +94,11 @@ def gesture_case(src: dict, key: str) -> str:
         raise ParseError(f"no `case {key}:` in HotkeyTap.swift")
     end = re.search(r"^\s*(case VK_F\d+:|default:)", text[m.end():], re.MULTILINE)
     return text[m.end(): m.end() + (end.start() if end else len(text))]
+
+
+def plain_toggle(src: dict) -> str:
+    """`HotkeyTap.plainToggle` — 🔽 →'s body, and the bare 🔽's at rest."""
+    return function(src, "HotkeyTap.swift", "plainToggle")
 
 
 def function(src: dict, file: str, name: str) -> str:
@@ -180,13 +192,15 @@ def spec(src: dict):
         },
         {
             "row": ("🔽 back", "drag right, nothing open"),
-            "does": "caret, even when bound · CLEAN (words only) · no Enter",
+            "does": "caret, even when bound · CLEAN (words only) · Enter only at its stop",
             "checks": [
-                ("F5 posts Wispr's toggle and arms the plain sentence", "HotkeyTap `case VK_F5`",
-                 lambda: has(gesture_case(src, "VK_F5"),
+                ("F5 is the plain toggle", "HotkeyTap `case VK_F5`",
+                 lambda: has(gesture_case(src, "VK_F5"), r"return plainToggle\(gesture, type, event\)")),
+                ("the toggle posts Wispr's toggle and arms the plain sentence", "HotkeyTap `plainToggle`",
+                 lambda: has(plain_toggle(src),
                              r"postWisprHandsFree\(\).*?setWisprArm\(closing \? 0 : CACurrentMediaTime\(\)\)")),
-                ("F5 never presses Return, never takes a picture", "HotkeyTap `case VK_F5`",
-                 lambda: not has(gesture_case(src, "VK_F5"), r"postReturn|onBackSubmit|onScreenshot")),
+                ("the toggle never presses Return itself, never takes a picture", "HotkeyTap `plainToggle`",
+                 lambda: not has(plain_toggle(src), r"postReturn|onScreenshot")),
                 ("the arm makes the sentence clean and aims it at the caret", "AppDelegate `noteCleanStart`",
                  lambda: has(function(src, ad, "noteCleanStart"),
                              r"hotkeys\.backStopsWispr.*?cleanSentence = true.*?pasteMode = true")),
@@ -216,9 +230,9 @@ def spec(src: dict):
                 ("the tap knows which Engine is live", "AppDelegate `wireDictationSource`",
                  lambda: has(function(src, ad, "wireDictationSource"),
                              r"hotkeys\.backUsesOwnEngine = source !== wisprSource")),
-                ("F5 toggles the Engine's clean sentence instead of posting Wispr's chord",
-                 "HotkeyTap `case VK_F5`",
-                 lambda: before(gesture_case(src, "VK_F5"), r"if !wisprSentence, backUsesOwnEngine \{.*?onCleanToggle",
+                ("the toggle starts the Engine's clean sentence instead of posting Wispr's chord",
+                 "HotkeyTap `plainToggle`",
+                 lambda: before(plain_toggle(src), r"if !wisprSentence, backUsesOwnEngine \{.*?onCleanToggle",
                                 r"postWisprHandsFree")),
                 ("the toggle starts a clean caret sentence, and stops only a clean one",
                  "AppDelegate `hotkeys.onCleanToggle`",
@@ -255,13 +269,15 @@ def spec(src: dict):
             ],
         },
         {
+            # Victor, 2026-10-05: "gestul de back simplu, ar trebui să pornească
+            # dictarea curată" — Return at rest from 2026-09-28 until then.
             "row": ("🔽 back", "click, nothing open"),
-            "does": "Return, and nothing else",
+            "does": "START the plain dictation — 🔽 →'s own toggle, no Return",
             "checks": [
-                ("F6 falls through to postReturn", "HotkeyTap `case VK_F6`",
-                 lambda: has(gesture_case(src, "VK_F6"), r"Self\.postReturn\(\)\s*return (nil|swallow\()")),
-                ("…and never starts a dictation", "HotkeyTap `case VK_F6`",
-                 lambda: not has(gesture_case(src, "VK_F6"), r"setWisprArm\(closing")),
+                ("F6 falls through to the plain toggle", "HotkeyTap `case VK_F6`",
+                 lambda: has(gesture_case(src, "VK_F6"), r"return plainToggle\(gesture, type, event\)\s*$")),
+                ("…and never presses Return at rest", "HotkeyTap `case VK_F6`",
+                 lambda: not has(gesture_case(src, "VK_F6"), r"postReturn")),
             ],
         },
         {
@@ -273,7 +289,7 @@ def spec(src: dict):
                              r"if !wisprSentence, !ownClean, dictating, ownDictation \{.*?onScreenshot\?\(cursor\).*?return swallow\(")),
                 ("a prompt still in flight is refused, not given a Return", "HotkeyTap `case VK_F6`",
                  lambda: before(gesture_case(src, "VK_F6"), r"if ownDictation \{\s*refuseBackClick\(\)",
-                                r"Self\.postReturn\(\)")),
+                                r"plainToggle\(")),
             ],
         },
         {
@@ -288,13 +304,13 @@ def spec(src: dict):
                 ("a clean sentence on the relay's own engine is excluded too", "HotkeyTap `case VK_F6`",
                  lambda: has(gesture_case(src, "VK_F6"),
                              r"let ownClean = !wisprSentence && ownDictation && ownCleanSentence")),
-                ("F6 stops a Wispr plain sentence with 🔽 →'s own chord, before any Return",
+                ("F6 stops a Wispr plain sentence with 🔽 →'s own stop, before the toggle",
                  "HotkeyTap `case VK_F6`",
-                 lambda: before(gesture_case(src, "VK_F6"), r"if wisprSentence \{.*?postWisprHandsFree\(\)",
-                                r"Self\.postReturn\(\)")),
+                 lambda: before(gesture_case(src, "VK_F6"), r"if wisprSentence \{.*?postWisprRawStop\(\)",
+                                r"plainToggle\(")),
                 ("…and asks for the Return after the words", "HotkeyTap `case VK_F6`",
                  lambda: has(gesture_case(src, "VK_F6"),
-                             r"postWisprHandsFree\(\).*?setWisprArm\(0\)\s*DispatchQueue\.global\(\)\.async \{ \[weak self\] in self\?\.onBackSubmit\?\(\) \}\s*return swallow\(")),
+                             r"postWisprRawStop\(\)\s*setWisprArm\(0\)\s*DispatchQueue\.global\(\)\.async \{ \[weak self\] in self\?\.onBackSubmit\?\(\) \}\s*return swallow\(")),
                 ("the request is recorded for this sentence", "AppDelegate `hotkeys.onBackSubmit`",
                  lambda: has(closure(src, "hotkeys.onBackSubmit"), r"submitAfterClean = true")),
                 ("the Return follows the paste", "AppDelegate `deliver`",
@@ -305,13 +321,21 @@ def spec(src: dict):
             ],
         },
         {
+            # Victor, 2026-10-05: "după ce inserezi textul, să pui un Enter
+            # întotdeauna" — no Return on this stop until then.
             "row": ("🔽 back", "drag right during a plain dictation"),
-            "does": "STOP it, insert the clean words — no Enter",
+            "does": "STOP it, insert the clean words, then Enter",
             "checks": [
-                ("F5's stop is the same toggle, disarming the sentence", "HotkeyTap `case VK_F5`",
-                 lambda: has(gesture_case(src, "VK_F5"), r"let closing = wisprSentence.*?setWisprArm\(closing \? 0")),
-                ("…and a stop younger than 2 s is dropped (one slow flick)", "HotkeyTap `case VK_F5`",
-                 lambda: has(gesture_case(src, "VK_F5"), r"lastPlainStartAt < Self\.gestureStopDwellSeconds")),
+                ("the stop is the same toggle, disarming the sentence", "HotkeyTap `plainToggle`",
+                 lambda: has(plain_toggle(src), r"let closing = wisprSentence.*?setWisprArm\(closing \? 0")),
+                ("…and a stop younger than 2 s is dropped (one slow flick)", "HotkeyTap `plainToggle`",
+                 lambda: has(plain_toggle(src), r"lastPlainStartAt < Self\.gestureStopDwellSeconds")),
+                ("a Wispr stop asks for the Return after the words", "HotkeyTap `plainToggle`",
+                 lambda: has(plain_toggle(src),
+                             r"if closing \{\s*postWisprRawStop\(\)\s*DispatchQueue\.global\(\)\.async \{ \[weak self\] in self\?\.onBackSubmit\?\(\) \}")),
+                ("an Engine stop asks for it before the toggle ends the sentence", "HotkeyTap `plainToggle`",
+                 lambda: has(plain_toggle(src),
+                             r"let stopping = ownClean && ownMicOpen.*?if stopping \{ self\?\.onBackSubmit\?\(\) \}\s*self\?\.onCleanToggle\?\(\)")),
             ],
         },
         {
@@ -399,7 +423,7 @@ def main(argv: list[str]) -> int:
         return self_test()
     code, failures = run(load())
     if failures:
-        print("\nThe gesture spec (2026-09-23, back button swapped back 2026-09-28) no longer holds:")
+        print("\nThe gesture spec (2026-09-23, back button swapped back 2026-09-28, bare click plain 2026-10-05) no longer holds:")
         for f in failures:
             print(f"  ✗ {f}")
     return code
@@ -429,15 +453,20 @@ MUTATIONS = [
     ("the back click stops a plain sentence without its Return", "HotkeyTap.swift",
      "                    setWisprArm(0)\n                    DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }",
      "                    setWisprArm(0)"),
-    ("🔽 → presses Return again", "HotkeyTap.swift",
-     "                Log.info(\"🎙️ 🔽 → — Wispr Flow's hands-free toggle",
-     "                Self.postReturn()\n                Log.info(\"🎙️ 🔽 → — Wispr Flow's hands-free toggle"),
-    ("the bare back click starts Wispr instead of Return (the 09-23 swap)", "HotkeyTap.swift",
-     "                Log.info(\"⌨️ 🔽 — Return\")\n                Self.postReturn()",
-     "                Self.postWisprHandsFree()\n                setWisprArm(closing ? 0 : CACurrentMediaTime())"),
-    ("a prompt in flight gets a Return instead of the refusal", "HotkeyTap.swift",
-     "                if ownDictation {\n                    refuseBackClick()\n                    return swallow(gesture, type, event)\n                }\n                Log.info(\"⌨️ 🔽 — Return\")",
-     "                Log.info(\"⌨️ 🔽 — Return\")"),
+    ("🔽 →'s Wispr stop loses its Return again (before 2026-10-05)", "HotkeyTap.swift",
+     "            postWisprRawStop()\n            DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }",
+     "            postWisprRawStop()"),
+    ("🔽 →'s Engine stop loses its Return again (before 2026-10-05)", "HotkeyTap.swift",
+     "if stopping { self?.onBackSubmit?() }", ""),
+    ("the toggle presses Return at the start", "HotkeyTap.swift",
+     "        } else {\n            Self.postWisprHandsFree()\n",
+     "        } else {\n            Self.postReturn()\n            Self.postWisprHandsFree()\n"),
+    ("the bare back click is Return at rest again (the 09-28 mapping)", "HotkeyTap.swift",
+     "                    refuseBackClick()\n                    return swallow(gesture, type, event)\n                }\n                return plainToggle(gesture, type, event)",
+     "                    refuseBackClick()\n                    return swallow(gesture, type, event)\n                }\n                Self.postReturn()\n                return swallow(gesture, type, event)"),
+    ("a prompt in flight starts a plain dictation instead of the refusal", "HotkeyTap.swift",
+     "                if ownDictation {\n                    refuseBackClick()\n                    return swallow(gesture, type, event)\n                }\n                return plainToggle(gesture, type, event)",
+     "                return plainToggle(gesture, type, event)"),
     ("🔽 → stops a plain sentence it opened a moment ago", "HotkeyTap.swift",
      "if wisprSentence || ownClean, f5Now - lastPlainStartAt < Self.gestureStopDwellSeconds {",
      "if false {"),
@@ -446,7 +475,7 @@ MUTATIONS = [
     ("held right ⌘⌥ no longer reaches onCleanHold", "HotkeyTap.swift",
      "                if pair || was {", "                if false {"),
     ("an unclaimed Wispr ⌘V is rescued again", "WisprFlowSource.swift",
-     "            Log.info(\"🛡️ ⌘V from \\(process) with no capture open — not the relay's; nothing delivered\")",
+     "                Log.info(\"🛡️ ⌘V from \\(process) with no capture open and no relay sentence to compare its row with — nothing delivered\")",
      "            rescueFromRow(after: process)"),
     ("plain dictation gets the kamikaze word", "AppDelegate.swift",
      "if clean { kamikaze = false }", ""),
@@ -482,32 +511,36 @@ def self_test() -> int:
     # the tap as it stood before the swap back — 🔽 the plain toggle, 🔽 → only
     # Return (268b111, 2026-09-23) — read out of git, the whole file, not a
     # one-line mutation.
-    old = old_mapping_tap()
-    if old is None:
-        print(f"self-test FAILED — cannot read HotkeyTap.swift at {OLD_MAPPING_COMMIT} from git")
-        return 1
-    src = dict(base)
-    src["HotkeyTap.swift"] = old
-    code, _ = run(src, quiet=True)
-    print(f"{'✓' if code != 0 else '✗'} caught: the 2026-09-23 mapping ({OLD_MAPPING_COMMIT}: 🔽 = plain toggle, 🔽 → = Return)")
-    if code == 0:
-        missed.append("the 2026-09-23 mapping")
+    for commit, label in OLD_MAPPINGS:
+        old = old_mapping_tap(commit)
+        if old is None:
+            print(f"self-test FAILED — cannot read HotkeyTap.swift at {commit} from git")
+            return 1
+        src = dict(base)
+        src["HotkeyTap.swift"] = old
+        code, _ = run(src, quiet=True)
+        print(f"{'✓' if code != 0 else '✗'} caught: {label} ({commit})")
+        if code == 0:
+            missed.append(label)
     if missed:
         print(f"self-test FAILED — {len(missed)} mutation(s) not caught")
         return 1
-    print(f"self-test ok — all {len(MUTATIONS)} broken rules and the old mapping are caught")
+    print(f"self-test ok — all {len(MUTATIONS)} broken rules and the {len(OLD_MAPPINGS)} old mappings are caught")
     return 0
 
 
-# The last commit whose HotkeyTap still had the 2026-09-23 mapping.
-OLD_MAPPING_COMMIT = "c8d918b"
+# The last commit whose HotkeyTap still had each superseded mapping.
+OLD_MAPPINGS = [
+    ("c8d918b", "the 2026-09-23 mapping: 🔽 = plain toggle, 🔽 → = Return"),
+    ("6efad93", "the 2026-09-28 mapping: 🔽 at rest = Return, 🔽 →'s stop without one"),
+]
 
 
-def old_mapping_tap() -> str | None:
+def old_mapping_tap(commit: str) -> str | None:
     import subprocess
     root = SOURCES.parent.parent
     try:
-        return subprocess.run(["git", "-C", str(root), "show", f"{OLD_MAPPING_COMMIT}:Sources/WalkieTalkie/HotkeyTap.swift"],
+        return subprocess.run(["git", "-C", str(root), "show", f"{commit}:Sources/WalkieTalkie/HotkeyTap.swift"],
                               capture_output=True, text=True, check=True).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None

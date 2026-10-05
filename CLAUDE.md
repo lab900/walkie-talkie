@@ -86,9 +86,10 @@ hooks (`overlay-chip.md`, `replace-wispr-and-halo.md`).
   the clean words for a plain one, whatever the engine or destination; never restored. ⌘V re-pastes.
 - **Side buttons** (Options+ → ⌃⌥⌘F3…F12, duplicated in `HotkeyTap`, must not drift;
   `evals/test_gesture_spec.py` is the spec): 🔼 = prompt at the caret (full envelope); 🔼 → at the
-  bound terminal; 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; **🔽 → = plain
-  dictation** (start/stop; words only, follows the Engine); **🔽 = Return** — the shutter while a
-  prompt records, and mid plain dictation: stop, insert, Return (swapped back 2026-09-28).
+  bound terminal; 🔼 ← cancel; 🔼 ↑ new session; 🔼 ↓ kamikaze; ◀️-held + 🔼 bind; **🔽 and 🔽 →
+  = plain dictation** (start/stop; words only, follows the Engine; **every stop inserts, then
+  Return** — 2026-10-05: the bare 🔽 at rest is no longer Return); 🔽 is the shutter while a prompt
+  records.
 - **Unbound, everything still works:** the sentence is held 5 min for the next bind.
 - **The recipient is latched when the microphone closes — which terminal, not only *not the caret*.**
   A deliberate bind mid-sentence redirects; the 10 s poll never may; a bind or unbind after the close

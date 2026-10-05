@@ -2927,8 +2927,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onWisprCancel = { [weak self] in
             DispatchQueue.main.async { self?.overlay.flash("🗑️ Cancelled", duration: 1.5) }
         }
-        // 🔽 ended the plain dictation (🔽 → until 2026-09-28): the words go in
-        // clean, then Return — see `submitAfterClean`.
+        // 🔽 or 🔽 → ended the plain dictation (both since 2026-10-05): the words
+        // go in clean, then Return — see `submitAfterClean`.
         hotkeys.onBackSubmit = { [weak self] in
             DispatchQueue.main.async { self?.submitAfterClean = true }
         }
@@ -2949,7 +2949,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.overlay.flash("⏳ Two sentences in flight — wait for one to land", duration: 3)
                     }
                 } else {
-                    Log.info("🧼 a plain dictation (🔽 →) on \(self.source.name) — clean words at the caret, nothing added")
+                    Log.info("🧼 a plain dictation (🔽 / 🔽 →) on \(self.source.name) — clean words at the caret, nothing added")
                     self.startDictation(paste: true, clean: true)
                     // C: a start the blocker refused leaves the toggle where it was.
                     if !self.listening, !self.speculative, !self.source.isRecording { self.hotkeys.notePlainStartRefused() }
@@ -8424,12 +8424,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 🔽 ended the plain dictation: Return, after the words (2026-09-23 on 🔽 →,
-    /// the back click since 2026-09-28).
+    /// 🔽 or 🔽 → ended the plain dictation: Return, after the words (2026-09-23 on
+    /// 🔽 →, the back click since 2026-09-28, both since 2026-10-05).
     /// A beat after the ⌘V so the paste lands first; `postReturn` waits out
     /// Options+'s flags itself and is stamped as this app's.
     private func submitAfterCleanWords() {
-        Log.info("⏎ plain dictation ended by 🔽 — Return after the words")
+        Log.info("⏎ plain dictation ended by 🔽 / 🔽 → — Return after the words")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             // **Q18 (2026-09-28): never a Return at a shell prompt.** The words
             // land where the caret is when they arrive (Victor's Q6 = C); if that
