@@ -15137,6 +15137,10 @@ a short hiss at 25.04–25.33 s; `assets/start-squelch.wav` is 25.03–25.34 s, 
 `StartChime` loads it from `Resources/` (or `assets/` from a `.build` binary); the row and its default are unchanged.
 Minutes later: *"nu aud nimic la inceputul dictarii"* — the RMS match was wrong for a clip that is
 mostly one click; it is now the original −6 dB (RMS −27 dBFS, peak −10 dBFS).
+Still nothing, though the new log line said `play()` started (0.31 s, volume 1, MacBook Pro Speakers).
+Taken to be the built-in speakers waking late and eating a clip whose sound is all in its first
+0.2 s. Then Victor cut the clip himself (`~/Downloads/… (mp3cut.net).mp3`, 0.26 s): *"Pune-l pe ăla la
+volum mic"* — now his clip, mono, −10 dB (peak −20 dBFS), behind 150 ms of silence.
 
 ## The temperature ladder climbs only on a loop (2026-10-04)
 

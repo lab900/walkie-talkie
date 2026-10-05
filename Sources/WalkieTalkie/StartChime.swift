@@ -4,10 +4,13 @@ import AppKit
 /// morning (2026-10-01); Victor then asked for it out — *"înlocuiește-l cu un
 /// hârâit ca de transmisie (white noise scurt), debifat by default în meniu"* —
 /// and it plays only while the `Radio Squelch` row is ticked. Synthesised white
-/// noise until 2026-10-05, when he picked a real one: *"de la 0:24 taie efectul
-/// de stație pornită"* from youtu.be/nt71N59hydQ — `assets/start-squelch.wav`,
-/// 25.03–25.34 s of it, mono 44.1 kHz, turned down 6 dB (−17.4 dB, the old hiss's
-/// RMS, was inaudible: *"nu aud nimic"* — it is mostly a click), 3 ms in / 40 ms out.
+/// noise until 2026-10-05, when he picked a real one from youtu.be/nt71N59hydQ
+/// and cut it himself (*"Am pus clipul pe care îl doresc în Downloads tăiat
+/// frumos. Pune-l pe ăla la volum mic"*): `assets/start-squelch.wav` is his
+/// 0.26 s mp3, mono 44.1 kHz, −10 dB (peak −20 dBFS), led by 150 ms of silence —
+/// `play()` was starting and he heard nothing, because the built-in speakers
+/// wake late and swallowed the whole short clip, where the old 0.32 s hiss
+/// outlasted the wake.
 enum StartChime {
 
     /// `UserDefaults` beside `autosend`: a preference, not data. Absent = off.
@@ -24,9 +27,11 @@ enum StartChime {
     private static let sound: NSSound? = url().flatMap { NSSound(contentsOf: $0, byReference: false) }
 
     static func play() {
-        guard isOn, let sound else { return }
+        guard isOn else { return }
+        guard let sound else { Log.error("📻 radio squelch: no start-squelch.wav loaded — silent"); return }
         if sound.isPlaying { sound.stop() }
-        sound.play()
+        let ok = sound.play()
+        Log.info(String(format: "📻 radio squelch: play() %@, %.2f s, volume %.2f", ok ? "started" : "REFUSED", sound.duration, sound.volume))
     }
 
     /// `Resources/start-squelch.wav` installed, `assets/start-squelch.wav` from a
