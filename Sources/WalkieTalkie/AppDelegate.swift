@@ -1515,6 +1515,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         status.onToggleAutoLocal = { [weak self] on in self?.setAutoLocal(on, from: "the Engine menu") }
+        status.onToggleLocalLive = { [weak self] on in
+            LocalLive.isOn = on
+            Log.info("💬 live captions (local) \(on ? "on" : "off") — from the menu")
+            self?.whisperSource.liveSettingChanged()
+        }
         hotkeys.replaceWispr = replaceWispr
         // Seeded from the menu — the row is the one source of truth, and the
         // tick is already drawn.

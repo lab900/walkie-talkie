@@ -20,6 +20,28 @@ import Foundation
 /// idempotent, so a launch load that failed is retried rather than fatal.
 final class LocalWhisper {
 
+    /// **The live caption's own helper** (2026-10-05) — a second process with
+    /// the same weights, so the final decode is never queued behind a window and
+    /// a window in flight at the close can be SIGKILLed (`killNow`) without
+    /// touching the helper the sentence needs. Its decodes and deaths say nothing
+    /// about the sentence engine's rate, so it leaves `DecodeRate` alone.
+    let isLive: Bool
+    private var tag: String { isLive ? "live whisper helper" : "whisper helper" }
+
+    init(live: Bool = false) { isLive = live }
+
+    /// One window of the live caption: what the model heard, by segment.
+    struct Segment: Equatable {
+        let text: String
+        let start: Double
+        let end: Double
+    }
+    struct WindowResult {
+        let segments: [Segment]
+        let compressionRatio: Double
+        let decodeSeconds: Double
+    }
+
     struct Result {
         let text: String
         let language: String?
@@ -150,7 +172,9 @@ final class LocalWhisper {
     /// logged, `ready` stayed true, and the next write hit SIGPIPE (which the
     /// process did not ignore).
     private func markDead(_ why: String) {
-        Log.error("whisper helper \(why) — it died; the next request brings a new one up")
+        if killedOnPurpose { Log.info("\(tag) let go — killed mid-window, as asked") }
+        else { Log.error("\(tag) \(why) — it died; the next request brings a new one up") }
+        killedOnPurpose = false
         setReady(false)
         modelName = nil
         toHelper = nil
@@ -158,7 +182,23 @@ final class LocalWhisper {
         proc = nil
         pidLock.lock(); helperPID = nil; pidLock.unlock()
         buffer = Data()
-        DecodeRate.engineStopped()
+        if !isLive { DecodeRate.engineStopped() }
+    }
+
+    /// Set by `killNow` so the death it causes is logged as the decision it was.
+    private var killedOnPurpose = false
+
+    /// **SIGKILL, now, from any thread** (2026-10-05) — the live caption's helper
+    /// at the close of a dictation with a window still decoding. Not `stop()`:
+    /// that goes through `queue`, which is blocked in the window's read. The read
+    /// sees EOF and answers nil; the reaper clears `ready`. `true` if there was
+    /// a helper to kill.
+    @discardableResult
+    func killNow() -> Bool {
+        guard let pid else { return false }
+        killedOnPurpose = true
+        setReady(false)
+        return Darwin.kill(pid, SIGKILL) == 0
     }
 
     /// Where the helper lives: beside the binary inside the `.app`, and in the
@@ -290,6 +330,7 @@ final class LocalWhisper {
             p.arguments = [helper]
             p.environment = Self.helperEnvironment
             let inPipe = Pipe(), outPipe = Pipe(), errPipe = Pipe()
+            let live = self.isLive
             p.standardInput = inPipe
             p.standardOutput = outPipe
             p.standardError = errPipe
@@ -301,7 +342,7 @@ final class LocalWhisper {
                 // handler is taken down — a spin after every helper death.
                 if d.isEmpty { h.readabilityHandler = nil; return }
                 if let s = String(data: d, encoding: .utf8) {
-                    Log.info("whisper helper: \(s.trimmingCharacters(in: .whitespacesAndNewlines))")
+                    Log.info("\(live ? "live whisper helper" : "whisper helper"): \(s.trimmingCharacters(in: .whitespacesAndNewlines))")
                 }
             }
             // **Dead is known the moment it happens** (2026-09-26, TL7): the
@@ -328,14 +369,14 @@ final class LocalWhisper {
             self.toHelper = inPipe.fileHandleForWriting
             self.fromHelper = outPipe.fileHandleForReading
 
-            Log.info("whisper helper starting (\(python) \(helper)) — loading weights")
+            Log.info("\(self.tag) starting (\(python) \(helper)) — loading weights")
             guard let hello = self.readLine(timeout: Self.helloBudget) else {
                 onReady("the model did not come up within \(Int(Self.helloBudget))s"); return
             }
             if let ok = hello["ready"] as? Bool, ok {
                 self.setReady(true)
                 self.modelName = hello["model"] as? String
-                Log.info("whisper helper ready — \(hello["model"] as? String ?? "?")")
+                Log.info("\(self.tag) ready — \(hello["model"] as? String ?? "?")")
                 onReady(nil)
             } else {
                 onReady((hello["error"] as? String) ?? "the model failed to load")
@@ -363,8 +404,8 @@ final class LocalWhisper {
             self.buffer = Data()
             // The next helper's first decode pays for cold weights again, and
             // that sample must not go into the window — see `DecodeRate`.
-            DecodeRate.engineStopped()
-            Log.info("whisper helper stopped")
+            if !self.isLive { DecodeRate.engineStopped() }
+            Log.info("\(self.tag) stopped")
         }
     }
 
@@ -436,6 +477,34 @@ final class LocalWhisper {
                         coverage: obj["coverage"] as? [String: Any],
                         words: Result.timedWords(obj["words"],
                                                  spelling: text.trimmingCharacters(in: .whitespacesAndNewlines))))
+        }
+    }
+
+    /// **One live-caption window** (2026-10-05): `pcm` is raw int16 16 kHz mono
+    /// the caller wrote; the answer carries the segments with their times, which
+    /// is what `LocalLiveCaption` commits by. Nil for any failure, a kill included.
+    func transcribeWindow(pcm: String, _ done: @escaping (WindowResult?) -> Void) {
+        queue.async { [weak self] in
+            guard let self, self.ready, let stdin = self.toHelper,
+                  let req = try? JSONSerialization.data(withJSONObject: ["pcm": pcm, "segments": true] as [String: Any])
+            else { done(nil); return }
+            var line = req
+            line.append(0x0A)
+            do { try stdin.write(contentsOf: line) } catch {
+                self.markDead("would not take a request (\(error))")
+                done(nil); return
+            }
+            guard let obj = self.readLine(timeout: 30), (obj["ok"] as? Bool) == true,
+                  let raw = obj["segments"] as? [[String: Any]] else { done(nil); return }
+            let segments: [Segment] = raw.compactMap {
+                guard let t = $0["text"] as? String,
+                      let a = ($0["start"] as? NSNumber)?.doubleValue,
+                      let b = ($0["end"] as? NSNumber)?.doubleValue else { return nil }
+                return Segment(text: t, start: a, end: b)
+            }
+            done(WindowResult(segments: segments,
+                              compressionRatio: (obj["compression_ratio"] as? Double) ?? 0,
+                              decodeSeconds: (obj["decode_s"] as? Double) ?? 0))
         }
     }
 

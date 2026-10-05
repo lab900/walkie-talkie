@@ -11,6 +11,7 @@ audio's length.
 Protocol, one JSON object per line each way:
 
     →  {"wav": "/path/to/file.wav", "words": true}      (`words` optional)
+    →  {"pcm": "/path/to/window.pcm", "segments": true}  (live captions, below)
     ←  {"ok": true, "text": "…", "language": "ro", "avg_logprob": -0.21,
         "compression_ratio": 1.4, "no_speech_prob": 0.0, "decode_s": 0.83,
         "words": [{"text": " există", "start": 1.54, "end": 2.56}, …],
@@ -51,6 +52,7 @@ import re
 import tempfile
 import sys
 import time
+
 
 MODEL = os.environ.get("RELAY_WHISPER_MODEL", "mlx-community/whisper-large-v3-turbo")
 
@@ -426,12 +428,22 @@ def cut_loops(res):
     return gone
 
 
-def transcribe(path, words=WORDS):
+def load_pcm(path):
+    """A live-caption window: raw int16 LE, mono, 16 kHz — the relay's own take,
+    copied out of memory. No ffmpeg (a subprocess per window would be ~40 ms of a
+    decode that has to be quick). The live caption runs in a helper of its own,
+    which the relay SIGKILLs when the dictation closes mid-window (2026-10-05):
+    the final decode is never queued behind it."""
+    return mx.array(np.fromfile(path, dtype="<i2")).astype(mx.float32) / 32768.0
+
+
+def transcribe(path, words=WORDS, samples=None):
     with quiet():
         # Decoded once, here, and handed to both halves as an array: the LID pass
         # needs the samples anyway, and passing the path twice would shell out to
         # ffmpeg twice for the same file.
-        samples = A.load_audio(path)
+        if samples is None:
+            samples = A.load_audio(path)
         lang = pick_language(samples)
 
         def decode(prompt):
@@ -531,19 +543,30 @@ except Exception as e:  # noqa: BLE001
     sys.exit(1)
 
 
+def timed_segments(res):
+    """`[{text, start, end}]`, seconds into the audio — what the live caption
+    commits by: a segment two decodes in a row agree on is fixed on screen and
+    the next window starts at its end (`LocalLiveCaption`)."""
+    return [{"text": s.get("text", ""),
+             "start": round(float(s.get("start", 0.0)), 3),
+             "end": round(float(s.get("end", 0.0)), 3)}
+            for s in res.get("segments") or []]
+
+
 for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
     try:
         req = json.loads(line)
-        wav = req["wav"]
-        if not os.path.exists(wav):
-            emit({"ok": False, "error": f"no such file: {wav}"})
+        path = req.get("pcm") or req.get("wav")
+        if not path or not os.path.exists(path):
+            emit({"ok": False, "error": f"no such file: {path}"})
             continue
         t0 = time.monotonic()
         want_words = bool(req.get("words", WORDS))
-        res = transcribe(wav, words=want_words)
+        samples = load_pcm(path) if req.get("pcm") else None
+        res = transcribe(path, words=want_words, samples=samples)
         decode_s = time.monotonic() - t0
         segs = res.get("segments") or []
         # The worst segment, not the average: a dictation is unusable if any part
@@ -566,6 +589,7 @@ for line in sys.stdin:
             # Present only when asked for (the default): `[{text, start, end}]`,
             # seconds into the WAV, the ruler `MicRecorder.offset(of:)` measures on.
             **({"words": timed_words(res, res.get("_samples"))} if want_words else {}),
+            **({"segments": timed_segments(res)} if req.get("segments") else {}),
             "decode_s": round(decode_s, 3),
             # Rides along on every answer rather than needing its own request:
             # the interesting question about this pool is how it moves across a

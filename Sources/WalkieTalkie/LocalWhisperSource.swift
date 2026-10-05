@@ -39,6 +39,32 @@ final class LocalWhisperSource: DictationSource {
     let meter = MicRecorder()
     private let whisper = LocalWhisper()
 
+    // MARK: - Live captions (2026-10-05) — see `LocalLiveCaption`
+
+    private lazy var live: LocalLiveCaption = {
+        let l = LocalLiveCaption(meter: meter)
+        l.onCaption = { [weak self] committed, partial in self?.didHearLive?(committed, partial, false) }
+        return l
+    }()
+    var streamsLive: Bool { LocalLive.isOn }
+    /// **Set by `AppDelegate` while this is the engine, nilled when it stops
+    /// being one** (`setEngine` / `swapSource`) — which is also when the live
+    /// helper's second copy of the weights is let go: a caption nobody can see
+    /// is not worth ~2 GB.
+    var didHearLive: ((_ committed: String, _ partial: String, _ gentle: Bool) -> Void)? {
+        didSet { if didHearLive == nil { live.shutDown() } }
+    }
+    var didOpenLive: (() -> Void)?
+    private(set) var liveOpen = false
+    var liveHelperDescription: [String: Any] {
+        ["on": LocalLive.isOn, "ready": live.ready, "active": live.active, "pid": live.whisper.pid.map { Int($0) } ?? NSNull()]
+    }
+    /// The menu's switch moved: up or down with it.
+    func liveSettingChanged() {
+        if !LocalLive.isOn { live.end(); live.shutDown() }
+        else if didHearLive != nil { live.warm() }   // only while this is the engine
+    }
+
     private(set) var isRecording = false
     var isReady: Bool { whisper.ready }
 
@@ -125,7 +151,10 @@ final class LocalWhisperSource: DictationSource {
     /// `prepare()` is called from `wireDictationSource`, so this loads when the
     /// source is **chosen** — at launch if it is the default, at the click if he
     /// switches — and never when Wispr is the one listening.
-    func prepare() { bringUpModel() }
+    func prepare() {
+        bringUpModel()
+        live.warm()
+    }
 
     /// **Yes, and by the mechanism that cannot collide.** The file this records
     /// *is* the file it transcribes, so the marker goes **into** it rather than
@@ -191,14 +220,33 @@ final class LocalWhisperSource: DictationSource {
         markersInAudio = false
         isRecording = true
         phase = .listening
+        // Known now, before `didBegin`: the relay opens the band on it. The
+        // caption itself starts once the microphone is open (below) — before
+        // that `takeEnd` is still the last take's.
+        liveOpen = LocalLive.isOn && live.ready
+        if LocalLive.isOn && !live.ready {
+            live.warm()
+            Log.info("💬 live: the live helper is not up — no caption for this sentence")
+        }
         Log.info("🎙️ local recording started — \(wav.lastPathComponent)")
         // **Opened on `audioQueue`, never on main** (2026-09-24) — the shape
         // `ElevenLabsSource` has had since 2026-09-19. `MicRecorder.start` and
         // `.stop` are synchronous CoreAudio calls that wait on the engine's own
         // mutex; a device change in flight (the DJI receiver dropping out) holds
         // it, and a cancel on the main thread then froze the whole app.
+        let withCaption = liveOpen
         audioQueue.async { [weak self] in
-            guard let self = self, let why = self.meter.start(to: wav) else { return }
+            guard let self = self else { return }
+            guard let why = self.meter.start(to: wav) else {
+                if withCaption {
+                    DispatchQueue.main.async {
+                        guard self.isRecording else { return }
+                        self.live.begin()
+                        self.didOpenLive?()
+                    }
+                }
+                return
+            }
             Log.error("🎙️ local: the microphone would not open — \(why)")
             DispatchQueue.main.async {
                 guard self.isRecording else { return }
@@ -217,6 +265,10 @@ final class LocalWhisperSource: DictationSource {
 
     func stop() {
         guard isRecording else { return }
+        // **First**: a window still decoding is killed before the final decode
+        // is even asked for (Victor: *"instantaneu anulezi orice"*).
+        live.end()
+        liveOpen = false
         isRecording = false
         phase = .transcribing("")
         // Before the relay hears the close: everything that times the wait from
@@ -305,6 +357,9 @@ final class LocalWhisperSource: DictationSource {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.decoding === decode { self.decoding = nil }
+                // The live helper, if the close killed it, comes back now that
+                // the sentence's own decode is over.
+                self.live.warmLater()
                 guard !decode.cancelled else {
                     Log.info("🗑️ the local model answered a cancelled decode — dropped")
                     return
@@ -357,6 +412,8 @@ final class LocalWhisperSource: DictationSource {
     private var decoding: Decode?
 
     func cancel() {
+        live.end()
+        liveOpen = false
         if !isRecording, let d = decoding {
             decoding = nil
             d.cancelled = true
@@ -445,6 +502,7 @@ final class LocalWhisperSource: DictationSource {
         whisper.stop()
         loading = false
         bringUpModel()
+        if didHearLive != nil { live.restart() }
     }
 
     func describe() -> [String: Any] {
@@ -452,6 +510,7 @@ final class LocalWhisperSource: DictationSource {
                                   "alive": whisper.alive, "pid": whisper.pid.map { Int($0) } ?? NSNull()]
         if let m = whisper.modelName { out["model"] = m }
         if let b = whisper.footprintBytes { out["bytes"] = b }
+        out["live"] = liveHelperDescription
         return out
     }
 
@@ -459,7 +518,10 @@ final class LocalWhisperSource: DictationSource {
     /// sees EOF on stdin when the relay's pipes close and exits on its own,
     /// measured at nine seconds even after a SIGKILL — but nine seconds of a
     /// model nobody is using is nine seconds of a laptop that is not his.
-    func shutDown() { whisper.stop() }
+    func shutDown() {
+        whisper.stop()
+        live.shutDown()
+    }
 
     /// The five-minute recovery's re-read. The one place outside `stop()` that
     /// still asks the model for anything.

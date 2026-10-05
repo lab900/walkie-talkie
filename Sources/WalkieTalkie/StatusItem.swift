@@ -1573,6 +1573,19 @@ final class StatusItem: NSObject, NSMenuDelegate {
             + (ram.map { " (\($0) now)" } ?? "") + "."
         autoLocalRow = auto
         engineSubmenu.addItem(auto)
+        // **💬 Live captions (local)** (2026-10-05) — the subtitle band for the
+        // local engine, from a second helper that re-decodes the take at every
+        // half-second pause (`LocalLiveCaption`). A switch about an engine, so
+        // beside the other one.
+        let liveRow = NSMenuItem(title: LocalLive.menuTitle, action: #selector(localLiveClicked), keyEquivalent: "")
+        liveRow.target = self
+        liveRow.image = LocalLive.isOn ? Self.symbolIcon("checkmark") : Self.blankIcon
+        liveRow.toolTip = "With a local model as the engine, the subtitle band shows what it hears while you talk: "
+            + "at every half-second pause the take since the last settled sentence is decoded again "
+            + "and the band rewritten.\n"
+            + "A second copy of the model runs it (~2 GB more), so the final transcription never waits: "
+            + "a window still decoding when you stop is killed."
+        engineSubmenu.addItem(liveRow)
         // **🧾 What the account has left, under a line of its own** (2026-09-28,
         // moved here from Victor Addons the same morning — *"quota lui 11labs
         // are sens doar in walkie"*). Below the rows he picks from, because it
@@ -1686,6 +1699,13 @@ final class StatusItem: NSObject, NSMenuDelegate {
 
     @objc private func autoLocalClicked() {
         onToggleAutoLocal?(!AutoLocal.isOn)
+    }
+
+    /// The `Live captions (local)` row's new value (the menu is rebuilt on open).
+    var onToggleLocalLive: ((Bool) -> Void)?
+
+    @objc private func localLiveClicked() {
+        onToggleLocalLive?(!LocalLive.isOn)
     }
 
     private func applyQuotaRow() {

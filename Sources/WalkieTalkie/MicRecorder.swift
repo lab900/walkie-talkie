@@ -541,6 +541,23 @@ final class MicRecorder {
     }
     private var take: [Int16] = []
     private let takeLock = NSLock()
+    /// Samples trimmed off the front of `take` by the cap — so `take[i]` is
+    /// sample `takeDropped + i` of the recording, a ruler that does not move.
+    private var takeDropped = 0
+
+    /// **The take on an absolute ruler, for the live caption** (2026-10-05):
+    /// samples since the microphone opened (markers excluded — they are not in
+    /// `take`). `takeEnd` is how many have been heard; `takeSlice` copies a
+    /// stretch of them, clamped to what is still kept.
+    var takeEnd: Int {
+        takeLock.lock(); defer { takeLock.unlock() }
+        return takeDropped + take.count
+    }
+    func takeSlice(from: Int, to: Int) -> [Int16] {
+        takeLock.lock(); defer { takeLock.unlock() }
+        let a = max(0, from - takeDropped), b = min(take.count, to - takeDropped)
+        return a < b ? Array(take[a..<b]) : []
+    }
 
     /// **The take's meter, hop by hop** (2026-09-27) — pauses and level for
     /// `VoiceAffect`, per sentence. Reset at `start`, kept after `stop` like
@@ -728,7 +745,7 @@ final class MicRecorder {
         // sentence would be a floor for a room, a microphone and a distance from
         // it that may all have changed since.
         voiced = 0
-        takeLock.lock(); take.removeAll(keepingCapacity: true); takeLock.unlock()
+        takeLock.lock(); take.removeAll(keepingCapacity: true); takeDropped = 0; takeLock.unlock()
         hopLock.lock(); hops.removeAll(keepingCapacity: true); hopLock.unlock()
         quiet = 0
         live = 0
@@ -1226,7 +1243,11 @@ final class MicRecorder {
         takeLock.lock()
         take.append(contentsOf: UnsafeBufferPointer(start: samples, count: count))
         // Trimmed in chunks of a quarter of the cap, so the shift is paid rarely.
-        if take.count > Self.takeCap + Self.takeCap / 4 { take.removeFirst(take.count - Self.takeCap) }
+        if take.count > Self.takeCap + Self.takeCap / 4 {
+            let cut = take.count - Self.takeCap
+            take.removeFirst(cut)
+            takeDropped += cut
+        }
         takeLock.unlock()
         lock.unlock()
     }
