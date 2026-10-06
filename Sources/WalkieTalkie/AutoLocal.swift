@@ -46,7 +46,7 @@ enum AutoLocal {
     }
 
     /// The Engine submenu's row title.
-    static let menuTitle = "Prepare local transcript (p95)"
+    static let menuTitle = "Backup Local Pre-Transcribe"
 
     /// **The chip's ⌘⌃X row.** `Use local  ⌘⌃X` when the words decoded ahead
     /// are in hand (Victor's words for it, 2026-09-29) — `— ElevenLabs over

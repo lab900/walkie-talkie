@@ -226,9 +226,9 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   so the bring-up loads the right ones. `GET /engine.engineRows` (the list as AppKit holds it),
   `whisperModels`, `whisperModelSelected`, `whisperModelPending`; `POST /test/whisper {"model": id}`
   picks the weights alone. The ⏱ checkbox's tooltip names the local model it would use.
-- **`Prepare local transcript (p95)` — a checkbox under the engine rows, between two separators**
-  (2026-09-28, 22:25 as *Auto fallback to local (p98)*; renamed 2026-09-29 when it stopped
-  inserting) — Victor: *"Auto fallback to local model should be a checkbox in the Engine submenu."*
+- **`Backup Local Pre-Transcribe` — a checkbox under the engine rows, between two separators**
+  (2026-09-28, 22:25 as *Auto fallback to local (p98)*; renamed 2026-09-29 to *Prepare local
+  transcript (p95)* when it stopped inserting, and 2026-10-06 to this title, Victor's words) — Victor: *"Auto fallback to local model should be a checkbox in the Engine submenu."*
   `UserDefaults` `autoLocalFallback` (`AutoLocal.isOn`, key kept so his setting survives the
   rename), **default ON**; the tick drawn like every other switch here (`checkmark` / `blankIcon`
   image, never `NSMenuItem.state`), read from the defaults at every build and repainted by

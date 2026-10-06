@@ -87,6 +87,6 @@ final class AutoLocalBudgetTests: XCTestCase {
                        "Use local  ⌘⌃X — ElevenLabs over budget")
         XCTAssertEqual(AutoLocal.rowText(ready: false, loading: false, keys: "⌘⌃X"), "Local now  ⌘⌃X")
         XCTAssertEqual(AutoLocal.rowText(ready: false, loading: true, keys: "⌘⌃X"), "Local now (loading)  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.menuTitle, "Prepare local transcript (p95)")
+        XCTAssertEqual(AutoLocal.menuTitle, "Backup Local Pre-Transcribe")
     }
 }
