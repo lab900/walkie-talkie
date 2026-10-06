@@ -65,7 +65,7 @@ MODEL = os.environ.get("RELAY_WHISPER_MODEL", "mlx-community/whisper-large-v3-tu
 # **0% in every bucket**, and it is free — `transcribe(language=None)` already
 # runs this exact encoder pass internally, so pinning only relocates it (paired
 # cost: -22ms).
-LANGUAGES = tuple(os.environ.get("RELAY_WHISPER_LANGUAGES", "ro,en").split(","))
+LANGUAGES = tuple(os.environ.get("RELAY_WHISPER_LANGUAGES", "nl,en").split(","))
 
 # **The words he says that a general model has never heard him say.**
 #
@@ -88,9 +88,9 @@ LANGUAGES = tuple(os.environ.get("RELAY_WHISPER_LANGUAGES", "ro,en").split(","))
 # none of them by the `avg_logprob` floor, because a loop is *confidently*
 # wrong.
 VOCABULARY = os.environ.get("RELAY_WHISPER_VOCABULARY", (
-    "Claude Code, CLAUDE.md, Copilot, subagent, subagenți, MCP, skill, hook, "
+    "Claude Code, CLAUDE.md, Copilot, subagent, MCP, skill, hook, "
     "prompt, commit, push, backend, frontend, IntelliJ, JetBrains, "
-    "Walkie Talkie, Wispr Flow, petclinic, agentic."
+    "Walkie Talkie, Wispr Flow, agentic."
 ))
 
 # **The prompt is chosen by the language, because the two languages fail

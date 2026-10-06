@@ -26,11 +26,11 @@ final class ElevenLabsLive {
 
     static let model = "scribe_v2_realtime"
     static let rate = "$0.39/h"
-    /// The languages the live recogniser may answer in: Romanian first, English
-    /// as the secondary. `WT_ELEVEN_LIVE_LANGS=ro,en` overrides.
+    /// The languages the live recogniser may answer in: Dutch first, English
+    /// as the secondary. `WT_ELEVEN_LIVE_LANGS=nl,en` overrides.
     static var languages: [String] {
         let raw = ProcessInfo.processInfo.environment["WT_ELEVEN_LIVE_LANGS"]
-            ?? ElevenLabsSource.config["WT_ELEVEN_LIVE_LANGS"] ?? "ro,en"
+            ?? ElevenLabsSource.config["WT_ELEVEN_LIVE_LANGS"] ?? "nl,en"
         return raw.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 

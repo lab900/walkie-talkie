@@ -56,8 +56,8 @@ menus, About, the Chrome extension. Logs, comments and commits are unaffected. S
   -type f`); the About row's build stamp is the executable's mtime.
 - **Nothing calls `NSApp.activate`** (only the `WisprSink` test instrument).
 - **Deps:** `mlx_whisper` + `ffmpeg` for the local model; the Chrome extension is loaded unpacked
-  and needs **Reload** after any `manifest.json` permission change; `Package.swift` needs the sibling
-  checkout `../victor-mac-kit`.
+  and needs **Reload** after any `manifest.json` permission change; `Package.swift` uses the stand-in
+  `vendor/victor-mac-kit` (the real one is private; its region selection always cancels).
 
 ## Identity and data
 

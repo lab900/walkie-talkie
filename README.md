@@ -1,5 +1,9 @@
 # 📻 Walkie Talkie
 
+> **Installing this fork? Read [SETUP.md](SETUP.md).** It covers the steps for a
+> new Mac, the Dutch/English setting and the known limits. The rest of this
+> README is Victor Rentea's original documentation.
+
 **Talk to your coding agent while you look at something else.**
 
 A macOS overlay. You speak, it transcribes, and the prompt lands in your
