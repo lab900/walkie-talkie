@@ -15232,3 +15232,16 @@ a bound sentence. 🔼 (the forward click) is the stop of every prompt. 🔼 →
 go. The 2 s dwell still guards the flick, so the start's own slow re-fire cannot flip it. Desk evals
 that used 🔼 → as a stop now use `forward-click` (`spoken`, `cases_audio.stop`, TG2 accepts the
 flip); the spec row checks both halves and two mutations bring the old stop back or let ⌘⌃D flip.
+
+## A prompt carries Wispr's recogniser, not its formatter (2026-10-06)
+
+Victor: *"Could you somehow disable the redactor agent of Wispr Flow? It keeps reframing my words and
+sometimes confuses the receiving agent … Ideally, only when prompting … When clean dictating, the
+redactor should be there."* Wispr's `History` row keeps both: `asrText` (the recogniser — already
+punctuated, his words) and `formattedText` (the rewrite). The row of that very request shows the
+difference: *"sometimes confusing for the receiving agent"* → *"sometimes confuses"*, *"only when
+prompting this should happen"* → *"only when prompting should this happen"*; elsewhere whole clauses
+dropped (*"It should be like, right now it's like sand"* → *"Right now, it's like sand"*).
+Wispr has no per-app switch for its formatter that leaves its own clean dictation untouched, so the
+row is read instead: `DictationResult.unformatted` = `asrText`, swapped in by `AppDelegate.deliver`
+for an envelope only. The corpus keeps the formatted text (unchanged behaviour). `WT_WISPR_RAW_PROMPTS=0`.

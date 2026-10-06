@@ -4168,8 +4168,8 @@ final class WisprFlowSource: DictationSource {
         // deletes them, its recogniser does not. Read before `endCapture`
         // forgets the row.
         let saidNow = saidThisTake
-        let asrNow: String? = saidNow.isEmpty ? nil
-            : historyRow.flatMap { WisprHistory.entry(rowid: $0)?.asrText }
+        let rawNow = historyRow.flatMap { WisprHistory.entry(rowid: $0)?.asrText }
+        let asrNow: String? = saidNow.isEmpty ? nil : rawNow
         // The string as it stood when the pasteboard first moved, when that is
         // what this delivery is about — see `clipboardMoved`.
         let fromBoard = clipboardMoved ?? Self.pasteboardString()
@@ -4218,7 +4218,8 @@ final class WisprFlowSource: DictationSource {
                     markersInAudio: self.markersInAudio,
                     engineLabel: Self.engineLabel,
                     said: saidNow,
-                    asr: asrNow))
+                    asr: asrNow,
+                    unformatted: rawNow))
                 self.didEnd?(.delivered)
             }
         }

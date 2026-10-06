@@ -348,6 +348,13 @@ struct DictationResult {
     /// formatter moves and deletes them, the recogniser does not). Nil when the
     /// source has no such column or no marker was said.
     var asr: String? = nil
+
+    /// **The recogniser's words, for a prompt** (2026-10-06) — Wispr's `asrText`
+    /// whatever was said, where `asr` is only there for the markers. Victor: *"it
+    /// keeps reframing my words and sometimes confuses the receiving agent … only
+    /// when prompting"*: an envelope for an agent carries these instead of the
+    /// formatter's rewrite; a plain sentence keeps `text`. Nil for every other source.
+    var unformatted: String? = nil
 }
 
 /// **Who inserts the text.**

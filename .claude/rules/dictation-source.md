@@ -241,6 +241,13 @@ He rules out **any focus move and the Scratchpad**. Plan: `docs/wispr-injection-
   (`HotkeyTap.holdWisprOwned`): its late ⌘V is dropped and the row only logged — never a second copy.
   **A dead row is let go at once** (batch 3): it produces no ⌘V, and a 5-min hold made every Wispr
   ⌘V the relay's.
+- **A prompt carries `asrText`, a plain sentence `formattedText`** (2026-10-06, Victor: *"it keeps
+  reframing my words and sometimes confuses the receiving agent … only when prompting"*). Wispr's
+  formatter rewrites, the recogniser does not (and already punctuates). `deliver` puts the row's
+  `asrText` on `DictationResult.unformatted` every time; `AppDelegate.deliver` swaps it in for an
+  envelope (bound terminal, spawn, 🔼 caret prompt), never for 🔽 / right ⌘⌥ clean words or a legacy
+  caret sentence. Empty `asrText` → the formatted words. The corpus keeps the formatted text. Log
+  `🎙️ prompt carries Wispr's asrText`. `WT_WISPR_RAW_PROMPTS=0` off.
 - **The capture reads its own row after adoption** (W4, 2026-09-28): `pollHistory` takes
   `WisprHistory.entry(rowid: historyRow)`, never `newest()` — his own newer row hid the relay's.
 - **Q19 (Victor's Q7 = A): his own right ⌥⇧ sentence ending while the relay's row is in flight is
@@ -527,6 +534,7 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 | `WT_KEY_TRACE=1` | log every key event + verdict, keycode/pid only (`POST /test/key-trace`) |
 | `WT_MARKER_TIMESTAMPS=0` · `WT_SHOT_MARKERS=1` · `WT_MARKER_DEVICE` | timestamp markers off / spoken on / device |
 | `WT_VOICE_AFFECT=0` · `WT_VOICE_TENSE=1` | `[?]` marks + `[voice: hesitant]` off (default on) / the energy half of `[voice: tense]` on (default off); env → `elevenlabs.env` → `voiceAffect` / `voiceTense` defaults |
+| `WT_WISPR_RAW_PROMPTS=0` | prompts carry Wispr's `formattedText` again instead of `asrText` (2026-10-06) |
 | `WT_WISPR_COPY_FALLBACK=1` | re-enable `copy_last_text` — see below |
 | `WT_WISPR_DB=<path>` | a fake `flow.sqlite` instead of Wispr's (test-only, 2026-09-28): env → `elevenlabs.env`, re-read ≤ 1 s; `evals/plan/fake_wispr_db.py` (`desk-testing.md`) |
 | `WT_ELEVEN_LIVE_URL` · `WT_ELEVEN_BATCH_URL` | the realtime socket / batch upload somewhere else (2026-09-27): env → `elevenlabs.env`, read at every engine pick; the harness points them at `evals/plan/fake_scribe.py` (`desk-testing.md`). Default `wss://api.elevenlabs.io/v1/speech-to-text/realtime` · `https://api.elevenlabs.io/v1/speech-to-text` |

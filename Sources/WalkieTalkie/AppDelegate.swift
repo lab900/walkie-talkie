@@ -3850,8 +3850,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // is a token `place` walks past and never lands inside a marker; after
         // `spokenText`, so the corpus copy is his words untouched.
         let originalWords = result.words
+        let envelope = !clean && (prompt || !(latchedAtCaret || pasteMode))
+        // **A prompt carries Wispr's recogniser, not its formatter** (2026-10-06,
+        // `DictationResult.unformatted`): the rewrite reframes what he asked and
+        // the agent is left to read his own words. A plain sentence keeps the
+        // formatted text; the corpus keeps `spokenText`. `WT_WISPR_RAW_PROMPTS=0` off.
+        if envelope, let raw = result.unformatted?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty, ProcessInfo.processInfo.environment["WT_WISPR_RAW_PROMPTS"] != "0" {
+            Log.info("🎙️ prompt carries Wispr's asrText (\(raw.count) chars) instead of its formatted \(result.text.count)")
+            result.text = raw
+        }
         pendingAffect = nil
-        if !clean, prompt || !(latchedAtCaret || pasteMode) {
+        if envelope {
             // **Not on the local model's words** (2026-10-04): they exist only
             // when a marker was cued, and `VoiceAffect`'s thresholds were fitted
             // on Scribe's (spacing tokens, fillers kept) — a `[?]` on some local
