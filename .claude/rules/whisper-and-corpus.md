@@ -15,7 +15,7 @@ Rules for the local recogniser (`LocalWhisper` + `helpers/whisper_helper.py`), t
 estimate, the input device, the level meter and the corpus that every dictation is filed in.
 Full history and reasoning: docs/journal.md — see the sections named after each rule below.
 
-## One recogniser
+## The local recogniser
 
 - **The local model is one of the Engine rows** (ElevenLabs is the default — `dictation-source.md`).
   It records through `MicRecorder` and transcribes with `mlx_whisper` (`pip install mlx-whisper`)
