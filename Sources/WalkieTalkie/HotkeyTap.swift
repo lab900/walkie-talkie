@@ -2409,14 +2409,21 @@ private let VK_ESCAPE: CGKeyCode = 0x35        // esc
         Log.info("🎙️ \(who) — Wispr Flow's hands-free toggle\(closing ? " (the stop; Return once its words land)" : " (the start)")")
         if closing {
             postWisprRawStop()
+            setWisprArm(0)
             DispatchQueue.global().async { [weak self] in self?.onBackSubmit?() }
         } else {
+            // **The arm goes up before the chord is announced** (2026-10-06).
+            // `onWisprRawChord` hops to the main queue, where `noteCleanStart`
+            // reads the arm to tell a plain sentence from a prompt; raised after
+            // it, an idle main thread read it still down, and a 🔽 → sentence
+            // went to the bound terminal as a prompt with `[Dictated in RO or
+            // EN]` under it (10:43:22, WhatsApp in front, bound to ttys004).
+            setWisprArm(CACurrentMediaTime())
             Self.postWisprHandsFree()
             // …and the chord says so to the state machine, which cannot see
             // it any other way — see `onWisprRawChord`.
             onWisprRawChord?(false)
         }
-        setWisprArm(closing ? 0 : CACurrentMediaTime())
         return swallow(gesture, type, event)
     }
 
