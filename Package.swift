@@ -5,12 +5,10 @@ let package = Package(
     name: "WalkieTalkie",
     platforms: [.macOS(.v13)],
     dependencies: [
-        // The region selector, shared with Victor Addons. A path dependency on
-        // purpose: both apps are built on this Mac, from local, and the point of
-        // sharing the crop was to be able to edit it and rebuild in one step —
-        // no push, no version bump, no resolve. A fresh clone needs
-        // `victor-mac-kit` checked out beside this folder.
-        .package(path: "../victor-mac-kit"),
+        // The region selector. Victor's `victor-mac-kit` is private, so this is
+        // a stand-in with the same API whose selection always cancels: the
+        // wheel-drag region capture does nothing, everything else works.
+        .package(path: "vendor/victor-mac-kit"),
     ],
     targets: [
         // **projectM 4.1.7, statically linked** (the `projectm` branch, 2026-09-21):

@@ -8275,7 +8275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // an agent that a Romanian word in the middle of an English sentence is
         // not a typo; which engine heard it is a fact about this app, it is in
         // the outbox line, and it was costing a sentence of every envelope.
-        "[Dictated in RO or EN]"
+        "[Dictated in NL or EN]"
     }
 
     /// **What a Replace Wispr dictation actually pastes: the words, and only
