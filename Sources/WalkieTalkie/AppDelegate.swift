@@ -6146,6 +6146,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Victor: *"apare întruna acest mesaj login item added, la fiecare
     /// reinstall — e chiar necesar să-l văd?"*. It is not: a binary that is not
     /// `/Applications/Walkie Talkie.app` has no business starting at login.
+    ///
+    /// **The guard stops new ones, it does not remove the old ones** (2026-10-06).
+    /// The 32 already registered survived until a reboot: a login item that is a
+    /// bare executable opens in Terminal, so login brought up 32 Terminal windows
+    /// that quit seconds later when they found the installed app already running.
+    /// To clean them up, delete them through System Events, where `path contains
+    /// "/.build/"`, then check that `sfltool dumpbtm` lists none.
     private static func startAtLogin() {
         guard #available(macOS 13, *) else { return }
         guard Bundle.main.bundleURL.pathExtension == "app" else {
