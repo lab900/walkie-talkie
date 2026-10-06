@@ -48,15 +48,8 @@ The middle button held and dragged during a dictation selects a rectangle of the
 
 ## The file and the envelope (`ScreenCapture`)
 
-- **The name is `area-00:38(1200x800px).jpg`: no pointer, size measured off the JPEG.** A full-screen shot carries the pointer because it answers *which of these thousand things*; here the box answered that, and the pointer is merely the corner he let go on. The size is the one fact not obvious from looking, and is never multiplied out of the screen's backing scale, for `tagCursor`'s reason. → journal: *`area-00:38(1200x800px).jpg`, and one sentence in the clause*
-- **`ScreenCapture.isArea` reads the `area-` prefix**, not a flag beside the path — the name is also what says it to the agent, and a second copy of that fact is a second thing to keep in step. → journal: *`area-00:38(1200x800px).jpg`, and one sentence in the clause*
-- **The clause says it once, only when a crop is present**, verbatim:
-
-  ```
-  Anything named `area-` is a region I dragged a box around, not the whole screen —
-  its edges are mine, not the display's.
-  ```
-  → journal: *`area-00:38(1200x800px).jpg`, and one sentence in the clause*
+- **An area frame is named like any shot** (`screenshot-3-original.jpg`, `-800px.jpg`) **plus `screenshot-3.jpg`, the dragged rectangle unscaled**; the rectangle travels as the token `[📸3✂️x1,y1→x2,y2]` (`screenshots-and-selection.md`, *The shot's name*).
+- **`ScreenCapture.isArea` answers from the region sibling (`zoom(for:)`)**, not from a prefix.
 - **The handover copy is unchanged**: 800 px on the long edge, so a smaller crop travels at its own size; the note says *at most* 800px wide. A crop counts in `📸 ×N` like any other picture — the chip is untouched. The one new string is the failure flash `⚠️ area capture failed` (the `listening-flash` state with different words). → journal: *`area-00:38(1200x800px).jpg`, and one sentence in the clause*
 - **The crop's value is *which one*, not *which word*** (measured 2026-09-19, `evals/capture-proof/`).
   24 agent runs over four highlighted words: the word itself comes back right 24/24 from the whole
@@ -65,7 +58,6 @@ The middle button held and dragged during a dictation selects a rectangle of the
   sentence, which holds both occurrences (4/6 pinned); handed the crop alone it quotes the lines it
   was given (6/6). **Handing over both was worse than the crop alone** (3/6) — the page invites the
   wider quote back. → journal: *The pictures are clean, and it is a measurement now (2026-09-19)*
-- **What ships is the whole display with the rectangle in the *name*, not a crop** (2026-09-14, `grabArea`) — the two bullets above quote the pre-2026-09-14 clause and the later date wins. The drag became a **pointing** gesture: *"nu doar decupez o bucată, ci arăt: în zona aia vreau să dispară, să apară ceva"*.
 - **With nothing selected, that costs a quarter of the answers** (measured 2026-09-19, `evals/pointing-proof/`, 96 runs). Asked *which sentence am I pointing at* with no highlight anywhere: the shipped envelope gets it **21/28**, and six of the seven misses land in **another paragraph**; the region alone gets it 28/28 (p = 0.006). The cause is that `tagArea` measures the rectangle off the **full-resolution** JPEG while the file handed over is the 800 px copy, so the reader rescales by 4.3× by eye — and **spelling the scale out in the clause does not fix it** (7/12, no better than saying nothing). What fixes it is pixels: the screen **plus** the framed region as a second file scores 15/16 and keeps the pointing semantics. → journal: *A box round it, with nothing selected (2026-09-19)*
 - **So a drag writes three files, and the third is not scaled** (2026-09-19, Victor: *"trimite atât ecranul original + 800px ca până acum, dar și selecția originală decupată (nescalată)"*). `<name>.jpg` (the display, his), `<name>-small.jpg` (800 px, the agent's), `<name>-zoom.jpg` — the rectangle **cut out of that same frame** at its own pixels. `ScreenCapture.writeRegionCopy`, and it cuts the frame rather than capturing again: a second `screencapture -R` is 200 ms later and of a screen that has moved, where this is the same instant by construction. It costs a decode and re-encode, which is affordable only because `fileArea` is already off the main thread with the panels down.
 - **The cut-out has no `-small` of its own, deliberately.** It is the unscaled copy or it is nothing; `handover(for:)` falls back to the file itself when no small sibling exists. The reading tool fits any image to 2000 px before charging for it, so the worst a zoom can cost is what a retina desktop costs (~3450 tokens) and a band of text is 400–900.

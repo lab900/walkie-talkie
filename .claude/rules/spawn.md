@@ -302,25 +302,16 @@ recently bound terminals under the folders, `RebindHistory.openTerminals` — de
 
 ## The spawn flight and the held dialog
 
-- **A spawn sends the window, not an outline: the little terminal grows out of the dialog
-  carrying the destination's pixels, forwards, 1 s** (2026-09-09). `BindFlight.fly(from:
-  spawnSeed(under: promptFarewell, like: window), to: { window }, picturing: window)`; the seed
+- **A spawn's flight is a white outline growing out of the dialog onto the new window, 1 s**
+  (`outlined: true`, no `picturing:` — `destinations-and-outbox.md`, *The send flight*). The seed
   (`AppDelegate.spawnSeed`) is 96 pt tall with **the window's own aspect ratio**, 12 pt under the
-  anchor, clamped into that screen. `spawnGrowSeconds` = 1.0 against `sendFlightSeconds` = 0.7:
-  this is the only thing on screen saying *which monitor* the session went to. **Only the spawn
-  changes** — `sendFlight` to an existing terminal is untouched (outline only, 0.7 s).
-  → journal: *The little terminal grows out of the dialog (2026-09-09)*
-- **`picturing:` is the one case where the pixels come from the far end.** The grab is from the
-  *destination* rectangle, so it lands pixel for pixel on what is there and only the white border
-  dissolves, over `spawnFlightRest` = 0.5 s (`tail:` — the fade starts with the last sixth of the
-  travel to go, `BindFlight.tailFadeFraction`, and reaches nothing half a second after rest).
+  anchor, clamped into that screen. `spawnGrowSeconds` = 1.0 against `sendFlightSeconds` = 0.55:
+  this is the only thing on screen saying *which monitor* the session went to. The border
+  dissolves over `spawnFlightRest` = 0.5 s (`tail:` — the fade starts with the last sixth of the
+  travel to go, `BindFlight.tailFadeFraction`).
   → journal: *The little terminal grows out of the dialog (2026-09-09)*
 - **No `reversed:` anywhere in a spawn.** Both branches run forwards from a seed to the window;
   the panel-less fallback anchors the same flight under the chip instead of under the dialog.
-  → journal: *The little terminal grows out of the dialog (2026-09-09)*
-- **The grab photographs whatever is on top.** `CGWindowListCreateImage` on a screen rectangle
-  returns that patch of screen; on this path the window was just tiled into a free cell, so
-  nothing covers it.
   → journal: *The little terminal grows out of the dialog (2026-09-09)*
 - **The panel is not relayouted when a spawn is sent (`RelayWindow.spawnPanelHeld`).** The
   destination does not exist yet; collapsing left a hole — dialog gone, nothing arrived, an outline

@@ -173,13 +173,13 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   were Activity Monitor or a `pkill` in a terminal — possibly the very terminal the relay was
   typing into (2026-09-07, the deadlock).
   → journal: *The Dock tile is the escape hatch*
-- **Nothing calls `NSApp.activate`.** The overlay is a `.nonactivatingPanel`, the About row and
-  the Prompt Log open pages in the browser rather than modals. The one change is that a click on
+- **Nothing calls `NSApp.activate`.** The overlay and the About panel (`AboutWindow`) are
+  `.nonactivatingPanel`s; the Prompt Log opens a page in the browser. The one change is that a click on
   the tile makes the app frontmost — so `main.swift` installs a minimal main menu (About, Hide,
   Quit ⌘Q); a `.regular` app with no `mainMenu` shows an empty menu bar, which reads as a broken
   app.
   → journal: *The Dock tile is the escape hatch*
-- **The "never becomes key" comments (`SpawnFolderMenu`, `RelayWindow`, `AboutPage`) are still
+- **The "never becomes key" comments (`SpawnFolderMenu`, `RelayWindow`, `AboutWindow`) are still
   right in spirit.** Each is about a mouse monitor or a click-through: the app is never frontmost
   *by its own doing*, so every click still arrives at a background app and counts as a first click.
   Clicking the Dock tile is the deliberate exception, ending in Force Quit or ⌘Q.
@@ -234,10 +234,9 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   `restoreBinding` and `adoptSpawnedWindow` call `showBound(_, deliberate: false)`, so a restore or
   a spawned window arriving mid-sentence never takes back `pasteMode` or `spawnPending`.
   → journal: *Restarting keeps the binding, and never interrupts a sentence (2026-09-09)*
-- **Wait for `busy == false` and then ten quiet seconds after the last delivery** (2026-09-23,
-  superseding *six seconds after the row stops saying `listening`*). `GET /test/state.busy` is
-  `AppDelegate.restartBlockers`; the ten seconds are Victor's, for re-routing a prompt he sent to
-  the wrong place. `tools/restart_gate.py`, tested by `evals/test_restart_gate.py`.
+- **Wait for `busy == false`, then `QUIET_AFTER_DELIVERY` (5 s) after the last ended dictation.**
+  `GET /test/state.busy` is `AppDelegate.restartBlockers`. `tools/restart_gate.py`, tested by
+  `evals/test_restart_gate.py`.
 - **…on every engine, and five seconds after his hands** (2026-09-28, after a restart at 18:39:14
   landed while he was dictating — *"restart is only possible after 5 secs of inactivity after the
   last insert of text"*). `restartBlockers` also carries the local fallback, the sentence queue,
@@ -309,7 +308,7 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   → journal: *The Dock tile restarts it (2026-09-14)*
 - **It obeys both halves of the 2026-09-09 rule, exactly**, and it can answer the first one
   properly rather than by sleeping: `listening || settling || phase.isWaitingForWords ||
-  overlay.isHoldingPrompt` is the six blind seconds the script sleeps, asked. The click flashes
+  overlay.isHoldingPrompt` is the gate's `busy`, asked in-process. The click flashes
   `↻ restarting after this sentence` once and waits with **no ceiling**.
   → journal: *The Dock tile restarts it (2026-09-14)*
 - **The tty travels in `~/.walkie-talkie/.rebind`, not in `bound-tty`** — that file is cleared at

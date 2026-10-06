@@ -130,7 +130,8 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   this 🔽 → reached `WisprState` through no witness at all: no row poll, no ring.
 - **Right ⌘⌥ is never Wispr's push-to-talk any more** (Q9 step 2, 2026-09-28): `onWisprPushToTalkReleased`,
   `WisprStart.pushToTalk`, `startedByHeldPair`, `heldPairIsTheEngines` are deleted; the pair is
-  `onCleanHold` whatever the Engine. Wispr's own ptt is **right ⌥⇧ `61+60`** (Q23) and nothing here watches it.
+  `onCleanHold` whatever the Engine (on Engine = Wispr it posts Wispr's F19 shortcut — below). Wispr's
+  own ptt is **right ⌥⇧ `61+60`** (Q23), watched only to start the bridge's feed, never taken.
 - **A Wispr sentence names Wispr's microphone** — `History.micDevice` → `InputDevice.glyph(wisprName:)`,
   read from Wispr, never written; `🎓 TO Wispr` maps to the relay's own device.
 
@@ -425,7 +426,7 @@ per modifier, against `keyState` on both keycodes. `evals/test_stale_modifier.py
 - **The live socket also sends 50 `keyterms`** (first column of `~/.walkie-talkie/vocab.txt`, re-read per session) and `vad_silence_threshold_secs=1.5`; **after 3 s without new words it uploads the audio since the last cut to the batch model and replaces the live segments** (`ElevenLabsLive.correctIfPaused`, `gentle` corrections on the band). `ElevenLabsCost` keeps the running bill (`/test/state.elevenCost`; off the menu rows since 2026-09-28). (2026-09-26)
 - **The live caption IS pinned to `ro` + `secondary_languages=en`** (2026-09-26, a caption came back Turkish): `ElevenLabsLive.languages`, `WT_ELEVEN_LIVE_LANGS=ro,en` overrides (first = `language_code`, rest = `secondary_languages`, repeated query keys; probed 2026-09-26 on a corpus WAV, English transcribed fine under it). `WT_ELEVEN_LANG` set wins for both.
 - **`DictationEnd.failed`** ≠ `.silent` (drops audio) ≠ `.cancelled` (keeps it quietly): 12 s banner
-  + WAV staged for *Recover Cancelled Dictation*. One retry, only for transport/429/5xx; 45 s ceiling.
+  + WAV staged for *Recover Dictation*. One retry, only for transport/429/5xx; `requestTimeout` 20 s.
 - **An empty transcript is `.failed(why: DictationEnd.heardNothing, audio:)`, never `.silent`**
   (2026-09-26, §3.8 — the WAV used to be deleted; 60 s of speech lost 09-19 and 09-20). Scribe `""`
   and a local answer with no words both; `.silent("")` is only a take under 0.35 s. **No local
@@ -522,7 +523,7 @@ he hesitated**; what the agent does about it lives in CLAUDE.md, not in the tag.
 | variable | effect |
 |---|---|
 | `WT_SOURCE=whisper｜eleven｜wispr` | engine for one run (the menu writes `dictationSource`) |
-| `WT_WISPR_ENGINE=1` | Wispr Flow back as a row of the Engine list, last (2026-09-28, **pending the lab verdict** — off by default, the restore is `StatusItem.wisprEngineDefault`): env → `elevenlabs.env`, re-read at every menu build; `GET /engine.wisprRowShown` says whether the row is there. `POST /engine {"id":"wispr"}` picks it either way |
+| `WT_WISPR_ENGINE=0｜1` | overrides `StatusItem.wisprEngineDefault` (`true`: Wispr Flow is the last row of the Engine list): env → `elevenlabs.env`, re-read at every menu build; `GET /engine.wisprRowShown` says whether the row is there. `POST /engine {"id":"wispr"}` picks it either way |
 | `WT_WISPR_FIREWALL=0` | let Wispr's ⌘V through (`POST /test/firewall {"on": false}`) |
 | `ELEVENLABS_API_KEY` · `WT_ELEVEN_MODEL=scribe_v2` · `WT_ELEVEN_LANG=ro` · `WT_ELEVEN_LIVE_LANGS=ro,en` | key; model (default `scribe_v1`); pinned language (off); the live caption's language set (default `ro,en`) |
 | `WT_WRAP_WISPR=0` · `WT_WRAP_MODE=scratchpad｜sink｜off` | wrap off / forced mode (`POST /test/wrap-mode`) |

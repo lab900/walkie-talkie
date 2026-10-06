@@ -3,7 +3,7 @@ paths:
   - "Sources/WalkieTalkie/StatusItem.swift"
   - "Sources/WalkieTalkie/MenuBarMirror.swift"
   - "Sources/WalkieTalkie/MessageLog.swift"
-  - "Sources/WalkieTalkie/AboutPage.swift"
+  - "Sources/WalkieTalkie/AboutWindow.swift"
 ---
 
 # The menu bar item
@@ -163,15 +163,11 @@ Full history and reasoning: docs/journal.md — see the sections named after eac
   order, and the model details are on the tooltips** (`StatusItem.engineDetails`): model ids,
   published prices, the key, the RAM. Victor: *"move the details of what models into the
   tooltips"*. `⚠️` (no key) and `⏳` (loading) stay on the row — *cannot run now* belongs where he
-  picks. **Wispr Flow is hidden "for the moment"**: its row shows only while it *is* the engine, so
-  the tick is never missing; `POST /engine {"id":"wispr"}` still picks it. Ids: `eleven-live`,
-  `eleven`, `whisper`, `wispr`. → journal: *ElevenLabs + Live: the words beside the pointer (2026-09-25)*
-- **`WT_WISPR_ENGINE=1` brings the `☁️ Wispr Flow` row back, last** (2026-09-28, **pending the lab
-  verdict**) — Victor: *"once you're convinced [by the VM tests], restore Wispr Flow as a
-  transcription engine"*. Env → `elevenlabs.env`, re-read at every menu build
-  (`StatusItem.wisprEngineSwitch`); absent, the list is exactly the 2026-09-25 one. The restore is
-  flipping `StatusItem.wisprEngineDefault` to `true`. `GET /engine.wisprRowShown` answers whether
-  the row is in the list now (switch on, or Wispr is the engine).
+  picks. Ids: `eleven-live`, `eleven`, `whisper`, `wispr`. → journal: *ElevenLabs + Live: the words beside the pointer (2026-09-25)*
+- **`☁️ Wispr Flow` is the last row** (`StatusItem.wisprEngineDefault = true`). `WT_WISPR_ENGINE=0|1`
+  overrides it for a run — env → `elevenlabs.env`, re-read at every menu build
+  (`StatusItem.wisprEngineSwitch`); switched off, the row shows only while Wispr *is* the engine.
+  `GET /engine.wisprRowShown` answers whether the row is in the list now.
   → journal: *Wispr Flow's Engine row behind a switch (2026-09-28)*
 
 - **It replaced `Replace WisprFlow`, and that row is gone from the menu.** A checkbox named after
@@ -372,9 +368,6 @@ and source should be selectable via menu too. those unavailable disabled"* — a
   `TerminalBinding.liveTitles()` AppleScript (~30 ms for the machine, about one `title(forTTY:)`);
   a tty the history remembers and the map does not is greyed, not deleted.
   → journal: *Rebind to: the destinations already spoken to, most recent first (2026-09-10)*
-- **`Recover Cancelled Dictation` exists** (2026-09-10), `arrow.uturn.backward`, in the dictation
-  block.
-  → journal: *Every row has an icon, and two alphabets share the column*
 - **⏳ lives only in the menu bar (`StatusItem.refreshGlyph`), never beside the cursor.** The
   model loads at launch (2026-09-06), so nobody waits on it; what remains is `⏳🤖` and
   `<model> — loading…` in the menu. `AppDelegate.setEngineLoading` is a one-liner into

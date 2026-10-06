@@ -2,6 +2,7 @@
 paths:
   - "Sources/WalkieTalkie/CaretHalo.swift"
   - "Sources/WalkieTalkie/DropArrow.swift"
+  - "Sources/WalkieTalkie/PasteHint.swift"
   - "Sources/WalkieTalkie/WisprWatch.swift"
   - "assets/caret-halo-5x5.png"
 ---
@@ -53,17 +54,14 @@ The mouse-5 legend went with the row. → `.claude/rules/menu-bar.md`, *The Engi
   words land and on every path that gives up on them (`clearSpawn`); a dictation that is neither a
   spawn nor a paste takes the row down as it opens, so a stale caret cannot ride the next sentence.
   `at caret`, not `at the caret` (2026-09-09). → journal: *Replace Wispr: the relay as a way to type*
-- **Persisted across launches since 2026-09-07.** `AppDelegate` seeds the flag and the tap from
-  `StatusItem.isReplaceWispr` **without** going through `setReplaceWispr`: that call flashes the
+- **Persisted across launches.** `AppDelegate` seeds the flag and the tap from `UserDefaults`
+  (`replaceWisprKey`) **without** going through `setReplaceWispr`: that call flashes the
   overlay, and a restored mode is not an event to announce. → journal: *Replace Wispr: the relay as a way to type*
 - **The transcript goes on the clipboard as well** (`pasteText` → `holdOnClipboard`) and sets
   `lastDictation`, so a paste that landed somewhere unhelpful is one ⌘V away — and since Q17
   (2026-09-28) **every** finished sentence does, whatever the destination (`destinations-and-outbox.md`). → journal: *Replace Wispr: the relay as a way to type*
-- **The menu row's icon is its state** — `checkmark` on, an empty box of the same size off — never
-  `NSMenuItem.state`: a ticked row makes AppKit reserve the state column for the whole menu and
-  shoves every other row sideways. → journal: *Replace Wispr: the relay as a way to type*
-- **`POST /test/replace-wispr {"on": true}`** goes through `setReplaceWispr` like the row, so the
-  tick, the tap's flag and the flash cannot say three different things. → journal: *Replace Wispr: the relay as a way to type*
+- **`POST /test/replace-wispr {"on": true}`** goes through `setReplaceWispr`, so the tap's flag and
+  the flash cannot disagree. → journal: *Replace Wispr: the relay as a way to type*
 - **The corpus keeps everything**: `captureLocal` runs before the branch. → journal: *Replace Wispr: the relay as a way to type*
 
 ## What a caret dictation carries (2026-09-08)
@@ -892,11 +890,8 @@ closes. Between the two is the whole transcription — the stretch in which he i
   log says `halo page ready: 20 effects, webgl true` and which page entry a style picked, or
   `MilkDrop <n>: ok`.
 
-## Where the halo work stopped (2026-09-20, 23:00) — for the next session
+## Halo pages: decisions and known limits
 
-- **Deployed = `50a9b52`**, the newest commit at close; nothing committed but undeployed. Page
-  vendored at `dc91aa7`. Deploy is `./build-app.sh && ./relay-restart.sh`, only with no ring up
-  (`GET /test/state`), under `hands-off run`.
 - **Decided, not omitted**: a style change rebuilds the web view, **~115 ms** to the first
   frame of a hand-written effect (measured `+117 ms page ready`). Victor does not feel it and
   chose the simpler rebuild-per-change over keeping a page alive — do not "fix" it.
