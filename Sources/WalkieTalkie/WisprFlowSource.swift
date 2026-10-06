@@ -178,6 +178,10 @@ final class WisprFlowSource: DictationSource {
     /// Taking over a tool he reached for directly is a different thing from
     /// wrapping a dictation this app asked for itself.
     private(set) var relayStarted = false
+    /// **Walkie's sentence, whoever's chord**: `relayStarted` or the raw chord
+    /// 🔽 → posts (`walkiePosted`). The relay delivers both, so both owe the
+    /// countdown a WAV — see `closedTakeAudio`.
+    private var walkieOwned = false
 
     /// **The mode this dictation opened in**, latched at the gesture. `wrapMode`
     /// can change under a sentence — the tick is a menu row and the loop posts
@@ -1557,9 +1561,12 @@ final class WisprFlowSource: DictationSource {
     /// The relay's own recording of a relay sentence whose row is still owed —
     /// the speculative local decode reads it (2026-09-29). Not his own chord's
     /// sentence (nothing of it is the relay's to deliver), not a cancel, not a
-    /// file already gone.
+    /// file already gone. **A 🔽 → plain sentence counts** (2026-10-06): it was
+    /// armed and counted down, but `relayStarted` is false for the raw chord, so
+    /// the decode never got its WAV — at 11:14 the countdown hit zero, nothing
+    /// went in, and the words waited 33 s for Wispr's `error`.
     func closedTakeAudio(take: Int) -> TakeAudio? {
-        guard let k = keptTake, relayStarted, intercepting, !cancelling, !discardOnArrival,
+        guard let k = keptTake, walkieOwned, intercepting, !cancelling, !discardOnArrival,
               FileManager.default.fileExists(atPath: k.url.path) else { return nil }
         return k
     }
@@ -1883,6 +1890,7 @@ final class WisprFlowSource: DictationSource {
         focusPid = frontPid != 0 ? frontPid
             : (Self.frontWindowOwner() ?? (lastFrontPid != 0 ? lastFrontPid : nil))
         relayStarted = relay
+        walkieOwned = relay || walkiePosted
         startedMode = relay ? (mode ?? wrapMode) : .off
         // **Every Wispr sentence is the relay's to deliver** (2026-09-22). Until
         // today a dictation Victor started with Wispr's own chord was watched
@@ -2319,6 +2327,7 @@ final class WisprFlowSource: DictationSource {
             // Nobody's gesture but his: `relayStarted` would otherwise be the
             // previous sentence's answer, and the dress reads it.
             relayStarted = false
+            walkieOwned = false
             beginCapture()
             startMeter()
             didBegin?()

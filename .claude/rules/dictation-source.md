@@ -103,6 +103,11 @@ dated note always wins. Speechmatics and Gemini were removed whole on 2026-09-20
   so desk runs never teach the real lines. While ON and the engine is not local, the local weights are
   kept up (`keepLocalWarm`: launch +2 s, every engine pick, the checkbox). → journal: *Prepare local
   transcript (p95)*, *The countdown to the local words (2026-10-06)*
+- **A 🔽 → plain sentence hands its WAV to the countdown too** (2026-10-06, 11:14). `closedTakeAudio`
+  answered only `relayStarted`, which the raw chord never sets, so the plain sentence was armed and
+  counted down but the decode ahead stayed `planned` (`⏱ … the local decode has not started (no WAV
+  yet)`), nothing went in at zero, and Wispr's `error` came 33 s later. It reads `walkieOwned`
+  (`relay || walkiePosted`) now; his own Wispr chord (Q9) still has none.
 - **A Wispr still finishing the take the relay gave up on cannot take the next one** (2026-10-06).
   Measured 10:25:11: a start chord posted 6 s after ⌘⌃X left row 18414 `processing` was ignored; the
   sentence learnt so 12 s in (`holdOwnTake`) and went local by the back door — Victor read it as the
