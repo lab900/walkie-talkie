@@ -78,7 +78,7 @@ duration, expiresAt}` · `live` (the socket: `socket`, `chunksSent`, `pending`, 
 since batch 4: `prompt {held, verb, deadline (s left, null while paused/edited), text, buttons, editing, paused}` · `tapFailingOpen` · since batch 6: `sentences` (Q12: `[{id, state, target, startedAt, take, waiting}]`, oldest first) ·
 `sentenceQueue` · `wisprStandalone` (Q9) · `live.handshake` (Q11) · `localNow {available, why, loading, row}` (⌘⌃X,
 2026-09-28) · `localAuto {on, budget, p95, quantile, cap, samples, engine, audio, since, left, expired, settled,
-fired (always false since 2026-09-29), spec {startAt, startedAt, readyAt, phase planned｜running｜ready｜failed｜skipped｜discarded,
+fired (always false — the hand-over is `spec.consumed` + the trace's `outcome=local-auto` since 2026-10-06), spec {startAt, startedAt, readyAt, phase planned｜running｜ready｜failed｜skipped｜discarded,
 wasted, consumed, chars, wav}, trace (the 📊 line's JSON), forced {budget, localEta}, localReady, wispr {down, fakeLaunch,
 launches, launchedAgo}}` (prepare local transcript, 2026-09-29 — kept after the words land until the next close; seconds in
 `spec` are from the close) · since 2026-09-28 (Wispr as engine):
@@ -96,8 +96,8 @@ upload made n ms late (Q12's order cases); `delayx2` delays the next two.
   off the Tart guest (`WT_LAB=1`, set by `run-phase.sh`, or `kern.hv_vmm_present`); every case SKIPs
   when Wispr is not running. `WT_ALLOW_WISPR_KILL=1` lets TW7(c)/TW15 kill and relaunch his Wispr.
 - **`delivery`** (outbox line and `lastDelivery`): `{via: wispr-cmdv｜wispr-history｜wispr-notes｜
-  pasteboard｜local-whisper｜elevenlabs-scribe｜local-fallback｜local-forced (⌘⌃X)｜test (`local-auto` only
-  2026-09-28 22:25 → 2026-09-29 07:40: nothing inserts on a clock any more), kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜
+  pasteboard｜local-whisper｜elevenlabs-scribe｜local-fallback｜local-forced (⌘⌃X)｜local-auto (the budget ran out —
+  2026-09-28 22:25 → 09-29 07:40, and again since 2026-10-06)｜test, kind: route｜alreadyInserted｜insertedElsewhere, to: terminal:ttysNNN｜
   caret｜spawn:<folder>｜held, at}`. It records, never decides; caret/held/elsewhere write no outbox line.
 - **`WisprSink` is the one exception to *never `NSApp.activate`*** — it must be the key window to
   answer what one receives. Never bindable, never in `docs/states/`. With the swallow armed at the

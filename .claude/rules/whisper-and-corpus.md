@@ -320,7 +320,7 @@ never include a bare `dji mic`, which is the transmitter's name (`DJI Mic Mini-B
 - **The launch tab** (2026-09-28, Victor: *"when walkie starts up, it should show an overlay on the
   bottom saying what source/engine it uses. this way I know when it restarted"*) — the same
   `BottomTab`, **blue** (`MicAnnouncer.startupTint`), 3 s, with `StatusItem.engineBannerTitle`
-  (`☁️ ElevenLabs + Live`, `☁️ Wispr Flow`, `💻 Local (1.5 GB)`), shown once from
+  (`ElevenLabs + Live ☁️`, `Wispr ☁️` — not `Wispr Flow`, 2026-10-06 —, `Turbo💻 1.5 GB`), shown once from
   `applicationDidFinishLaunching` after the engine is restored; never under `RELAY_SHOOT`.
   `/test/state.startupBanner` holds its words.
 - **`resolve()` is the single answer**, read by `select` (what records), by the chip's mark and by

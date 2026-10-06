@@ -37,6 +37,7 @@ The journal contradicts itself over time, because it was written as things chang
 - *🔼 → ends the one open* for a sentence aimed at the bound terminal — superseded 2026-10-05 by *🔼 → mid-sentence flips bound ⇄ caret*: it goes to the caret, and back on the next flick; 🔼 is the stop, ⌘⌃D keeps its own
 - Q9's *Wispr's push-to-talk moves to right ⌘ + right ⇧* (`54+60`, 2026-09-26) — superseded 2026-09-28 by Q23: right ⌥ + right ⇧, `61+60`
 - *Auto fallback to local (p98): ⌘⌃X pressed by the clock* (2026-09-28, 22:25) — superseded 2026-09-29 by *Prepare local transcript (p95)*: p95, not p98; the local words are decoded **ahead** and **offered** (`💻 Use local  ⌘⌃X`), never inserted on a clock — `via: local-auto`, the countdown row and the over-budget flash are gone; the checkbox is *Prepare local transcript (p95)*. Q14 (hard failures) stays automatic
+- *Prepare local transcript (p95)*'s **offered, never inserted** (2026-09-29), `Use local  ⌘⌃X — <engine> over budget`, and the `  🤔⏱️` overdue note on the Transcribing row (2026-09-22/23) — superseded 2026-10-06 by *The countdown to the local words*: the ⌘⌃X row counts down to the budget (`Fallback to local in 3s  ⌘⌃X`, no engine name) and **at zero the local words go in** (`via: local-auto`)
 - *One folder per dictation* (2026-09-20, `shots/<session>/<HH-mm-ss>/`) — superseded 2026-10-01 by *The dictation folder moves up a level*: `shots/<yyyy-MM-dd-HH-mm-ss>/`, flat; the session folder keeps only what has no sentence around it (stray shutters, WAVs, films)
 - *Pause is gone* — still true; pause was removed 2026-09-01 and is not coming back
 - *The ring round the pointer* → *Spokes* → *What ships: `codex3`* — each superseded by the next; what ships is *What ships now: his picture, and it runs as a film*, plus *It is the beacon now* (2026-09-11) and *`DropArrow`*
@@ -15245,3 +15246,63 @@ dropped (*"It should be like, right now it's like sand"* → *"Right now, it's l
 Wispr has no per-app switch for its formatter that leaves its own clean dictation untouched, so the
 row is read instead: `DictationResult.unformatted` = `asrText`, swapped in by `AppDelegate.deliver`
 for an envelope only. The corpus keeps the formatted text (unchanged behaviour). `WT_WISPR_RAW_PROMPTS=0`.
+
+## The countdown to the local words (2026-10-06)
+
+Victor, 10:25–10:32, four dictations in a row:
+
+> *"you should put a countdown timer and remove the thinking face from the tooltip message that
+> shows up when the transcribing tool, in my case currently Wispr Flow, exceeds its time budget …
+> And when the timer expires, the local dictation is automatically injected, as now, right?"*
+>
+> *"I'd like to have the countdown timer in the message that also shows the keys to press. Let's
+> put it like fallback to local in countdown timer and then show the key shortcuts."*
+>
+> *"… not in the first line of the tooltip, but in the last line"*
+>
+> *"Make sure you don't leak the name of any tool, but only the icon of them."*
+
+**It was not "as now".** Since 2026-09-29 the budget running out inserted nothing; the row only
+grew `— Wispr Flow over budget`. `relay.log` that morning: at 10:24:54 Wispr went over its 3.4 s
+budget with the local words ready, and the take sat until Victor pressed ⌘⌃X at 10:25:05; at
+10:26:43 the same, ⌘⌃X at 10:27:01 — 11 s and 18 s of waiting on a row (`processing`) that came
+back `error`. He was doing the clock's job by hand. So 09-29 is reversed, by his own description
+of what he wants:
+
+- **The ⌘⌃X row counts down**: `💻 Fallback to local in 3s  ⌘⌃X` from one second into the wait
+  (as `Local now` always waited) to the budget, whole seconds rounded up, `now` at zero while a
+  decode ahead finishes. `AutoLocal.row(…, left:)` / `rowText(countdown:)`. Before, the row stayed
+  hidden until the local words were ready, which is about when the budget ran out — a countdown
+  there would have lasted a frame.
+- **At zero the local words go in**: `AutoLocal.shouldHandOver` (expired, `.ready`, once) →
+  `handOverAtBudget` (off the tick: the hand-over re-enters `syncLocalNow`) → `transcribeLocallyNow`,
+  with `localAutoTake` making the delivery `via: local-auto` and the trace `outcome=local-auto`. A
+  local model that gave nothing (failed, skipped under the voiced floor) takes the row down and the
+  engine's words are the only ones coming — no clock inserts *nothing*.
+- **No engine names on the row**: the `— <engine> over budget` suffix is gone; the logo on
+  `Transcribing via` already says which. (The two old flashes that name Wispr Flow are untouched.)
+- **The `  🤔⏱️` note is gone from the Transcribing row** with `pinTranscribeOverdue` and the
+  `transcribing-overdue` shot: the countdown is the over-time signal now, on the last row.
+
+### The new-session prompt that went local — not a drift, a busy Wispr
+
+Same session, 10:26: *"I just started a new prompt for a new terminal, and what was used was the
+local model. The model that is used for transcribing should be the same for all four, always. Make
+sure in the code that this never drifts again."*
+
+The log: 10:25:05 ⌘⌃X abandoned row 18414 (still `processing`); 10:25:11 the 🔼 ↑ sentence posted
+the start chord *"on a bare wire after 45 ms"*; Wispr never answered it (`📮 … row on top 18414
+'processing'`); at 12 s `holdOwnTake` carried the take on the relay's recording and Q14 sent it to
+the local model; 18414 came back `error` at 10:25:20. The gesture picked the same engine as every
+other — **Wispr takes one sentence at a time**, and it was still on the one handed away.
+
+- `WisprFlowSource.stillFinishingAbandonedRow` — the row `watchLateRow` owns, read live off
+  `History`, nil once terminal or dead. `startDictation` borrows the local model **at the start**
+  when it is set (flash `💻 Local — the last take is still being transcribed`), instead of finding
+  out 12 s in. With the clock now handing over at the budget, a slow row followed by another
+  sentence is the ordinary case.
+- **The guarantee is structural and now tested**: `evals/test_one_engine.py` fails unless
+  `source.start()` is called exactly once, from `startDictation` (which all four gestures use), no
+  source is started by name, and every `borrowEngine` is one of the three listed hard failures
+  (Q21 without Wispr's F19 shortcut, Wispr not up, Wispr still finishing).
+

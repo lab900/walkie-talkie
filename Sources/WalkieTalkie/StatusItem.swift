@@ -1566,8 +1566,8 @@ final class StatusItem: NSObject, NSMenuDelegate {
         let ram = whisperFootprint?().map { String(format: "%.1f GB", Double($0) / 1_073_741_824) }
         auto.toolTip = "While ElevenLabs or Wispr Flow transcribes, this Mac decodes the sentence too, "
             + "timed to be ready by the engine's p95 for that length (at least 1.5 s, at most 0.3 × the audio + 1 s).\n"
-            + "The chip then offers it — Use local ⌘⌃X. Nothing is inserted unless you press it; "
-            + "the engine's words landing first discard it.\n"
+            + "The chip counts down to that moment — Fallback to local in 3s ⌘⌃X — and at zero the local words go in; "
+            + "⌘⌃X puts them in sooner, and the engine's words landing first discard them.\n"
             + "Uses \(WhisperModels.option(for: WhisperModels.selected).map { Self.localRowTitle($0, loading: false) } ?? "Local 💻").\n"
             + "Keeps the local model loaded while another engine is picked"
             + (ram.map { " (\($0) now)" } ?? "") + "."
@@ -1937,7 +1937,9 @@ final class StatusItem: NSObject, NSMenuDelegate {
         let name: String, emoji: String
         switch id {
         case "eleven", "eleven-live": (name, emoji) = ("ElevenLabs", "☁️")
-        case "wispr": (name, emoji) = ("Wispr Flow", "☁️")
+        // **`Wispr`, not `Wispr Flow`, on the tab** (2026-10-06, Victor: *"numește
+        // Wispr în loc de „Wispr Flow" în overlay-ul care se ridică pe jumătate"*).
+        case "wispr": return "Wispr ☁️"
         default: return engineShortTitle(id)   // already `Turbo💻 1.5 GB`
         }
         let title = engineShortTitle(id)

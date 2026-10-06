@@ -143,17 +143,19 @@ yields to `--label`).
   `layoutGlyphRow`, both halo branches), placed after `☠️ Kamikaze` and before the paste row. A
   0.25 s tick runs while a take is available, to keep the second and `(loading)` honest. States
   page: `transcribing-local-now`, `transcribing-local-now-loading`. → `mouse-gestures.md`, *⌘⌃X*
-  **With *Prepare local transcript (p95)* ON the row is `💻 Use local  ⌘⌃X`, and only once the
-  local words decoded ahead are in hand** (2026-09-29 — Victor's words for it; `AutoLocal.rowText` /
-  `AutoLocal.row`, `setLocalNow(_:loading:ready:overBudget:)`): no row at all while the decode is
-  planned or running (*"only when the local transcription is ready do you show the … hint"*), none
-  when it gave nothing; `— ElevenLabs over budget` / `— Wispr Flow over budget` added when the budget
-  runs out, **the only thing the deadline does** — nothing is inserted on a clock. It goes when the
-  engine's words land (the local ones discarded) or when ⌘⌃X takes them. Checkbox OFF, or a sentence
-  never armed → `Local now` from one second into the wait, as before. The 09-28 countdown (`Local in
-  2.1 s`) and the `💻 Local — <engine> over budget` flash are gone. A sentence on Engine = Wispr with
-  Wispr down flashes `💻 Local — Wispr Flow is starting`. States page: `transcribing-use-local`,
-  `transcribing-use-local-over-budget`, `listening-wispr-starting`.
+  **With *Backup Local Pre-Transcribe* ON the row is the countdown `💻 Fallback to local in 3s
+  ⌘⌃X`** (2026-10-06 — Victor: *"put it like fallback to local in countdown timer and then show the
+  key shortcuts"*; `AutoLocal.rowText` / `AutoLocal.row`, `setLocalNow(_:loading:countdown:)`): from
+  one second into the wait to the budget, whole seconds rounded up, `now` at zero while the decode
+  ahead finishes; at zero the local words go in (`dictation-source.md`). **No engine's name on it**
+  (*"don't leak the name of any tool, only the icon"* — the logo on `Transcribing via` says which).
+  No row when the local model gave nothing. It goes when the engine's words land or the local ones
+  go in. A whole-second change is a relayout (once a second, this row only). Checkbox OFF, or a
+  sentence never armed → `Local now` from one second into the wait. Gone: 09-29's `Use local  ⌘⌃X —
+  <engine> over budget`. A sentence on Engine = Wispr with Wispr down flashes `💻 Local — Wispr Flow
+  is starting`; with Wispr still on the last take, `💻 Local — the last take is still being
+  transcribed`. States page: `transcribing-fallback-countdown`, `transcribing-fallback-now`,
+  `listening-wispr-starting`.
 
 ## `Listening...` and `Transcribing...`
 
@@ -297,21 +299,11 @@ yields to `--label`).
   microphone is shut — so saying both at once meant one of them was always a forecast. The bar's
   step count is `transcribeWord.count`, so the mark lengthens the ramp rather than sitting outside
   it, and the logo **fills with it** since 2026-10-01 (it was always lit until then).
-- **Past 150 % of the estimate the row says so — in two pictures, `  🤔⏱️`, no words since
-  2026-09-23** (*"să apară doar emojiurile 🤔⏱️, fără textul de după"*; it read `🤔Taking longer
-  than usual...` from 2026-09-22) — appended after the word, always lit, **outside the bar**: `transcribeWarmth` is a
-  fraction against a character count, and joining the note to `transcribeWord` would move the ramp
-  under a row already half lit. Victor: *"dacă durează > 150% din cât trebuie pe statistic, să
-  adauge la tooltip 🤔Taking longer than usual..."*. The bar already said *past my own estimate* by
-  arriving full and staying there, and that was enough until the evening Wispr began leaving
-  finished sentences labelled `raw_transcript` — a full bar and a lost sentence look exactly alike.
-  The threshold is read off `transcribeSpan`, which **is** `DecodeRate`'s promise and the very
-  number the ink is drawn from, so the words and the bar can never disagree. Its arrival is the
-  **third** relayout a dictation is allowed (the `HQ` tag and the once-a-minute `(Nm)` are the
-  others) — the note makes the row wider, so it cannot be written straight onto the label — and it
-  happens once, on the edge. With no estimate (`audio == 0`) there is no ticker and no note: there
-  is no statistic to be 150 % of. `pinTranscribeOverdue` is the shots' way in.
-  → journal: *`raw_transcript` is a finished sentence Wispr never labelled*
+- **No overdue note on the `Transcribing` row since 2026-10-06** — the `  🤔⏱️` appended past 150 %
+  of the estimate (2026-09-22/23) is gone (Victor: *"remove the thinking face from the tooltip …
+  when the transcribing tool exceeds its time budget"*); the ⌘⌃X row's countdown says how long is
+  left instead. `pinTranscribeOverdue` and the `transcribing-overdue` shot went with it. The row's
+  only relayouts during a decode are now none. → journal: *The countdown to the local words (2026-10-06)*
 - **`Transcribing...` fills from `DecodeRate`'s deadline and carries no digits** (2026-09-08).
   `transcribeDeadline`, `transcribeSpan` and the fitted line are what the bar is drawn from; the
   `4s` countdown went the same day (*"e doar stresant. Lasă să se sugereze progressbar-ul prin
@@ -479,8 +471,9 @@ yields to `--label`).
   secundă lag"* (gone 2026-09-07). → journal: *Two shapes: the chip and the panel*
 - **Never edit `docs/overlay-states.html` by hand.** → journal: *The overlay's states are photographed, and the page is part of the change*
 - **The ramp timer and the transcribe timer must never reach `layoutContent`.** The only relayouts
-  a dictation is allowed are the `HQ` tag's arrival, the once-a-minute `(Nm)` tick and the overdue
-  note's one edge (2026-09-22) — three events in a sentence, each of which really does change the
+  a dictation is allowed are the `HQ` tag's arrival, the once-a-minute `(Nm)` tick and the ⌘⌃X
+  countdown's whole-second digit (2026-10-06, from `syncLocalNow`, never from the ink ticker; the
+  overdue note's edge went that day) — events in a sentence, each of which really does change the
   row's width, and none of which is per frame.
   → journal: *Two implementation traps, both paid for*
 - **Never put a raw emoji into an attributed string on a label that carries a halo** — go through

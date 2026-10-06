@@ -17,15 +17,21 @@ import Foundation
 /// fallback automatically, only show when it is ready, and the human decides
 /// when to insert."*
 ///
+/// 2026-10-06, reversed again. Victor: *"put a countdown timer … and when the
+/// timer expires, the local dictation is automatically injected"* (that
+/// morning he had pressed ⌘⌃X twice, 11 s and 18 s past a 3.4 s budget, while
+/// Wispr Flow sat on a row that never finished).
+///
 /// So, ON (the default): at the close of a sentence on ElevenLabs or Wispr Flow
 /// the budget is read (`DecodeRate.budget`, the engine's p95 for that length,
 /// clamped), the local model decodes the take **speculatively** from
-/// `budget − localEta` (`specStart`) and holds the words; when they are ready
-/// the chip offers them — `💻 Use local  ⌘⌃X` — until the engine's words land
-/// (the local ones are then discarded, logged `wasted`) or he presses ⌘⌃X
-/// (inserted at once, `via: local-forced`). **The budget running out inserts
-/// nothing**: the row only says so (`— <engine> over budget`). The local weights
-/// are kept warm while another engine is picked. OFF: no decode ahead, the row
+/// `budget − localEta` (`specStart`) and holds the words. From one second into
+/// the wait the chip counts down to the budget — `💻 Fallback to local in 3s
+/// ⌘⌃X`; **at zero the local words go in** (`via: local-auto`; a decode still
+/// running is waited for), unless the engine's words landed first (the local
+/// ones are then discarded, logged `wasted`) or he pressed ⌘⌃X (inserted at
+/// once, `via: local-forced`). The local weights are kept warm while another
+/// engine is picked. OFF: no decode ahead, nothing inserted on a clock, the row
 /// is ⌘⌃X's plain `Local now` from one second into the wait.
 ///
 /// Not this checkbox's (unchanged, automatic, 2026-09-28 decisions): the hard
@@ -48,15 +54,29 @@ enum AutoLocal {
     /// The Engine submenu's row title.
     static let menuTitle = "Backup Local Pre-Transcribe"
 
-    /// **The chip's ⌘⌃X row.** `Use local  ⌘⌃X` when the words decoded ahead
-    /// are in hand (Victor's words for it, 2026-09-29) — `— ElevenLabs over
-    /// budget` once the budget has run out, the only thing the deadline does
-    /// now; otherwise ⌘⌃X's own `Local now`, `(loading)` while the weights are down.
-    static func rowText(ready: Bool, overBudget engine: String? = nil, loading: Bool, keys: String) -> String {
-        if ready {
-            return "Use local  " + keys + (engine.map { " — \($0) over budget" } ?? "")
+    /// **The chip's ⌘⌃X row.** With a decode ahead armed for this sentence it
+    /// counts down to the budget — `Fallback to local in 3s  ⌘⌃X` (2026-10-06,
+    /// Victor: *"put it like fallback to local in countdown timer and then show
+    /// the key shortcuts"*), whole seconds rounded up, `now` at zero while the
+    /// local words are still being decoded. **No engine's name** (same day:
+    /// *"don't leak the name of any tool, only the icon"* — the logo on the
+    /// `Transcribing via` row says which). Otherwise ⌘⌃X's own `Local now`,
+    /// `(loading)` while the weights are down.
+    static func rowText(countdown: TimeInterval? = nil, loading: Bool, keys: String) -> String {
+        if let c = countdown {
+            let s = Int(c.rounded(.up))
+            return "Fallback to local " + (s > 0 ? "in \(s)s" : "now") + "  " + keys
         }
         return "Local now" + (loading ? " (loading)" : "") + "  " + keys
+    }
+
+    /// **The budget ran out: are the local words to go in now?** (2026-10-06,
+    /// Victor: *"when the timer expires, the local dictation is automatically
+    /// injected"* — the 2026-09-29 *offered, never inserted* reversed.) Only
+    /// words in hand: a decode still running is waited for (the tick asks again),
+    /// and one that gave nothing leaves the sentence to the engine.
+    static func shouldHandOver(expired: Bool, phase: SpecPhase, handedOver: Bool) -> Bool {
+        expired && !handedOver && phase == .ready
     }
 
     // MARK: - The speculative local decode (2026-09-29)
@@ -99,17 +119,21 @@ enum AutoLocal {
         phase == .planned && wavKnown && elapsed >= startAt
     }
 
-    /// **Is the row up, and what does it say?** — pure. With the checkbox ON and
-    /// a decode planned for this sentence the row waits for the words (*"only
-    /// when the local transcription is ready"*): nothing while planned or
-    /// running, and nothing when the local model had nothing to give (failed /
-    /// skipped — a ⌘⌃X would only reach Recover or a second decode). With no
-    /// decode planned (OFF, or a sentence that was never armed) it is ⌘⌃X's
-    /// plain row from `localNowRowDelay` into the wait, as before.
-    static func row(waiting: Bool, pastDelay: Bool, spec: SpecPhase?) -> (shown: Bool, ready: Bool) {
-        guard waiting else { return (false, false) }
-        guard let spec else { return (pastDelay, false) }
-        return spec == .ready ? (true, true) : (false, false)
+    /// **Is the row up, and what does it say?** — pure. With a decode armed for
+    /// this sentence (planned, running or ready) the row is the countdown to the
+    /// budget from `localNowRowDelay` into the wait (2026-10-06 — it waited for
+    /// the words until then), `left` seconds to go; nothing when the local model
+    /// had nothing to give (failed / skipped / discarded — the engine's words are
+    /// the only ones coming). With no decode planned (OFF, or a sentence that was
+    /// never armed) it is ⌘⌃X's plain row from `localNowRowDelay` into the wait.
+    static func row(waiting: Bool, pastDelay: Bool, spec: SpecPhase?,
+                    left: TimeInterval = 0) -> (shown: Bool, countdown: TimeInterval?) {
+        guard waiting else { return (false, nil) }
+        guard let spec else { return (pastDelay, nil) }
+        switch spec {
+        case .planned, .running, .ready: return (pastDelay, max(0, left))
+        case .failed, .skipped, .discarded: return (false, nil)
+        }
     }
 
     // MARK: - One line per sentence, for reading back (2026-09-29)
@@ -134,11 +158,12 @@ enum AutoLocal {
         /// The engine's words (or its failure) reached the relay.
         var engineAnswer: TimeInterval?
         var engineFailed = false
-        /// The budget ran out with the words still out (never inserts anything).
+        /// The budget ran out with the words still out (the local words go in — 2026-10-06).
         var budgetExpired: TimeInterval?
-        /// When `Use local` first went up on the chip.
+        /// When the countdown first went up on the chip.
         var rowShown: TimeInterval?
-        /// `engine` · `local-forced` (⌘⌃X) · `local-fallback` (Q14, a hard
+        /// `engine` · `local-forced` (⌘⌃X) · `local-auto` (the budget ran out,
+        /// 2026-10-06) · `local-fallback` (Q14, a hard
         /// failure) · `recover` (staged for Recover) · `cancelled` · `silent`.
         var outcome: String?
         /// A local decode ran (or was running) whose words were not the ones delivered.
@@ -196,6 +221,7 @@ enum AutoLocal {
         static func outcome(via: String?) -> String {
             switch via {
             case "local-forced": return "local-forced"
+            case "local-auto": return "local-auto"
             case "local-fallback": return "local-fallback"
             default: return "engine"
             }
@@ -216,6 +242,10 @@ enum AutoLocal {
         defer { close(fd) }
         _ = line.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
     }
+
+    /// The flash when a Wispr sentence starts while Wispr Flow still works on the
+    /// take handed to this Mac (2026-10-06) — no engine's name on the chip.
+    static let wisprBusyFlash = "💻 Local — the last take is still being transcribed"
 
     /// The flash when a Wispr sentence starts with Wispr Flow down (or just launched).
     static let wisprStartingFlash = "💻 Local — Wispr Flow is starting"

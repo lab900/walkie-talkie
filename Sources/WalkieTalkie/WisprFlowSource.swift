@@ -3278,10 +3278,12 @@ final class WisprFlowSource: DictationSource {
     /// the relay's (`WisprOwnership.verdict`, `rowsHeld`) for five minutes.
     private func watchLateRow(_ row: Int64, pid: pid_t = 0, closedAt: Double = 0, dismissedAt: Double = 0) {
         hotkeys.holdWisprOwned(true)
+        lateRow = row
         let until = Date().addingTimeInterval(Self.lateRowWatch)
         func tick() {
             if let e = WisprHistory.entry(rowid: row) {
                 if WisprState.isTerminal(e.status) {
+                    if lateRow == row { lateRow = nil }
                     Log.info("wispr history: late row \(row) came back \(e.status) (\(e.text.count) chars) after the relay had given up on it — only logged, never a second delivery (Q2)")
                     DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteGrace) { self.hotkeys.holdWisprOwned(false) }
                     return
@@ -3297,15 +3299,35 @@ final class WisprFlowSource: DictationSource {
                                                        now: now)) {
                     Log.info("wispr history: the row the relay gave up on is dead — \(dead); its hold on Wispr's ⌘V is let go (batch 3)")
                     hotkeys.holdWisprOwned(false)
+                    if lateRow == row { lateRow = nil }
                     return
                 }
             }
-            guard Date() < until else { hotkeys.holdWisprOwned(false); return }
+            guard Date() < until else {
+                hotkeys.holdWisprOwned(false)
+                if lateRow == row { lateRow = nil }
+                return
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { tick() }
         }
         tick()
     }
     private static let lateRowWatch: TimeInterval = 300
+
+    /// The row the relay gave up on, while `watchLateRow` still owns it.
+    private var lateRow: Int64?
+
+    /// **Wispr Flow is still working on a take the relay gave up on** — the row,
+    /// or nil (2026-10-06). It takes one sentence at a time: on 10:25:11 a start
+    /// chord posted while row 18414 (handed to the local model by ⌘⌃X six seconds
+    /// before) was still `processing` was ignored, and the sentence learnt so only
+    /// 12 s later (`holdOwnTake`) — the local model by the back door. Read live
+    /// off `History`: a row gone terminal or dead is not busy.
+    var stillFinishingAbandonedRow: Int64? {
+        guard let row = lateRow, let e = WisprHistory.entry(rowid: row),
+              !WisprState.isTerminal(e.status) else { return nil }
+        return row
+    }
 
     /// **A cancelled Wispr sentence keeps the relay's recording for Recover**
     /// (W3, 2026-09-28) — it used to be deleted at the close (*nothing had been

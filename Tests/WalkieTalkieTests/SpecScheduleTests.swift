@@ -2,7 +2,7 @@ import XCTest
 @testable import WalkieTalkie
 
 /// The local transcript prepared ahead (2026-09-29): started `budget − localEta`
-/// after the close, held, offered on the row, **never inserted by the clock** —
+/// after the close, held, counted down to on the row, **inserted when the budget runs out** (2026-10-06) —
 /// `AutoLocal.specStart` / `shouldStart` / `row` and the `📊 fallback:` trace.
 final class SpecScheduleTests: XCTestCase {
 
@@ -28,19 +28,34 @@ final class SpecScheduleTests: XCTestCase {
         }
     }
 
-    func testTheRowWaitsForTheWordsWhenADecodeIsPlanned() {
-        // With a decode planned: no row until it is ready — however long the wait.
-        for p in [AutoLocal.SpecPhase.planned, .running, .failed, .skipped, .discarded] {
-            XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: p).shown, false, p.rawValue)
+    func testTheRowCountsDownToTheBudgetWhenADecodeIsArmed() {
+        // 2026-10-06: armed → the countdown from a second into the wait, whatever the decode's phase.
+        for p in [AutoLocal.SpecPhase.planned, .running, .ready] {
+            XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: p, left: 2.4).shown, true, p.rawValue)
+            XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: p, left: 2.4).countdown, 2.4, p.rawValue)
+            XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: false, spec: p, left: 2.4).shown, false, p.rawValue)
         }
-        XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: false, spec: .ready).shown, true)
-        XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: false, spec: .ready).ready, true)
+        XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: .running, left: -0.7).countdown, 0)
+        // The local model had nothing to give: no row, the engine's words are the only ones coming.
+        for p in [AutoLocal.SpecPhase.failed, .skipped, .discarded] {
+            XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: p, left: 2).shown, false, p.rawValue)
+        }
         // The words landed: the row goes, whatever the decode did.
-        XCTAssertEqual(AutoLocal.row(waiting: false, pastDelay: true, spec: .ready).shown, false)
+        XCTAssertEqual(AutoLocal.row(waiting: false, pastDelay: true, spec: .ready, left: 1).shown, false)
         // No decode planned (checkbox off, a sentence never armed): ⌘⌃X's plain row after a second.
         XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: false, spec: nil).shown, false)
         XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: nil).shown, true)
-        XCTAssertEqual(AutoLocal.row(waiting: true, pastDelay: true, spec: nil).ready, false)
+        XCTAssertNil(AutoLocal.row(waiting: true, pastDelay: true, spec: nil).countdown)
+    }
+
+    func testTheBudgetRunningOutHandsOverOnlyWordsInHandAndOnce() {
+        XCTAssertTrue(AutoLocal.shouldHandOver(expired: true, phase: .ready, handedOver: false))
+        XCTAssertFalse(AutoLocal.shouldHandOver(expired: false, phase: .ready, handedOver: false))
+        XCTAssertFalse(AutoLocal.shouldHandOver(expired: true, phase: .ready, handedOver: true))
+        for p in [AutoLocal.SpecPhase.planned, .running, .failed, .skipped, .discarded] {
+            XCTAssertFalse(AutoLocal.shouldHandOver(expired: true, phase: p, handedOver: false), p.rawValue)
+        }
+        XCTAssertEqual(AutoLocal.Trace.outcome(via: "local-auto"), "local-auto")
     }
 
     private func budget(_ seconds: Double, samples: Int = 100, engine: String = DecodeRate.wisprFlow) -> DecodeRate.Budget {

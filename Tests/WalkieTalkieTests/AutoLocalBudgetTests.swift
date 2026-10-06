@@ -81,12 +81,13 @@ final class AutoLocalBudgetTests: XCTestCase {
         XCTAssertTrue(w.allSatisfy { !$0.cold && $0.engineKey == DecodeRate.elevenLabs })
     }
 
-    func testTheChipRowSaysUseLocalOnlyWithTheWordsInHand() {
-        XCTAssertEqual(AutoLocal.rowText(ready: true, loading: false, keys: "⌘⌃X"), "Use local  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.rowText(ready: true, overBudget: "ElevenLabs", loading: true, keys: "⌘⌃X"),
-                       "Use local  ⌘⌃X — ElevenLabs over budget")
-        XCTAssertEqual(AutoLocal.rowText(ready: false, loading: false, keys: "⌘⌃X"), "Local now  ⌘⌃X")
-        XCTAssertEqual(AutoLocal.rowText(ready: false, loading: true, keys: "⌘⌃X"), "Local now (loading)  ⌘⌃X")
+    func testTheChipRowCountsDownWithNoEngineName() {
+        XCTAssertEqual(AutoLocal.rowText(countdown: 2.4, loading: false, keys: "⌘⌃X"), "Fallback to local in 3s  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(countdown: 3.0, loading: true, keys: "⌘⌃X"), "Fallback to local in 3s  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(countdown: 0.01, loading: false, keys: "⌘⌃X"), "Fallback to local in 1s  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(countdown: 0, loading: false, keys: "⌘⌃X"), "Fallback to local now  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(loading: false, keys: "⌘⌃X"), "Local now  ⌘⌃X")
+        XCTAssertEqual(AutoLocal.rowText(loading: true, keys: "⌘⌃X"), "Local now (loading)  ⌘⌃X")
         XCTAssertEqual(AutoLocal.menuTitle, "Backup Local Pre-Transcribe")
     }
 }

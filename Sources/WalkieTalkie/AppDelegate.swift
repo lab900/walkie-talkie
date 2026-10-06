@@ -4054,8 +4054,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // **⌘⌃X is not a failure** (2026-09-28): asked for, so no warning rides
         // the words and `lastFailure` keeps the last real one.
         let forced = why == DictationEnd.localForced
-        // (2026-09-28 evening to 2026-09-29 morning a clock could press ⌘⌃X —
-        // `via: local-auto`. Gone: only a human inserts the local words.)
+        // (A clock presses ⌘⌃X again since 2026-10-06 — `handOverAtBudget`,
+        // `via: local-auto`; it is the same request, not a failure.)
         if !forced {
             lastFailure = (why, engineId, Date())
             // **A hard failure, not a timeout** — Q14 stays automatic (2026-09-29:
@@ -4134,11 +4134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return (false, "nothing is recording or in flight")
     }
 
-    /// ⌘⌃X, the menu row, `POST /test/local-now` — main queue. True when the
-    /// take was handed over. **Only ever a human's request** (2026-09-29, Victor:
-    /// *"the insertion of the local transcription must be done at the human's
-    /// request, never automatically"*): nothing on a clock calls this. With the
-    /// words already decoded ahead (`Use local`), they go in at once.
+    /// ⌘⌃X, the menu row, `POST /test/local-now`, and the budget running out
+    /// (`handOverAtBudget`, 2026-10-06) — main queue. True when the take was
+    /// handed over. With the words already decoded ahead, they go in at once.
     @discardableResult
     func transcribeLocallyNow(from gesture: String) -> Bool {
         let a = localNowAvailability()
@@ -4189,10 +4187,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let pastDelay = waiting && now - (localNowWaitingSince ?? now) >= Self.localNowRowDelay - 0.05
         // **The speculative decode's clock** (2026-09-29): started at
-        // `budget − localEta`, held when done, offered on the row. The budget
-        // running out inserts nothing — it is logged and the row says so.
+        // `budget − localEta`, held when done. **The budget running out puts the
+        // local words in** (2026-10-06), and the row counts down to it.
         var specPhase: AutoLocal.SpecPhase?
-        var overBudget: String?
+        var left: TimeInterval = 0
         if let w = autoLocalWait, !w.settled {
             if !a.available || source === whisperSource {
                 // The words landed (or the sentence ended, or the local model took it).
@@ -4203,19 +4201,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             } else if waiting, AutoLocal.isOn, let sp = spec, sp.sentence === w.sentence {
                 let elapsed = now - w.since
+                left = w.budget.seconds - elapsed
                 if !w.expired, elapsed >= w.budget.seconds {
                     autoLocalWait?.expired = true
                     withTrace(w.sentence) { $0.budgetExpired = elapsed }
                     let local: String
                     switch sp.phase {
-                    case .ready: local = "the local words are ready — offered on ⌘⌃X"
-                    case .running: local = "the local decode is still running — offered when it is done"
+                    case .ready: local = "the local words are ready — they go in now"
+                    case .running: local = "the local decode is still running — its words go in when it is done"
                     case .planned: local = "the local decode has not started (no WAV yet)"
-                    case .failed: local = "the local model gave no words"
+                    case .failed: local = "the local model gave no words — the engine's are the only ones coming"
                     case .skipped: local = "no local decode (under the voiced floor)"
                     case .discarded: local = "the local words were discarded"
                     }
-                    Log.info(String(format: "⏱ %@ over budget — %.1f s since the close, budget %.1f s: nothing is inserted; %@",
+                    Log.info(String(format: "⏱ %@ over budget — %.1f s since the close, budget %.1f s: %@",
                                     w.engineName, elapsed, w.budget.seconds, local))
                 }
                 learnSpecAudio(sp)
@@ -4223,21 +4222,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     startSpec(sp)
                 }
                 specPhase = sp.phase
-                if autoLocalWait?.expired == true { overBudget = w.engineName }
+                if AutoLocal.shouldHandOver(expired: autoLocalWait?.expired == true, phase: sp.phase,
+                                            handedOver: w.handedOver) {
+                    autoLocalWait?.handedOver = true
+                    // Off this tick: the hand-over re-enters `syncLocalNow` and
+                    // tears the wait down under the lines below.
+                    let sentence = w.sentence
+                    DispatchQueue.main.async { [weak self] in self?.handOverAtBudget(sentence) }
+                }
             }
         }
-        let row = AutoLocal.row(waiting: waiting, pastDelay: pastDelay, spec: specPhase)
-        if row.ready, let w = autoLocalWait {
+        let row = AutoLocal.row(waiting: waiting, pastDelay: pastDelay, spec: specPhase, left: left)
+        if row.shown, row.countdown != nil, let w = autoLocalWait {
             var first = false
             withTrace(w.sentence) { t in
                 if t.rowShown == nil { t.rowShown = now - w.since; first = true }
             }
             if first {
-                Log.info(String(format: "💻 Use local ⌘⌃X is on the chip — %.2f s after the close, budget %.1f s", now - w.since, w.budget.seconds))
+                Log.info(String(format: "💻 the countdown to the local words is on the chip — %.2f s after the close, budget %.1f s", now - w.since, w.budget.seconds))
             }
         }
-        overlay.setLocalNow(row.shown, loading: !row.ready && !whisperSource.isReady, ready: row.ready,
-                            overBudget: row.ready ? overBudget : nil)
+        overlay.setLocalNow(row.shown, loading: !whisperSource.isReady, countdown: row.countdown)
         if a.available, localNowTick == nil {
             // 0.1 s: the decode's start is read here.
             let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in self?.syncLocalNow() }
@@ -4250,15 +4255,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     private var localNowTick: Timer?
 
+    /// **The budget ran out and the local words are in hand: they go in**
+    /// (2026-10-06) — ⌘⌃X pressed by the clock, `via: local-auto`. Only for the
+    /// sentence the clock was running for, and only while its words are still out.
+    private func handOverAtBudget(_ sentence: Sentence?) {
+        guard let w = autoLocalWait, w.sentence === sentence, !w.settled else { return }
+        localAutoTake = true
+        if !transcribeLocallyNow(from: "⏱ the budget ran out") { localAutoTake = false }
+    }
+    /// The hand-over in flight is the clock's, not his ⌘⌃X — `via: local-auto`.
+    private var localAutoTake = false
+
     // MARK: - Prepare local transcript (p95): decoded ahead, offered, never inserted (2026-09-29)
 
     /// **This sentence's budget on the cloud engine** — armed at the close
     /// (`dictationStoppedListening`), read by `syncLocalNow`'s tick. The budget
     /// is `DecodeRate.budget` (the engine's p95 for this length, clamped to
     /// [1.5 s, 0.3 × audio + 1 s]). It schedules the decode ahead and is logged
-    /// when it runs out; **it inserts nothing** (Victor, 2026-09-29: *"never
-    /// insert the local fallback automatically, only show when it is ready, and
-    /// the human decides when to insert"*). Kept after the words land, for
+    /// when it runs out; **then the local words go in** (2026-10-06, Victor:
+    /// *"when the timer expires, the local dictation is automatically injected"*
+    /// — the 09-29 *only a human inserts* reversed). Kept after the words land, for
     /// `/test/state.localAuto`, until the next close.
     private struct AutoLocalWait {
         let budget: DecodeRate.Budget
@@ -4272,6 +4288,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var settled = false
         /// The budget ran out with the words still out.
         var expired = false
+        /// The clock handed the local words over (2026-10-06, `via: local-auto`).
+        var handedOver = false
     }
     private var autoLocalWait: AutoLocalWait?
 
@@ -4342,7 +4360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || (source === wisprSource ? WisprFlowDB.overridePath != nil : ElevenLabsSource.batchOverridden)
         if let sentence { sentence.fallback = trace } else { looseTrace = trace }
         spec = SpecLocal(sentence: sentence, take: source.take, closeAt: now, startAt: trace.specPlanned)
-        Log.info(b.logLine + String(format: " — the local transcript is prepared from +%.2f s (localEta %.2f s%@) and offered on ⌘⌃X when ready; nothing is inserted on its own",
+        Log.info(b.logLine + String(format: " — the local transcript is prepared from +%.2f s (localEta %.2f s%@); it goes in when the budget runs out, ⌘⌃X sooner",
                                     trace.specPlanned, eta, testLocalEta != nil || testBudget != nil ? ", forced by POST /test/local-auto" : ""))
         syncLocalNow()
     }
@@ -4392,7 +4410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else if !wasRunning {
                 Log.info(String(format: "🔮 local transcript done +%.2f s after the close (%.2f s) — discarded already: wasted", done - sp.closeAt, done - now))
             } else if let words {
-                Log.info(String(format: "🔮 local transcript ready +%.2f s after the close (decoded in %.2f s), %d chars — offered on ⌘⌃X, not inserted",
+                Log.info(String(format: "🔮 local transcript ready +%.2f s after the close (decoded in %.2f s), %d chars — held for the budget (or ⌘⌃X)",
                                 done - sp.closeAt, done - now, words.text.count))
             } else {
                 Log.error(String(format: "🔮 local transcript: the local model gave no words (+%.2f s) — nothing to offer", done - sp.closeAt))
@@ -4643,17 +4661,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func transcribeLocally(wav: URL, duration: TimeInterval, standingInFor failed: String,
                                    forced: Bool = false,
                                    _ done: @escaping (DictationResult?) -> Void) {
+        // Read once, at the hand-over: the flag is the clock's, for this take only.
+        let byClock = forced && localAutoTake
+        localAutoTake = false
         func finish(_ r: LocalWhisper.Result?, ahead: String?) {
             guard let r, !r.text.isEmpty else {
                 Log.error("↪️ the local model heard no words in it")
                 return done(nil)
             }
-            Log.info("↪️ transcribed on this Mac instead of \(failed)\(forced ? " (⌘⌃X)" : "")\(ahead.map { " — \($0)" } ?? "") — \(r.text.count) chars")
+            Log.info("↪️ transcribed on this Mac instead of \(failed)\(byClock ? " (the budget ran out)" : forced ? " (⌘⌃X)" : "")\(ahead.map { " — \($0)" } ?? "") — \(r.text.count) chars")
             done(DictationResult(
                 text: r.text, language: r.language, audio: wav, duration: duration,
                 engine: "whisper-local",
                 warning: forced ? nil : "⚠️ \(failed) was unavailable — transcribed on this Mac",
-                delivery: .route, via: forced ? "local-forced" : "local-fallback",
+                delivery: .route, via: forced ? (byClock ? "local-auto" : "local-forced") : "local-fallback",
                 // The failed engine spliced its markers into this very file.
                 markersInAudio: true,
                 engineLabel: LocalWhisperSource.modelLabel,
@@ -5299,6 +5320,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 borrowedForWispr = true
                 launchWisprInBackground()
                 overlay.flash(AutoLocal.wisprStartingFlash, duration: 3)
+            }
+        }
+        // **Nor for a Wispr still finishing the take the relay gave up on**
+        // (2026-10-06): it would ignore the chord, and the sentence found out 12 s
+        // in. Same engine for every gesture — this is the hard-failure borrow,
+        // decided here, once, for all four (bound, caret, new session, clean).
+        if source === wisprSource, !borrowedForWispr, let row = wisprSource.stillFinishingAbandonedRow {
+            borrowEngine(whisperSource, for: "Wispr Flow is still finishing row \(row), the take handed to this Mac — it would ignore the chord")
+            if source === whisperSource {
+                borrowedForWispr = true
+                overlay.flash(AutoLocal.wisprBusyFlash, duration: 3)
             }
         }
         if let why = source.start() {
